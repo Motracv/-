@@ -1,0 +1,1078 @@
+"use strict";
+const { Game, CARDS, defense } = Battle,
+  $ = (id) => document.getElementById(id);
+const typeIcons = {
+  공격: "⚔",
+  방어: "◈",
+  반격: "↩",
+  회복: "✿",
+  마법: "ϟ",
+  필드: "✧",
+  특수: "✦",
+};
+let artFiles = new Set();
+let local,
+  view,
+  online = null,
+  selected = new Set(),
+  exchange = false,
+  busy = false,
+  lastEvent = 0,
+  aiTimer,
+  toastTimer,
+  streamAbort;
+let server =
+  localStorage.getItem("card-server") ||
+  (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? location.origin : "");
+const sessionKey = "card-session";
+function el(tag, text, cls) {
+  const x = document.createElement(tag);
+  if (text !== undefined) x.textContent = text;
+  if (cls) x.className = cls;
+  return x;
+}
+function toast(msg) {
+  $("toast").textContent = msg;
+  $("toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ($("toast").hidden = true), 5000);
+}
+function closeChoice() {
+  $("choice-dialog").close();
+  $("choice-body").replaceChildren();
+  $("choice-actions").replaceChildren();
+}
+function choice(title, build, { cancel = true } = {}) {
+  closeChoice();
+  $("choice-title").textContent = title;
+  build($("choice-body"), $("choice-actions"));
+  if (cancel) {
+    const b = el("button", "취소");
+    b.onclick = closeChoice;
+    $("choice-actions").append(b);
+  }
+  $("choice-dialog").showModal();
+}
+function button(where, label, fn) {
+  const b = el("button", label);
+  b.onclick = fn;
+  where.append(b);
+  return b;
+}
+function self() {
+  return view.players[view.me];
+}
+function targets(allowSelf = false) {
+  return view.players.filter(
+    (p) => p.hp > 0 && (allowSelf || p.id !== view.me),
+  );
+}
+function pickTarget(title, fn, allowSelf = false) {
+  choice(title, (body) => {
+    for (const p of targets(allowSelf))
+      button(body, `${p.name} · HP ${p.hp}`, () => {
+        closeChoice();
+        fn(p.id);
+      });
+  });
+}
+function refresh(next) {
+  const was = view;
+  view = next;
+  selected = new Set(
+    [...selected].filter((uid) => self().hand?.some((c) => c.uid === uid)),
+  );
+  if (was?.revision !== view.revision) {
+    selected.clear();
+    exchange = false;
+    if ($("choice-dialog").open) closeChoice();
+  }
+  render();
+  animateEvents();
+  mandatoryChoice();
+  scheduleAI();
+}
+function localStart() {
+  clearTimeout(aiTimer);
+  local = new Game(["나", "AI"]);
+  online = null;
+  lastEvent = 0;
+  selected.clear();
+  closeChoice();
+  $("lobby-dialog").close();
+  refresh(local.view(0));
+}
+async function command(input) {
+  if (busy) return;
+  busy = true;
+  render();
+  try {
+    input.revision = view.revision;
+    if (online) {
+      const result = await api("/api/action", input);
+      receive(result);
+    } else {
+      local.action(0, input);
+      refresh(local.view(0));
+    }
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    busy = false;
+    render();
+    mandatoryChoice();
+    scheduleAI();
+  }
+}
+function fighter(p) {
+  const x = el(
+    p.id === view.me ? "div" : "button",
+    undefined,
+    "fighter" +
+      (view.turn === p.id ? " active-seat" : "") +
+      (p.hp <= 0 ? " dead" : ""),
+  );
+  x.dataset.player = p.id;
+  x.append(el("b", p.name));
+  const row = el("div", undefined, "hp-row"),
+    track = el("div", undefined, "track"),
+    fill = el("div", undefined, "fill");
+  fill.style.width = (p.hp / 60) * 100 + "%";
+  track.append(fill);
+  row.append(track, el("span", `${p.hp}/60`));
+  x.append(row, el("small", `손패 ${p.count}장`));
+  const tags = [];
+  const statuses = {
+    red: "빨간노트",
+    noheal: "회복 금지",
+    touch: "획득 금지",
+    xerath: "제라스",
+    skip: "차례 생략",
+    invincible: "무적",
+  };
+  for (const [key, value] of Object.entries(p.status))
+    tags.push(statuses[key] + (value.left ? ` ${value.left}` : ""));
+  if (tags.length) x.append(el("small", tags.join(" · "), "tags"));
+  if (p.id !== view.me)
+    x.onclick = () => {
+      if (view.phase === "turn" && view.turn === view.me && selected.size === 1)
+        play(p.id);
+      else toast(`${p.name} · HP ${p.hp} · 손패 ${p.count}장`);
+    };
+  return x;
+}
+function render() {
+  if (!view) return;
+  const p = self();
+  $("opponents").replaceChildren(
+    ...view.players.filter((x) => x.id !== view.me).map(fighter),
+  );
+  $("self").replaceChildren(fighter(p));
+  $("hand-count").textContent = `${p.count}/7`;
+  $("connection").textContent = online ? `온라인 · ${online.code}` : "AI 연습";
+  $("turn").textContent =
+    view.phase === "over"
+      ? "게임 종료"
+      : `${view.players[view.turn].name}의 차례`;
+  const pending = view.pending,
+    ownTurn = view.phase === "turn" && view.turn === view.me && p.hp > 0,
+    react = view.phase === "react" && pending.to === view.me;
+  const phaseTexts = {
+    turn: ownTurn
+      ? "내 차례 · 카드 1장 또는 최대 2장 교환"
+      : "상대가 선택하고 있습니다",
+    react: react
+      ? `공격 도착 · 피해 ${pending?.amount}`
+      : `${view.players[pending?.to]?.name} 방어 선택 중`,
+    gift: `${view.players[pending?.target]?.name} 선물 응답 중`,
+    steal: "호시노 · 카드 2장 선택 중",
+    discard: `${view.players[pending?.actor]?.name} 초과 손패 버리기`,
+    over:
+      view.winner === -1 ? "무승부" : `${view.players[view.winner]?.name} 승리`,
+  };
+  $("status").textContent = phaseTexts[view.phase] || "처리 중";
+  $("field").textContent = view.field
+    ? `필드 · ${CARDS[view.field.id - 1].name}${view.field.left ? ` · 남은 ${view.field.left}회` : ""}`
+    : "";
+  $("stop-field").hidden = !(
+    ownTurn &&
+    view.field?.id === 1 &&
+    view.field.owner === view.me
+  );
+  $("hand").replaceChildren();
+  const hand = p.hand || [],
+    availableWidth = $("hand").clientWidth;
+  const maxWidth = Math.min(
+    100,
+    (availableWidth - 48) / Math.max(hand.length, 1) + 6,
+  );
+  document.documentElement.style.setProperty(
+    "--card-w",
+    Math.max(28, maxWidth) + "px",
+  );
+  for (const [i, c] of hand.entries()) {
+    const card = CARDS[c.id - 1],
+      b = el(
+        "button",
+        undefined,
+        "card" +
+          (selected.has(c.uid) ? " selected" : "") +
+          (["防", "방어", "반격"].includes(card.type)
+            ? " counter"
+            : card.type === "회복"
+              ? " heal"
+              : ["마법", "필드"].includes(card.type)
+                ? " magic"
+                : ""),
+      );
+    b.style.setProperty("--angle", (i - (hand.length - 1) / 2) * 3 + "deg");
+    b.style.zIndex = i + 1;
+    b.setAttribute(
+      "aria-label",
+      `${card.id}. ${card.name}. ${card.desc}${c.armor !== undefined ? " 방어력 " + c.armor : ""}`,
+    );
+    b.setAttribute("aria-pressed", selected.has(c.uid));
+    b.append(
+      el("span", String(card.id).padStart(2, "0"), "rank"),
+      el("span", typeIcons[card.type], "icon"),
+      el("b", card.name),
+      el("small", card.type),
+    );
+    if (artFiles.has(card.id)) {
+      const img = el("img");
+      img.className = "art";
+      img.alt = "";
+      img.src = card.image;
+      img.onload = () => b.classList.add("has-art");
+      img.onerror = () => img.remove();
+      b.append(img);
+    }
+    b.onclick = () => {
+      if (exchange) {
+        if (selected.has(c.uid)) selected.delete(c.uid);
+        else if (selected.size < 2) selected.add(c.uid);
+        else toast("교환은 최대 2장입니다.");
+      } else {
+        if (selected.has(c.uid)) selected.clear();
+        else selected = new Set([c.uid]);
+      }
+      render();
+    };
+    $("hand").append(b);
+  }
+  const chosen = hand.find((c) => selected.has(c.uid)),
+    data = chosen && CARDS[chosen.id - 1];
+  $("selection-title").textContent = data
+    ? `${data.id}. ${data.name} · ${data.type}`
+    : exchange
+      ? "교환할 카드 최대 2장 선택"
+      : "카드를 선택하세요";
+  $("selection-desc").textContent = data
+    ? data.desc +
+      (chosen.armor !== undefined ? ` 현재 방어력 ${chosen.armor}.` : "") +
+      (react && chosen.id === 10
+        ? pending.amount <= 20
+          ? " 지금 공격 완전 방어 가능."
+          : " 지금 공격 방어 불가."
+        : "")
+    : "손패를 누르면 효과를 읽을 수 있습니다. 상대를 누르면 선택한 공격의 대상을 지정합니다.";
+  let playable =
+    ownTurn &&
+    data &&
+    ![2, 10, 13, 20, 23, 26, 29, 30].includes(data.id) &&
+    (!p.status.xerath || ["회복", "방어"].includes(data.type));
+  if (react)
+    playable =
+      data &&
+      defense.has(data.id) &&
+      !(pending.card === 9 && [2, 20].includes(data.id)) &&
+      !(pending.multi && data.id === 13);
+  $("play").disabled =
+    busy ||
+    (exchange ? !(ownTurn && selected.size && !p.status.touch) : !playable);
+  $("play").textContent = exchange
+    ? `${selected.size}장 교환`
+    : react
+      ? "방어·반격"
+      : "사용";
+  $("exchange").hidden = !ownTurn;
+  $("exchange").disabled = busy || !!p.status.touch;
+  $("exchange").textContent = exchange ? "교환 취소" : "교환 선택";
+  $("take").hidden = !react;
+  $("take").disabled = busy;
+  $("pass").hidden = !ownTurn;
+  $("pass").disabled = busy;
+  $("fuse").hidden = !(
+    ownTurn &&
+    hand.filter((c) => c.id === 5).length >= 2 &&
+    !p.status.xerath &&
+    !p.status.touch
+  );
+  $("fuse").disabled = busy;
+  $("new-game").textContent = online ? "나가기" : "새 게임";
+  $("log").replaceChildren(...view.logs.map((x) => el("li", x)));
+  updateClock();
+}
+function play(target) {
+  if (busy) return;
+  if (exchange) {
+    void command({ kind: "exchange", cards: [...selected] });
+    return;
+  }
+  const card = self().hand?.find((c) => selected.has(c.uid));
+  if (!card) return;
+  const id = card.id;
+  if (view.phase === "react") {
+    if (id === 13 && target === undefined) {
+      pickTarget(
+        "피해를 나눠 받을 상대",
+        (t) => void command({ kind: "react", card: card.uid, target: t }),
+      );
+      return;
+    }
+    void command({ kind: "react", card: card.uid, target });
+    return;
+  }
+  if ([3, 4, 5, 7, 9, 11, 12, 16, 17].includes(id) && target === undefined) {
+    pickTarget(
+      `${CARDS[id - 1].name} · 대상 선택`,
+      (t) => void command({ kind: "play", card: card.uid, target: t }),
+      id === 12,
+    );
+    return;
+  }
+  if (id === 18) {
+    choice("염라 이건우 · 심판 대상과 판정", (body, actions) => {
+      const list = targets(),
+        n = Math.min(2, list.length),
+        rows = [];
+      for (let i = 0; i < n; i++) {
+        const row = el("div", undefined, "choice-row"),
+          who = el("select"),
+          mode = el("select");
+        for (const p of list) {
+          const op = el("option", p.name);
+          op.value = p.id;
+          who.append(op);
+        }
+        who.value = list[i].id;
+        for (const [value, label] of [
+          ["heaven", "천국 · 회복 압수"],
+          ["hell", "지옥 · 공격 압수"],
+        ]) {
+          const op = el("option", label);
+          op.value = value;
+          mode.append(op);
+        }
+        row.append(who, mode);
+        body.append(row);
+        rows.push({ who, mode });
+      }
+      button(actions, "심판", () => {
+        const ts = rows.map((r) => ({
+          id: Number(r.who.value),
+          mode: r.mode.value,
+        }));
+        if (new Set(ts.map((x) => x.id)).size !== ts.length) {
+          toast("서로 다른 대상을 선택하세요.");
+          return;
+        }
+        closeChoice();
+        void command({ kind: "play", card: card.uid, targets: ts });
+      });
+    });
+    return;
+  }
+  void command({ kind: "play", card: card.uid, target });
+}
+function mandatoryChoice() {
+  if (!view || $("choice-dialog").open || busy) return;
+  const s = view,
+    actor = s.pending?.actor ?? s.pending?.target ?? s.pending?.owner;
+  if (actor !== view.me) return;
+  if (s.phase === "gift")
+    choice(
+      "건우의 선물 · 받으시겠습니까?",
+      (body, actions) => {
+        body.append(
+          el(
+            "p",
+            "받기: 사용자 또는 내가 무작위 피해 8~18. 거절: 사용자 HP 8 회복.",
+          ),
+        );
+        button(actions, "받기", () => {
+          closeChoice();
+          void command({ kind: "accept" });
+        });
+        button(actions, "거절", () => {
+          closeChoice();
+          void command({ kind: "reject" });
+        });
+      },
+      { cancel: false },
+    );
+  if (s.phase === "discard")
+    choice(
+      "손패 7장까지 · 버릴 카드를 선택",
+      (body) => {
+        for (const c of self().hand)
+          button(body, CARDS[c.id - 1].name, () => {
+            closeChoice();
+            void command({ kind: "discard", card: c.uid });
+          });
+      },
+      { cancel: false },
+    );
+  if (s.phase === "steal")
+    choice(
+      "다른 손패에서 총 2장 선택",
+      (body, actions) => {
+        const cards = s.players
+            .filter((p) => p.id !== s.me && p.hp > 0)
+            .flatMap((p) =>
+              (p.hand || []).map((c) => ({ ...c, owner: p.name })),
+            ),
+          n = Math.min(2, cards.length),
+          picked = new Set(),
+          confirm = button(actions, `${n}장 가져오기`, () => {
+            closeChoice();
+            void command({ kind: "steal", cards: [...picked] });
+          });
+        confirm.disabled = true;
+        for (const c of cards) {
+          const b = button(body, `${c.owner} · ${CARDS[c.id - 1].name}`, () => {
+            if (picked.has(c.uid)) picked.delete(c.uid);
+            else if (picked.size < n) picked.add(c.uid);
+            b.setAttribute("aria-pressed", picked.has(c.uid));
+            b.classList.toggle("primary", picked.has(c.uid));
+            confirm.disabled = picked.size !== n;
+          });
+          b.className = "choice-card";
+        }
+      },
+      { cancel: false },
+    );
+}
+function aiInput() {
+  const s = local.s,
+    actor =
+      s.pending?.actor ??
+      s.pending?.to ??
+      s.pending?.target ??
+      s.pending?.owner ??
+      s.turn,
+    p = local.player(actor);
+  if (actor === 0 || s.phase === "over") return null;
+  const target = local.alive().find((x) => x.id !== actor);
+  if (s.phase === "react") {
+    const c = p.hand.find((c) => local.canReact(c, s.pending));
+    return {
+      actor,
+      input: c
+        ? { kind: "react", card: c.uid, target: target?.id }
+        : { kind: "take" },
+    };
+  }
+  if (s.phase === "gift") return { actor, input: { kind: "accept" } };
+  if (s.phase === "discard")
+    return { actor, input: { kind: "discard", card: p.hand.at(-1).uid } };
+  if (s.phase === "steal")
+    return {
+      actor,
+      input: {
+        kind: "steal",
+        cards: local
+          .alive()
+          .filter((x) => x.id !== actor)
+          .flatMap((x) => x.hand)
+          .slice(0, 2)
+          .map((x) => x.uid),
+      },
+    };
+  const legal = p.hand.filter(
+    (c) =>
+      ![2, 10, 13, 20, 23, 26, 29, 30].includes(c.id) &&
+      (!p.status.xerath || ["회복", "방어"].includes(CARDS[c.id - 1].type)) &&
+      (!p.status.touch || ![5, 6, 18].includes(c.id)) &&
+      (c.id !== 17 || !target?.status.touch),
+  );
+  const c =
+    (p.hp < 40 && legal.find((c) => [8, 14].includes(c.id))) ||
+    legal.find((c) => [7, 9, 11, 15, 24].includes(c.id)) ||
+    legal[0];
+  if (!c)
+    return {
+      actor,
+      input: {
+        kind: p.status.touch ? "pass" : "exchange",
+        cards: p.hand.slice(0, 2).map((x) => x.uid),
+      },
+    };
+  return {
+    actor,
+    input: {
+      kind: "play",
+      card: c.uid,
+      target: target?.id,
+      targets: local
+        .alive()
+        .filter((x) => x.id !== actor)
+        .slice(0, 2)
+        .map((x) => ({ id: x.id, mode: "hell" })),
+    },
+  };
+}
+function scheduleAI() {
+  clearTimeout(aiTimer);
+  if (online || !local) return;
+  const next = aiInput();
+  if (!next) return;
+  aiTimer = setTimeout(() => {
+    try {
+      local.action(next.actor, next.input);
+    } catch (e) {
+      console.error(e);
+      local.timeout();
+    }
+    refresh(local.view(0));
+  }, 900);
+}
+function updateClock() {
+  if (!view) return;
+  const secs = Math.max(0, Math.ceil((view.deadline - Date.now()) / 1000));
+  $("clock").textContent = view.phase === "over" ? "" : `${secs}초`;
+}
+setInterval(() => {
+  updateClock();
+  if (local && !online) {
+    const old = local.s.revision;
+    local.timeout();
+    if (old !== local.s.revision) refresh(local.view(0));
+  }
+}, 500);
+async function api(path, data) {
+  const controller = new AbortController(),
+    timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const r = await fetch(server + path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(online ? { Authorization: "Bearer " + online.token } : {}),
+      },
+      body: JSON.stringify(data || {}),
+      signal: controller.signal,
+    });
+    const result = await r.json();
+    if (!r.ok) throw Error(result.error || "서버 오류");
+    return result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function receive(data) {
+  if (!online) return;
+  online.code = data.code;
+  online.me = data.me;
+  if (data.started) {
+    local = null;
+    clearTimeout(aiTimer);
+    $("lobby-dialog").close();
+    if (
+      data.game.revision >=
+      (view?.me === data.me && view?.online ? view.revision : -1)
+    ) {
+      data.game.online = true;
+      refresh(data.game);
+    }
+  } else {
+    view = null;
+    $("invite-code").textContent = data.code;
+    $("lobby-players").replaceChildren(
+      ...data.players.map((p) =>
+        el(
+          "li",
+          `${p.name}${p.id === data.host ? " · 방장" : ""}${p.connected ? " · 연결됨" : " · 연결 대기"}`,
+        ),
+      ),
+    );
+    $("start-room").hidden = data.host !== data.me;
+    $("start-room").disabled =
+      data.players.length < 2 || data.players.some((p) => !p.connected);
+    $("lobby-note").textContent =
+      data.host === data.me
+        ? "2~5명 연결 후 시작하세요."
+        : "방장이 시작할 때까지 기다려 주세요.";
+    if (!$("lobby-dialog").open) $("lobby-dialog").showModal();
+  }
+}
+async function stream() {
+  streamAbort?.abort();
+  const controller = new AbortController();
+  streamAbort = controller;
+  while (online && !controller.signal.aborted) {
+    try {
+      const r = await fetch(server + "/api/events", {
+        headers: { Authorization: "Bearer " + online.token },
+        signal: controller.signal,
+      });
+      if (!r.ok) {
+        if (r.status === 400) {
+          sessionStorage.removeItem(sessionKey);
+          online = null;
+          toast("방이 종료되었습니다. 다시 입장하세요.");
+          localStart();
+          return;
+        }
+        throw Error("연결 실패");
+      }
+      const reader = r.body.getReader(),
+        decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let index;
+        while ((index = buffer.indexOf("\n\n")) >= 0) {
+          const block = buffer.slice(0, index);
+          buffer = buffer.slice(index + 2);
+          if (block.startsWith("data: ")) receive(JSON.parse(block.slice(6)));
+        }
+      }
+    } catch (e) {
+      if (controller.signal.aborted) return;
+      toast("재연결 중 · 90초 이내 복귀할 수 있습니다.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+}
+async function enter(kind) {
+  try {
+    if (!server) throw Error("온라인 서버 주소를 먼저 설정하세요.");
+    if (online) throw Error("현재 방을 먼저 나가세요.");
+    const result = await api("/api/" + kind, {
+      name: $("nickname").value,
+      code: $("room-code").value.trim(),
+    });
+    online = { token: result.token, code: result.code };
+    sessionStorage.setItem(sessionKey, JSON.stringify({ server, ...online }));
+    lastEvent = 0;
+    $("online-dialog").close();
+    receive(result);
+    void stream();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+$("play").onclick = () => play();
+$("exchange").onclick = () => {
+  exchange = !exchange;
+  selected.clear();
+  render();
+};
+$("take").onclick = () => void command({ kind: "take" });
+$("pass").onclick = () => void command({ kind: "pass" });
+$("fuse").onclick = () => void command({ kind: "fuse" });
+$("stop-field").onclick = () => void command({ kind: "stop" });
+for (const id of ["rules", "log", "online"])
+  $(id + "-open").onclick = () => $(id + "-dialog").showModal();
+for (const b of document.querySelectorAll("[data-close]"))
+  b.onclick = () => b.closest("dialog").close();
+$("choice-dialog").addEventListener("cancel", (e) => {
+  if (["gift", "steal", "discard"].includes(view?.phase)) e.preventDefault();
+});
+$("lobby-dialog").addEventListener("cancel", (e) => e.preventDefault());
+$("new-game").onclick = () => {
+  if (online) {
+    choice("현재 대전에서 나갈까요?", (body, actions) => {
+      body.append(el("p", "진행 중인 게임에서는 기권 처리됩니다."));
+      button(actions, "나가기", leave);
+    });
+  } else {
+    choice("새 AI 연습을 시작할까요?", (_, actions) =>
+      button(actions, "새 게임", localStart),
+    );
+  }
+};
+async function leave() {
+  try {
+    await api("/api/leave");
+  } catch (e) {
+    toast(e.message);
+  }
+  streamAbort?.abort();
+  online = null;
+  sessionStorage.removeItem(sessionKey);
+  closeChoice();
+  localStart();
+}
+$("leave-room").onclick = leave;
+$("create-room").onclick = () => enter("create");
+$("join-room").onclick = () => enter("join");
+$("server-url").value = server;
+$("save-server").onclick = () => {
+  try {
+    const url = new URL($("server-url").value);
+    if (
+      url.protocol !== "https:" &&
+      !["localhost", "127.0.0.1"].includes(url.hostname)
+    )
+      throw Error("HTTPS 주소가 필요합니다.");
+    server = url.origin;
+    localStorage.setItem("card-server", server);
+    toast("서버 주소 저장 완료");
+  } catch (e) {
+    toast(e.message);
+  }
+};
+$("start-room").onclick = async () => {
+  try {
+    receive(await api("/api/start"));
+  } catch (e) {
+    toast(e.message);
+  }
+};
+$("copy-code").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(online.code);
+    toast("초대 코드 복사 완료");
+  } catch {
+    toast("초대 코드: " + online.code);
+  }
+};
+for (const card of CARDS) {
+  const a = el("article"),
+    h = el(
+      "h3",
+      `${String(card.id).padStart(2, "0")}. ${card.name} · ${card.type}`,
+    );
+  a.append(h, el("p", card.desc));
+  $("catalog").append(a);
+}
+window.addEventListener("resize", () => view && render());
+window.visualViewport?.addEventListener("resize", () => view && render());
+
+const activeAnimations = new Set(),
+  reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+let epoch = 0;
+function point(who) {
+  const area = $("arena").getBoundingClientRect(),
+    row = document
+      .querySelector('[data-player="' + who + '"]')
+      ?.getBoundingClientRect();
+  return row
+    ? {
+        x: row.left - area.left + row.width / 2 - $("arena").clientLeft,
+        y: row.top - area.top + row.height / 2 - $("arena").clientTop,
+      }
+    : { x: area.width / 2, y: area.height / 2 };
+}
+function element(kind, at, color) {
+  const el = document.createElement("div");
+  el.className = "fx " + kind;
+  if (at) {
+    el.style.left = at.x + "px";
+    el.style.top = at.y + "px";
+  }
+  if (color) {
+    el.style.color = color;
+    el.style.setProperty("--fx-color", color);
+  }
+  $("effects").append(el);
+  return el;
+}
+async function animate(el, frames, duration = 600, remove = true) {
+  if (reducedMotion.matches) {
+    const transform = frames[frames.length - 1].transform;
+    frames = frames.map((frame) => ({
+      ...frame,
+      ...(transform ? { transform } : {}),
+    }));
+  }
+  const a = el.animate(frames, {
+    duration: reducedMotion.matches ? Math.min(duration, 160) : duration,
+    easing: "cubic-bezier(.2,.7,.2,1)",
+    fill: "forwards",
+  });
+  activeAnimations.add(a);
+  try {
+    await a.finished;
+  } catch {
+  } finally {
+    activeAnimations.delete(a);
+    if (remove) el.remove();
+    a.cancel();
+  }
+}
+function burst(at, color, count = 12) {
+  if (reducedMotion.matches) return;
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2,
+      reach = 38 + (i % 3) * 17;
+    const el = element("fx-particle", at, color);
+    void animate(
+      el,
+      [
+        { transform: "translate(0,0) scale(1.5)", opacity: 1 },
+        {
+          transform: `translate(${Math.cos(angle) * reach}px,${Math.sin(angle) * reach}px) scale(0)`,
+          opacity: 0,
+        },
+      ],
+      550 + (i % 3) * 90,
+    );
+  }
+}
+function ring(at, color, shield = false) {
+  const el = element("fx-ring" + (shield ? " shield" : ""), at, color);
+  if (shield) el.textContent = "◇";
+  return animate(
+    el,
+    [
+      { transform: "scale(.35)", opacity: 0 },
+      { transform: "scale(1)", opacity: 1, offset: 0.3 },
+      { transform: shield ? "scale(1.13)" : "scale(1.9)", opacity: 0 },
+    ],
+    650,
+  );
+}
+function number(who, value, color, label = "") {
+  const el = element("fx-number", point(who), color);
+  el.append(document.createTextNode(value));
+  if (label) {
+    const small = document.createElement("small");
+    small.textContent = label;
+    el.append(small);
+  }
+  return animate(
+    el,
+    [
+      { transform: "translate(-50%,0) scale(.6)", opacity: 0 },
+      {
+        transform: "translate(-50%,-30%) scale(1.12)",
+        opacity: 1,
+        offset: 0.2,
+      },
+      { transform: "translate(-50%,-100%) scale(1)", opacity: 1, offset: 0.7 },
+      { transform: "translate(-50%,-130%) scale(.95)", opacity: 0 },
+    ],
+    900,
+  );
+}
+async function cast(who, card) {
+  const colors = {
+    attack: "#ffb394",
+    magic: "#b5c7ff",
+    shield: "#9bdcff",
+    heal: "#a7ebbd",
+    focus: "#f0cf89",
+  };
+  const color = colors[card.type];
+  const el = element("fx-cast", null, color);
+  const icon = document.createElement("span");
+  icon.className = "cast-icon";
+  icon.textContent = card.icon;
+  const title = document.createElement("span");
+  title.className = "cast-name";
+  title.textContent = card.name;
+  const owner = document.createElement("span");
+  owner.className = "cast-owner";
+  owner.textContent = view.players[who].name + " · " + card.type;
+  el.append(icon, title, owner);
+  const wash = element("fx-wash", null, color);
+  void animate(
+    wash,
+    [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 0 }],
+    650,
+  );
+  await animate(
+    el,
+    [
+      {
+        transform: "translate(-50%,-40%) scale(.75) rotate(-5deg)",
+        opacity: 0,
+      },
+      {
+        transform: "translate(-50%,-50%) scale(1.04) rotate(0)",
+        opacity: 1,
+        offset: 0.25,
+      },
+      { transform: "translate(-50%,-50%) scale(1)", opacity: 1, offset: 0.75 },
+      { transform: "translate(-50%,-60%) scale(.94)", opacity: 0 },
+    ],
+    650,
+  );
+}
+async function support(who, card, amount) {
+  const at = point(who),
+    color =
+      card.type === "shield"
+        ? "#9bdcff"
+        : card.type === "heal"
+          ? "#a7ebbd"
+          : "#f0cf89";
+  burst(at, color);
+  await Promise.all([
+    ring(at, color, card.type === "shield"),
+    number(
+      who,
+      "+" + amount,
+      color,
+      card.type === "shield"
+        ? "보호막"
+        : card.type === "heal"
+          ? "회복"
+          : "마나",
+    ),
+  ]);
+}
+async function projectile(from, to, card) {
+  const version = epoch;
+  const a = point(from),
+    b = point(to),
+    area = $("arena").getBoundingClientRect();
+  const color = card.type === "magic" ? "#a6cfff" : "#ffb394";
+  if (card.type === "magic" && !reducedMotion.matches) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "fx fx-lightning");
+    svg.setAttribute("viewBox", `0 0 ${area.width} ${area.height}`);
+    const path = document.createElementNS(svg.namespaceURI, "path");
+    const mid = (a.y + b.y) / 2;
+    path.setAttribute(
+      "d",
+      `M ${a.x} ${a.y} L ${a.x - 32} ${mid + 30} L ${a.x + 34} ${mid - 20} L ${b.x} ${b.y}`,
+    );
+    svg.append(path);
+    $("effects").append(svg);
+    void animate(
+      svg,
+      [
+        { opacity: 0 },
+        { opacity: 0.9, offset: 0.35 },
+        { opacity: 0.3, offset: 0.65 },
+        { opacity: 0 },
+      ],
+      500,
+    );
+  }
+  const el = element("fx-projectile " + card.type + " " + card.id, a, color);
+  el.textContent = card.icon;
+  await animate(
+    el,
+    [
+      { transform: "translate(0,0) scale(.6) rotate(-25deg)", opacity: 0 },
+      {
+        transform: `translate(${area.width * 0.12}px,${(b.y - a.y) * 0.4}px) scale(1.35) rotate(${card.id === "dice" ? 180 : 10}deg)`,
+        opacity: 1,
+        offset: 0.45,
+      },
+      {
+        transform: `translate(${b.x - a.x}px,${b.y - a.y}px) scale(.85) rotate(${card.id === "dice" ? 360 : 35}deg)`,
+        opacity: 1,
+      },
+    ],
+    520,
+  );
+  if (version !== epoch) return;
+  burst(b, color, 16);
+  if (card.type !== "magic") {
+    const slash = element("fx-slash", b, color);
+    void animate(
+      slash,
+      [
+        { transform: "rotate(-35deg) scaleX(0)", opacity: 0 },
+        { transform: "rotate(-35deg) scaleX(1.2)", opacity: 1, offset: 0.3 },
+        { transform: "rotate(-35deg) scaleX(.8)", opacity: 0 },
+      ],
+      320,
+    );
+  }
+}
+async function impact(who, hit, blocked) {
+  const jobs = [];
+  if (blocked) {
+    burst(point(who), "#9bdcff", 9);
+    jobs.push(ring(point(who), "#9bdcff", true));
+  }
+  if (hit) {
+    burst(point(who), "#ff9693");
+    if (!reducedMotion.matches)
+      jobs.push(
+        animate(
+          document.querySelector('[data-player="' + who + '"]'),
+          [
+            { transform: "translateX(0)" },
+            { transform: "translateX(-7px)", offset: 0.2 },
+            { transform: "translateX(6px)", offset: 0.4 },
+            { transform: "translateX(-3px)", offset: 0.65 },
+            { transform: "translateX(0)" },
+          ],
+          350,
+          false,
+        ),
+      );
+  }
+  jobs.push(
+    number(
+      who,
+      hit ? "−" + hit : "방어! ",
+      hit ? "#ff9693" : "#9bdcff",
+      blocked ? blocked + " 흡수" : "",
+    ),
+  );
+  await Promise.all(jobs);
+}
+
+function animateEvents() {
+  for (const e of view.events) {
+    if (e.seq <= lastEvent) continue;
+    lastEvent = e.seq;
+    if (e.kind === "card") {
+      const data = CARDS[e.card - 1],
+        type = {
+          공격: "attack",
+          방어: "shield",
+          반격: "shield",
+          회복: "heal",
+          필드: "magic",
+          마법: "magic",
+          특수: "focus",
+        }[data.type],
+        c = { ...data, type, icon: typeIcons[data.type] };
+      $("played-slot").replaceChildren(
+        el("span", c.icon),
+        el("small", data.name),
+      );
+      void cast(e.actor, c);
+      if (type === "attack") {
+        const to = targets().find((p) => p.id !== e.actor)?.id;
+        if (to !== undefined) void projectile(e.actor, to, c);
+      }
+    }
+    if (e.kind === "damage") void impact(e.target, e.amount, 0);
+    if (e.kind === "heal") void support(e.target, { type: "heal" }, e.amount);
+    if (e.kind === "block") void impact(e.target, 0, e.amount);
+  }
+}
+localStart();
+try {
+  const saved = JSON.parse(sessionStorage.getItem(sessionKey) || "null");
+  if (saved) {
+    server = saved.server;
+    online = { token: saved.token, code: saved.code };
+    local = null;
+    lastEvent = 0;
+    void stream();
+  }
+} catch {
+  sessionStorage.removeItem(sessionKey);
+}
+
+fetch("assets/cards/manifest.json")
+  .then((r) => (r.ok ? r.json() : []))
+  .then((ids) => {
+    artFiles = new Set(ids);
+    if (view) render();
+  })
+  .catch(() => {});
