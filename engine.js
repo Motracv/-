@@ -162,6 +162,7 @@
       return { uid: ++this.serial, id, ...extra };
     }
     player(id) {
+      check(Number.isInteger(id), "잘못된 플레이어입니다.");
       const p = this.s.players[id];
       check(p, "잘못된 플레이어입니다.");
       return p;
@@ -183,7 +184,7 @@
       return true;
     }
     refill(p) {
-      if (p.status.touch) return;
+      if (p.hp <= 0 || p.status.touch) return;
       while (p.hand.length < 5)
         this.acquire(p, this.card(pool[this.rand(0, pool.length - 1)]));
     }
@@ -211,7 +212,16 @@
         this.heal(this.player(link.owner), hit);
       return hit;
     }
+    payHP(p, n) {
+      // An HP cost is paid even while invincible, but is not attack damage.
+      const amount = Math.min(p.hp, n);
+      p.hp -= amount;
+      this.log(`${p.name} HP ${amount} 지불`);
+      this.event("damage", { target: p.id, amount, cost: true });
+      return amount;
+    }
     endCheck() {
+      if (this.s.phase === "over") return true;
       const live = this.alive();
       if (live.length > 1) return false;
       this.s.phase = "over";
@@ -219,6 +229,35 @@
       this.s.pending = null;
       this.s.queue = [];
       this.log(live.length ? `${live[0].name} 승리` : "무승부");
+      return true;
+    }
+    forfeit(actor) {
+      const s = this.s,
+        p = this.player(actor);
+      if (s.phase === "over" || p.hp <= 0) return false;
+      p.hp = 0;
+      p.hand = [];
+      this.event("damage", { target: actor, amount: 0, forfeit: true });
+      if (s.phase === "react") {
+        // Already launched damage still resolves, including other AoE targets.
+        if (s.pending.to === actor) this.advanceQueue();
+      } else if (s.phase === "gift" && s.pending.target === actor) {
+        this.heal(this.player(s.pending.owner), 8);
+        s.pending = null;
+        this.finish();
+      } else if (
+        ["gift", "steal"].includes(s.phase) &&
+        s.pending.owner === actor
+      ) {
+        s.pending = null;
+        this.finish();
+      } else if (s.phase === "discard" && s.pending.actor === actor) {
+        this.overflowContinue();
+        this.endCheck();
+      } else if (!this.endCheck() && s.phase === "turn" && s.turn === actor) {
+        this.endTurn();
+      }
+      s.revision++;
       return true;
     }
     replaceField(field) {
@@ -316,6 +355,7 @@
       const p = this.alive().find((x) => x.hand.length > 7);
       if (p) {
         this.resumePhase = this.s.phase;
+        this.resumeDeadline = this.s.deadline;
         this.s.phase = "discard";
         this.s.pending = { actor: p.id };
         this.s.deadline = this.now() + this.responseMs;
@@ -330,6 +370,7 @@
       }
       this.s.phase = this.resumePhase;
       this.s.pending = null;
+      this.s.deadline = this.resumeDeadline;
       if (this.s.phase === "finish") this.endTurn();
     }
     finish() {
@@ -383,7 +424,7 @@
       return (
         defense.has(c.id) &&
         !(a.card === 9 && [2, 20].includes(c.id)) &&
-        !(a.multi && c.id === 13)
+        !(c.id === 13 && (a.multi || this.alive().length < 2))
       );
     }
     consume(p, uid) {
@@ -432,7 +473,6 @@
           amount = 0;
           if (a.card === 1) {
             this.replaceField(null);
-            s.queue = s.queue.filter((x) => x.card !== 1);
             this.damage(this.player(a.from), 14);
           } else this.damage(this.player(a.from), Math.min(20, a.amount + 3));
         }
@@ -615,7 +655,7 @@
               this.attack(actor, [target.id], this.rand(8, 12), id);
               break;
             case 11:
-              this.damage(p, 5, { bypass: true });
+              this.payHP(p, 5);
               this.attack(actor, [target.id], 21, id);
               break;
             case 12:
@@ -641,7 +681,7 @@
               break;
             case 16:
               this.status(target, "xerath", 1);
-              this.damage(p, 5, { bypass: true });
+              this.payHP(p, 5);
               break;
             case 17:
               this.acquire(target, this.card(25));

@@ -67,7 +67,7 @@ test("02: counter cap and Ace cancellation", () => {
   });
   assert.equal(h.s.field, null);
   assert.equal(h.player(0).hp, 46);
-  assert.equal(h.player(2).hp, 60);
+  assert.equal(h.player(2).hp, 56);
 });
 test("03: accept named roulette and reject heal", () => {
   let g = setup();
@@ -370,10 +370,221 @@ test("taxi successful block; dice cap does not increase low damage", () => {
   assert.equal(h.player(1).hp, 56);
 });
 
-test('red-note target using Drawing clears field even when cleansing another player', () => {
+test("red-note target using Drawing clears field even when cleansing another player", () => {
   const g = setup();
   play(g, 4);
   play(g, 12, 2);
   assert.equal(g.s.field, null);
   assert(!g.player(1).status.red);
+});
+
+test("target identifiers cannot disguise illegal self-targets and invalid input is atomic", () => {
+  const g = setup();
+  const [c] = give(g, 0, 7);
+  const before = JSON.stringify(g.s);
+  for (const target of ["0", "1", null, {}, -1, 3, 1.5]) {
+    assert.throws(() => act(g, 0, { kind: "play", card: c.uid, target }));
+    assert.equal(JSON.stringify(g.s), before);
+  }
+});
+
+test("HP costs bypass invincibility without triggering actual-damage healing", () => {
+  for (const id of [11, 16]) {
+    const g = setup();
+    g.player(0).status.invincible = true;
+    g.player(2).hp = 20;
+    g.s.links = [{ owner: 2, target: 0, after: 0, left: 2 }];
+    play(g, id);
+    assert.equal(g.player(0).hp, 55);
+    assert.equal(g.player(2).hp, 20);
+  }
+});
+
+test("simultaneous final elimination from cost and launched attack is a draw", () => {
+  const g = setup(2);
+  g.player(0).hp = 5;
+  g.player(1).hp = 21;
+  play(g, 11);
+  assert.equal(g.s.winner, -1);
+  assert.equal(g.s.phase, "over");
+});
+
+test("forfeit resumes pending defense, gift, theft and discard safely", () => {
+  const defenseGame = setup(4);
+  give(defenseGame, 1, 10);
+  play(defenseGame, 7);
+  assert.equal(defenseGame.s.phase, "react");
+  defenseGame.forfeit(1);
+  assert.equal(defenseGame.s.turn, 2);
+  assert.equal(defenseGame.s.phase, "turn");
+
+  const giftGame = setup(4);
+  giftGame.player(0).hp = 20;
+  play(giftGame, 3);
+  giftGame.forfeit(1);
+  assert.equal(giftGame.player(0).hp, 28);
+  assert.equal(giftGame.s.turn, 2);
+
+  const stealGame = setup(4);
+  give(stealGame, 1, 7);
+  play(stealGame, 6);
+  stealGame.forfeit(0);
+  assert.equal(stealGame.s.turn, 1);
+  assert.equal(stealGame.s.phase, "turn");
+
+  const discardGame = setup(4);
+  give(discardGame, 1, ...Array(7).fill(8));
+  play(discardGame, 17);
+  assert.equal(discardGame.s.phase, "discard");
+  discardGame.forfeit(1);
+  assert.equal(discardGame.s.phase, "turn");
+  assert.equal(discardGame.s.turn, 2);
+});
+
+test("forfeiting an attacker keeps launched damage; completed winner remains immutable", () => {
+  const g = setup(2);
+  g.player(1).hp = 6;
+  give(g, 1, 10);
+  play(g, 7);
+  g.forfeit(0);
+  assert.equal(g.s.phase, "react");
+  act(g, 1, { kind: "take" });
+  assert.equal(g.s.winner, -1);
+  assert.equal(g.forfeit(1), false);
+  assert.equal(g.s.winner, -1);
+  const h = setup(2);
+  h.forfeit(1);
+  assert.equal(h.s.winner, 0);
+  assert.equal(h.forfeit(0), false);
+  assert.equal(h.s.winner, 0);
+});
+
+test("forfeit during a queued AoE keeps remaining victims and turn progression", () => {
+  const g = setup(4);
+  play(g, 1);
+  give(g, 1, 10);
+  act(g, 1, { kind: "pass" });
+  act(g, 2, { kind: "pass" });
+  act(g, 3, { kind: "pass" });
+  assert.equal(g.s.phase, "react");
+  g.forfeit(1);
+  assert.equal(g.player(2).hp, 56);
+  assert.equal(g.player(3).hp, 56);
+  assert.equal(g.s.turn, 0);
+  assert.equal(g.s.phase, "turn");
+});
+
+test("2–5 player seeded games preserve legal state and make progress", () => {
+  let games = 0,
+    completed = 0;
+  for (let n = 2; n <= 5; n++) {
+    for (let seed = 1; seed <= 20; seed++) {
+      let value = seed * 997 + n;
+      const rng = () =>
+        (value = (Math.imul(value, 1664525) + 1013904223) >>> 0) / 2 ** 32;
+      const g = new Game(
+        Array.from({ length: n }, (_, i) => "P" + i),
+        { rng },
+      );
+      for (let step = 0; step < 400 && g.s.phase !== "over"; step++) {
+        const s = g.s,
+          actor =
+            s.pending?.actor ??
+            s.pending?.to ??
+            s.pending?.target ??
+            s.pending?.owner ??
+            s.turn;
+        const p = g.player(actor);
+        assert(p.hp > 0, `dead actor at ${n}/${seed}/${step}/${s.phase}`);
+        const others = g.alive().filter((x) => x.id !== actor);
+        let options;
+        if (s.phase === "react")
+          options = p.hand
+            .filter((c) => g.canReact(c, s.pending))
+            .map((c) => ({ kind: "react", card: c.uid, target: others[0]?.id }))
+            .concat({ kind: "take" });
+        else if (s.phase === "gift")
+          options = [{ kind: rng() < 0.7 ? "accept" : "reject" }];
+        else if (s.phase === "steal")
+          options = [
+            {
+              kind: "steal",
+              cards: others
+                .flatMap((x) => x.hand)
+                .slice(0, 2)
+                .map((c) => c.uid),
+            },
+          ];
+        else if (s.phase === "discard")
+          options = [{ kind: "discard", card: p.hand.at(-1).uid }];
+        else {
+          assert.equal(s.phase, "turn");
+          const sorted = [...p.hand].sort(
+            (a, b) =>
+              Number([7, 9, 11, 15].includes(b.id)) -
+              Number([7, 9, 11, 15].includes(a.id)),
+          );
+          options = sorted.map((c) => ({
+            kind: "play",
+            card: c.uid,
+            target: others[Math.floor(rng() * others.length)].id,
+            targets: others.slice(0, 2).map((x) => ({
+              id: x.id,
+              mode: rng() < 0.5 ? "hell" : "heaven",
+            })),
+          }));
+          options.push(
+            { kind: "fuse" },
+            { kind: "exchange", cards: p.hand.slice(0, 2).map((c) => c.uid) },
+            { kind: "pass" },
+          );
+        }
+        const beforeRev = s.revision;
+        for (const input of options) {
+          const before = JSON.stringify(s);
+          try {
+            g.action(actor, input);
+            break;
+          } catch (error) {
+            assert.equal(
+              JSON.stringify(s),
+              before,
+              `invalid action mutated state: ${error.message}`,
+            );
+          }
+        }
+        assert.equal(s.revision, beforeRev + 1);
+        for (const x of s.players) {
+          assert(Number.isInteger(x.hp) && x.hp >= 0 && x.hp <= 60);
+          const snapshot = g.view(x.id);
+          assert(
+            snapshot.players.every(
+              (y) =>
+                !y.hand ||
+                y.id === x.id ||
+                (s.phase === "steal" && s.pending.owner === x.id),
+            ),
+          );
+        }
+        const allCards = s.players.flatMap((x) => x.hand.map((c) => c.uid));
+        assert.equal(new Set(allCards).size, allCards.length);
+      }
+      games++;
+      if (g.s.phase === "over") completed++;
+      else {
+        // Even a long game can be ended cleanly when players leave.
+        for (let id = 0; id < n - 1; id++) g.forfeit(id);
+        if (g.s.phase !== "over") {
+          g.s.deadline = 0;
+          g.timeout();
+        }
+        assert.equal(g.s.phase, "over");
+      }
+    }
+  }
+  assert.equal(games, 80);
+  assert(completed > 0);
+  console.log(
+    `Seeded games: ${completed}/${games} finished naturally within 400 actions`,
+  );
 });

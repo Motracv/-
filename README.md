@@ -2,6 +2,12 @@
 
 기존 홈페이지 `index.html`과 독립된 카드 게임입니다. `game.html`은 `game.css`, `engine.js`, `client.js`, 선택적인 `assets/cards/01.webp`~`30.webp`를 사용합니다. 이미지가 없으면 번호·이름을 표시하고 선택 영역에 텍스트 효과를 표시합니다.
 
+## 화면과 연습
+
+모바일 손패는 2줄 격자로 배치하고 카드 이름·종류·핵심 효과를 표시합니다. Pretendard 한글 글꼴을 저장소에서 직접 제공합니다(OFL 라이선스 포함). 상대를 눌러 대상을 선택한 뒤 사용 버튼으로 확정합니다. 작은 화면에서 긴 효과는 자세히 버튼으로 전문을 읽을 수 있고, 내 상태와 상대 상태는 좌석을 눌러 확인합니다.
+
+AI 연습은 기본 5인 개인전이며 새 게임에서 나를 포함한 2~5명을 선택할 수 있습니다. AI는 살아 있는 상대 중 무작위로 대상을 선택합니다. 확정된 카드 수치와 조합은 유지합니다.
+
 ## 실행
 
 Node.js 20 이상, 외부 npm 의존성 없이 실행합니다.
@@ -57,6 +63,9 @@ node server.cjs
 # 다른 터미널, Playwright 설치 환경에서:
 node tests/browser.cjs
 node tests/online-effects.cjs
+node tests/server.cjs
+# 화면/실제 조작 검증 (기본 8790, 필요시 TEST_ORIGIN 지정):
+node tests/ui.cjs
 ```
 
 브라우저 테스트는 Chromium(`/usr/bin/chromium`)과 Playwright가 필요합니다. 실행 환경에 따라 브라우저 경로를 수정하세요. 외부 서비스 배포 검증과 로컬 통합 검증은 구분해야 합니다.

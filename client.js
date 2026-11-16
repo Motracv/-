@@ -16,6 +16,8 @@ let local,
   online = null,
   selected = new Set(),
   exchange = false,
+  selectedTarget = null,
+  practicePlayers = Number(localStorage.getItem("practice-players")) || 5,
   busy = false,
   lastEvent = 0,
   aiTimer,
@@ -25,6 +27,42 @@ let server =
   localStorage.getItem("card-server") ||
   (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? location.origin : "");
 const sessionKey = "card-session";
+const shortEffects = [
+  "전체 4 × 3회",
+  "막고 +3 반격",
+  "룰렛 8–18",
+  "회복 금지 2턴",
+  "무작위 1장 훔치기",
+  "원하는 2장 훔치기",
+  "피해 6–16",
+  "회복 8–16",
+  "피해 8–12",
+  "20 이하 방어",
+  "피해 21 · HP −5",
+  "상태이상 해제",
+  "피해 절반 분담",
+  "회복 18–25",
+  "전체 피해 6",
+  "행동 제한 1턴",
+  "피해만큼 회복",
+  "카드 압수 · 심판",
+  "무작위 카드 교환",
+  "카드 획득 금지",
+  "HP 모아 회복",
+  "내 상태 해제",
+  "방어 10 / 35",
+  "차례 1 / 2회 생략",
+  "회복 금지 2턴",
+  "압수 수치 방어",
+  "다음 내 차례까지 무적",
+  "HP 균등 분배",
+  "피해 최대 6",
+  "50% 피해 회피",
+];
+function cardSummary(c) {
+  return c.id === 26 ? `방어 ${c.armor || 0}` : shortEffects[c.id - 1];
+}
+
 function el(tag, text, cls) {
   const x = document.createElement(tag);
   if (text !== undefined) x.textContent = text;
@@ -84,6 +122,7 @@ function refresh(next) {
   );
   if (was?.revision !== view.revision) {
     selected.clear();
+    selectedTarget = null;
     exchange = false;
     if ($("choice-dialog").open) closeChoice();
   }
@@ -94,7 +133,20 @@ function refresh(next) {
 }
 function localStart() {
   clearTimeout(aiTimer);
-  local = new Game(["나", "AI"]);
+  epoch++;
+  for (const animation of activeAnimations) animation.cancel();
+  activeAnimations.clear();
+  $("effects").replaceChildren();
+  $("played-slot").replaceChildren(el("small", "카드를 골라 시작하세요"));
+  practicePlayers = Math.min(5, Math.max(2, practicePlayers));
+  local = new Game(
+    ["나", "AI 서찬", "AI 우진", "AI 태영", "AI 건우"].slice(
+      0,
+      practicePlayers,
+    ),
+  );
+  selectedTarget = null;
+  exchange = false;
   online = null;
   lastEvent = 0;
   selected.clear();
@@ -126,13 +178,15 @@ async function command(input) {
 }
 function fighter(p) {
   const x = el(
-    p.id === view.me ? "div" : "button",
+    "button",
     undefined,
     "fighter" +
       (view.turn === p.id ? " active-seat" : "") +
       (p.hp <= 0 ? " dead" : ""),
   );
   x.dataset.player = p.id;
+  x.classList.toggle("target", selectedTarget === p.id);
+  x.setAttribute("aria-label", `${p.name}, HP ${p.hp}, 손패 ${p.count}장`);
   x.append(el("b", p.name));
   const row = el("div", undefined, "hp-row"),
     track = el("div", undefined, "track"),
@@ -140,7 +194,10 @@ function fighter(p) {
   fill.style.width = (p.hp / 60) * 100 + "%";
   track.append(fill);
   row.append(track, el("span", `${p.hp}/60`));
-  x.append(row, el("small", `손패 ${p.count}장`));
+  x.append(
+    row,
+    el("small", p.hp <= 0 ? "탈락" : `손패 ${p.count}장`, "hand-meta"),
+  );
   const tags = [];
   const statuses = {
     red: "빨간노트",
@@ -152,13 +209,38 @@ function fighter(p) {
   };
   for (const [key, value] of Object.entries(p.status))
     tags.push(statuses[key] + (value.left ? ` ${value.left}` : ""));
-  if (tags.length) x.append(el("small", tags.join(" · "), "tags"));
-  if (p.id !== view.me)
-    x.onclick = () => {
-      if (view.phase === "turn" && view.turn === view.me && selected.size === 1)
-        play(p.id);
-      else toast(`${p.name} · HP ${p.hp} · 손패 ${p.count}장`);
-    };
+  if (tags.length) {
+    const tag = el(
+      "small",
+      tags.length === 1 ? tags[0] : `상태 ${tags.length}개`,
+      "tags",
+    );
+    tag.title = tags.join(" · ");
+    x.append(tag);
+  }
+  x.onclick = () => {
+    const card = self().hand?.find((c) => selected.has(c.uid));
+    const needsTarget =
+      card && [3, 4, 5, 7, 9, 11, 12, 16, 17].includes(card.id);
+    const split =
+      card?.id === 13 && view.phase === "react" && view.pending.to === view.me;
+    if (
+      p.id !== view.me &&
+      !exchange &&
+      p.hp > 0 &&
+      ((needsTarget && view.phase === "turn" && view.turn === view.me) || split)
+    ) {
+      selectedTarget = p.id;
+      render();
+    } else {
+      choice(p.name, (body) =>
+        body.append(
+          el("p", `HP ${p.hp} / 60 · 손패 ${p.count}장`),
+          el("p", tags.join(" · ") || "상태이상 없음"),
+        ),
+      );
+    }
+  };
   return x;
 }
 function render() {
@@ -169,7 +251,9 @@ function render() {
   );
   $("self").replaceChildren(fighter(p));
   $("hand-count").textContent = `${p.count}/7`;
-  $("connection").textContent = online ? `온라인 · ${online.code}` : "AI 연습";
+  $("connection").textContent = online
+    ? `${view.players.length}인 개인전 · ${online.code}`
+    : `${view.players.length}인 개인전 · AI 연습`;
   $("turn").textContent =
     view.phase === "over"
       ? "게임 종료"
@@ -178,9 +262,7 @@ function render() {
     ownTurn = view.phase === "turn" && view.turn === view.me && p.hp > 0,
     react = view.phase === "react" && pending.to === view.me;
   const phaseTexts = {
-    turn: ownTurn
-      ? "내 차례 · 카드 1장 또는 최대 2장 교환"
-      : "상대가 선택하고 있습니다",
+    turn: ownTurn ? "내 차례" : "상대가 카드를 고르고 있어요",
     react: react
       ? `공격 도착 · 피해 ${pending?.amount}`
       : `${view.players[pending?.to]?.name} 방어 선택 중`,
@@ -200,16 +282,12 @@ function render() {
     view.field.owner === view.me
   );
   $("hand").replaceChildren();
-  const hand = p.hand || [],
-    availableWidth = $("hand").clientWidth;
-  const maxWidth = Math.min(
-    100,
-    (availableWidth - 48) / Math.max(hand.length, 1) + 6,
+  const hand = p.hand || [];
+  $("hand").style.setProperty(
+    "--hand-columns",
+    Math.min(7, Math.max(1, hand.length)),
   );
-  document.documentElement.style.setProperty(
-    "--card-w",
-    Math.max(28, maxWidth) + "px",
-  );
+  $("hand").dataset.count = hand.length;
   for (const [i, c] of hand.entries()) {
     const card = CARDS[c.id - 1],
       b = el(
@@ -236,7 +314,8 @@ function render() {
       el("span", String(card.id).padStart(2, "0"), "rank"),
       el("span", typeIcons[card.type], "icon"),
       el("b", card.name),
-      el("small", card.type),
+      el("small", card.type, "card-type"),
+      el("span", cardSummary(c), "card-summary"),
     );
     if (artFiles.has(card.id)) {
       const img = el("img");
@@ -253,6 +332,7 @@ function render() {
         else if (selected.size < 2) selected.add(c.uid);
         else toast("교환은 최대 2장입니다.");
       } else {
+        selectedTarget = null;
         if (selected.has(c.uid)) selected.clear();
         else selected = new Set([c.uid]);
       }
@@ -275,7 +355,18 @@ function render() {
           ? " 지금 공격 완전 방어 가능."
           : " 지금 공격 방어 불가."
         : "")
-    : "손패를 누르면 효과를 읽을 수 있습니다. 상대를 누르면 선택한 공격의 대상을 지정합니다.";
+    : exchange
+      ? "교환할 카드를 최대 2장 고르세요."
+      : "카드 선택 → 상대 선택 → 사용. 카드 교환은 최대 2장입니다.";
+  $("card-details").hidden = !data;
+  $("card-details").onclick = () => {
+    $("card-dialog-title").textContent = $("selection-title").textContent;
+    $("card-dialog-desc").textContent = $("selection-desc").textContent;
+    $("card-dialog").showModal();
+  };
+  $("target-hint").hidden = selectedTarget === null;
+  $("target-hint").textContent =
+    selectedTarget === null ? "" : `대상: ${view.players[selectedTarget].name}`;
   let playable =
     ownTurn &&
     data &&
@@ -286,7 +377,21 @@ function render() {
       data &&
       defense.has(data.id) &&
       !(pending.card === 9 && [2, 20].includes(data.id)) &&
-      !(pending.multi && data.id === 13);
+      !(data.id === 13 && (pending.multi || targets().length === 0));
+  let blocked = "";
+  if (ownTurn && data && p.status.touch && [5, 6, 18].includes(data.id))
+    blocked = "카드 획득 금지 중에는 사용할 수 없습니다.";
+  if (
+    ownTurn &&
+    data?.id === 17 &&
+    selectedTarget !== null &&
+    view.players[selectedTarget].status.touch
+  )
+    blocked = "대상이 카드 획득 금지 상태입니다.";
+  if (blocked) {
+    playable = false;
+    $("selection-desc").textContent += " " + blocked;
+  }
   $("play").disabled =
     busy ||
     (exchange ? !(ownTurn && selected.size && !p.status.touch) : !playable);
@@ -294,7 +399,9 @@ function render() {
     ? `${selected.size}장 교환`
     : react
       ? "방어·반격"
-      : "사용";
+      : selectedTarget === null
+        ? "사용"
+        : "사용 확정";
   $("exchange").hidden = !ownTurn;
   $("exchange").disabled = busy || !!p.status.touch;
   $("exchange").textContent = exchange ? "교환 취소" : "교환 선택";
@@ -314,7 +421,8 @@ function render() {
   updateClock();
 }
 function play(target) {
-  if (busy) return;
+  if (busy || !view || $("play").disabled) return;
+  if (target === undefined && selectedTarget !== null) target = selectedTarget;
   if (exchange) {
     void command({ kind: "exchange", cards: [...selected] });
     return;
@@ -438,7 +546,7 @@ function mandatoryChoice() {
             closeChoice();
             void command({ kind: "steal", cards: [...picked] });
           });
-        confirm.disabled = true;
+        confirm.disabled = n !== 0;
         for (const c of cards) {
           const b = button(body, `${c.owner} · ${CARDS[c.id - 1].name}`, () => {
             if (picked.has(c.uid)) picked.delete(c.uid);
@@ -463,7 +571,8 @@ function aiInput() {
       s.turn,
     p = local.player(actor);
   if (actor === 0 || s.phase === "over") return null;
-  const target = local.alive().find((x) => x.id !== actor);
+  const opponents = local.alive().filter((x) => x.id !== actor);
+  const target = opponents[Math.floor(Math.random() * opponents.length)];
   if (s.phase === "react") {
     const c = p.hand.find((c) => local.canReact(c, s.pending));
     return {
@@ -504,7 +613,7 @@ function aiInput() {
     return {
       actor,
       input: {
-        kind: p.status.touch ? "pass" : "exchange",
+        kind: p.status.touch || p.hand.length === 0 ? "pass" : "exchange",
         cards: p.hand.slice(0, 2).map((x) => x.uid),
       },
     };
@@ -648,6 +757,8 @@ async function stream() {
   }
 }
 async function enter(kind) {
+  if ($("create-room").disabled) return;
+  $("create-room").disabled = $("join-room").disabled = true;
   try {
     if (!server) throw Error("온라인 서버 주소를 먼저 설정하세요.");
     if (online) throw Error("현재 방을 먼저 나가세요.");
@@ -656,6 +767,8 @@ async function enter(kind) {
       code: $("room-code").value.trim(),
     });
     online = { token: result.token, code: result.code };
+    clearTimeout(aiTimer);
+    local = null;
     sessionStorage.setItem(sessionKey, JSON.stringify({ server, ...online }));
     lastEvent = 0;
     $("online-dialog").close();
@@ -663,6 +776,8 @@ async function enter(kind) {
     void stream();
   } catch (e) {
     toast(e.message);
+  } finally {
+    $("create-room").disabled = $("join-room").disabled = false;
   }
 }
 $("play").onclick = () => play();
@@ -690,9 +805,24 @@ $("new-game").onclick = () => {
       button(actions, "나가기", leave);
     });
   } else {
-    choice("새 AI 연습을 시작할까요?", (_, actions) =>
-      button(actions, "새 게임", localStart),
-    );
+    choice("AI 개인전", (body, actions) => {
+      const label = el("label", "참가 인원 (나 포함)"),
+        select = el("select");
+      select.id = "practice-count";
+      for (let i = 2; i <= 5; i++) {
+        const option = el("option", `${i}명`);
+        option.value = i;
+        select.append(option);
+      }
+      select.value = practicePlayers;
+      label.append(select);
+      body.append(label);
+      button(actions, "시작", () => {
+        practicePlayers = Number(select.value);
+        localStorage.setItem("practice-players", practicePlayers);
+        localStart();
+      });
+    });
   }
 };
 async function leave() {
@@ -750,21 +880,29 @@ for (const card of CARDS) {
   a.append(h, el("p", card.desc));
   $("catalog").append(a);
 }
-window.addEventListener("resize", () => view && render());
-window.visualViewport?.addEventListener("resize", () => view && render());
+function fitViewport() {
+  document.documentElement.style.setProperty(
+    "--app-height",
+    Math.min(innerHeight, window.visualViewport?.height || innerHeight) + "px",
+  );
+  if (view) render();
+}
+window.addEventListener("resize", fitViewport);
+window.visualViewport?.addEventListener("resize", fitViewport);
+fitViewport();
 
 const activeAnimations = new Set(),
   reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let epoch = 0;
 function point(who) {
-  const area = $("arena").getBoundingClientRect(),
+  const area = $("battle").getBoundingClientRect(),
     row = document
       .querySelector('[data-player="' + who + '"]')
       ?.getBoundingClientRect();
   return row
     ? {
-        x: row.left - area.left + row.width / 2 - $("arena").clientLeft,
-        y: row.top - area.top + row.height / 2 - $("arena").clientTop,
+        x: row.left - area.left + row.width / 2 - $("battle").clientLeft,
+        y: row.top - area.top + row.height / 2 - $("battle").clientTop,
       }
     : { x: area.width / 2, y: area.height / 2 };
 }
@@ -878,7 +1016,7 @@ async function cast(who, card) {
   title.textContent = card.name;
   const owner = document.createElement("span");
   owner.className = "cast-owner";
-  owner.textContent = view.players[who].name + " · " + card.type;
+  owner.textContent = view.players[who].name + " · " + CARDS[card.id - 1].type;
   el.append(icon, title, owner);
   const wash = element("fx-wash", null, color);
   void animate(
@@ -931,7 +1069,7 @@ async function projectile(from, to, card) {
   const version = epoch;
   const a = point(from),
     b = point(to),
-    area = $("arena").getBoundingClientRect();
+    area = $("battle").getBoundingClientRect();
   const color = card.type === "magic" ? "#a6cfff" : "#ffb394";
   if (card.type === "magic" && !reducedMotion.matches) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -1045,12 +1183,8 @@ function animateEvents() {
         el("small", data.name),
       );
       void cast(e.actor, c);
-      if (type === "attack") {
-        const to = targets().find((p) => p.id !== e.actor)?.id;
-        if (to !== undefined) void projectile(e.actor, to, c);
-      }
     }
-    if (e.kind === "damage") void impact(e.target, e.amount, 0);
+    if (e.kind === "damage" && !e.forfeit) void impact(e.target, e.amount, 0);
     if (e.kind === "heal") void support(e.target, { type: "heal" }, e.amount);
     if (e.kind === "block") void impact(e.target, 0, e.amount);
   }

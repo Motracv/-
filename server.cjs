@@ -24,22 +24,64 @@ function memberView(room, m) {
     players: room.members.map((x) => ({
       id: x.id,
       name: x.name,
-      connected: !!x.stream || Date.now() - x.lastSeen < 15000,
+      connected: !!x.stream,
     })),
     me: m.id,
     ...(room.game ? { game: room.game.view(m.id) } : {}),
   };
 }
+function disconnect(m) {
+  const stream = m.stream;
+  m.stream = null;
+  m.lastSeen = Date.now();
+  stream?.end();
+}
+function writeStream(m, message) {
+  // A paused/abandoned client must not grow an unlimited server-side buffer.
+  if (!m.stream) return;
+  if (m.stream.destroyed || m.stream.writableLength > 128 * 1024) {
+    disconnect(m);
+    return;
+  }
+  try {
+    m.stream.write(message);
+  } catch {
+    disconnect(m);
+  }
+}
 function broadcast(room) {
   for (const m of room.members)
-    if (m.stream)
-      m.stream.write(`data: ${JSON.stringify(memberView(room, m))}\n\n`);
+    writeStream(m, `data: ${JSON.stringify(memberView(room, m))}\n\n`);
 }
 function auth(req) {
   const token = req.headers.authorization?.replace(/^Bearer /, "");
   const session = sessions.get(token);
-  if (!session) throw Error("다시 입장하세요.");
+  if (
+    !session ||
+    rooms.get(session.room.code) !== session.room ||
+    !session.room.members.includes(session.m) ||
+    session.m.left
+  )
+    throw Error("다시 입장하세요.");
   return session;
+}
+function removeLobbyMembers(room, removed) {
+  for (const m of removed) {
+    sessions.delete(m.token);
+    disconnect(m);
+  }
+  const oldHost = room.members.find((m) => m.id === room.host);
+  room.members = room.members.filter((m) => !removed.includes(m));
+  room.members.forEach((m, i) => {
+    m.id = i;
+  });
+  room.host = room.members.includes(oldHost) ? oldHost.id : 0;
+  if (!room.members.length) rooms.delete(room.code);
+}
+function forfeit(room, m, reason) {
+  if (room.game.s.phase === "over" || room.game.player(m.id).hp <= 0) return;
+  room.game.log(`${m.name} ${reason}`);
+  room.game.forfeit(m.id);
 }
 async function body(req) {
   let data = "";
@@ -130,7 +172,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/api/events" && req.method === "GET") {
       // Streaming fetch uses an authorization header; tokens never appear in URLs.
       const { room, m } = auth(req);
-      if (m.stream) m.stream.end();
+      if (m.stream) disconnect(m);
       m.lastSeen = Date.now();
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -140,7 +182,7 @@ const server = http.createServer(async (req, res) => {
       });
       m.stream = res;
       broadcast(room);
-      req.on("close", () => {
+      res.on("close", () => {
         if (m.stream === res) {
           m.stream = null;
           m.lastSeen = Date.now();
@@ -155,8 +197,9 @@ const server = http.createServer(async (req, res) => {
         u.pathname,
       )
     ) {
-      const { room, m } = auth(req),
-        data = await body(req);
+      const data = await body(req);
+      // Membership may change while a slow request body is arriving.
+      const { room, m } = auth(req);
       m.lastSeen = Date.now();
       room.active = Date.now();
       if (u.pathname === "/api/start") {
@@ -176,36 +219,22 @@ const server = http.createServer(async (req, res) => {
           throw Error("잠시 후 다시 시도하세요.");
         if (!Number.isInteger(data.revision))
           throw Error("게임 상태를 새로 받으세요.");
+        const before = room.game.s.revision;
+        room.game.timeout();
+        if (before !== room.game.s.revision) broadcast(room);
         room.game.action(m.id, data);
         m.lastAction = Date.now();
       }
       if (u.pathname === "/api/leave") {
         if (room.game) {
-          const p = room.game.player(m.id);
-          p.hp = 0;
-          p.hand = [];
-          room.game.log(`${m.name} 기권`);
-          const s = room.game.s;
-          if (!room.game.endCheck()) {
-            if (s.phase === "react" && s.pending.to === m.id) {
-              s.pending = null;
-              room.game.advanceQueue();
-            } else if (s.phase === "gift" && s.pending.target === m.id) {
-              room.game.heal(room.game.player(s.pending.owner), 8);
-              room.game.finish();
-            } else if (s.pending?.actor === m.id || s.pending?.owner === m.id)
-              room.game.finish();
-            else if (s.phase === "turn" && s.turn === m.id) room.game.endTurn();
-          }
-          s.revision++;
-        } else {
+          forfeit(room, m, "기권");
+          m.left = true;
           sessions.delete(m.token);
-          room.members = room.members.filter((x) => x !== m);
-          for (const [i, x] of room.members.entries()) x.id = i;
-          room.host = 0;
-        }
-        if (m.stream) m.stream.end();
-        m.stream = null;
+          disconnect(m);
+        } else removeLobbyMembers(room, [m]);
+        json(res, 200, { left: true });
+        broadcast(room);
+        return;
       }
       json(res, 200, memberView(room, m));
       broadcast(room);
@@ -223,6 +252,9 @@ const server = http.createServer(async (req, res) => {
         "/client.js": "client.js",
         "/game.css": "game.css",
         "/assets/cards/manifest.json": "assets/cards/manifest.json",
+        "/assets/fonts/PretendardVariable.woff2":
+          "assets/fonts/PretendardVariable.woff2",
+        "/assets/fonts/OFL.txt": "assets/fonts/OFL.txt",
       };
       let file = files[u.pathname];
       if (/^\/assets\/cards\/\d{2}\.webp$/.test(u.pathname))
@@ -238,15 +270,19 @@ const server = http.createServer(async (req, res) => {
       }
       res.setHeader(
         "Content-Type",
-        file.endsWith(".js")
-          ? "text/javascript; charset=utf-8"
-          : file.endsWith(".css")
-            ? "text/css"
-            : file.endsWith(".webp")
-              ? "image/webp"
-              : file.endsWith(".json")
-                ? "application/json"
-                : "text/html; charset=utf-8",
+        file.endsWith(".woff2")
+          ? "font/woff2"
+          : file.endsWith(".txt")
+            ? "text/plain; charset=utf-8"
+            : file.endsWith(".js")
+              ? "text/javascript; charset=utf-8"
+              : file.endsWith(".css")
+                ? "text/css"
+                : file.endsWith(".webp")
+                  ? "image/webp"
+                  : file.endsWith(".json")
+                    ? "application/json"
+                    : "text/html; charset=utf-8",
       );
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.end(fs.readFileSync(target));
@@ -257,64 +293,41 @@ const server = http.createServer(async (req, res) => {
     json(res, 400, { error: e.message });
   }
 });
-const tick = setInterval(() => {
+function tickRooms() {
   for (const [code, room] of rooms) {
     if (!room.game) {
       const stale = room.members.filter(
         (m) => !m.stream && Date.now() - m.lastSeen > 90000,
       );
       if (stale.length) {
-        for (const m of stale) sessions.delete(m.token);
-        room.members = room.members.filter((m) => !stale.includes(m));
-        room.members.forEach((m, i) => (m.id = i));
-        room.host = 0;
+        removeLobbyMembers(room, stale);
         broadcast(room);
       }
     }
     if (room.game && room.game.s.phase !== "over") {
       try {
         const old = room.game.s.revision;
-        room.game.timeout();
         for (const m of room.members) {
-          if (
-            !m.stream &&
-            Date.now() - m.lastSeen > 90000 &&
-            room.game.player(m.id).hp > 0
-          ) {
-            const p = room.game.player(m.id);
-            p.hp = 0;
-            p.hand = [];
-            room.game.log(`${m.name} 연결 종료로 탈락`);
-            room.game.s.revision++;
-            if (!room.game.endCheck()) {
-              const s = room.game.s;
-              if (s.phase === "turn" && s.turn === m.id) room.game.endTurn();
-              else if (s.phase === "react" && s.pending.to === m.id)
-                room.game.advanceQueue();
-              else if (s.pending?.target === m.id && s.phase === "gift") {
-                room.game.heal(room.game.player(s.pending.owner), 8);
-                room.game.finish();
-              } else if (s.pending?.owner === m.id || s.pending?.actor === m.id)
-                room.game.finish();
-            }
-          }
+          if (!m.stream && Date.now() - m.lastSeen > 90000)
+            forfeit(room, m, "연결 종료로 탈락");
         }
+        room.game.timeout();
         if (old !== room.game.s.revision) broadcast(room);
       } catch (e) {
         console.error("Room tick error", code, e.message);
       }
     }
-    for (const m of room.members)
-      if (m.stream) m.stream.write(": heartbeat\n\n");
+    for (const m of room.members) writeStream(m, ": heartbeat\n\n");
     if (Date.now() - room.active > 6 * 3600000) {
       for (const m of room.members) {
-        m.stream?.end();
         sessions.delete(m.token);
+        disconnect(m);
       }
       rooms.delete(code);
     }
   }
-}, 1000);
+}
+const tick = setInterval(tickRooms, 1000);
 if (require.main === module)
   server.listen(PORT, "0.0.0.0", () =>
     console.log(`Card server listening on ${PORT}`),
@@ -323,8 +336,13 @@ module.exports = {
   server,
   rooms,
   sessions,
+  tickRooms,
   stop: () => {
     clearInterval(tick);
+    for (const room of rooms.values())
+      for (const m of room.members) disconnect(m);
+    rooms.clear();
+    sessions.clear();
     server.close();
   },
 };
