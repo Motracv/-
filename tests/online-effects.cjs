@@ -3,7 +3,7 @@ const { chromium } = require("playwright"),
   assert = require("node:assert/strict");
 process.env.PORT = "8788";
 const service = require("../server.cjs");
-const { Game } = require("../engine.js");
+const { Game, MAX_HP } = require("../engine.js");
 (async () => {
   await new Promise((r) => service.server.listen(8788, "127.0.0.1", r));
   const port = service.server.address().port,
@@ -48,10 +48,12 @@ const { Game } = require("../engine.js");
     );
     await pages[0].evaluate(async () => receive(await api("/api/start")));
     await Promise.all(pages.map((p) => p.waitForFunction(() => view?.online)));
+    assert(room.game.s.players.every((p) => p.hp === MAX_HP));
     let revision = 100;
     async function fixture(build) {
       const g = new Game(["P0", "P1", "P2", "P3", "P4"], { rng: () => 0 });
       for (const p of g.s.players) {
+        // These effect fixtures deliberately start damaged at 60 HP.
         p.hp = 60;
         p.hand = [];
       }

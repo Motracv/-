@@ -1273,3 +1273,502 @@ dialog [data-close] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+/* Landscape table: one horizontal hand, one compact action bar. */
+body {
+  grid-template-rows: 42px minmax(0, 1fr);
+}
+header {
+  max-width: 1180px;
+}
+main {
+  max-width: 1180px;
+  padding: 3px 14px 10px;
+  gap: 9px;
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(80px, 1fr) auto;
+}
+.arena {
+  padding: 9px 14px;
+  gap: 5px;
+  border-radius: 18px;
+}
+.table {
+  gap: 4px;
+}
+#opponents {
+  gap: 9px;
+}
+.fighter {
+  max-width: 235px;
+  padding: 7px 10px;
+}
+.fighter.target {
+  padding: 6px 9px;
+}
+.fighter .hp-row {
+  font-size: 12px;
+}
+.fighter b {
+  font-size: 13px;
+}
+.fighter .hand-meta {
+  font-size: 10px;
+}
+.table #status {
+  font-size: 17px;
+}
+#turn {
+  display: none;
+}
+#played-slot {
+  display: flex;
+  order: 2;
+  gap: 6px;
+  max-width: 80%;
+  border: 1px solid #8ba88755;
+  background: #173d2c;
+  padding: 6px 12px;
+  color: #e6dfc7;
+  border-radius: 9px;
+  font-size: 16px;
+  min-height: 30px;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+#played-slot small {
+  font-size: 12px;
+}
+#played-slot:disabled {
+  opacity: 0.7;
+}
+#field {
+  font-size: 11px;
+}
+#hand-section {
+  gap: 7px;
+  grid-template-rows: auto auto auto;
+}
+.hand {
+  display: grid;
+  grid-template-columns: repeat(var(--hand-columns), minmax(0, 1fr)) !important;
+  gap: 8px;
+}
+.card {
+  height: clamp(100px, 24dvh, 190px);
+  padding: 10px 9px 8px;
+  gap: 5px;
+  justify-content: flex-start;
+  border-radius: 10px;
+}
+.card::after {
+  display: none;
+}
+.card .icon {
+  display: none;
+}
+.card-type {
+  position: static;
+  order: -1;
+  font-size: 10px;
+  line-height: 1.2;
+}
+.card b {
+  font-size: 15px;
+  line-height: 1.3;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.card-summary {
+  font-size: 11px;
+  line-height: 1.25;
+  display: block;
+  padding-right: 18px;
+}
+.card .rank {
+  display: none;
+}
+.rarity {
+  position: absolute;
+  right: 7px;
+  top: 9px;
+  font-size: 9px;
+  color: #748273;
+}
+.card.selected .rarity {
+  top: auto;
+  bottom: 7px;
+}
+.card[data-rarity="uncommon"] {
+  border-top: 3px solid #63957c;
+}
+.card[data-rarity="rare"] {
+  border-top: 3px solid #8e80be;
+}
+.card[data-rarity="legendary"] {
+  border-top: 3px solid #b88b3b;
+  background: #f6ecd3;
+}
+.card[data-rarity="generated"] {
+  border-top: 3px solid #b17b94;
+}
+.action-tray {
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 0.8fr);
+  gap: 6px 14px;
+  padding: 9px 12px;
+  align-items: center;
+}
+.action-tray .description {
+  grid-column: 1;
+  grid-row: 1/3;
+}
+.action-tray .controls {
+  grid-column: 2;
+  grid-row: 1/3;
+}
+.action-tray:has(#target-hint:not([hidden])) .controls {
+  grid-row: 2;
+}
+.action-tray #target-hint {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.description strong {
+  font-size: 13px;
+}
+.description p {
+  font-size: 12px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.controls button {
+  font-size: 12px;
+  min-height: 40px;
+  padding: 7px 8px;
+}
+#self .fighter {
+  padding: 0;
+}
+#self .fighter b {
+  font-size: 12px;
+}
+#self .hp-row {
+  max-width: 150px;
+}
+#self .tags {
+  display: block;
+}
+.hand-heading {
+  min-height: 24px;
+}
+.menu-options {
+  display: grid;
+  gap: 9px;
+}
+.menu-options button {
+  min-height: 45px;
+}
+.fx-cast {
+  top: 23%;
+  max-width: 235px;
+  padding: 10px 14px;
+}
+.fx-cast .cast-icon {
+  font-size: 25px;
+}
+.fx-cast .cast-name {
+  font-size: 15px;
+  margin-top: 3px;
+}
+.fx-cast .cast-owner {
+  font-size: 10px;
+  margin-top: 3px;
+}
+#card-dialog-desc {
+  white-space: pre-line;
+}
+#rotate-screen {
+  display: none;
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  body {
+    grid-template-rows: 32px minmax(0, 1fr);
+  }
+  header {
+    padding: 0 10px;
+  }
+  nav button {
+    min-height: 26px;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  #connection {
+    font-size: 11px;
+  }
+  main {
+    padding: 2px 8px 6px;
+    gap: 6px;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(70px, 1fr) auto;
+  }
+  .arena {
+    padding: 5px 8px;
+    grid-template-columns: minmax(0, 1fr) minmax(170px, 0.7fr);
+    grid-template-rows: 1fr;
+    gap: 10px;
+    border-radius: 13px;
+  }
+  #opponents {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: center;
+    gap: 5px;
+  }
+  .fighter {
+    padding: 5px 6px;
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .fighter.target {
+    padding: 4px 5px;
+  }
+  .fighter b {
+    font-size: 12px;
+  }
+  .fighter .hand-meta {
+    display: block;
+    font-size: 10px;
+    grid-row: 3;
+  }
+  .fighter .hp-row {
+    font-size: 11px;
+    gap: 4px;
+  }
+  .fighter .tags {
+    font-size: 9px;
+  }
+  .table {
+    gap: 3px;
+  }
+  #status {
+    font-size: 14px !important;
+  }
+  #played-slot {
+    padding: 4px 6px;
+    max-width: 100%;
+    min-height: 26px;
+    font-size: 12px;
+  }
+  #played-slot small {
+    font-size: 11px;
+  }
+  #field {
+    font-size: 10px;
+  }
+  #stop-field {
+    font-size: 10px;
+    min-height: 23px;
+    padding: 2px 6px;
+  }
+  #hand-section {
+    gap: 5px;
+    grid-template-rows: 22px auto auto;
+  }
+  .hand {
+    grid-auto-rows: auto;
+    gap: 6px;
+  }
+  .card {
+    height: clamp(81px, 28dvh, 125px);
+    padding: 6px 7px 5px;
+    gap: 3px;
+  }
+  .card b {
+    font-size: 13px;
+    line-height: 1.2;
+  }
+  .card-type {
+    font-size: 9px;
+  }
+  .card-summary {
+    font-size: 10px;
+    padding-right: 5px;
+  }
+  .rarity {
+    font-size: 8px;
+    top: 6px;
+    right: 5px;
+  }
+  .card.selected .rarity {
+    display: none;
+  }
+  .action-tray {
+    grid-template-columns: minmax(0, 1fr) minmax(230px, 0.85fr);
+    padding: 6px 9px;
+    gap: 3px 9px;
+  }
+  .description strong {
+    font-size: 12px;
+  }
+  .description p {
+    font-size: 11px;
+    line-height: 1.35;
+    margin-top: 3px;
+  }
+  .controls {
+    gap: 5px;
+  }
+  .controls button {
+    min-height: 34px;
+    font-size: 11px;
+    padding: 5px;
+  }
+  .hand-label {
+    font-size: 11px;
+  }
+  .hand-heading {
+    min-height: 22px;
+  }
+  #self .hp-row {
+    max-width: 120px;
+  }
+  .fx-cast {
+    top: 19%;
+    padding: 7px 12px;
+  }
+  .fx-cast .cast-icon {
+    display: none;
+  }
+  .fx-number {
+    font-size: 21px;
+  }
+  dialog {
+    max-height: 90dvh;
+    padding: 16px;
+  }
+  dialog h2 {
+    font-size: 17px;
+  }
+  .menu-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 670px) and (orientation: landscape) {
+  .arena {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.55fr);
+  }
+  .fighter b {
+    font-size: 11px;
+  }
+  .fighter .track {
+    display: none;
+  }
+  .fighter .hp-row {
+    font-size: 11px;
+  }
+  .fighter .hand-meta {
+    font-size: 9px;
+  }
+  .card b {
+    font-size: 12px;
+  }
+  .card-summary {
+    display: none;
+  }
+  .card-type {
+    font-size: 8px;
+  }
+  .rarity {
+    font-size: 8px;
+  }
+  .card {
+    padding: 5px;
+    gap: 2px;
+  }
+  .action-tray {
+    grid-template-columns: minmax(0, 1fr) minmax(210px, 1fr);
+  }
+  .description strong {
+    font-size: 11px;
+  }
+  .description p {
+    font-size: 10px;
+  }
+  .controls button {
+    font-size: 10px;
+    min-height: 32px;
+  }
+  .hand-heading {
+    min-height: 20px;
+  }
+  .hand {
+    gap: 5px;
+  }
+  #hand-section {
+    grid-template-rows: 20px auto auto;
+  }
+  .fx-cast {
+    max-width: 180px;
+  }
+  .fx-cast .cast-name {
+    font-size: 12px;
+  }
+}
+@media (orientation: portrait) and (max-width: 900px) {
+  #rotate-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: #11291e;
+    text-align: center;
+    gap: 15px;
+  }
+  #rotate-screen h1 {
+    font-size: 23px;
+    margin: 0;
+    color: #f2e2ba;
+  }
+  #rotate-screen p {
+    font-size: 15px;
+    margin: 0;
+    color: #b9cbbb;
+  }
+  #rotate-screen small {
+    font-size: 12px;
+    color: #96ae9c;
+  }
+  .rotate-icon {
+    font-size: 62px;
+    color: #d6bd82;
+    line-height: 1.4;
+  }
+  #rotate-screen button {
+    margin: 10px 0;
+    font-size: 15px;
+    min-height: 46px;
+  }
+  body {
+    overflow: hidden;
+  }
+  header,
+  main {
+    visibility: hidden;
+  }
+}
+#self .fighter {
+  width: 100%;
+  max-width: 350px;
+}

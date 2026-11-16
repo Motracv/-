@@ -100,14 +100,79 @@
     "이번 피해를 최대 6으로 제한. 원래 피해가 더 작으면 그대로.",
     "50% 확률로 이번 피해 완전 회피. 실패하면 원래 피해.",
   ];
-  const CARDS = names.map((name, i) => ({
-    id: i + 1,
-    name,
-    type: types[i],
-    desc: descriptions[i],
-    generated: [6, 25, 26].includes(i + 1),
-    image: `assets/cards/${String(i + 1).padStart(2, "0")}.webp`,
-  }));
+  const MAX_HP = 100;
+  const RARITIES = {
+    common: { label: "일반", weight: 12 },
+    uncommon: { label: "고급", weight: 6 },
+    rare: { label: "희귀", weight: 3 },
+    legendary: { label: "전설", weight: 1 },
+    generated: { label: "생성 전용", weight: 0 },
+  };
+  const rareCards = new Set([1, 2, 14, 15, 17, 27, 28]);
+  const uncommonCards = new Set([3, 4, 5, 9, 11, 13, 16, 20, 21, 23, 29]);
+  const legendaryCards = new Set([18, 24]);
+  const shortDescriptions = [
+    "다음 내 차례부터, 차례가 시작될 때 상대 전원에게 4 피해를 줍니다. 총 3회.",
+    "이번 공격을 막고 피해+3을 돌려줍니다(최대 20). Ace는 필드를 없애고 14 반격.",
+    "상대가 받으면 둘 중 무작위 한 명이 8~18 피해. 거절하면 내가 8 회복.",
+    "상대 한 명은 다음 두 차례가 끝날 때까지 회복할 수 없습니다.",
+    "상대 카드 1장을 무작위로 가져옵니다. 같은 카드 2장으로 강화 호시노 합성 가능.",
+    "상대들의 손패를 나만 보고, 원하는 카드 2장을 가져옵니다.",
+    "상대 한 명에게 6~16 피해를 줍니다.",
+    "내 HP를 8~16 회복합니다.",
+    "상대 한 명에게 8~12 피해. 반격은 못 하지만 방어는 할 수 있습니다.",
+    "20 이하 피해는 전부 막습니다. 21 이상 피해는 막지 못합니다.",
+    "내 HP 5를 지불하고, 상대 한 명에게 21 피해를 줍니다.",
+    "나 또는 상대 한 명의 해로운 상태이상을 모두 없앱니다.",
+    "이번 단일 공격 피해를 다른 한 명과 절반씩 받습니다. 홀수 나머지는 상대가 받습니다.",
+    "나는 18~25, 다른 생존자 전원은 10 회복합니다.",
+    "상대 전원에게 6 피해. 방어·반격·무적도 무시합니다.",
+    "내 HP 5를 지불합니다. 상대는 다음 차례에 회복·방어·교환만 할 수 있습니다.",
+    "상대를 2차례 회복 금지로 만들고, 그동안 상대가 받은 피해만큼 내가 회복합니다.",
+    "상대 최대 2명을 심판해 회복 또는 공격 카드를 모두 압수하고, 방어 카드를 얻습니다.",
+    "다음 차례 상대와 카드를 무작위로 1장씩 바꿉니다.",
+    "공격자를 2차례 카드 획득 금지로 만듭니다. 이번 피해는 그대로 받습니다.",
+    "모두 HP를 최대 5씩 냅니다. 살아남은 한 명을 무작위로 뽑아 모인 만큼 회복합니다.",
+    "내 해로운 상태이상을 모두 없앱니다.",
+    "이번 피해를 10 줄입니다. 손패에 Ace가 있으면 35 줄입니다(Ace 소모 없음).",
+    "상대 전원의 차례를 1회 넘깁니다. 손패에 영역표시가 있으면 2회(소모 없음).",
+    "받을 때 2차례 회복 금지가 생깁니다. 쓰거나 잃어도 금지는 남고, 사용 효과는 없습니다.",
+    "염라 이건우가 압수한 수치만큼 이번 피해를 줄입니다. 남은 방어력은 사라집니다.",
+    "지금부터 다음 내 차례가 시작되기 전까지 무적입니다. 조이의 공격은 막지 못합니다.",
+    "살아 있는 모두의 HP를 합쳐 똑같이 나눕니다. 나머지는 차례 순서대로 1씩 받습니다.",
+    "이번 피해를 최대 6으로 줄입니다. 원래 피해가 6보다 작으면 그대로 받습니다.",
+    "50% 확률로 이번 피해를 전부 피합니다. 실패하면 원래 피해를 받습니다.",
+  ];
+  const CARDS = names.map((name, i) => {
+    const id = i + 1,
+      generated = [6, 25, 26].includes(id);
+    const rarity = generated
+      ? "generated"
+      : legendaryCards.has(id)
+        ? "legendary"
+        : rareCards.has(id)
+          ? "rare"
+          : uncommonCards.has(id)
+            ? "uncommon"
+            : "common";
+    return {
+      id,
+      name,
+      type: types[i],
+      desc: descriptions[i],
+      shortDesc: shortDescriptions[i],
+      generated,
+      rarity,
+      rarityLabel: RARITIES[rarity].label,
+      weight: RARITIES[rarity].weight,
+      image: `assets/cards/${String(id).padStart(2, "0")}.webp`,
+    };
+  });
+  const DRAW_WEIGHT_TOTAL = CARDS.reduce(
+    (total, card) => total + card.weight,
+    0,
+  );
+  for (const card of CARDS) card.chance = card.weight / DRAW_WEIGHT_TOTAL;
   const pool = CARDS.filter((c) => !c.generated).map((c) => c.id);
   const defense = new Set([2, 10, 13, 20, 23, 26, 27, 29, 30]);
   const harmful = ["red", "noheal", "touch", "xerath", "skip"];
@@ -135,7 +200,7 @@
         players: names.map((name, id) => ({
           id,
           name,
-          hp: 60,
+          hp: MAX_HP,
           hand: [],
           status: {},
           turns: 0,
@@ -161,6 +226,14 @@
     card(id, extra = {}) {
       return { uid: ++this.serial, id, ...extra };
     }
+    draw() {
+      let ticket = this.rand(0, DRAW_WEIGHT_TOTAL - 1);
+      for (const definition of CARDS) {
+        if (ticket < definition.weight) return this.card(definition.id);
+        ticket -= definition.weight;
+      }
+      throw Error("잘못된 카드 추첨 결과입니다.");
+    }
     player(id) {
       check(Number.isInteger(id), "잘못된 플레이어입니다.");
       const p = this.s.players[id];
@@ -185,12 +258,11 @@
     }
     refill(p) {
       if (p.hp <= 0 || p.status.touch) return;
-      while (p.hand.length < 5)
-        this.acquire(p, this.card(pool[this.rand(0, pool.length - 1)]));
+      while (p.hand.length < 5) this.acquire(p, this.draw());
     }
     heal(p, n) {
       if (p.hp <= 0 || p.status.red || p.status.noheal) return 0;
-      const amount = Math.min(n, 60 - p.hp);
+      const amount = Math.min(n, MAX_HP - p.hp);
       p.hp += amount;
       if (amount) {
         this.log(`${p.name} HP ${amount} 회복`);
@@ -198,16 +270,16 @@
       }
       return amount;
     }
-    damage(p, n, { bypass = false } = {}) {
-      if (p.hp <= 0) return 0;
+    damage(p, n, { bypass = false, source, card } = {}) {
+      if (p.hp <= 0 || n <= 0) return 0;
       if (p.status.invincible && !bypass) {
-        this.event("block", { target: p.id, amount: n });
+        this.event("block", { target: p.id, amount: n, source, card });
         return 0;
       }
       const hit = Math.min(p.hp, n);
       p.hp -= hit;
       this.log(`${p.name} 피해 ${hit}`);
-      this.event("damage", { target: p.id, amount: hit });
+      this.event("damage", { target: p.id, amount: hit, source, card });
       for (const link of this.s.links.filter((x) => x.target === p.id))
         this.heal(this.player(link.owner), hit);
       return hit;
@@ -296,6 +368,14 @@
             multi: true,
           }));
         if (s.field.left === 0) this.replaceField(null);
+        this.event("attack", {
+          from: p.id,
+          source: p.id,
+          targets: this.s.queue.map((a) => a.to),
+          card: 1,
+          amount: 4,
+          multi: true,
+        });
         this.afterQueue = "begin";
         this.advanceQueue();
         return;
@@ -394,6 +474,15 @@
         bypass,
         multi,
       }));
+      this.event("attack", {
+        from,
+        source: from,
+        targets: [...targets],
+        card,
+        amount,
+        multi,
+        bypass,
+      });
       this.afterQueue = "finish";
       this.advanceQueue();
     }
@@ -404,7 +493,11 @@
           p = this.player(attack.to);
         if (p.hp <= 0) continue;
         if (attack.bypass || p.status.invincible) {
-          this.damage(p, attack.amount, { bypass: attack.bypass });
+          this.damage(p, attack.amount, {
+            bypass: attack.bypass,
+            source: attack.from,
+            card: attack.card,
+          });
           continue;
         }
         if (p.hand.some((c) => this.canReact(c, attack))) {
@@ -413,7 +506,10 @@
           s.deadline = this.now() + this.responseMs;
           return;
         }
-        this.damage(p, attack.amount);
+        this.damage(p, attack.amount, {
+          source: attack.from,
+          card: attack.card,
+        });
       }
       s.pending = null;
       if (this.endCheck()) return;
@@ -467,18 +563,55 @@
           if (c.id === 13) split = this.target(input.target, actor);
         }
         if (c) this.consume(p, c.uid);
-        if (c) this.event("card", { actor, card: c.id });
+        if (c)
+          this.event("card", {
+            actor,
+            source: actor,
+            card: c.id,
+            reaction: true,
+            targets:
+              c.id === 2 || c.id === 20
+                ? [a.from]
+                : c.id === 13
+                  ? [actor, split.id]
+                  : [actor],
+            incoming: { source: a.from, card: a.card, amount: a.amount },
+            ...(c.id === 26 ? { armor: c.armor || 0 } : {}),
+          });
         let amount = a.amount;
         if (c?.id === 2) {
           amount = 0;
           if (a.card === 1) {
             this.replaceField(null);
-            this.damage(this.player(a.from), 14);
-          } else this.damage(this.player(a.from), Math.min(20, a.amount + 3));
+          }
+          const reflected = a.card === 1 ? 14 : Math.min(20, a.amount + 3);
+          this.event("attack", {
+            from: actor,
+            source: actor,
+            targets: [a.from],
+            card: 2,
+            amount: reflected,
+            reaction: true,
+          });
+          this.damage(this.player(a.from), reflected, {
+            source: actor,
+            card: 2,
+          });
         }
         if (c?.id === 10 && amount <= 20) amount = 0;
         if (c?.id === 13) {
-          this.damage(split, Math.ceil(amount / 2));
+          this.event("attack", {
+            from: actor,
+            source: a.from,
+            targets: [split.id],
+            card: 13,
+            amount: Math.ceil(amount / 2),
+            transferred: true,
+          });
+          this.damage(split, Math.ceil(amount / 2), {
+            source: a.from,
+            card: a.card,
+          });
           amount = Math.floor(amount / 2);
         }
         if (c?.id === 20) this.status(this.player(a.from), "touch", 2);
@@ -500,7 +633,15 @@
           );
           if (success) amount = 0;
         }
-        this.damage(p, amount);
+        if (amount < a.amount)
+          this.event("block", {
+            target: actor,
+            source: actor,
+            card: c?.id,
+            amount: a.amount - amount,
+            transferred: c?.id === 13,
+          });
+        this.damage(p, amount, { source: a.from, card: a.card });
         s.pending = null;
         this.advanceQueue();
       } else if (s.phase === "gift") {
@@ -511,7 +652,13 @@
           const victim = this.rng() < 0.5 ? owner : p,
             n = this.rand(8, 18);
           this.log(`룰렛: ${victim.name}, 피해 ${n}`);
-          this.damage(victim, n);
+          this.event("roulette", {
+            source: owner.id,
+            target: victim.id,
+            card: 3,
+            amount: n,
+          });
+          this.damage(victim, n, { source: owner.id, card: 3 });
         } else this.heal(owner, 8);
         s.pending = null;
         this.finish();
@@ -561,7 +708,7 @@
           check(input.cards.every((uid) => p.hand.some((c) => c.uid === uid)));
           for (const uid of input.cards) {
             this.consume(p, uid);
-            this.acquire(p, this.card(pool[this.rand(0, pool.length - 1)]));
+            this.acquire(p, this.draw());
           }
           this.finish();
         } else if (input.kind === "fuse") {
@@ -574,7 +721,13 @@
           this.consume(p, cards[0].uid);
           this.consume(p, cards[1].uid);
           this.acquire(p, this.card(6));
-          this.event("card", { actor, card: 6 });
+          this.event("card", {
+            actor,
+            source: actor,
+            card: 6,
+            targets: [actor],
+            fusion: true,
+          });
           this.finish();
         } else if (input.kind === "pass") {
           this.finish();
@@ -611,7 +764,23 @@
               "카드 획득이 금지되어 있습니다.",
             );
           this.consume(p, c.uid);
-          this.event("card", { actor, card: id });
+          const eventTargets = target
+            ? [target.id]
+            : id === 18
+              ? judgments.map((j) => j.p.id)
+              : [6, 15, 24].includes(id)
+                ? this.alive()
+                    .filter((x) => x.id !== actor)
+                    .map((x) => x.id)
+                : [14, 21, 28].includes(id)
+                  ? this.alive().map((x) => x.id)
+                  : [actor];
+          this.event("card", {
+            actor,
+            source: actor,
+            card: id,
+            targets: eventTargets,
+          });
           this.log(`${p.name} · ${CARDS[id - 1].name}`);
           switch (id) {
             case 1:
@@ -840,5 +1009,5 @@
       };
     }
   }
-  return { Game, CARDS, pool, defense };
+  return { Game, CARDS, pool, defense, MAX_HP, RARITIES, DRAW_WEIGHT_TOTAL };
 });

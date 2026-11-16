@@ -8,15 +8,15 @@
     />
     <meta name="theme-color" content="#142a21" />
     <title>친구들의 카드 테이블</title>
-    <link rel="stylesheet" href="game.css?v=hand-v3" />
+    <link rel="stylesheet" href="game.css?v=landscape-v4" />
   </head>
   <body>
     <header>
       <span id="connection">개인전 · AI 연습</span>
       <nav>
-        <button id="online-open">온라인</button
-        ><button id="rules-open">규칙</button><button id="log-open">기록</button
-        ><button id="new-game">새 게임</button>
+        <button id="fullscreen">전체화면</button
+        ><button id="online-open" class="primary">온라인 대전</button
+        ><button id="menu-open">메뉴</button>
       </nav>
     </header>
     <main id="battle">
@@ -24,9 +24,9 @@
         <div id="opponents"></div>
         <div class="table">
           <span id="turn"></span>
-          <div id="played-slot" aria-hidden="true">
-            <small>카드를 골라 시작하세요</small>
-          </div>
+          <button id="played-slot" aria-label="최근 카드 설명 보기" disabled>
+            <small>사용한 카드가 여기에 표시됩니다</small>
+          </button>
           <strong id="status" role="status" aria-live="polite"></strong
           ><span id="field"></span
           ><button id="stop-field" hidden>원탭 Ace 중단 · 무료</button>
@@ -61,11 +61,27 @@
       <div id="effects" class="fx-layer" aria-hidden="true"></div>
     </main>
     <div id="toast" role="alert" hidden></div>
+    <div id="rotate-screen">
+      <div class="rotate-icon" aria-hidden="true">▭ ↻</div>
+      <h1>가로로 돌려주세요</h1>
+      <p>넓은 화면에서 카드를 펼치고 대전하세요.</p>
+      <button id="rotate-fullscreen" class="primary">가로 화면으로 시작</button
+      ><small>회전 잠금이 켜져 있으면 해제해 주세요.</small>
+    </div>
+    <dialog id="menu-dialog">
+      <h2>메뉴</h2>
+      <div class="menu-options">
+        <button id="new-game">새 게임</button
+        ><button id="rules-open">게임 규칙 · 카드 확률</button
+        ><button id="log-open">전투 기록</button>
+      </div>
+      <button data-close>닫기</button>
+    </dialog>
     <dialog id="rules-dialog">
       <h2>게임 규칙</h2>
       <p>
-        HP 60, 손패 5장으로 시작합니다. 차례 시작에 5장까지 보충합니다. 카드 1장
-        사용 또는 최대 2장 교환, 마나는 없습니다. 공격에는 방어·반격 1장을
+        HP 100, 손패 5장으로 시작합니다. 차례 시작에 5장까지 보충합니다. 카드
+        1장 사용 또는 최대 2장 교환, 마나는 없습니다. 공격에는 방어·반격 1장을
         사용할 수 있고 자기 행동은 소비하지 않습니다. 손패가 7장을 넘으면 버릴
         카드를 선택합니다. 마지막 생존자가 승리하며 전원 동시 탈락은
         무승부입니다.
@@ -73,16 +89,20 @@
       <p>
         지속효과는 대상자의 다음 차례 종료 기준입니다. 무적은 다음 자기 차례
         시작 직전까지입니다. 생략한 차례에도 지속효과와 기간은 처리하고 손패는
-        보충하지 않습니다. 회복은 최대 60, 탈락자는 부활하지 않습니다. 필드는
+        보충하지 않습니다. 회복은 최대 100, 탈락자는 부활하지 않습니다. 필드는
         1장만 유지합니다. 반격·전가 피해는 재반격·재전가할 수 없습니다.
       </p>
       <p>
         차례 45초, 방어·선택 20초. 시간 초과 시 차례 넘김·피해 수용·선물
         거절·자동 선택합니다. 온라인 연결이 끊기면 90초 안에 같은 브라우저로
-        재접속할 수 있습니다. 서버 재시작 시 방은 종료됩니다.
+        재접속할 수 있습니다. 방은 최대 6시간 유지됩니다.
       </p>
       <details>
         <summary>카드 30장과 확정 판정</summary>
+        <p>
+          일반 → 고급 → 희귀 → 전설 순으로 나오기 어렵습니다. 합성·생성 전용
+          카드는 일반 뽑기에서 나오지 않습니다.
+        </p>
         <div id="catalog"></div>
       </details>
       <button data-close>닫기</button>
@@ -112,7 +132,7 @@
         ><button id="join-room">입장</button>
       </div>
       <details>
-        <summary>온라인 서버 설정</summary>
+        <summary>고급 연결 설정</summary>
         <label
           >HTTPS 서버 주소<input
             id="server-url"
@@ -120,8 +140,8 @@
             placeholder="https://your-card-server.example"
         /></label>
         <p>
-          GitHub Pages와 별도로 실행되는 게임 서버가 필요합니다. 서버 주소가
-          설정되지 않으면 AI 연습만 가능합니다.
+          기본 온라인 서버에 자동 연결합니다. 직접 운영하는 서버가 있을 때만
+          주소를 변경하세요.
         </p>
         <button id="save-server">주소 저장</button>
       </details>
@@ -147,7 +167,7 @@
       <p id="card-dialog-desc"></p>
       <button data-close>닫기</button>
     </dialog>
-    <script src="engine.js?v=hand-v3"></script>
-    <script src="client.js?v=hand-v3"></script>
+    <script src="engine.js?v=landscape-v4"></script>
+    <script src="client.js?v=landscape-v4"></script>
   </body>
 </html>

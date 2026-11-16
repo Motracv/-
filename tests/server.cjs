@@ -3,7 +3,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
 const service = require("../server.cjs");
-const { Game } = require("../engine.js");
+const { Game, MAX_HP } = require("../engine.js");
 let origin;
 const streams = [];
 before(async () => {
@@ -160,7 +160,7 @@ test("resigning pending defender resumes remaining area targets", async () => {
   assert.equal(g.s.phase, "react");
   await post("leave", {}, members[1].token);
   assert.equal(g.player(1).hp, 0);
-  assert.equal(g.player(2).hp, 52);
+  assert.equal(g.player(2).hp, MAX_HP - 8);
   assert.notEqual(g.s.phase, "react");
 });
 test("departing a non-current overflow player preserves current turn", async () => {

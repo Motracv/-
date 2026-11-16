@@ -1,11 +1,13 @@
 const { test } = require("node:test"),
   assert = require("node:assert/strict"),
-  { Game, CARDS, pool } = require("../engine.js");
+  { Game, CARDS, pool, MAX_HP, DRAW_WEIGHT_TOTAL } = require("../engine.js");
 function setup(n = 3, rng = () => 0) {
   const g = new Game(
     Array.from({ length: n }, (_, i) => "P" + i),
     { rng },
   );
+  // Fixed damaged-HP fixture: tests below measure card deltas from 60.
+  // New-game HP and the healing ceiling are tested separately against MAX_HP.
   for (const p of g.s.players) {
     p.hand = [];
     p.hp = 60;
@@ -122,9 +124,9 @@ test("07/08/09: random ranges, heal capped, nyan no counters", () => {
   play(g, 7);
   assert.equal(g.player(1).hp, 54);
   const h = setup(3, () => 0.9999);
-  h.player(0).hp = 50;
+  h.player(0).hp = MAX_HP - 10;
   play(h, 8);
-  assert.equal(h.player(0).hp, 60);
+  assert.equal(h.player(0).hp, MAX_HP);
   const k = setup();
   give(k, 1, 2, 20);
   play(k, 9);
@@ -228,7 +230,7 @@ test("21: low HP eliminated before lottery; all low yields draw", () => {
   g.player(1).hp = 4;
   play(g, 21);
   assert.equal(g.player(1).hp, 0);
-  assert.equal(g.player(0).hp, 60);
+  assert.equal(g.player(0).hp, 69);
   const h = setup();
   for (const p of h.s.players) p.hp = 5;
   play(h, 21);
@@ -555,7 +557,7 @@ test("2–5 player seeded games preserve legal state and make progress", () => {
         }
         assert.equal(s.revision, beforeRev + 1);
         for (const x of s.players) {
-          assert(Number.isInteger(x.hp) && x.hp >= 0 && x.hp <= 60);
+          assert(Number.isInteger(x.hp) && x.hp >= 0 && x.hp <= MAX_HP);
           const snapshot = g.view(x.id);
           assert(
             snapshot.players.every(
@@ -587,4 +589,82 @@ test("2–5 player seeded games preserve legal state and make progress", () => {
   console.log(
     `Seeded games: ${completed}/${games} finished naturally within 400 actions`,
   );
+});
+
+test("new games start at HP 100 and all healing is capped at 100", () => {
+  assert.equal(MAX_HP, 100);
+  for (let n = 2; n <= 5; n++) {
+    const g = new Game(Array.from({ length: n }, (_, i) => `P${i}`));
+    assert(g.s.players.every((p) => p.hp === MAX_HP && p.hand.length === 5));
+    g.player(0).hp = 95;
+    assert.equal(g.heal(g.player(0), 25), 5);
+    assert.equal(g.player(0).hp, 100);
+    g.player(1).hp = 0;
+    assert.equal(g.heal(g.player(1), 100), 0);
+  }
+});
+
+test("weighted draw has exact published odds and never generates synthesis-only cards", () => {
+  assert.equal(DRAW_WEIGHT_TOTAL, 173);
+  const g = setup();
+  const counts = new Map();
+  for (let ticket = 0; ticket < DRAW_WEIGHT_TOTAL; ticket++) {
+    g.rng = () => (ticket + 0.5) / DRAW_WEIGHT_TOTAL;
+    const id = g.draw().id;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  for (const card of CARDS) {
+    assert.equal(counts.get(card.id) || 0, card.weight);
+    assert.equal(card.chance, card.weight / DRAW_WEIGHT_TOTAL);
+    assert(card.shortDesc.length > 0 && card.rarityLabel.length > 0);
+    assert.equal(card.generated, card.weight === 0);
+  }
+  assert(CARDS[17].chance < CARDS[0].chance);
+  assert(CARDS[0].chance < CARDS[2].chance);
+  assert(CARDS[2].chance < CARDS[6].chance);
+});
+
+test("initial hands, turn refill and card exchange share the weighted draw", () => {
+  let offset = 0;
+  for (const definition of CARDS.filter((c) => !c.generated)) {
+    const rng = () => (offset + 0.5) / DRAW_WEIGHT_TOTAL;
+    const g = new Game(["P0", "P1"], { rng });
+    assert(
+      g.s.players.every((p) => p.hand.every((c) => c.id === definition.id)),
+    );
+    g.player(0).hand = [];
+    g.refill(g.player(0));
+    assert(g.player(0).hand.every((c) => c.id === definition.id));
+    const [old] = give(g, 0, 25);
+    g.action(0, { kind: "exchange", cards: [old.uid] });
+    assert(g.player(0).hand.every((c) => c.id === definition.id));
+    offset += definition.weight;
+  }
+});
+
+test("public effect events identify actual attack targets, reactions and generated armor", () => {
+  const g = setup();
+  give(g, 2, 2);
+  play(g, 7, 2);
+  const launched = g.s.events.find((e) => e.kind === "attack");
+  assert.deepEqual(launched.targets, [2]);
+  assert.equal(launched.source, 0);
+  act(g, 2, { kind: "react", card: g.player(2).hand[0].uid });
+  const reaction = g.s.events.find((e) => e.kind === "card" && e.reaction);
+  assert.equal(reaction.source, 2);
+  assert.deepEqual(reaction.targets, [0]);
+  assert.equal(reaction.incoming.amount, 6);
+  const counter = g.s.events.find((e) => e.kind === "attack" && e.reaction);
+  assert.deepEqual(counter.targets, [0]);
+  assert.equal(counter.amount, 9);
+  const h = setup();
+  h.player(1).hand.push(h.card(26, { armor: 19 }));
+  play(h, 11);
+  act(h, 1, { kind: "react", card: h.player(1).hand[0].uid });
+  assert.equal(
+    h.s.events.find((e) => e.kind === "card" && e.card === 26).armor,
+    19,
+  );
+  assert.equal(h.s.events.find((e) => e.kind === "block").amount, 19);
+  assert.equal(h.player(1).hp, 58);
 });
