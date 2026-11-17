@@ -62,7 +62,9 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
     if (now < keysUntil && now - fetchedAt < 60000) return keyCache;
     if (!loadingKeys) loadingKeys = (async () => {
       let response;
-      try { response = await fetchKeys(GOOGLE_KEYS, { signal: AbortSignal.timeout(5000), redirect: "error" }); }
+      // Workers rejects redirect:"error" before sending the request. Manual
+      // redirects preserve the fixed Google origin; non-2xx responses fail below.
+      try { response = await fetchKeys(GOOGLE_KEYS, { signal: AbortSignal.timeout(5000), redirect: "manual" }); }
       catch { throw accountError("Google 로그인 확인에 연결하지 못했습니다. 다시 시도하세요.", 503); }
       if (!response.ok) throw accountError("Google 로그인 확인을 잠시 사용할 수 없습니다.", 503);
       const body = await response.json();

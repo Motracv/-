@@ -50,6 +50,14 @@ test("expired challenges/sessions and credential types are rejected", async () =
   assert.equal((await t.call("/api/account/me", {}, guest.data.token)).status, 401);
   assert.equal(t.read(guest.data.code).members[0].accountId, undefined);
 });
+test("Google key requests reject redirects without creating an account or session", async () => {
+  const t = await fixture({ keysResponse: new Response(null, { status: 302, headers: { Location: "https://untrusted.example/keys" } }) });
+  const result = await t.login();
+  assert.equal(result.status, 503);
+  assert.equal(t.keyReads(), 1);
+  assert.equal(t.sqlite.prepare("SELECT COUNT(*) n FROM accounts").get().n, 0);
+  assert.equal(t.sqlite.prepare("SELECT COUNT(*) n FROM account_sessions").get().n, 0);
+});
 test("five signed players expose only nickname/level and their own progression; duplicate accounts cannot join", async () => {
   const t = await fixture(), { members, signed, code } = await t.room(5);
   for (let i = 0; i < 5; i++) {

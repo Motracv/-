@@ -3,7 +3,7 @@ const { DatabaseSync } = require("node:sqlite");
 const fs = require("node:fs"), path = require("node:path");
 const Battle = require("../engine.js");
 const CLIENT_ID = "123-card-test.apps.googleusercontent.com";
-async function fixture() {
+async function fixture({ keysResponse } = {}) {
   const { createWorker } = await import("../online/worker.mjs");
   const { createAccounts } = await import("../online/accounts.mjs");
   const pair = await crypto.subtle.generateKey({ name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["sign", "verify"]);
@@ -30,9 +30,13 @@ async function fixture() {
       catch (error) { sqlite.exec("ROLLBACK"); throw error; }
     },
   };
-  const accounts = createAccounts({ fetchKeys: async url => {
+  const accounts = createAccounts({ fetchKeys: async (url, options) => {
+    // Cloudflare Workers supports follow/manual, but throws before the network
+    // request for redirect:error. Node's fetch accepts it, hiding this failure.
+    if (options?.redirect === "error") throw new TypeError("Unsupported redirect mode: error");
+    if (options?.redirect !== "manual") throw Error("Google keys must not follow redirects");
     if (url !== "https://www.googleapis.com/oauth2/v3/certs") throw Error("Unexpected certificate origin");
-    keyReads++; return new Response(JSON.stringify({ keys: [jwk] }), { headers: { "Cache-Control": "max-age=3600" } });
+    keyReads++; return keysResponse || new Response(JSON.stringify({ keys: [jwk] }), { headers: { "Cache-Control": "max-age=3600" } });
   } });
   const worker = createWorker(Battle, { accounts });
   const env = { DB: db, GOOGLE_CLIENT_ID: CLIENT_ID };
