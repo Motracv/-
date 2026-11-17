@@ -1,0 +1,2 @@
+17bad3f71b3ee5b8f03017c85c3217916d261f9f65429778bcb791bc1bd5f153  School-Mercenaries-Windows-1.0.0.zip
+270e55e81640d47299b51bbe232f10798edddf55ce7d010da6bcf37d0fbf054e  School-Mercenaries.exe

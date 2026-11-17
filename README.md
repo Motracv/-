@@ -10,6 +10,8 @@
 
 설정에서 **PWA 앱 설치·홈 화면 추가** 안내를 제공합니다. 지원하는 Chrome·Edge 또는 iOS Safari에서 사용하며 APK·앱스토어 배포는 아닙니다. 처음 온라인에서 파일 준비를 마친 게스트는 오프라인으로 실행할 수 있고, Google 로그인·계정 저장·랭킹에는 인터넷이 필요합니다. 카탈로그는 9이며 게스트 저장 키 `school-mercenaries-v8`와 기존 기록을 유지합니다.
 
+친구에게 파일로 전달할 수 있는 [Windows용 ZIP 다운로드](https://motracv.github.io/-/downloads/)도 제공합니다. 압축을 풀고 EXE를 실행하면 PC에 설치된 Edge·Chrome의 게임 전용 창을 엽니다. Windows 10/11 x64용 실행기이며 게임·브라우저 전체 번들 또는 코드 서명된 설치 프로그램은 아닙니다. [실행기 소스·빌드 안내](desktop/windows/README.md)를 참고하세요.
+
 게임 내용과 저장 구조·확률·검증 방법은 [학교용병단 개발 안내](school/README.md)를 참고하세요. `npm start` 후 `http://localhost:8787/school.html`에서 게스트 플레이를 실행할 수 있습니다. 온라인 계정 진행은 기존 계정 서버의 `/api/school/*`에 별도로 저장합니다.
 
 ## Google 계정 · 레벨

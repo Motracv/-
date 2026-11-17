@@ -173,3 +173,11 @@ QHD 16초 샘플의 긴 작업 누적은 8.82초에서 0.65초, CPU 제한 조�
 `node tests/school-install-browser.cjs` 종료 코드 0. 실제 Chromium의 합성 설치 이벤트로 취소·prompt/userChoice 오류·중복 클릭·대기 중 다시 그리기·새 이벤트 재시도·appinstalled를 검사했다. 설치 요청이 없어도 일반 브라우저의 버튼은 남고 Safari·Android의 수동 안내가 열리며, standalone에서는 실행 상태를 표시한다. 합성 이벤트 검증은 실제 OS 설치 성공을 의미하지 않는다.
 
 일반 임시 프로필에서 기존 `school-patch1` 캐시 → `school-installfix1` 대기 → 게임 창 종료 후 활성화·구 캐시 정리 → 오프라인 실행까지 확인했다. 저장 재화 4,321과 새 재시도 버튼이 유지됐다. 568×280 화면에서도 안내 포커스 후 설치 방법이 보였다. Chrome 설치 가능 조건 오류 0개, 시작 주소 `school.html?app=1`과 standalone 설정 유지 확인.
+
+## Windows 파일 배포 (2026-11-18)
+
+사용자가 Windows용만 요청하여 `desktop/windows/`에 x64 실행기와 재현 빌드 소스를 추가했다. PC의 Edge·Chrome 앱 창에서 `school.html?desktop=1`을 직접 열며 PWA 설치 프롬프트를 필요로 하지 않는다. ZIP은 EXE와 한글 사용 안내 2개 파일이며, 게임·브라우저 전체 번들 또는 코드 서명된 설치 프로그램은 아니다.
+
+MinGW-w64 GCC 14 교차 빌드·재빌드 바이트 동일, Windows 기본 DLL만 의존, PE GUI x64·아이콘·버전·asInvoker manifest를 확인했다. Wine 10의 독립 임시 프로필에서 배포할 실제 EXE를 실행하여 기본 Edge/Chrome·명시적 Edge/Chrome·Edge 부재 시 대체 총 5건 통과했다. 테스트 브라우저로 실제 프로세스를 생성해 한글·공백·따옴표가 있는 설치 경로 및 정확한 게임 URL·앱 창 인자 전달을 검사했다. 실제 Windows 브라우저 화면·SmartScreen·Google 로그인 완료 검증과는 다르다.
+
+Chromium 1440×900·390×844에서 다운로드 페이지 가로 넘침 없음, ZIP 링크 클릭·원본 SHA-256 일치를 확인했다. 공개 `school.html?desktop=1`은 홈페이지 이동 없이 게임 엔진·캔버스를 로드하며 JavaScript 페이지 예외 0개였다. 게임 실행 파일·저장 키·API 서버는 이 작업에서 변경하지 않았다. 자세한 빌드 및 검증 방법은 `desktop/windows/README.md`에 있다.
