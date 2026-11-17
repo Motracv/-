@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 6;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 7;
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
   const OSIA_SKILLS = [
@@ -26,11 +26,19 @@
     osia: Object.freeze({ id: "osia", name: "오시아 상시 모집", featured: "osia", limited: false, expiresAt: null }),
     lava: Object.freeze({ id: "lava", name: "라바 한정 모집", featured: "lava", limited: true, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
   });
-  // The deadline is exclusive: both codes work throughout November 20 in Korea.
+  // The deadline is exclusive: codes work throughout November 20 in Korea.
   const COUPONS = Object.freeze({
     OSIA_DEBUT: Object.freeze({ gold: 1000, gems: 1000, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
     BUG_FIX: Object.freeze({ gold: 1500, gems: 1500, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
+    LAVA_DEBUT: Object.freeze({ gold: 1000, gems: 1000, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
+    THANK_YOU: Object.freeze({ gold: 500, gems: 500, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
   });
+  const DUNGEONS = Object.freeze({
+    daily: Object.freeze({ id: "daily", name: "방과 후 보급고", cap: 3, unlocks: [0, 10, 20, 35, 50], stages: [5, 15, 30, 45, 60] }),
+    weekly: Object.freeze({ id: "weekly", name: "봉인된 이사장실", cap: 2, unlocks: [0, 15, 30, 45, 60], stages: [5, 15, 30, 45, 60] }),
+    tower: Object.freeze({ id: "tower", name: "뫼비우스의 복도", cap: null }),
+  });
+  const BOSS_RULES = Object.freeze({ storyHp: 2.6, storyAttack: 1, aoeEvery: 6000, aoeMultiplier: 1.6, rageEvery: 15000, rageStep: .12 });
   function recruitRates(misses) {
     const next = misses + 1;
     if (next >= RECRUIT_PITY.hard) return { SSR: 1, SR: 0, R: 0 };
@@ -95,6 +103,52 @@
   const clone = value => JSON.parse(JSON.stringify(value));
   function random(s) { let x = s.seed | 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; s.seed = x >>> 0; return s.seed / 4294967296; }
   const day = now => Math.floor((now + 9 * 3600000) / 86400000);
+  const week = now => Math.floor((day(now) + 3) / 7);
+  function activityReward(kind, value) {
+    if (kind === "tower") return { gold: 100 + 5 * value, gems: 10 + Math.floor(value / 5), xp: 0 };
+    return kind === "daily" ? { gold: 2000 + 1500 * (value - 1), gems: 80 + 30 * (value - 1), xp: 200 + 100 * (value - 1) }
+      : { gold: 12000 + 6000 * (value - 1), gems: 600 + 200 * (value - 1), xp: 1000 + 400 * (value - 1) };
+  }
+  function newActivities(now) {
+    return { daily: { period: day(now), used: 0 }, weekly: { period: week(now), used: 0 }, towerBest: 0, run: null, lastResult: null };
+  }
+  function refreshActivities(s, now) {
+    s.activities ??= newActivities(now);
+    for (const kind of ["daily", "weekly"]) {
+      const period = kind === "daily" ? day(now) : week(now);
+      if (period > s.activities[kind].period) s.activities[kind] = { period, used: 0 };
+    }
+    return s.activities;
+  }
+  // Pure UI projection: opening a panel does not replenish or spend a key.
+  function activityInfo(s, now = Date.now()) {
+    const at = Number.isFinite(now) && now >= 0 ? now : s.at, saved = s.activities || newActivities(at), result = {};
+    for (const kind of ["daily", "weekly"]) {
+      const def = DUNGEONS[kind], current = kind === "daily" ? day(at) : week(at);
+      const period = Math.max(current, saved[kind].period), used = period === saved[kind].period ? saved[kind].used : 0;
+      result[kind] = { id: kind, name: def.name, keys: def.cap - used, cap: def.cap, period,
+        resetAt: (kind === "daily" ? period + 1 : (period + 1) * 7 - 3) * 86400000 - 9 * 3600000,
+        tiers: def.unlocks.map((best, i) => ({ tier: i + 1, unlocked: s.best >= best, requiredBest: best, unlockBest: best, stage: def.stages[i], reward: activityReward(kind, i + 1) })) };
+    }
+    const nextFloor = Math.min(MAX_TOWER_FLOOR, saved.towerBest + 1);
+    result.tower = { id: "tower", name: DUNGEONS.tower.name, best: saved.towerBest, nextFloor, reward: activityReward("tower", nextFloor), maxFloor: MAX_TOWER_FLOOR };
+    result.run = saved.run ? clone(saved.run) : null; result.result = saved.lastResult ? clone(saved.lastResult) : null;
+    return result;
+  }
+  function validActivities(a) {
+    if (a === undefined) return true;
+    if (!a || typeof a !== "object" || Array.isArray(a)) return false;
+    for (const kind of ["daily", "weekly"]) if (!a[kind] || !Number.isSafeInteger(a[kind].period) || !Number.isInteger(a[kind].used) || a[kind].used < 0 || a[kind].used > DUNGEONS[kind].cap) return false;
+    if (!Number.isInteger(a.towerBest) || a.towerBest < 0 || a.towerBest > MAX_TOWER_FLOOR) return false;
+    function validRun(r) {
+      return r && Number.isSafeInteger(r.id) && r.id > 0 && Object.hasOwn(DUNGEONS, r.kind) && typeof r.settled === "boolean" &&
+        (r.kind === "tower" ? Number.isInteger(r.floor) && r.floor >= 1 && r.floor <= MAX_TOWER_FLOOR
+          : Number.isInteger(r.tier) && r.tier >= 1 && r.tier <= 5 && Number.isSafeInteger(r.period));
+    }
+    if (a.run !== null && !validRun(a.run)) return false;
+    const r = a.lastResult;
+    return r === null || !!(r && Number.isSafeInteger(r.runId) && r.runId > 0 && Object.hasOwn(DUNGEONS, r.kind) && typeof r.won === "boolean" && typeof r.firstClear === "boolean" && typeof r.refunded === "boolean" && typeof r.reason === "string" && r.reward && ["gold", "gems", "xp"].every(k => Number.isFinite(r.reward[k]) && r.reward[k] >= 0));
+  }
   const needXp = level => 20 + level * 12 + Math.floor(level * level * 1.5);
   const captainNeed = level => 30 + level * 20;
   const trainingCost = unit => 50 + unit.level * 20;
@@ -128,17 +182,61 @@
     if (s.captain.level === 50) s.captain.xp = 0;
   }
   function rates(s) { return { gold: 20 + s.best * 7, xp: 8 + s.best * 2 }; }
+  function campaignScale(stage) {
+    const late = Math.max(0, stage - 30) / 30, middle = Math.max(0, Math.min(20, stage - 10)) / 20;
+    return { hp: Math.pow(1.18, Math.min(29, stage - 1)) * Math.pow(1.055, Math.max(0, stage - 30)) * (1 + middle * .25 + late * (BOSS_RULES.storyHp - 1.25)),
+      atk: Math.pow(1.14, Math.min(29, stage - 1)) * Math.pow(1.015, Math.max(0, stage - 30)) * (1 + late * (BOSS_RULES.storyAttack - 1)) };
+  }
+  function freshHeroes(s, previousOsia) {
+    return s.team.map(id => { const st = stats(id, s.units[id]); return { id, hp: st.hp, max: st.hp, atk: st.atk, defense: st.defense, energy: id === "osia" && previousOsia ? previousOsia.energy : 0, shield: 0 }; });
+  }
+  function bossAbility(enemy, strength = 1, name = "결계 붕괴") {
+    Object.assign(enemy, { ability: name, aoeEvery: BOSS_RULES.aoeEvery, aoeMultiplier: BOSS_RULES.aoeMultiplier * strength,
+      nextAbilityAt: BOSS_RULES.aoeEvery, rageEvery: BOSS_RULES.rageEvery, rageStep: BOSS_RULES.rageStep, warnedFor: 0 });
+    return enemy;
+  }
   function spawn(s, carry = false) {
     const boss = s.wave === 4, zone = chapter(s.stage);
-    // Keep existing areas unchanged; the second half grows gradually beyond 6-5.
-    const scale = Math.pow(1.18, Math.min(29, s.stage - 1)) * Math.pow(1.055, Math.max(0, s.stage - 30));
-    const attackScale = Math.pow(1.14, Math.min(29, s.stage - 1)) * Math.pow(1.015, Math.max(0, s.stage - 30));
+    // Existing in-progress battles keep their saved stats. New late-game waves
+    // accommodate six units, while the first ten areas retain their old curve.
+    const scale = campaignScale(s.stage);
     const previousOsia = carry && s.battle?.phase === "victory" && s.battle.heroes.find(h => h.id === "osia" && h.hp > 0);
     s.battle = { id: s.seq + 1, stage: s.stage, wave: s.wave, boss, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false,
-      heroes: s.team.map(id => { const st = stats(id, s.units[id]); return { id, hp: st.hp, max: st.hp, atk: st.atk, defense: st.defense, energy: id === "osia" && previousOsia ? previousOsia.energy : 0, shield: 0 }; }),
-      enemies: Array.from({ length: boss ? 1 : 3 }, (_, i) => ({ id: `e${i}`, kind: zone, name: boss ? BOSSES[zone] : ENEMIES[zone], hp: Math.round((boss ? 155 : 30) * scale), max: Math.round((boss ? 155 : 30) * scale), atk: Math.round((boss ? 10 : 3) * attackScale), boss })),
+      heroes: freshHeroes(s, previousOsia),
+      enemies: Array.from({ length: boss ? 1 : 3 }, (_, i) => {
+        const e = { id: `e${i}`, kind: zone, name: boss ? BOSSES[zone] : ENEMIES[zone], hp: Math.round((boss ? 155 : 30) * scale.hp), max: Math.round((boss ? 155 : 30) * scale.hp), atk: Math.round((boss ? 10 : 3) * scale.atk), boss };
+        return boss && s.stage > 30 ? bossAbility(e, .65 + (s.stage - 30) / 30 * .35) : e;
+      }),
     };
     event(s, "wave", { stage: s.stage, wave: s.wave, boss });
+  }
+  function spawnActivity(s) {
+    const run = s.activities.run, tower = run.kind === "tower", stage = tower ? Math.min(MAX_STAGE, Math.ceil(run.floor / 5)) : DUNGEONS[run.kind].stages[run.tier - 1];
+    const boss = !tower || run.floor % 5 === 0, scale = campaignScale(stage), weekly = run.kind === "weekly";
+    const difficulty = weekly ? 1.25 : 1.05, hp = tower ? (80 + 20 * run.floor + 2 * run.floor * run.floor) * (boss ? 3.2 : 1) : 155 * scale.hp * difficulty;
+    const atk = tower ? (5 + .9 * run.floor + .012 * run.floor * run.floor) * (boss ? 1.1 : 1) : 10 * scale.atk;
+    const activity = { kind: run.kind, ...(tower ? { floor: run.floor } : { tier: run.tier }) };
+    s.battle = { id: run.id, runId: run.id, stage, wave: 4, boss, activity, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false,
+      heroes: freshHeroes(s), enemies: Array.from({ length: boss ? 1 : 3 }, (_, i) => {
+        const e = { id: `e${i}`, kind: chapter(stage), name: tower ? boss ? "뫼비우스의 감시자" : "복도의 잔영" : weekly ? "봉인의 이사장" : "보급고의 수호자", hp: Math.round(hp), max: Math.round(hp), atk: Math.round(atk), boss };
+        return boss && (tower || run.tier >= 3) ? bossAbility(e, 1, tower ? "뒤틀린 종소리" : weekly ? "봉인 해방" : "보급고 대격돌") : e;
+      }) };
+  }
+  function settleActivity(s, won, reason) {
+    const a = refreshActivities(s, s.at), run = a.run;
+    if (!run || run.settled) return a.lastResult;
+    run.settled = true;
+    let reward = { gold: 0, gems: 0, xp: 0 }, refunded = false;
+    const firstClear = won && run.kind === "tower" && run.floor > a.towerBest;
+    if (won && (run.kind !== "tower" || firstClear)) reward = activityReward(run.kind, run.kind === "tower" ? run.floor : run.tier);
+    if (firstClear) a.towerBest = run.floor;
+    if (!won && run.kind !== "tower" && a[run.kind].period === run.period && a[run.kind].used > 0) { a[run.kind].used--; refunded = true; }
+    s.gold += reward.gold; s.gems += reward.gems;
+    if (reward.xp) for (const id of s.team) addUnitXp(s, id, reward.xp);
+    a.lastResult = { runId: run.id, kind: run.kind, ...(run.kind === "tower" ? { floor: run.floor } : { tier: run.tier }), won, reason, firstClear, reward, refunded };
+    s.battle.phase = won ? "victory" : "defeat"; s.battle.wait = 0; delete s.battle.osiaCast; delete s.battle.cinematic;
+    event(s, "activity-result", { ...a.lastResult, kind: "activity-result", activityKind: run.kind }); log(s, `${DUNGEONS[run.kind].name} ${won ? "승리" : reason === "exit" ? "도전 종료" : "패배"}${refunded ? " · 열쇠 반환" : ""}`);
+    return a.lastResult;
   }
   function create(now = Date.now(), seed = 123456789) {
     fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
@@ -146,7 +244,7 @@
       gold: 700, gems: 1800, captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
       banners: { osia: { pity: 0, guaranteed: false }, lava: { pity: 0, guaranteed: false } },
-      offline: { seconds: 0, gold: 0, xp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [] };
+      offline: { seconds: 0, gold: 0, xp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], activities: newActivities(now) };
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
   }
@@ -156,17 +254,20 @@
       (s.speed === undefined || s.speed === 1 || s.speed === 1.5) &&
       (s.simCredit === undefined || Number.isFinite(s.simCredit) && s.simCredit >= 0 && s.simCredit < STEP_MS) &&
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
-      s.units && Object.keys(s.units).every(id => BY_ID[id] && Number.isInteger(s.units[id].level) && s.units[id].level >= 1 && s.units[id].level <= MAX_LEVEL && Number.isFinite(s.units[id].xp) && Number.isInteger(s.units[id].stars) && s.units[id].stars >= 0 && s.units[id].stars <= 5 && Number.isFinite(s.units[id].shards)) &&
-      Array.isArray(s.team) && s.team.length === 3 && new Set(s.team).size === 3 && s.team.every(id => s.units[id]) &&
+      s.units && Object.keys(s.units).every(id => Object.hasOwn(BY_ID, id) && Number.isInteger(s.units[id].level) && s.units[id].level >= 1 && s.units[id].level <= MAX_LEVEL && Number.isFinite(s.units[id].xp) && Number.isInteger(s.units[id].stars) && s.units[id].stars >= 0 && s.units[id].stars <= 5 && Number.isFinite(s.units[id].shards)) &&
+      Array.isArray(s.team) && s.team.length >= 1 && s.team.length <= MAX_TEAM && new Set(s.team).size === s.team.length && s.team.every(id => typeof id === "string" && Object.hasOwn(BY_ID, id) && Object.hasOwn(s.units, id)) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
       (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)) && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean")) &&
       (s.units.osia?.nextSkill == null || Number.isInteger(s.units.osia.nextSkill) && s.units.osia.nextSkill >= 1 && s.units.osia.nextSkill <= 4) &&
       (s.units.lava?.nextSkill == null || s.units.lava.nextSkill === 1 || s.units.lava.nextSkill === 2) &&
       (s.units.lava?.basicHits == null || Number.isInteger(s.units.lava.basicHits) && s.units.lava.basicHits >= 0 && s.units.lava.basicHits < 10) &&
-      s.battle && Array.isArray(s.battle.heroes) && Array.isArray(s.battle.enemies) && s.battle.heroes.every(h => BY_ID[h.id] && Number.isFinite(h.hp) && (h.indomitableUntil === undefined || Number.isFinite(h.indomitableUntil) && h.indomitableUntil >= 0)) &&
+      s.battle && Array.isArray(s.battle.heroes) && s.battle.heroes.length >= 1 && s.battle.heroes.length <= MAX_TEAM && new Set(s.battle.heroes.map(h => h.id)).size === s.battle.heroes.length && Array.isArray(s.battle.enemies) && s.battle.heroes.every(h => Object.hasOwn(BY_ID, h.id) && Number.isFinite(h.hp) && (h.indomitableUntil === undefined || Number.isFinite(h.indomitableUntil) && h.indomitableUntil >= 0)) &&
       (s.battle.lavaRescueUsed === undefined || typeof s.battle.lavaRescueUsed === "boolean") &&
-      (s.battle.cinematic === undefined || s.battle.cinematic && s.battle.cinematic.from === "osia" && [STEP_MS, OSIA_CINEMATIC_MS].includes(s.battle.cinematic.duration) && Number.isFinite(s.battle.cinematic.remaining) && s.battle.cinematic.remaining > 0 && s.battle.cinematic.remaining <= s.battle.cinematic.duration && Number.isInteger(s.battle.cinematic.resumeIndex) && s.battle.cinematic.resumeIndex >= 1 && s.battle.cinematic.resumeIndex <= 3) &&
+      (s.battle.cinematic === undefined || s.battle.cinematic && s.battle.cinematic.from === "osia" && [STEP_MS, OSIA_CINEMATIC_MS].includes(s.battle.cinematic.duration) && Number.isFinite(s.battle.cinematic.remaining) && s.battle.cinematic.remaining > 0 && s.battle.cinematic.remaining <= s.battle.cinematic.duration && Number.isInteger(s.battle.cinematic.resumeIndex) && s.battle.cinematic.resumeIndex >= 1 && s.battle.cinematic.resumeIndex <= s.battle.heroes.length) &&
+      validActivities(s.activities) &&
+      (s.battle.activity === undefined || s.activities?.run && s.battle.runId === s.activities.run.id && s.battle.activity.kind === s.activities.run.kind) &&
+      (!s.activities?.run || s.battle.activity && (s.activities.run.settled ? s.activities.lastResult?.runId === s.activities.run.id && ["victory", "defeat"].includes(s.battle.phase) : s.battle.phase === "fight")) &&
       Array.isArray(s.events) && Array.isArray(s.logs) && Array.isArray(s.claimed) && Array.isArray(s.receipts) && Array.isArray(s.history) &&
       (s.redeemedCodes === undefined || Array.isArray(s.redeemedCodes) && s.redeemedCodes.length <= 1000 && new Set(s.redeemedCodes).size === s.redeemedCodes.length && s.redeemedCodes.every(code => typeof code === "string" && /^[A-Z0-9_]{1,40}$/.test(code))) &&
       s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) && s.captain && Number.isInteger(s.captain.level));
@@ -203,6 +304,7 @@
     if (amount) event(s, "heal", { from: hero.id, to: target.id, amount, stage, element: "wind" });
   }
   function victory(s) {
+    if (s.battle.activity) { settleActivity(s, true, "victory"); return; }
     const b = s.battle, gold = (12 + s.stage * 4) * (b.boss ? 3 : 1), xp = 8 + s.stage * 2;
     s.gold += gold; for (const id of s.team) addUnitXp(s, id, xp * (b.boss ? 2 : 1));
     captainXp(s, 4 + Math.floor(s.stage / 2));
@@ -239,6 +341,7 @@
     const b = s.battle;
     // Old saves have no half-second clock. Keep their existing attack cadence.
     b.elapsed ??= b.tick * 1000; b.id ??= s.seq;
+    if (b.activity && s.activities?.run?.settled) return;
     if (b.phase !== "fight") { if ((b.wait -= STEP_MS / 1000) <= 0) spawn(s, true); return; }
     if (b.cinematic) {
       const cutin = b.cinematic;
@@ -253,8 +356,14 @@
       return;
     }
     b.elapsed += STEP_MS;
+    if (b.activity && b.heroes.every(h => h.hp <= 0)) { settleActivity(s, false, "defeat"); return; }
     const osiaImpact = osiaStep(s);
     if (b.enemies.every(e => e.hp <= 0)) { victory(s); return; }
+    for (const enemy of b.enemies) {
+      if (enemy.hp <= 0 || !enemy.ability || enemy.warnedFor === enemy.nextAbilityAt || b.elapsed < enemy.nextAbilityAt - 1000) continue;
+      enemy.warnedFor = enemy.nextAbilityAt;
+      event(s, "boss-warning", { from: enemy.id, name: enemy.ability, targets: b.heroes.filter(h => h.hp > 0).map(h => h.id), atElapsed: enemy.nextAbilityAt, duration: Math.max(0, enemy.nextAbilityAt - b.elapsed) });
+    }
     if (b.elapsed % 1000) return;
     b.tick = b.elapsed / 1000;
     if (b.buff > 0) b.buff--;
@@ -321,10 +430,25 @@
     for (const enemy of b.enemies.filter(e => e.hp > 0)) {
       if (b.elapsed < (enemy.stunUntil || 0)) continue;
       const alive = b.heroes.filter(h => h.hp > 0); if (!alive.length) break;
-      const target = random(s) < .75 ? alive[0] : alive[Math.floor(random(s) * alive.length)];
-      hurt(s, enemy.id, target, enemy.atk * (.85 + random(s) * .3), "hero");
+      const rage = 1 + Math.floor(b.elapsed / (enemy.rageEvery || Infinity)) * (enemy.rageStep || 0);
+      if (enemy.ability && b.elapsed >= enemy.nextAbilityAt) {
+        event(s, "boss-skill", { from: enemy.id, name: enemy.ability, targets: alive.map(h => h.id), rage, atElapsed: b.elapsed });
+        for (const target of alive) hurt(s, enemy.id, target, enemy.atk * enemy.aoeMultiplier * rage * (.9 + random(s) * .2), "hero", true, { bossSkill: true });
+        enemy.nextAbilityAt = b.elapsed + enemy.aoeEvery;
+      } else {
+        let target;
+        if (b.heroes.length <= 3) target = random(s) < .75 ? alive[0] : alive[Math.floor(random(s) * alive.length)];
+        else {
+          const front = b.heroes.slice(0, 3).filter(h => h.hp > 0), back = b.heroes.slice(3).filter(h => h.hp > 0);
+          const pool = front.length && (!back.length || random(s) < .8) ? front : back.length ? back : alive;
+          const weights = pool.map(h => BY_ID[h.id].role === "수호" ? 3 : 1); let pick = random(s) * weights.reduce((a, v) => a + v, 0);
+          target = pool[pool.length - 1]; for (let i = 0; i < pool.length; i++) { pick -= weights[i]; if (pick < 0) { target = pool[i]; break; } }
+        }
+        hurt(s, enemy.id, target, enemy.atk * rage * (.85 + random(s) * .3), "hero");
+      }
     }
     if (b.heroes.every(h => h.hp <= 0) || b.tick >= 120) {
+      if (b.activity) { settleActivity(s, false, b.tick >= 120 ? "timeout" : "defeat"); return; }
       b.phase = "defeat"; b.wait = 5; s.wave = 1; s.losses++; delete b.osiaCast; delete b.cinematic;
       event(s, "defeat"); log(s, "잠시 쉬어 갑니다. 용병을 훈련하거나 편성을 바꿔보세요.");
       if (s.losses >= 3 && s.best >= 1) { s.mode = "farm"; s.stage = s.best; s.losses = 0; log(s, "클리어한 지역에서 자동으로 성장합니다. 도전 버튼으로 다시 출발하세요."); }
@@ -332,6 +456,7 @@
   }
   function advance(s, now) {
     s.speed ??= 1; s.simCredit ??= 0; s.simTime ??= 0;
+    refreshActivities(s, Number.isFinite(now) && now >= 0 ? Math.max(now, s.at) : s.at);
     s.banners ??= { osia: bannerState(s, "osia"), lava: bannerState(s, "lava") };
     s.banners.osia ??= { pity: s.pity, guaranteed: false }; s.banners.lava ??= { pity: 0, guaranteed: false };
     s.pity = s.banners.osia.pity;
@@ -400,6 +525,34 @@
   function action(s, input, now = Date.now(), rng = Math.random) {
     fail(input && typeof input === "object" && !Array.isArray(input), "잘못된 행동입니다.");
     const kind = input.kind;
+    if (kind === "activity") {
+      fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
+      fail(typeof input.mode === "string" && Object.hasOwn(DUNGEONS, input.mode), "도전할 던전을 선택하세요.");
+      fail(!s.activities?.run || s.activities.run.settled, "진행 중인 던전을 마치거나 먼저 포기하세요.");
+      const mode = input.mode, info = activityInfo(s, now);
+      if (mode === "tower") {
+        fail(Number.isInteger(input.floor) && input.floor >= 1 && input.floor <= Math.min(MAX_TOWER_FLOOR, info.tower.best + 1), "아직 열리지 않은 층입니다.");
+      } else {
+        fail(Number.isInteger(input.tier) && input.tier >= 1 && input.tier <= 5, "던전 단계를 선택하세요.");
+        fail(info[mode].tiers[input.tier - 1].unlocked, "모험 지역을 더 클리어하면 열립니다.");
+        fail(info[mode].keys > 0, "열쇠가 부족합니다. 다음 충전을 기다려 주세요.");
+      }
+      // Every check above precedes mutation, including key consumption.
+      const a = refreshActivities(s, now);
+      const run = { id: s.seq + 1, kind: mode, settled: false, ...(mode === "tower" ? { floor: input.floor } : { tier: input.tier, period: a[mode].period }) };
+      if (mode !== "tower") a[mode].used++;
+      a.run = run; a.lastResult = null; spawnActivity(s);
+      event(s, "activity-start", { runId: run.id, ...s.battle.activity, kind: "activity-start", activityKind: mode }); log(s, `${DUNGEONS[mode].name} · ${mode === "tower" ? `${run.floor}층` : `${run.tier}단계`} 도전`);
+      return { kind, run: clone(run) };
+    }
+    if (kind === "activity-exit") {
+      fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
+      fail(s.activities?.run, "진행 중인 던전이 없습니다.");
+      refreshActivities(s, now);
+      if (!s.activities.run.settled) settleActivity(s, false, "exit");
+      const result = clone(s.activities.lastResult); s.activities.run = null; spawn(s);
+      return { kind, result };
+    }
     if (kind === "speed") {
       fail(input.speed === 1 || input.speed === 1.5, "전투 속도는 1배 또는 1.5배를 선택하세요.");
       fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
@@ -435,13 +588,17 @@
       u.shards -= cost; u.stars++; event(s, "awaken", { id: input.hero, stars: u.stars }); return { kind, hero: input.hero, stars: u.stars };
     }
     if (kind === "team") {
-      fail(Array.isArray(input.team) && input.team.length === 3 && new Set(input.team).size === 3 && input.team.every(id => typeof id === "string" && BY_ID[id] && Object.hasOwn(s.units, id)), "보유한 서로 다른 용병 3명을 편성하세요.");
-      fail(input.team.some((id, i) => s.team[i] !== id), "이미 같은 편성입니다.");
+      fail(!s.activities?.run || s.activities.run.settled, "진행 중인 던전을 마치거나 먼저 포기하세요.");
+      fail(Array.isArray(input.team) && input.team.length >= 1 && input.team.length <= MAX_TEAM && new Set(input.team).size === input.team.length && input.team.every(id => typeof id === "string" && BY_ID[id] && Object.hasOwn(s.units, id)), "보유한 서로 다른 용병 1~6명을 편성하세요.");
+      fail(input.team.length !== s.team.length || input.team.some((id, i) => s.team[i] !== id), "이미 같은 편성입니다.");
+      if (s.activities?.run?.settled) s.activities.run = null;
       s.team = [...input.team]; spawn(s); log(s, "새로운 편성으로 전투를 시작합니다."); return { kind };
     }
     if (kind === "stage") {
+      fail(!s.activities?.run || s.activities.run.settled, "진행 중인 던전을 마치거나 먼저 포기하세요.");
       fail(Number.isInteger(input.stage) && input.stage >= 1 && input.stage <= Math.min(MAX_STAGE, s.best + 1), "아직 열리지 않은 지역입니다.");
       fail(["progress", "farm"].includes(input.mode), "도전 또는 반복을 선택하세요.");
+      if (s.activities?.run?.settled) s.activities.run = null;
       s.stage = input.stage; s.wave = 1; s.mode = input.mode; s.losses = 0; spawn(s); return { kind };
     }
     if (kind === "offline") {
@@ -463,5 +620,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, OFFLINE_CAP, CATALOG_VERSION, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, clone, view };
+  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

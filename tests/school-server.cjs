@@ -21,7 +21,7 @@ const G=require('../school/engine.js');
  });
  await test('Old browser catalogs are rejected before spending or exposing unfamiliar heroes',async()=>{
    const row=save(a);const old=await t.call('/api/school/action',action(row.revision,'outdated-browser-0001',{kind:'recruit',count:10}),null,{'X-Account-Session':a.token});assert.equal(old.status,426);assert.equal(save(a).payload,row.payload);assert.ok(!old.data.state);
-   for(const catalogVersion of [1,2,3,4,5])assert.equal((await call(a,'state',{catalogVersion})).status,426);assert.equal(save(a).payload,row.payload);
+   for(let catalogVersion=1;catalogVersion<G.CATALOG_VERSION;catalogVersion++)assert.equal((await call(a,'state',{catalogVersion})).status,426);assert.equal(save(a).payload,row.payload);
  });
  await test('Simultaneous same-ID requests and lost-response retries charge once',async()=>{
    const current=await call(a,'state');const input=action(current.data.revision,'same-action-0000000002',{kind:'recruit',count:10});
@@ -148,6 +148,66 @@ const G=require('../school/engine.js');
      const row=save(who);assert.equal((await call(who,'action',action(row.revision,'speed-server-invalid01',{kind:'speed',speed:2}))).status,400);assert.equal(save(who).payload,row.payload);
      const state=JSON.parse(row.payload);state.at=now-12*3600000;state.best=0;state.offline={seconds:0,gold:0,xp:0};t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);
      current=await call(who,'state');assert.equal(current.status,200);assert.equal(current.data.state.offline.seconds,28800);assert.equal(current.data.state.offline.gold,9600);assert.equal(current.data.state.speed,1.5);
+   }finally{Date.now=realNow;}
+ });
+ await test('Old account formations migrate intact and six owned members persist across sessions without granting heroes',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-18T12:00:00+09:00');
+   try{
+     const who=(await t.login('school-six-members')).data;await call(who,'state');const old=JSON.parse(save(who).payload);delete old.activities;old.gold=5860;old.gems=290;old.best=30;const originalTeam=[...old.team],originalUnits=G.clone(old.units);t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(old),who.profile.id);
+     let current=await call(who,'state');assert.equal(current.status,200);assert.deepEqual(current.data.state.team,originalTeam);assert.deepEqual(current.data.state.units,originalUnits);assert.equal(current.data.state.gold,5860);assert.equal(current.data.state.gems,290);assert.equal(current.data.state.activities.towerBest,0);
+     const owned=JSON.parse(save(who).payload),team=['geonu','ian','lumi','nari','lava','osia'];for(const id of team)owned.units[id]={level:50,xp:0,stars:0,shards:0};t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(owned),who.profile.id);
+     current=await call(who,'state');current=await call(who,'action',action(current.data.revision,'six-members-formation',{kind:'team',team}));assert.equal(current.status,200);assert.deepEqual(current.data.state.team,team);assert.equal(current.data.state.battle.heroes.length,6);
+     const again=(await t.login('school-six-members')).data;current=await call(again,'state');assert.deepEqual(current.data.state.team,team);const row=save(who);assert.equal((await call(again,'action',action(row.revision,'six-members-overflow1',{kind:'team',team:[...team,'taeo']}))).status,400);assert.equal(save(who).payload,row.payload);
+   }finally{Date.now=realNow;}
+ });
+ await test('Concurrent challenge entry spends one server-owned key and cannot replace an active run',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-18T12:00:00+09:00');
+   try{
+     const who=(await t.login('school-key-concurrency')).data;let current=await call(who,'state');const intent=action(current.data.revision,'activity-same-entry01',{kind:'activity',mode:'daily',tier:1,keys:99,used:0,reward:{gold:1e12,gems:1e12}});
+     const same=await Promise.all([call(who,'action',intent),call(who,'action',intent)]);for(const r of same){assert.equal(r.status,200);assert.equal(r.data.state.activities.daily.used,1);assert.equal(r.data.state.activities.run.kind,'daily');}assert.equal(same[0].data.state.activities.run.id,same[1].data.state.activities.run.id);
+     const active=save(who);for(const [index,input]of [{kind:'activity',mode:'weekly',tier:1},{kind:'team',team:['harin']},{kind:'stage',stage:1,mode:'farm'}].entries()){assert.equal((await call(who,'action',action(active.revision,'activity-active-reject'+index,input))).status,400);assert.equal(save(who).payload,active.payload);}
+     current=await call(who,'action',action(active.revision,'activity-exit-refund01',{kind:'activity-exit'}));assert.equal(current.status,200);assert.equal(current.data.state.activities.daily.used,0);
+     const competing=await Promise.all(['A','B'].map(id=>call(who,'action',action(current.data.revision,'activity-racing-entry'+id,{kind:'activity',mode:'daily',tier:1}))));assert.deepEqual(competing.map(r=>r.status).sort(),[200,409]);assert.equal(JSON.parse(save(who).payload).activities.daily.used,1);
+   }finally{Date.now=realNow;}
+ });
+ await test('A victory committed before a lost server response pays once on retry and never auto-enters another dungeon',async()=>{
+   const realNow=Date.now,prepare=t.db.prepare;let now=Date.parse('2026-11-18T12:00:00+09:00');Date.now=()=>now;
+   try{
+     const who=(await t.login('school-result-lost')).data;let current=await call(who,'state');const before={gold:current.data.state.gold,gems:current.data.state.gems};const intent=action(current.data.revision,'activity-lost-result01',{kind:'activity',mode:'daily',tier:1});current=await call(who,'action',intent);assert.equal(current.status,200);
+     const ready=JSON.parse(save(who).payload);for(const e of ready.battle.enemies)e.hp=0;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(ready),who.profile.id);now+=500;let drop=true;
+     t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
+     const lost=await call(who,'state');assert.equal(lost.status,503);t.db.prepare=prepare;
+     current=await call(who,'state');assert.equal(current.status,200);assert.equal(current.data.state.activities.run.settled,true);assert.equal(current.data.state.gold,before.gold+2000);assert.equal(current.data.state.gems,before.gems+80);assert.deepEqual(current.data.state.activities.lastResult.reward,{gold:2000,gems:80,xp:200});
+     const paid=G.clone(current.data.state.activities);now+=30000;const retries=await Promise.all([call(who,'state'),call(who,'action',intent)]);for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.state.gold,before.gold+2000);assert.equal(r.data.state.gems,before.gems+80);assert.equal(r.data.state.activities.daily.used,1);assert.equal(r.data.state.activities.run.id,paid.run.id);assert.equal(r.data.state.battle.phase,'victory');}
+   }finally{t.db.prepare=prepare;Date.now=realNow;}
+ });
+ await test('Server Korean day/week boundaries refill keys without trusting browser clocks or over-refunding old entries',async()=>{
+   const realNow=Date.now;let now;Date.now=()=>now;
+   try{
+     for(const [kind,cutoff]of [['daily',Date.parse('2026-11-19T00:00:00+09:00')],['weekly',Date.parse('2026-11-23T00:00:00+09:00')]]){
+       now=cutoff-1000;const who=(await t.login('school-server-boundary-'+kind)).data;let current=await call(who,'state');current=await call(who,'action',action(current.data.revision,'boundary-enter-'+kind+'01',{kind:'activity',mode:kind,tier:1,now:cutoff+86400000,period:0}));assert.equal(current.status,200);assert.equal(current.data.state.activities[kind].used,1);
+       current=await call(who,'state',{now:cutoff+86400000,activities:{[kind]:{used:0}}});assert.equal(current.data.state.activities[kind].used,1);const cap=kind==='daily'?3:2;assert.equal(G.activityInfo(current.data.state,now)[kind].keys,cap-1);
+       now=cutoff;current=await call(who,'state');assert.equal(G.activityInfo(current.data.state,now)[kind].keys,cap);current=await call(who,'action',action(current.data.revision,'boundary-exit-'+kind+'01',{kind:'activity-exit'}));assert.equal(current.status,200);assert.equal(current.data.state.activities[kind].used,0);assert.equal(current.data.state.activities.lastResult.refunded,false);assert.equal(G.activityInfo(current.data.state,now)[kind].keys,cap);
+     }
+   }finally{Date.now=realNow;}
+ });
+ await test('The server enforces sequential tower floors and zero repeated-floor currency, unit XP, or captain XP',async()=>{
+   const realNow=Date.now;let now=Date.parse('2026-11-18T12:00:00+09:00');Date.now=()=>now;
+   try{
+     const who=(await t.login('school-tower-rewards')).data;let current=await call(who,'state');const first=save(who);assert.equal((await call(who,'action',action(first.revision,'tower-locked-floor001',{kind:'activity',mode:'tower',floor:2,towerBest:99}))).status,400);assert.equal(save(who).payload,first.payload);
+     const win=async id=>{current=await call(who,'action',action(current.data.revision,id,{kind:'activity',mode:'tower',floor:1,towerBest:99,gold:1e12,reward:{gold:1e12}}));assert.equal(current.status,200);const s=JSON.parse(save(who).payload);for(const e of s.battle.enemies)e.hp=0;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),who.profile.id);now+=500;current=await call(who,'state');assert.equal(current.status,200);};
+     await win('tower-first-enter001');assert.equal(current.data.state.activities.towerBest,1);assert.equal(current.data.state.gold,805);assert.equal(current.data.state.gems,1810);assert.equal(current.data.state.activities.lastResult.firstClear,true);const paid=G.clone(current.data.state);
+     await win('tower-repeat-enter01');assert.equal(current.data.state.activities.lastResult.firstClear,false);assert.deepEqual(current.data.state.activities.lastResult.reward,{gold:0,gems:0,xp:0});assert.equal(current.data.state.gold,paid.gold);assert.equal(current.data.state.gems,paid.gems);assert.deepEqual(current.data.state.units,paid.units);assert.deepEqual(current.data.state.captain,paid.captain);assert.equal(current.data.state.activities.daily.used,0);assert.equal(current.data.state.activities.weekly.used,0);
+   }finally{Date.now=realNow;}
+ });
+ await test('The new Lava and thank-you coupons use fixed server amounts, persist claims and reject expiry-clock forgery',async()=>{
+   const realNow=Date.now;let now=Date.parse('2026-11-21T00:00:00+09:00')-1;Date.now=()=>now;
+   try{
+     const who=(await t.login('school-new-coupons')).data;let current=await call(who,'state');for(const[code,amount]of [['LAVA_DEBUT',1000],['THANK_YOU',500]]){
+       const before=current.data.state;current=await call(who,'action',action(current.data.revision,'new-coupon-'+code+'001',{kind:'redeem',code:code.toLowerCase(),gold:1e12,gems:1e12}));assert.equal(current.status,200);assert.equal(current.data.state.gold,before.gold+amount);assert.equal(current.data.state.gems,before.gems+amount);const row=save(who);assert.equal((await call(who,'action',action(row.revision,'new-coupon-duplicate-'+code,{kind:'redeem',code}))).status,400);assert.equal(save(who).payload,row.payload);
+     }
+     const again=(await t.login('school-new-coupons')).data;current=await call(again,'state');assert.ok(current.data.state.redeemedCodes.includes('LAVA_DEBUT'));assert.ok(current.data.state.redeemedCodes.includes('THANK_YOU'));
+     now++;const expired=(await t.login('school-new-coupons-expired')).data;const fresh=await call(expired,'state');for(const code of ['LAVA_DEBUT','THANK_YOU'])assert.equal((await call(expired,'action',action(fresh.data.revision,'expired-new-coupon-'+code,{kind:'redeem',code,now:now-1000}))).status,400);assert.equal(JSON.parse(save(expired).payload).gold,700);
    }finally{Date.now=realNow;}
  });
  const couponEnd=Date.parse('2026-11-21T00:00:00+09:00');let couponAccount;

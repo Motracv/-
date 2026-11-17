@@ -7,6 +7,7 @@ const {installGuestSeed,seedGuest,runSchoolRegressions}=require('./school-ui-reg
 const {runDisplayRegressions}=require('./school-display-regressions.cjs');
 const {runCouponRegressions}=require('./school-coupon-browser.cjs');
 const {runExpansionRegressions}=require('./school-expansion-browser.cjs');
+const {runDungeonRegressions}=require('./school-dungeon-browser.cjs');
 (async()=>{
  const t=await fixture(),origin='http://127.0.0.1:8801';t.env.ALLOWED_ORIGIN=origin;
  let dropNext=false,actionRequests=0,stateDelay=0,blockedActionToken=null,failNextState=false;const schoolActionLog=[];
@@ -38,15 +39,17 @@ const {runExpansionRegressions}=require('./school-expansion-browser.cjs');
    await installGuestSeed(context);
    await context.exposeBinding('fixtureCredential',(_,nonce,subject)=>t.credential(nonce,subject||person));
    await context.route('https://accounts.google.com/gsi/client',async route=>{sdkLoads++;await route.fulfill({contentType:'text/javascript',body:`window.google={accounts:{id:{initialize(o){this.o=o},renderButton(host){const b=document.createElement('button');b.id='fixture-login';b.textContent='Google로 로그인 (검증용)';b.onclick=async()=>this.o.callback({credential:await window.fixtureCredential(this.o.nonce,window.fixturePerson)});host.append(b)},disableAutoSelect(){}}}}`});});
-   const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto(origin+'/school.html');await p.waitForFunction(()=>document.querySelectorAll('.party-card').length===3);return p;
+   const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto(origin+'/school.html');await p.waitForFunction(()=>document.querySelectorAll('#party [data-hero]').length>=1);return p;
  }
- const saved=p=>p.evaluate(()=>JSON.parse(localStorage.getItem('school-mercenaries-v6')));
+ const saved=p=>p.evaluate(()=>JSON.parse(localStorage.getItem('school-mercenaries-v7')));
  const tab=(p,name)=>p.click(`.bottom-nav [data-tab="${name}"]`);
  async function login(p){await p.click('#account-button');await p.click('#fixture-login');await p.waitForFunction(()=>document.getElementById('account-label').textContent==='계정 저장');}
  try{
+   if(process.env.SCHOOL_DUNGEON_ONLY==='1'){await runDungeonRegressions({pageFor,saved,tab,t,login,dropNextAction:()=>{dropNext=true;}});assert.deepEqual(errors,[]);return;}
    if(process.env.SCHOOL_EXPANSION_ONLY==='1'){await runExpansionRegressions({pageFor,saved,tab,t,login});assert.deepEqual(errors,[]);return;}
    if(process.env.SCHOOL_COUPON_ONLY==='1'){await runCouponRegressions({pageFor,saved,tab,t,login,dropNextAction:()=>{dropNext=true;}});assert.deepEqual(errors,[]);return;}
    if(process.env.SCHOOL_DISPLAY_ONLY==='1'){await runDisplayRegressions({pageFor,tab});assert.deepEqual(errors,[]);return;}
+   await runDungeonRegressions({pageFor,saved,tab,t,login,dropNextAction:()=>{dropNext=true;}});
    await runExpansionRegressions({pageFor,saved,tab,t,login});
    await runCouponRegressions({pageFor,saved,tab,t,login,dropNextAction:()=>{dropNext=true;}});
    await runSchoolRegressions({pageFor,saved,origin,errors,t,login,setStateDelay:ms=>{stateDelay=ms;},setActionBlock:value=>{blockedActionToken=value;},failStateOnce:()=>{failNextState=true;},schoolActionLog});
@@ -59,7 +62,7 @@ const {runExpansionRegressions}=require('./school-expansion-browser.cjs');
      await p.click('#battle-stage');await p.waitForSelector('#next-stage');await p.click('#modal-close');
      for(const name of ['recruit','supplies']){await tab(p,name);const nav=await p.locator('.bottom-nav').boundingBox();assert.ok(nav.y+nav.height<=height+1);}
    }
-   console.log('PASS eight mobile/landscape/desktop viewports: canvas, three-item navigation, map, recruitment and supplies');
+   console.log('PASS eight mobile/landscape/desktop viewports: canvas, four-item navigation, map, recruitment and supplies');
    await runDisplayRegressions({pageFor,tab});
    await tab(p,'recruit');await p.click('#feature-osia-button');assert.match(await p.locator('#modal-content').innerText(),/Osia · 물고기 종족 · 물 속성/);await p.click('#modal-close');
    await tab(p,'recruit');await p.click('#rates-button');assert.match(await p.locator('#modal-content').innerText(),/오시아/);assert.match(await p.locator('#modal-content').innerText(),/50%/);await p.click('#modal-close');
@@ -67,9 +70,9 @@ const {runExpansionRegressions}=require('./school-expansion-browser.cjs');
    await p.setViewportSize({width:390,height:844});await tab(p,'recruit');await p.screenshot({path:'/tmp/school-tested-recruit.png'});
    await p.click('#recruit-ten');await p.waitForSelector('.result-card');assert.equal(await p.locator('.result-card').count(),10);assert.equal((await saved(p)).pulls,10);assert.equal((await saved(p)).gems,900);
    assert.ok(await p.locator('.result-card.SR,.result-card.SSR').count()>=1);await p.screenshot({path:'/tmp/school-tested-reveal.png'});await p.click('#reveal-done');
-   await tab(p,'adventure');await p.click('#party [data-hero="harin"]');await p.click('#train-hero');await p.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v6')).units.harin.level>=2);await p.click('[data-slot="0"]');await p.waitForFunction(()=>!document.getElementById('modal').open);assert.equal((await saved(p)).team[0],'harin');
+   await tab(p,'adventure');await p.click('#party [data-hero="harin"]');await p.click('#train-hero');await p.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v7')).units.harin.level>=2);await p.click('[data-slot="0"]');await p.waitForFunction(()=>!document.getElementById('modal').open);assert.equal((await saved(p)).team[0],'harin');
    await p.reload();assert.equal((await saved(p)).team[0],'harin');assert.equal((await saved(p)).pulls,10);console.log('PASS guest 10-pull guarantee, training, formation and reload persistence');
-   {const s=await saved(p);s.at=Date.now()-12*3600000;await seedGuest(p,s);}await tab(p,'supplies');await p.click('#claim-offline');await p.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v6')).offline.seconds===0);assert.ok((await saved(p)).units.harin.level>2);await p.click('#claim-daily');await p.waitForFunction(()=>document.getElementById('claim-daily').disabled);console.log('PASS offline bank collection and daily claim in browser');
+   {const s=await saved(p);s.at=Date.now()-12*3600000;await seedGuest(p,s);}await tab(p,'supplies');await p.click('#claim-offline');await p.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v7')).offline.seconds===0);assert.ok((await saved(p)).units.harin.level>2);await p.click('#claim-daily');await p.waitForFunction(()=>document.getElementById('claim-daily').disabled);console.log('PASS offline bank collection and daily claim in browser');
    const guestPulls=(await saved(p)).pulls,accountsBefore=t.sqlite.prepare('SELECT count(*) AS n FROM school_saves').get().n;await login(p);const mainAccount=await p.evaluate(()=>JSON.parse(sessionStorage.getItem('school-confirmed-cloud-view')).profile.id);assert.equal((await saved(p)).pulls,guestPulls);assert.equal(await p.locator('#gems').textContent(),'1,800');assert.equal(t.sqlite.prepare('SELECT count(*) AS n FROM school_saves').get().n,accountsBefore+1);console.log('PASS signed Google fixture creates separate cloud progress without overwriting guest');
    await tab(p,'recruit');dropNext=true;await p.click('#recruit-ten');await p.waitForSelector('#connection:not([hidden])');assert.ok(await p.locator('#recruit-ten').isDisabled());
    assert.equal(JSON.parse(t.sqlite.prepare('SELECT payload FROM school_saves WHERE account_id=?').get(mainAccount).payload).pulls,10);
@@ -83,7 +86,7 @@ const {runExpansionRegressions}=require('./school-expansion-browser.cjs');
    assert.match(await osia.locator('.result-card').innerText(),/오시아/);assert.equal((await saved(osia)).gems,1800);await osia.screenshot({path:'/tmp/osia-browser-recruit.png'});
    await osia.evaluate(()=>{localStorage.setItem('school-mercenaries-v1',JSON.stringify(SchoolRPG.create(Date.now())));});assert.ok((await saved(osia)).units.osia);console.log('PASS legacy guest save migration preserves progress; stale tabs cannot overwrite the new hero');
    await osia.click('#reveal-done');await osia.click('#roster [data-hero="osia"]');await osia.locator('.hero-skills summary').click();assert.match(await osia.locator('#modal-content').innerText(),/220%/);assert.match(await osia.locator('#modal-content').innerText(),/패시브 · 용왕의 권능/);assert.match(await osia.locator('#modal-content').innerText(),/1.5초 기절/);await osia.click('[data-slot="1"]');await osia.waitForFunction(()=>!document.getElementById('modal').open);
-   await seedGuest(osia,await osia.evaluate(()=>{const s=JSON.parse(localStorage.getItem('school-mercenaries-v6'));s.units.osia.nextSkill=1;SchoolRPG.action(s,{kind:'stage',stage:1,mode:'farm'});for(const e of s.battle.enemies){e.hp=e.max=10000;e.atk=1;}s.at=Date.now();return s;}));
+   await seedGuest(osia,await osia.evaluate(()=>{const s=JSON.parse(localStorage.getItem('school-mercenaries-v7'));s.units.osia.nextSkill=1;SchoolRPG.action(s,{kind:'stage',stage:1,mode:'farm'});for(const e of s.battle.enemies){e.hp=e.max=10000;e.atk=1;}s.at=Date.now();return s;}));
    await osia.evaluate(()=>{
      const draw=SchoolArt.draw;window.osiaOriginalDraw=draw;window.osiaFrames={};window.dragonFrames={};window.osiaTimeline=[];window.osiaSteps=[];window.osiaLabels=[];let last=0;
      SchoolArt.draw=function(c,s,t,events,reduced){
@@ -122,7 +125,7 @@ const {runExpansionRegressions}=require('./school-expansion-browser.cjs');
    const waiting=await osia.evaluate(()=>{const snap=JSON.parse(JSON.stringify(window.osiaFinalSnapshot)),phase=snap.events.find(e=>e.kind==='skill-stage'&&e.stage===4);snap.s.battle.osiaCast={id:phase.castId,stage:4};snap.s.battle.elapsed=20500;snap.s.battle.enemies.forEach(e=>delete e.stunUntil);snap.events=snap.events.filter(e=>e.kind!=='skill-impact');const c=document.createElement('canvas').getContext('2d'),labels=[];c.fillText=text=>labels.push(text);window.osiaOriginalDraw(c,snap.s,phase.time+1.6,snap.events,false);return labels;});assert.ok(waiting.includes('스킬 4/4 · 거대 수룡 돌진'));assert.ok(!waiting.some(t=>t.includes('명중!')||t.includes('기절')));
    console.log('PASS 1→2→3→4→1 on separate cooldowns, basics between casts, next-skill UI, summon/rush/impact animation, impact-only stun and reduced motion');
    await osia.reload();assert.equal((await saved(osia)).team[1],'osia');assert.equal((await saved(osia)).units.osia.level,1);
-   await tab(osia,'adventure');await osia.click('#party [data-hero="osia"]');await osia.click('#train-hero');await osia.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v6')).units.osia.level===2);await osia.screenshot({path:'/tmp/osia-browser-detail.png'});
+   await tab(osia,'adventure');await osia.click('#party [data-hero="osia"]');await osia.click('#train-hero');await osia.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v7')).units.osia.level===2);await osia.screenshot({path:'/tmp/osia-browser-detail.png'});
    console.log('PASS Osia draw, right-facing atlas, passive explanation, formation/reload/training and updated odds');
    await osia.click('#modal-close');{const s=await saved(osia);s.pity=59;delete s.banners;await seedGuest(osia,s,'school-mercenaries-v4');}await tab(osia,'recruit');
    assert.equal((await saved(osia)).pity,59);assert.equal(await osia.locator('#pity-count').textContent(),'59 / 80');assert.equal(await osia.locator('#next-ssr-chance').textContent(),'다음 SSR 5%');

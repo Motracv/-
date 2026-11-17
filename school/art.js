@@ -26,11 +26,31 @@ window.SchoolArt = (() => {
     if (!shades.has(key)) { const n = parseInt(color.slice(1), 16); shades.set(key, '#' + [n >> 16, n >> 8 & 255, n & 255].map(v => Math.max(0, Math.min(255, v + amount)).toString(16).padStart(2, '0')).join('')); }
     return shades.get(key);
   }
+  const clamp01 = value => Math.max(0, Math.min(1, value));
+  // Movement is expressed in logical battle pixels and consumes the shared
+  // simulation clock, so changing battle speed never desynchronises a pose.
+  function castingMotion(id, stage, age, reduced = false) {
+    if (reduced) return {dx:0, dy:0, lean:0, stretch:1, cloth:0, pose:stage === 1 ? 2 : 1, stage, age, reduced};
+    if (age < 0) return {dx:0, dy:0, lean:0, stretch:1.025, cloth:0, pose:1, stage, age, reduced};
+    const progress = clamp01(age / (id === "lava" ? 1.35 : stage === 4 ? 1.65 : 1.05));
+    const spring = Math.sin(progress * Math.PI), release = clamp01((age - .15) / .45);
+    let dx = 0, dy = 0, lean = 0, stretch = 1, cloth = 0, pose = age < .4 ? 1 : 2;
+    if (id === "lava") {
+      if (stage === 1) { dx = spring * 12; dy = age < .15 ? age * 22 : -Math.sin(clamp01((age - .15) / .85) * Math.PI) * 12; lean = -.11 * Math.sin(progress * Math.PI * 2); cloth = 1.8 * spring; }
+      else { dx = Math.sin(progress * Math.PI) * 8; dy = -Math.sin(clamp01(age / 1.1) * Math.PI) * 23; lean = .13 * Math.sin(progress * Math.PI * 2); cloth = 3 * spring; }
+      stretch = 1 - (age < .15 ? .09 * (1 - age / .15) : 0) + Math.max(0, -dy) * .0015;
+    } else if (stage === 1) { dx = Math.sin(release * Math.PI) * 13; dy = age < .2 ? 3 * Math.sin(age / .2 * Math.PI) : 0; lean = -.08 * Math.sin(progress * Math.PI); stretch = age < .2 ? .94 : 1; }
+    else if (stage === 2) { dx = Math.sin(progress * Math.PI * 2) * 8; dy = -spring * 7; lean = .16 * Math.sin(progress * Math.PI * 2); pose = age < .28 ? 2 : age < .62 ? 1 : 2; }
+    else if (stage === 3) { dy = -Math.sin(clamp01(age / .9) * Math.PI) * 24; dx = spring * 3; stretch = dy < -6 ? 1.05 : .97; lean = -.035; pose = age < .5 ? 1 : 2; }
+    else { dy = -Math.sin(clamp01(age / 1.2) * Math.PI) * 18; dx = Math.sin(clamp01(age / 1.6) * Math.PI) * 11; lean = age < .5 ? .035 : -.09 * spring; stretch = 1.025; pose = age < .55 ? 1 : 2; }
+    return {dx,dy,lean,stretch,cloth,pose,stage,age,reduced};
+  }
   function osia(c, x, y, scale, frame) {
     c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale, scale);
     if (frame.dead) { c.globalAlpha = .4; c.rotate(-Math.PI / 2); }
     if (frame.hit) c.filter = "brightness(1.8)";
-    rect(c, "#26333b35", -8, 1, 17, 2);
+    rect(c, "#26333b35", -8, 1 + (frame.shadowY || 0), 17, 2);
+    if (frame.motion) c.transform(1, 0, frame.motion.lean, frame.motion.stretch, 0, 0);
     if (osiaLoaded) {
       const tile = osiaImage.naturalWidth / 3, pose = frame.pose ?? (frame.attack || frame.casting ? 2 : frame.ready ? 1 : 0);
       // The atlas is three equal right-facing cells, with identical foot anchors.
@@ -61,13 +81,24 @@ window.SchoolArt = (() => {
     c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale, scale);
     if (frame.dead) { c.globalAlpha = .4; c.rotate(-Math.PI / 2); }
     if (frame.hit) c.filter = "brightness(1.8)";
-    rect(c, "#26333b35", -10, 1, 21, 2);
+    rect(c, "#26333b35", -10, 1 + (frame.shadowY || 0), 21, 2);
+    if (frame.motion) c.transform(1, 0, frame.motion.lean, frame.motion.stretch, 0, 0);
     if (lavaLoaded) {
       // The generated source is kept intact. Its known transparent padding is
       // excluded while drawing so Lava shares the party's foot and height scale.
       const crop = {x:245, y:91, width:631, height:1260}, width = 44 * crop.width / crop.height;
-      c.drawImage(lavaImage, crop.x, crop.y, crop.width, crop.height, -width / 2, -41, width, 44);
-      if (frame.attack || frame.casting) { c.strokeStyle = "#e1f1b9"; c.lineWidth = .8; c.beginPath(); c.arc(15, -22, 12, -1.5, .8); c.stroke(); }
+      if (frame.motion && !frame.motion.reduced) {
+        // Adjacent strips bend the torso and flutter the long skirt separately;
+        // the head stays rigid, the feet trail, and the source PNG is untouched.
+        const motion = frame.motion;
+        for (let row = 0; row < 44; row += 2) {
+          const part = row / 44, skirt = part > .48 && part < .86, legs = part >= .86;
+          const sway = skirt ? Math.sin(part * 10 - motion.age * 12) * motion.cloth : legs ? Math.sin(motion.age * 9) * motion.cloth * .25 : Math.sin(part * 3) * motion.cloth * .18;
+          const spread = skirt ? 1 + Math.sin((part - .48) / .38 * Math.PI) * Math.abs(motion.cloth) * .055 : 1;
+          c.drawImage(lavaImage, crop.x, crop.y + row / 44 * crop.height, crop.width, Math.min(2, 44 - row) / 44 * crop.height, -width * spread / 2 + sway, -41 + row, width * spread, 2.12);
+        }
+      } else c.drawImage(lavaImage, crop.x, crop.y, crop.width, crop.height, -width / 2, -41, width, 44);
+      if (frame.attack && !frame.casting) { c.strokeStyle = "#e1f1b9"; c.lineWidth = .8; c.beginPath(); c.arc(15, -22, 12, -1.5, .8); c.stroke(); }
     } else {
       // A human shaman in a hanbok: no fins, horns or animal ears.
       c.scale(.88, .88); c.translate(0, -5);
@@ -144,7 +175,41 @@ window.SchoolArt = (() => {
       const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; c.scale(2, 2); hero(c, id, id === "lava" ? (lavaLoaded ? 40 : 30) : 36, 86, 2); portraits.set(id, canvas.toDataURL()); }
     return portraits.get(id);
   }
+  function activityBoss(c, enemy, x, y, frame) {
+    const kind = frame.activity.kind, bob = frame.reduced ? 0 : Math.sin((frame.time || 0) * 2) * 2;
+    c.save(); c.translate(Math.round(x), Math.round(y + bob)); c.scale(2.45,2.45);
+    if (enemy.hp <= 0) c.globalAlpha = .25;
+    if (frame.hit) c.filter = "brightness(1.7)";
+    rect(c,"#162b3d45",-21,1,43,3);
+    if (kind === "daily") {
+      // The storehouse guardian is a walking brass-bound supply chest.
+      rect(c,"#3c5c62",-23,-35,46,33);rect(c,"#947a48",-20,-33,40,29);rect(c,"#c4a35e",-18,-31,36,24);
+      for (let plank=0;plank<4;plank++) { detail(c,"#e8c87c",-17,-30+plank*6,34,.5); detail(c,"#7e623c",-18,-25+plank*6,36,.5); }
+      rect(c,"#4e6a6b",-22,-34,5,31);rect(c,"#4e6a6b",17,-34,5,31);rect(c,"#d7bc72",-20,-34,2,30);rect(c,"#d7bc72",19,-34,2,30);
+      rect(c,"#405b5a",-24,-42,48,10);rect(c,"#c2a05c",-21,-40,42,6);rect(c,"#f0d991",-19,-40,38,1);
+      rect(c,"#e9c778",-5,-24,10,13);rect(c,"#5b5942",-2,-22,4,5);rect(c,"#5b5942",-1,-18,2,5);
+      for (const side of [-1,1]) { rect(c,"#324c53",side<0?-30:23,-28,8,21);rect(c,"#6f9691",side<0?-28:24,-26,5,16);rect(c,"#d4be7b",side<0?-27:25,-24,2,2);rect(c,"#324c53",side<0?-16:8,-3,9,7);rect(c,"#7e9b8d",side<0?-15:9,-2,7,3); }
+      rect(c,"#283c43",-14,-30,8,4);rect(c,"#283c43",7,-30,8,4);detail(c,"#eff8bd",-12,-30,3,1);detail(c,"#eff8bd",9,-30,3,1);
+    } else if (kind === "weekly") {
+      // A sealed headmaster spirit floats above its torn academic robes.
+      rect(c,"#39283f",-20,-35,40,34);rect(c,"#5d456a",-17,-34,34,31);rect(c,"#8e6d91",-15,-31,5,27);rect(c,"#42364e",10,-31,7,28);
+      for (let hem=0;hem<6;hem++) rect(c,"#5d456a",-17+hem*6,-3,4,6+hem%2*3);
+      rect(c,"#c7b88f",-4,-34,8,29);detail(c,"#f0d994",-2,-32,1,25);rect(c,"#b68b59",-10,-28,20,2);
+      rect(c,"#332d44",-12,-55,24,24);rect(c,"#b7c8be",-10,-53,20,19);rect(c,"#d8e5cc",-7,-51,12,7);
+      rect(c,"#453d52",-8,-45,7,5);rect(c,"#453d52",3,-45,7,5);detail(c,"#9ce8df",-6,-44,3,1);detail(c,"#9ce8df",5,-44,3,1);rect(c,"#6b7773",-3,-36,7,2);
+      rect(c,"#2a2a3e",-18,-57,36,5);rect(c,"#4e3c59",-11,-63,23,7);detail(c,"#d1b473",-16,-57,32,1);rect(c,"#d3b572",9,-55,1,14);rect(c,"#e9c875",7,-43,5,5);
+      for (let link=0;link<5;link++) { const lx=-28+link*13; rect(c,"#b1ada1",lx,-23+link%2*3,6,2);rect(c,"#dcd0af",lx+1,-22+link%2*3,1,4); }
+    } else {
+      rect(c,"#263b52",-17,-39,34,36);rect(c,"#93b3bb",-14,-37,28,32);rect(c,"#d5e3da",-12,-35,8,27);rect(c,"#5e8397",6,-35,8,29);
+      rect(c,"#294354",-12,-54,25,19);rect(c,"#cfddd5",-10,-52,21,16);rect(c,"#55778c",-9,-46,19,3);rect(c,"#e5f5cf",-6,-45,13,1);
+      rect(c,"#c4d9cb",-20,-39,8,7);rect(c,"#c4d9cb",13,-39,8,7);rect(c,"#294354",-12,-4,8,8);rect(c,"#294354",5,-4,8,8);
+      c.strokeStyle="#b7d9c3";c.lineWidth=1.2;c.beginPath();c.ellipse(0,-29,28,9,frame.reduced?.3:(frame.time||0)*.8,0,Math.PI*2);c.stroke();
+      rect(c,"#e5e5b3",24,-51,2,47);rect(c,"#7ea3a9",21,-18,8,3);rect(c,"#e8f5ce",23,-51,4,4);
+    }
+    c.restore();
+  }
   function monster(c, enemy, x, y, frame = {}) {
+    if (enemy.boss && frame.activity) { activityBoss(c, enemy, x, y, frame); return; }
     c.save(); c.translate(Math.round(x), Math.round(y)); const z = enemy.boss ? 2.7 : 1.7; c.scale(z, z);
     if (enemy.hp <= 0) c.globalAlpha = .25;
     if (frame.hit) c.filter = "brightness(2)";
@@ -222,6 +287,39 @@ window.SchoolArt = (() => {
     if (zone === 10) { for (let i = 0; i < 15; i++) { const x = (i * 49 + time * 32) % 510 - 20, y = 35 + i * 19 % 199; rect(c, "#edf1d65c", x, y, 11 + i % 4 * 7, 1); } for (let i=0;i<13;i++) { const x=i*41; rect(c,"#718d64",x,147,2,8); rect(c,"#afc585",x+2,149,2,6); } }
     if (snowy) { for (let i = 0; i < 16; i++) { const x = i * 33 + 5, y = 166 + i * 29 % 107; detail(c, "#f4f9ef", x, y, 9, .5); } snow(c, time); }
     rect(c, "#27424c18", 0, 263, 480, 17);
+  }
+  function activityBackground(c, activity, time, reduced) {
+    const kind = activity.kind;
+    rect(c, kind === "daily" ? "#796b54" : kind === "weekly" ? "#414154" : "#394d5e", 0, 0, 480, 280);
+    if (kind === "daily") {
+      rect(c,"#9f9270",0,27,480,123);rect(c,"#554f43",0,18,480,9);detail(c,"#c6b68c",0,28,480,1);
+      for (let y=40;y<150;y+=23) { detail(c,"#75694d66",0,y,480,1);for(let x=y%2?15:45;x<480;x+=60)detail(c,"#75694d66",x,y,1,23); }
+      for (const x of [17,108,199]) { rect(c,"#524b3d",x,56,79,91);for(let row=0;row<2;row++){rect(c,"#ae8b54",x+3,91+row*43,73,4);detail(c,"#dfbc77",x+3,91+row*43,73,1);for(let box=0;box<3;box++){const bx=x+8+box*22,by=65+row*43;rect(c,"#735d3f",bx,by,18,24);rect(c,"#b0965d",bx+1,by+1,16,21);detail(c,"#dbc289",bx+2,by+2,14,.5);rect(c,"#e1d1a0",bx+7,by+6,5,7);detail(c,"#8a7758",bx+8,by+8,3,.5);}} }
+      rect(c,"#536866",314,42,130,107);rect(c,"#81938b",320,48,118,101);rect(c,"#b7bc9e",328,56,102,92);rect(c,"#596c65",338,65,82,83);
+      c.strokeStyle="#c3c9a4";c.lineWidth=3;c.beginPath();c.arc(379,106,25,0,Math.PI*2);c.stroke();rect(c,"#d4cd9b",377,88,4,36);rect(c,"#d4cd9b",361,104,36,4);rect(c,"#e6d8a2",375,102,8,8);
+      rect(c,"#3d524a",334,33,92,14);c.font="8px Galmuri, monospace";c.fillStyle="#eadbad";c.fillText("방과 후 보급고",345,46);
+    } else if (kind === "weekly") {
+      rect(c,"#5a5263",0,25,480,126);for(const x of [17,151,306,448]){rect(c,"#343645",x,27,12,127);detail(c,"#9a8977",x+1,28,1,123);}
+      for(const x of [39,174]){rect(c,"#2d344b",x,42,97,96);rect(c,"#8a879b",x+6,48,85,82);rect(c,"#50627e",x+11,53,75,72);rect(c,"#c2c9bd",x+22,59,26,27);rect(c,"#50627e",x+17,56,24,24);rect(c,"#35364a",x+44,48,4,82);detail(c,"#bcafa0",x+7,94,81,1);rect(c,"#6c3e54",x-5,36,14,104);rect(c,"#6c3e54",x+89,36,14,104);detail(c,"#b47a79",x-3,39,2,96);}
+      rect(c,"#292f3c",334,43,85,102);rect(c,"#78556a",339,48,75,92);rect(c,"#ab8990",342,51,69,2);rect(c,"#4e3b51",346,58,61,76);
+      rect(c,"#645041",298,125,154,20);rect(c,"#a3835a",293,122,164,5);detail(c,"#ddbc86",296,122,157,1);rect(c,"#e3d8ad",317,112,31,9);detail(c,"#8b897c",321,115,21,.5);
+      c.strokeStyle="#c2b08b88";c.lineWidth=1;for(let i=0;i<4;i++){c.beginPath();c.moveTo(308+i*33,42);c.lineTo(449-i*31,141);c.stroke();}
+      rect(c,"#bca981",368,72,17,24);rect(c,"#634950",371,76,11,17);c.font="8px Galmuri, monospace";c.fillStyle="#efdaa3";c.fillText("封",372,88);
+    } else {
+      // Nested doorways and a vanishing floor make the same corridor appear to
+      // fold back into itself. Floor number changes without a finite art limit.
+      for(let ring=0;ring<7;ring++){const x=18+ring*31,y=20+ring*11,w=444-ring*62,h=133-ring*11;rect(c,ring%2?"#58707c":"#47616d",x,y,w,h);rect(c,"#263e50",x+7,y+6,w-14,h-6);detail(c,"#a3b9b055",x+1,y+1,w-2,1);detail(c,"#a3b9b033",x+1,y+1,1,h-1);}
+      rect(c,"#8ba69d",232,92,33,60);rect(c,"#38596a",237,97,23,55);rect(c,"#b5d0ae",243,106,10,2);rect(c,"#d0debc",254,126,2,3);
+      for(const side of [38,419])for(let light=0;light<3;light++){const y=48+light*31;rect(c,"#1c3445",side,y,23,17);rect(c,"#c6deb5",side+5,y+3,13,9);detail(c,"#f0f4cd",side+6,y+4,11,1);}
+      c.font="10px Galmuri, monospace";c.textAlign="center";c.fillStyle="#d2e6c4";c.fillText(`뫼비우스의 복도 · ${activity.floor || 1}층`,240,52);c.textAlign="left";
+    }
+    const floor = kind === "daily" ? "#a18b62" : kind === "weekly" ? "#676477" : "#6a8587";
+    rect(c,floor,0,153,480,127);detail(c,"#c4c6a0",0,151,480,2);
+    if(kind === "weekly"){rect(c,"#705365",232,153,193,127);detail(c,"#c3a67b",237,153,1,127);detail(c,"#c3a67b",419,153,1,127);}
+    for(let y=158;y<280;y+=24){detail(c,"#263f452e",0,y,480,1);for(let x=y%2?18:58;x<480;x+=80)detail(c,"#263f452e",x,y,1,24);}
+    if(kind === "tower"){c.save();c.strokeStyle="#b9cfb835";c.lineWidth=.7;for(let x=-240;x<=720;x+=90){c.beginPath();c.moveTo(249,153);c.lineTo(x,280);c.stroke();}c.restore();}
+    for(let i=0;i<15;i++){const x=(i*71+(reduced?0:Math.sin(time*.4+i)*9)+480)%480,y=(i*29+(reduced?0:time*3))%250;rect(c,kind==="weekly"?"#d3b9e73d":"#e9edba3d",x,y,1,1);}
+    rect(c,"#152d3520",0,263,480,17);
   }
   function background(c, stage, time) {
     const zone = S.chapter(stage), outdoor = zone === 3 || zone === 5;
@@ -419,6 +517,19 @@ window.SchoolArt = (() => {
     c.beginPath(); c.moveTo(-20,-22); c.lineTo(0,-29); c.lineTo(20,-22); c.lineTo(18,8); c.lineTo(9,21); c.lineTo(0,27); c.lineTo(-9,21); c.lineTo(-18,8); c.closePath(); c.fill(); c.stroke();
     detail(c, "#f7ffdf", -10, -15, 1, 14); detail(c, "#f7ffdf", -9, -16, 10, 1); c.restore();
   }
+  function windRibbon(c, source, target, age, reduced, power = 1) {
+    const progress = reduced ? 1 : clamp01(age / .55), sx = source.x + 17, sy = source.y - 38, tx = target.x, ty = target.y - 30;
+    const bend = (target.x > source.x ? -1 : 1) * 30 * power;
+    c.save(); c.globalAlpha *= Math.max(0, 1 - Math.max(0, age - .55) / .65);
+    for (let trail = 2; trail >= 0; trail--) {
+      c.strokeStyle = ["#ecffd2", "#bde9b9", "#70b8a6"][trail]; c.lineWidth = (3 - trail * .6) * power; c.beginPath();
+      const start = Math.max(0, progress - .5 - trail * .08);
+      for (let n = 0; n <= 18; n++) { const t = start + (progress - start) * n / 18, x = sx + (tx - sx) * t, y = sy + (ty - sy) * t + Math.sin(t * Math.PI) * bend + trail * 3; if (n) c.lineTo(x,y); else c.moveTo(x,y); }
+      c.stroke();
+    }
+    const x = sx + (tx - sx) * progress, y = sy + (ty - sy) * progress + Math.sin(progress * Math.PI) * bend;
+    rect(c,"#efffd9",x-3,y-2,7,3);rect(c,"#a4d9ad",x-1,y-4,3,7); c.restore();
+  }
   function lavaEffects(c, effects, positions, time, reduced) {
     for (const e of effects) {
       if (e.from !== "lava") continue;
@@ -427,8 +538,15 @@ window.SchoolArt = (() => {
       if (e.kind === "lava-skill") {
         const targets = (e.targets || []).map(id => positions[id]).filter(Boolean);
         c.save();
-        if (source) { c.save(); c.translate(source.x + 24, source.y - 46); if (!reduced) c.rotate(-.6 + Math.min(1, age * 3) * 1.1); c.scale(2, 2); fan(c, 0, 0); c.restore(); }
+        if (source) {
+          const swing = reduced ? -.35 : -2.1 + clamp01(age / .7) * 4.7, radius = e.stage === 1 ? 37 : 47;
+          c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.3);
+          for (let ring = 0; ring < 3; ring++) { c.strokeStyle = ["#6baea3", "#c5edd0", "#f4ffda"][ring]; c.lineWidth = 6 - ring * 1.8; c.beginPath(); c.ellipse(source.x + 5, source.y - 34, radius - ring * 4, radius * .7 - ring * 3, -.3, swing, swing + 2.4); c.stroke(); }
+          c.translate(source.x + Math.cos(swing + .7) * 21, source.y - 34 + Math.sin(swing + .7) * 18); c.rotate(swing + 1.7); c.scale(1.35,1.35); fan(c,0,0,true); c.restore();
+          if (e.stage === 2) { c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.15); for (let wing = -1; wing <= 1; wing += 2) for (let feather = 0; feather < 4; feather++) { c.strokeStyle = feather % 2 ? "#d0f4c7" : "#8ac6af"; c.lineWidth = 2; c.beginPath(); c.moveTo(source.x,source.y-27); c.quadraticCurveTo(source.x+wing*(32+feather*8),source.y-65-feather*5,source.x+wing*(44+feather*8),source.y-37-feather*6); c.stroke(); } c.restore(); }
+        }
         for (const p of targets) {
+          if (source && p !== source) windRibbon(c, source, p, age, reduced, e.stage === 2 ? 1.2 : .8);
           windRing(c, p.x, p.y, age, reduced, e.stage === 2 ? 1.3 : 1);
           if (e.stage === 1 && age < 1.1) windShield(c, p.x, p.y, "#b8e8c5", Math.max(0, 1 - age / 1.1), 1);
           if (e.stage === 2) {
@@ -449,6 +567,9 @@ window.SchoolArt = (() => {
         c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.3); windRing(c, p.x, p.y, Math.min(age, 1), reduced, 1.8);
         for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5, r = reduced ? 38 : 18 + age * 45; rect(c, "#fff1b2", p.x + Math.cos(a) * r, p.y - 35 + Math.sin(a) * r, 3, 3); }
         c.font = "10px Galmuri, monospace"; c.textAlign = "center"; rect(c, "#68563de8", p.x - 41, p.y - 98, 82, 19); c.fillStyle = "#fff1c2"; c.fillText("생명의 바람", p.x, p.y - 85); c.restore();
+      } else if (e.kind === "hit" && !e.skill && age < .48 && source) {
+        const target = positions[e.to]; if (!target) continue;
+        windRibbon(c, source, target, Math.min(.55, age * 1.8), reduced, .45);
       }
     }
   }
@@ -469,34 +590,63 @@ window.SchoolArt = (() => {
     c.font = "9px Galmuri, monospace"; c.fillStyle = "#bee6e7"; c.fillText("시간 정지 · 궁극기 발동", 175, 155);
     c.restore(); detail(c, "#adf4ed", 0, 61, 480, 1.5); detail(c, "#87c7dc", 0, 202, 480, 1.5);
   }
+  function bossEffects(c, battle, positions, effects, time, reduced) {
+    const warning = battle.phase === "fight" && battle.enemies.find(enemy => enemy.hp > 0 && enemy.ability && enemy.warnedFor === enemy.nextAbilityAt && enemy.nextAbilityAt - battle.elapsed <= 1000);
+    if (warning) {
+      c.save(); const remaining = Math.max(0, (warning.nextAbilityAt - battle.elapsed) / 1000), pulse = reduced ? .7 : .55 + Math.sin(time * 8) * .2;
+      c.strokeStyle = "#eabb78"; c.fillStyle = "#cd77522a"; c.lineWidth = 1.5;
+      for (const member of battle.heroes.filter(h => h.hp > 0)) { const p = positions[member.id]; c.globalAlpha = pulse; c.beginPath(); c.ellipse(p.x,p.y+3,24,8,0,0,Math.PI*2);c.fill();c.stroke(); detail(c,"#ffe1a5",p.x-1,p.y-7,2,6); detail(c,"#ffe1a5",p.x-1,p.y+1,2,2); }
+      c.globalAlpha = 1; c.textAlign = "center"; c.font = "9px Galmuri, monospace";
+      const label = `광역기 예고 · ${warning.ability} · ${remaining.toFixed(1)}초`, width = c.measureText(label).width + 20;
+      rect(c,"#613d36ee",240-width/2,65,width,20);detail(c,"#f0bd78",240-width/2,84,width,1);c.fillStyle="#ffe8b7";c.fillText(label,240,79);c.restore();
+    }
+    for (const e of effects) {
+      const age = time - e.time; if (e.kind !== "boss-skill" || age < 0 || age > .9) continue;
+      c.save(); c.globalAlpha = Math.max(0, 1 - age / .9);
+      for (const id of e.targets || []) { const p = positions[id]; if (!p) continue; const r = reduced ? 27 : 10 + age * 62; c.strokeStyle="#e29e7a";c.lineWidth=3;c.beginPath();c.ellipse(p.x,p.y-24,r,r*.7,-.2,0,Math.PI*2);c.stroke();for(let shard=0;shard<6;shard++){const a=shard*Math.PI/3;rect(c,shard%2?"#ffe0a5":"#c76f60",p.x+Math.cos(a)*r,p.y-24+Math.sin(a)*r*.7,3,5);} }
+      c.textAlign="center";c.font="10px Galmuri, monospace";const label=`광역기 · ${e.name}`,width=c.measureText(label).width+22;rect(c,"#5c3435ed",240-width/2,65,width,20);c.fillStyle="#ffe0b0";c.fillText(label,240,79);c.restore();
+    }
+  }
   function draw(c, state, time, effects = [], reduced = false) {
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height);
     c.setTransform(c.canvas.width / 480, 0, 0, c.canvas.height / 280, 0, 0); c.imageSmoothingEnabled = false;
-    const battle = state.battle, cinematicEvent = effects.findLast(e => e.kind === "cinematic" && e.castId === battle.cinematic?.castId);
+    const battle = state.battle, extendedParty = Math.max(battle.heroes.length, state.team?.length || 0) > 3, cinematicEvent = effects.findLast(e => e.kind === "cinematic" && e.castId === battle.cinematic?.castId);
     const sceneTime = battle.cinematic ? cinematicEvent?.time ?? time : time;
-    background(c, battle.stage, reduced ? 0 : sceneTime);
+    // A slightly closer background camera brings the floor up behind both
+    // formation rows; rear allies must not appear to stand on the classroom wall.
+    c.save(); if (extendedParty) { c.translate(-36, -42); c.scale(1.15, 1.15); }
+    if (battle.activity) activityBackground(c, battle.activity, sceneTime, reduced);
+    else background(c, battle.stage, reduced ? 0 : sceneTime);
+    c.restore();
     effects = effects.filter(e => (!e.battleId || e.battleId === battle.id) && time >= e.time);
     effects = effects.filter(e => e.kind !== "skill-stage" || battle.osiaCast?.id === e.castId || effects.some(hit => hit.kind === "skill-impact" && hit.castId === e.castId));
     const positions = {};
-    battle.heroes.forEach((h, i) => { positions[h.id] = [{ x: 173, y: 208 }, { x: 115, y: 181 }, { x: 68, y: 221 }][i]; });
+    const partyPositions = extendedParty ? [{x:228,y:216},{x:160,y:216},{x:92,y:216},{x:202,y:137},{x:134,y:137},{x:66,y:137}] : [{ x: 173, y: 208 }, { x: 115, y: 181 }, { x: 68, y: 221 }];
+    battle.heroes.forEach((h, i) => { positions[h.id] = partyPositions[i] || {x:66 + (i % 3) * 68,y:137}; });
     battle.enemies.forEach((e, i) => { positions[e.id] = battle.boss ? { x: 375, y: 210 } : [{ x: 325, y: 207 }, { x: 384, y: 180 }, { x: 425, y: 225 }][i]; });
+    const visualPositions = {...positions};
     const items = battle.heroes.map(h => ({ ...h, side: "hero" })).concat(battle.enemies.map(e => ({ ...e, side: "enemy" }))).sort((a, b) => positions[a.id].y - positions[b.id].y);
     for (const item of items) {
       const p = positions[item.id], hit = effects.some(e => e.to === item.id && e.kind === "hit" && time - e.time < .15), attacking = effects.some(e => e.from === item.id && e.kind === "hit" && time - e.time < .25);
       const stunned = item.hp > 0 && (item.stunUntil || 0) > battle.elapsed;
       const bounce = reduced || item.hp <= 0 || stunned || battle.cinematic ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
       const nudge = attacking && !reduced && !stunned && !battle.cinematic ? (item.side === "hero" ? 8 : -6) : 0;
-      const combo = item.id === "osia" && effects.findLast(e => e.kind === "skill-stage" && time - e.time < (e.stage === 4 ? 1.1 : .6) + (e.cinematicDuration || 0) / 1000);
-      if (item.side === "hero") hero(c, item.id, p.x + nudge, p.y + bounce, 1.8, { hit, dead: item.hp <= 0, attack: attacking, pose: combo ? (time - combo.time < combo.impactDelay / 1000 ? 1 : 2) : undefined, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: effects.some(e => e.kind === "skill" && e.from === item.id && time - e.time < .8), blink: Math.sin(time * .7 + p.x) > .99 });
-      else monster(c, item, p.x + nudge, p.y + bounce, { hit });
-      if (item.side === "hero" && item.hp > 0 && item.shield > 0) windShield(c, p.x, p.y, "#bce8d3", .3, .92);
-      const w = item.boss ? 62 : 37, by = p.y + 9;
+      const combo = item.side === "hero" && (item.id === "osia" ? effects.findLast(e => e.kind === "skill-stage" && e.from === "osia" && time - e.time < (e.stage === 4 ? 1.8 : 1.1) + (e.cinematicDuration || 0) / 1000) : item.id === "lava" ? effects.findLast(e => e.kind === "lava-skill" && time - e.time < 1.35) : null);
+      const castAge = combo ? time - combo.time - (combo.cinematicDuration || 0) / 1000 : 0;
+      const motion = combo && item.hp > 0 ? castingMotion(item.id, combo.stage, castAge, reduced || !!battle.cinematic) : null;
+      const scale = extendedParty ? 1.3 : 1.8, moveX = motion ? motion.dx : nudge, moveY = motion ? motion.dy : bounce;
+      visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
+      if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || effects.some(e => e.kind === "skill" && e.from === item.id && time - e.time < .8), blink: Math.sin(time * .7 + p.x) > .99 });
+      else monster(c, item, p.x + nudge, p.y + bounce, { hit, activity:battle.activity, time:sceneTime, reduced });
+      if (item.side === "hero" && item.hp > 0 && item.shield > 0) windShield(c, p.x, p.y, "#bce8d3", .3, extendedParty ? .7 : .92);
+      const w = item.boss ? 62 : item.side === "hero" && extendedParty ? 31 : 37, by = p.y + 9;
       rect(c, "#28362f", p.x - w / 2 - 1, by - 1, w + 2, 6); rect(c, "#4d5146", p.x - w / 2, by, w, 4);
       rect(c, item.side === "hero" ? "#9dbd7b" : "#d99c73", p.x - w / 2, by, Math.max(0, w * item.hp / item.max), 4);
       if (item.side === "hero") { rect(c, "#536270", p.x - w / 2, by + 7, w, 2); rect(c, "#e2c679", p.x - w / 2, by + 7, w * item.energy / S.BY_ID[item.id].cooldown, 2); }
     }
-    waterEffects(c, effects, positions, time, reduced, battle.osiaCast, battle.cinematic);
-    lavaEffects(c, effects, positions, time, reduced);
+    waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic);
+    lavaEffects(c, effects, visualPositions, time, reduced);
+    bossEffects(c, battle, positions, effects, time, reduced);
     for (const e of effects) {
       const age = time - e.time; if (age > 1.1 || age < 0) continue;
       const p = positions[e.to] || positions[e.from]; if (!p) continue;
@@ -504,11 +654,11 @@ window.SchoolArt = (() => {
       const y = p.y - 65 - age * 22;
       if (e.kind === "hit" || e.kind === "heal" || e.kind === "shield") {
         const text = e.kind === "heal" ? `+${e.amount}` : e.kind === "shield" ? "방어" : `${e.amount}`;
-        c.font = `${e.skill ? 14 : 11}px Galmuri, monospace`; c.textAlign = "center";
-        c.fillStyle = "#26342e"; c.fillText(text, p.x + 1, y + 1); c.fillStyle = e.kind === "heal" ? "#dbffac" : e.kind === "shield" ? "#bbdded" : e.skill ? "#ffe5a1" : "#fff6dd"; c.fillText(text, p.x, y);
+        c.font = `${e.skill || e.bossSkill ? 14 : 11}px Galmuri, monospace`; c.textAlign = "center";
+        c.fillStyle = "#26342e"; c.fillText(text, p.x + 1, y + 1); c.fillStyle = e.kind === "heal" ? "#dbffac" : e.kind === "shield" ? "#bbdded" : e.bossSkill ? "#ffbd9a" : e.skill ? "#ffe5a1" : "#fff6dd"; c.fillText(text, p.x, y);
       }
       if (e.kind === "skill" && e.from !== "osia") { c.font = "9px Galmuri, monospace"; c.textAlign = "center"; const width = c.measureText(e.name).width + 14; rect(c, "#2b3d37dc", p.x - width / 2, p.y - 89 - age * 9, width, 16); c.fillStyle = "#f6df9b"; c.fillText(e.name, p.x, p.y - 77 - age * 9); }
-      if (e.kind === "hit" && e.skill && age < .3) { c.strokeStyle = e.element === "water" ? "#bafaff" : "#fff3bb"; c.lineWidth = 3; c.beginPath(); c.moveTo(p.x - 18, p.y - 60); c.lineTo(p.x + 17, p.y - 19); c.stroke(); }
+      if (e.kind === "hit" && (e.skill || e.bossSkill) && age < .3) { c.strokeStyle = e.element === "water" ? "#bafaff" : e.bossSkill ? "#ffc3a1" : "#fff3bb"; c.lineWidth = 3; c.beginPath(); c.moveTo(p.x - 18, p.y - 60); c.lineTo(p.x + 17, p.y - 19); c.stroke(); }
       c.restore();
     }
     // Draw control status last so the large water effect cannot hide it.
@@ -547,11 +697,12 @@ window.SchoolArt = (() => {
     }
     if (battle.phase !== "fight") {
       rect(c, "#243a3277", 0, 0, 480, 280); c.textAlign = "center"; c.font = "18px Galmuri, monospace"; c.fillStyle = "#fff1c8";
-      c.fillText(battle.phase === "victory" ? (battle.boss ? "지역 클리어!" : "WAVE CLEAR") : "다시 준비하는 시간", 240, 112);
-      c.font = "10px Galmuri, monospace"; c.fillText(battle.phase === "victory" ? `다음 전투까지 ${Math.ceil(battle.wait)}초` : `${Math.ceil(battle.wait)}초 뒤 자동 재도전`, 240, 135); c.textAlign = "left";
+      const activity = battle.activity;
+      c.fillText(activity ? battle.phase === "victory" ? activity.kind === "tower" ? `${activity.floor}층 돌파!` : "던전 클리어!" : "도전 종료" : battle.phase === "victory" ? (battle.boss ? "지역 클리어!" : "WAVE CLEAR") : "다시 준비하는 시간", 240, 112);
+      c.font = "10px Galmuri, monospace"; c.fillText(activity ? "결과에서 다음 행동을 선택하세요." : battle.phase === "victory" ? `다음 전투까지 ${Math.ceil(battle.wait)}초` : `${Math.ceil(battle.wait)}초 뒤 자동 재도전`, 240, 135); c.textAlign = "left";
     }
     osiaCinematic(c, state, time, effects, reduced);
     c.restore();
   }
-  return { hero, portrait, draw, ready, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : osiaLoaded };
+  return { hero, portrait, draw, ready, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : osiaLoaded };
 })();

@@ -2,24 +2,36 @@
   'use strict';
   const G = window.SchoolRPG, Art = window.SchoolArt, $ = id => document.getElementById(id);
   const BASE = 'https://motracv-card-room.densedormouse4.chatgpt.site';
-  const SAVE = 'school-mercenaries-v6', LEGACY_SAVES = ['school-mercenaries-v5', 'school-mercenaries-v4', 'school-mercenaries-v3', 'school-mercenaries-v2', 'school-mercenaries-v1'], MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
+  const SAVE = 'school-mercenaries-v7', LEGACY_SAVES = ['school-mercenaries-v6', 'school-mercenaries-v5', 'school-mercenaries-v4', 'school-mercenaries-v3', 'school-mercenaries-v2', 'school-mercenaries-v1'], MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
   const esc = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = n => Math.floor(n).toLocaleString('ko-KR');
   const duration = seconds => seconds >= 3600 ? `${Math.floor(seconds / 3600)}시간 ${Math.floor(seconds % 3600 / 60)}분` : `${Math.floor(seconds / 60)}분`;
+  const maxTeam = () => G.MAX_TEAM || 6;
+  const slotName = index => `${index + 1}번 · ${state.team.length > 3 || index >= 3 ? index < 3 ? '전열' : '후열' : ['전열','중열','후열'][index]}`;
+  const formationHint = () => state.team.length > 3 ? '전열 3명을 중심으로 공격을 받아요. 수호 용병을 전열에 배치해 보세요.' : '맨 앞 용병이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.';
   const icon = name => `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`;
   const portrait = (id, cls = '') => `<img class="${cls}" src="${Art.portrait(id)}" alt="${G.BY_ID[id].name}">`;
   const rarity = id => `<span class="rarity ${G.BY_ID[id].rarity}">${G.BY_ID[id].rarity}</span>`;
   const storage = { get(key, session = false) { try { return (session ? sessionStorage : localStorage).getItem(key); } catch { return null; } }, set(key, value, session = false) { try { (session ? sessionStorage : localStorage).setItem(key, value); return true; } catch { return false; } }, remove(key, session = false) { try { (session ? sessionStorage : localStorage).removeItem(key); } catch {} } };
   let state, mode = 'guest', profile = null, token = null, revision = 0, offset = 0, busy = false, pending = null, connected = true;
   let tab = 'adventure', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
+  let confirmedActivityResult = null, shownActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null;
   let selectedBanner = storage.get('school-pickup') === 'lava' ? 'lava' : 'osia';
-  let sound = storage.get('school-sound') === 'on', audio, renderKey = '', partyKey = '', lastSave = 0, lastSync = 0;
+  let sound = storage.get('school-sound') === 'on', audio, renderKey = '', dungeonRenderKey = '', partyKey = '', lastSave = 0, lastSync = 0;
   const CLOUD_CACHE = 'school-confirmed-cloud-view';
   let guestQueue = Promise.resolve(), guestTickPending = false, guestSaveFailed = false, mutexDatabase;
   let cloudBalance = null, hasCloudState = false, hasGuestState = false, clientReady = false, verifiedToken = null, sessionFingerprint = null;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   try { token = JSON.parse(storage.get(SESSION, true) || 'null')?.token || null; } catch {}
 
+  const serverNow = () => Date.now() + (mode === 'cloud' ? offset : 0);
+  const activityInfo = () => G.activityInfo ? G.activityInfo(state, serverNow()) : null;
+  const activityActive = () => !!state?.activities?.run && !state.activities.run.settled;
+  const activityAwaitingConfirmation = () => !!state?.activities?.run?.settled && String(confirmedActivityResult?.runId) !== String(state.activities.run.id);
+  const activityTitle = kind => kind === 'daily' ? '방과 후 보급고' : kind === 'weekly' ? '봉인된 이사장실' : '뫼비우스의 복도';
+  const activityLevel = value => value.kind === 'tower' ? `${fmt(value.floor)}층` : `${value.tier}단계`;
+  const resetTime = value => new Intl.DateTimeFormat('ko-KR', {timeZone:'Asia/Seoul', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date(value));
+  function rememberActivityResult(source) { confirmedActivityResult = source?.activities?.lastResult ? G.clone(source.activities.lastResult) : null; }
   function toast(message) { $('toast').textContent = message; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 3400); }
   function couponMessage(message, status = '') {
     $('coupon-message').textContent = message; $('coupon-message').dataset.state = status;
@@ -104,7 +116,7 @@
       if (input) try { result = G.action(next, input); } catch (error) { error.guestAction = true; actionError = error; }
       // Commit first: displayed rewards and successful actions are always durable.
       const recoveredWrite = guestSaveFailed;
-      writeGuest(next, record.raw); state = next; hasGuestState = true; guestSaveFailed = false; lastSave = Date.now();
+      writeGuest(next, record.raw); rememberActivityResult(next); state = next; hasGuestState = true; guestSaveFailed = false; lastSave = Date.now();
       saveStatus('saved', '기기 저장 완료');
       if (record.recovered) note('자동 저장 사본에서 기록을 복구했습니다.');
       else if (recoveredWrite) note('');
@@ -139,6 +151,7 @@
     return body;
   }
   function applyCloud(body) {
+    rememberActivityResult(body.state);
     state = body.state; revision = body.revision; offset = body.serverTime - Date.now(); connected = true; hasCloudState = true;
     cloudBalance = { gold: state.gold, gems: state.gems };
     storage.set(CLOUD_CACHE, JSON.stringify({profile, state, revision, serverTime:body.serverTime, sessionFingerprint}), true);
@@ -211,7 +224,9 @@
     }
     else if (result.kind === 'train') { toast(`${G.BY_ID[result.hero].name} Lv.${result.level}!`); heroDetail(result.hero); play('level'); }
     else if (result.kind === 'awaken') { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); play('rare'); }
-    else if (result.kind === 'team') { closeModal(); toast('새 편성으로 출발합니다. 맨 앞 용병이 주로 공격을 받아요.'); }
+    else if (result.kind === 'team') { closeModal(); toast(`새 편성으로 출발합니다. ${formationHint()}`); }
+    else if (result.kind === 'activity') { closeModal(); setTab('adventure'); toast('던전에 입장했어요. 전투가 끝나면 결과를 확인하세요.'); }
+    else if (result.kind === 'activity-exit') { closeModal(); setTab('adventure'); toast(result.result?.refunded ? '입장 열쇠를 돌려받고 모험으로 돌아왔어요.' : '모험으로 돌아왔어요.'); }
     else if (result.kind === 'speed') { toast(`전투 속도 ${result.speed.toFixed(1)}×`); }
     else if (result.kind === 'stage') { closeModal(); setTab('adventure'); toast('선택한 지역으로 출발합니다.'); }
     else if (result.kind === 'offline') { toast(`골드 +${fmt(result.reward.gold)} · 용병마다 경험치 +${fmt(result.reward.xp)}`); play('reward'); if (modalKind === 'offline') closeModal(); }
@@ -247,11 +262,11 @@
     }
   }
   function setTab(next) {
-    if (!['adventure', 'roster', 'recruit', 'supplies'].includes(next)) return;
+    if (!['adventure', 'roster', 'dungeons', 'recruit', 'supplies'].includes(next)) return;
     tab = next; $('app').dataset.tab = tab;
-    for (const name of ['adventure', 'roster', 'recruit', 'supplies']) $('tab-' + name).hidden = name !== tab;
+    for (const name of ['adventure', 'roster', 'dungeons', 'recruit', 'supplies']) $('tab-' + name).hidden = name !== tab;
     document.querySelectorAll('.bottom-nav>button').forEach(b => { const active = b.dataset.tab === (tab === 'roster' ? 'adventure' : tab); b.classList.toggle('active', active); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
-    document.querySelector('.content-panel').scrollTop = 0; document.querySelector('.workspace').scrollTop = 0; renderKey = ''; render();
+    document.querySelector('.content-panel').scrollTop = 0; document.querySelector('.workspace').scrollTop = 0; renderKey = dungeonRenderKey = ''; render();
   }
   function render() {
     if (!state) return;
@@ -262,18 +277,32 @@
     $('stage-number').textContent = G.stageName(state.battle.stage); $('stage-name').textContent = G.CHAPTERS[G.chapter(state.battle.stage)];
     $('wave-label').textContent = state.battle.boss ? 'BOSS · ' + G.BOSSES[G.chapter(state.battle.stage)] : `WAVE ${state.battle.wave} / 4`;
     $('wave-label').classList.toggle('boss', state.battle.boss);
+    renderBossHUD();
     $('power').textContent = `전투력 ${fmt(G.power(state))}`;
     $('battle-status').textContent = state.mode === 'farm' ? '반복 사냥 중 · 지도를 열어 다음 지역에 도전' : state.battle.phase === 'defeat' ? '다시 도전 중 · 용병을 훈련해 보세요.' : '자동 전투 · 승리할 때마다 경험치를 받아요.';
+    const activity = state.battle.activity;
+    if (activity) {
+      $('stage-number').textContent = activityLevel(activity); $('stage-name').textContent = activityTitle(activity.kind);
+      $('wave-label').textContent = activity.kind === 'tower' ? `CORRIDOR · ${fmt(activity.floor)}F` : `BOSS · ${activityLevel(activity)}`;
+      $('battle-status').textContent = state.activities?.run?.settled ? activityAwaitingConfirmation() ? '결과 저장 확인 중…' : '전투 종료 · 던전에서 결과와 보상을 확인하세요.' : '던전 도전 중 · 전투 종료 후 자동으로 보상을 저장해요.';
+    }
     const osia = state.battle.heroes.find(h => h.id === 'osia' && h.hp > 0);
     if (osia && state.battle.phase === 'fight') {
       const cast = state.battle.osiaCast, next = G.osiaSkill(state);
       $('battle-status').textContent = cast ? `오시아 스킬 ${cast.stage}/4 · ${G.OSIA_SKILLS[cast.stage-1].name} 시전 중` : `오시아 다음 ${next.stage}/4 · ${next.name} · 충전 ${Math.max(0, G.BY_ID.osia.cooldown - osia.energy)}초`;
     }
     const pk = state.team.join('|');
-    if (pk !== partyKey) { partyKey = pk; $('party').innerHTML = state.team.map(id => `<button class="party-card" data-hero="${id}" aria-label="${G.BY_ID[id].name} 상세 정보">${portrait(id)}<span class="party-info"><b>${G.BY_ID[id].name}</b><small></small><span class="party-hp"><i></i></span></span></button>`).join(''); }
-    document.querySelectorAll('.party-card').forEach(el => { const id = el.dataset.hero, h = state.battle.heroes.find(h => h.id === id), u = state.units[id]; el.querySelector('small').textContent = `Lv.${u.level} · ${G.BY_ID[id].role}`; el.querySelector('i').style.width = `${h ? Math.max(0, h.hp / h.max) * 100 : 100}%`; el.classList.toggle('fallen', !!h && h.hp <= 0); });
+    $('party-count').textContent = `${state.team.length} / ${maxTeam()}`;
+    if (pk !== partyKey) {
+      partyKey = pk;
+      $('party').innerHTML = Array.from({length:maxTeam()}, (_, i) => {
+        const id = state.team[i];
+        return id ? `<button class="party-card" data-hero="${id}" aria-label="${G.BY_ID[id].name} 육성·교체">${portrait(id)}<span class="party-info"><b>${G.BY_ID[id].name}</b><small></small><span class="party-hp"><i></i></span></span></button>` : `<button class="party-card empty" data-tab="roster" aria-label="${i + 1}번 빈자리, 출전 용병 추가"><span class="empty-slot-mark" aria-hidden="true">+</span><span class="party-info"><b>빈자리</b><small>용병 추가</small></span></button>`;
+      }).join('');
+    }
+    document.querySelectorAll('.party-card[data-hero]').forEach(el => { const id = el.dataset.hero, h = state.battle.heroes.find(h => h.id === id), u = state.units[id]; el.querySelector('small').textContent = `Lv.${u.level} · ${G.BY_ID[id].role}`; el.querySelector('i').style.width = `${h ? Math.max(0, h.hp / h.max) * 100 : 100}%`; el.classList.toggle('fallen', !!h && h.hp <= 0); });
     $('offline-summary').textContent = state.offline.seconds ? `${duration(state.offline.seconds)} · 골드 ${fmt(state.offline.gold)} 수령 가능` : '자리를 비워도 최대 8시간까지';
-    const key = JSON.stringify([tab, filter, state.units, state.team, state.best, state.stage, state.mode, state.offline, state.claimed, state.daily, state.pulls, state.banners, state.pity, selectedBanner, G.bannerAvailable(selectedBanner, Date.now() + (mode === 'cloud' ? offset : 0)), state.captain.level]);
+    const key = JSON.stringify([tab, filter, state.units, state.team, state.best, state.stage, state.mode, state.offline, state.claimed, state.daily, state.pulls, state.banners, state.pity, selectedBanner, G.bannerAvailable(selectedBanner, serverNow()), state.captain.level, state.activities, confirmedActivityResult?.runId, G.day(serverNow()), selectedTiers, selectedTowerFloor]);
     if (key !== renderKey) {
       renderKey = key;
       if (tab === 'adventure') renderChapters();
@@ -288,10 +317,16 @@
         document.querySelectorAll('[data-banner]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.banner === selectedBanner)));
       }
       if (tab === 'supplies') renderSupplies();
+
+    }
+    if (tab === 'dungeons') {
+      const dungeonKey = JSON.stringify([state.activities, state.best, G.day(serverNow()), selectedTiers, selectedTowerFloor, confirmedActivityResult?.runId]);
+      if (dungeonKey !== dungeonRenderKey && renderDungeons() !== false) dungeonRenderKey = JSON.stringify([state.activities, state.best, G.day(serverNow()), selectedTiers, selectedTowerFloor, confirmedActivityResult?.runId]);
     }
     $('recruit-dot').hidden = state.gems < 900;
     $('supply-dot').hidden = !(state.offline.seconds || state.daily < G.day(Date.now() + offset) || G.QUESTS.some(q => !state.claimed.includes(q.id) && G.questValue(state, q) >= q.goal));
     renderButtons();
+    maybeShowActivityResult();
   }
   function renderButtons() {
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
@@ -302,7 +337,15 @@
     $('claim-daily').disabled = blocked || state.daily >= G.day(Date.now() + offset);
     $('redeem-code').disabled = blocked || !$('coupon-code').value.trim();
     $('redeem-code').textContent = pending?.action.kind === 'redeem' ? '확인 중…' : '보상 받기';
+    document.querySelectorAll('[data-slot]').forEach(button => { button.disabled = blocked || activityActive(); });
+    if ($('remove-hero')) $('remove-hero').disabled = blocked || activityActive() || state.team.length <= (G.MIN_TEAM || 1);
     document.querySelectorAll('[data-action]').forEach(b => { b.disabled = blocked || b.dataset.unavailable === 'true'; });
+    document.querySelectorAll('[data-activity-mode]').forEach(button => { button.disabled = blocked || activityActive() || activityAwaitingConfirmation() || button.dataset.unavailable === 'true'; });
+    document.querySelectorAll('[data-activity-exit]').forEach(button => { button.disabled = blocked || activityAwaitingConfirmation(); });
+    document.querySelectorAll('[data-activity-tier], #tower-floor').forEach(input => { input.disabled = blocked; });
+    $('stage-button').disabled = blocked || !!state.battle.activity;
+    if ($('formation-status')) $('formation-status').textContent = activityActive() ? '던전 도전 중에는 편성을 바꿀 수 없어요. 던전에서 도전을 마친 뒤 편성하세요.' : `${formationHint()} 편성을 바꾸면 현재 전투를 다시 시작합니다.`;
+
     if (modalKind === 'hero' && selectedHero && state.units[selectedHero]) {
       const u = state.units[selectedHero]; const train = $('train-hero'), awaken = $('awaken-hero');
       if (train) train.disabled = blocked || u.level >= G.MAX_LEVEL || state.gold < G.trainingCost(u);
@@ -317,6 +360,79 @@
         $('training-status').textContent = pending ? '이전 요청의 저장을 확인하고 있어요.' : busy ? '저장 확인 중…' : mode === 'cloud' && !connected ? '서버에 다시 연결하면 육성할 수 있어요.' : u.level === G.MAX_LEVEL ? '최대 레벨에 도달했어요.' : state.gold < cost ? `훈련에 골드 ${fmt(cost - state.gold)}가 더 필요해요.` : `훈련하면 Lv.${u.level + 1} · 골드 ${fmt(cost)} 사용`;
       }
     }
+  }
+  function renderBossHUD() {
+    const boss = state.battle.enemies.find(enemy => enemy.boss && enemy.hp > 0) || state.battle.enemies.find(enemy => enemy.boss);
+    $('boss-hud').hidden = !boss;
+    document.querySelector('.battle-panel').classList.toggle('has-boss', !!boss);
+    if (!boss) return;
+    $('boss-name').textContent = boss.name;
+    $('boss-hp').textContent = `${fmt(Math.max(0, boss.hp))} / ${fmt(boss.max)}`;
+    const percent = Math.max(0, Math.min(100, boss.hp / boss.max * 100));
+    $('boss-fill').style.width = `${percent}%`; $('boss-track').setAttribute('aria-valuenow', String(Math.round(percent)));
+    const remaining = Math.max(0, Math.ceil(((boss.nextAbilityAt || 0) - state.battle.elapsed) / 1000));
+    const ability = typeof boss.ability === 'string' ? boss.ability : boss.ability?.name;
+    $('boss-warning').textContent = state.battle.phase !== 'fight' ? (state.battle.phase === 'victory' ? '보스 격파' : '도전 종료') : ability && remaining <= 3 ? `${ability} · ${remaining ? `${remaining}초 뒤 전체 공격` : '공격 준비'}` : '';
+    $('boss-warning').hidden = !$('boss-warning').textContent;
+  }
+  function rewardText(reward) {
+    const values = [];
+    if (reward?.gold) values.push(`골드 ${fmt(reward.gold)}`);
+    if (reward?.gems) values.push(`보석 ${fmt(reward.gems)}`);
+    if (reward?.xp) values.push(`용병 경험치 ${fmt(reward.xp)}`);
+    return values.join(' · ') || '이미 클리어한 층 · 추가 보상 없음';
+  }
+  function resultActions(result, info) {
+    if (!result) return '';
+    const mode = result.kind, level = mode === 'tower' ? `data-floor="${result.floor}"` : `data-tier="${result.tier}"`;
+    const unavailable = mode !== 'tower' && (!info?.[mode] || info[mode].keys <= 0);
+    const next = mode === 'tower' && result.won && result.floor < info.tower.maxFloor && Number.isSafeInteger(result.floor + 1) ? `<button class="primary" data-activity-mode="tower" data-floor="${result.floor + 1}">다음 층 도전</button>` : '';
+    return `${next}<button class="secondary" data-activity-mode="${mode}" ${level} data-unavailable="${unavailable}">${unavailable ? '열쇠 충전 대기' : '재도전'}</button><button class="secondary" data-activity-exit>모험 복귀</button>`;
+  }
+  function renderDungeons() {
+    const info = activityInfo();
+    if (!info) { $('dungeon-cards').textContent = '던전 정보를 불러오고 있어요.'; return; }
+    $('dungeon-keys').innerHTML = ['daily', 'weekly'].map(kind => `<span class="key-chip"><b>${kind === 'daily' ? '일일' : '주간'} 열쇠</b> <span id="${kind}-keys">${info[kind].keys}</span> / ${info[kind].cap}</span>`).join('');
+    $('dungeon-reset').textContent = `한국 시간 · 일일 ${resetTime(info.daily.resetAt)} / 주간 ${resetTime(info.weekly.resetAt)} 충전`;
+    const run = info.run, result = run?.settled && String(confirmedActivityResult?.runId) === String(run.id) ? confirmedActivityResult : null;
+    $('dungeon-current').hidden = !run;
+    $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
+    if ($('tower-floor') === document.activeElement) return false;
+    let cards = ['daily', 'weekly'].map(kind => {
+      const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
+      selectedTiers[kind] = chosen.tier;
+      const unavailable = !chosen.unlocked || item.keys <= 0;
+      return `<article class="dungeon-card"><h3>${esc(item.name)}</h3><p>${kind === 'daily' ? '매일 3개의 열쇠로 골드와 보석을 모아요.' : '매주 2개의 열쇠로 강력한 보스에게 도전해요.'}</p><label class="dungeon-tier" for="${kind}-tier">도전 단계<select id="${kind}-tier" data-activity-tier="${kind}">${item.tiers.map(tier => `<option value="${tier.tier}" ${tier.tier === chosen.tier ? 'selected' : ''} ${tier.unlocked ? '' : 'disabled'}>${tier.tier}단계${tier.unlocked ? '' : tier.unlockBest ? ` · ${G.stageName(tier.unlockBest)} 클리어 후` : ' · 잠김'}</option>`).join('')}</select></label><div class="dungeon-reward">승리 보상 · ${rewardText(chosen.reward)}</div><div class="dungeon-meta"><small>입장 1개 · 패배·포기 시 반환</small><small>${kind === 'daily' ? '매일 00:00' : '월요일 00:00'} 충전</small></div><div class="dungeon-actions"><button class="primary" id="${kind}-enter" data-activity-mode="${kind}" data-tier="${chosen.tier}" data-unavailable="${unavailable}">${!chosen.unlocked ? '아직 잠긴 단계' : item.keys <= 0 ? '열쇠 충전 대기' : '열쇠 1개로 도전'}</button></div></article>`;
+    }).join('');
+    const floor = Number.isSafeInteger(selectedTowerFloor) && selectedTowerFloor >= 1 && selectedTowerFloor <= info.tower.nextFloor ? selectedTowerFloor : info.tower.nextFloor;
+    selectedTowerFloor = floor;
+    cards += `<article class="dungeon-card tower-card"><h3>${esc(info.tower.name)}</h3><p>끝없이 이어지는 복도. 한 층씩 올라가 최고 기록에 도전하세요.</p><div class="dungeon-meta"><b>최고 ${fmt(info.tower.best)}층</b><small>열쇠 없이 무제한 도전</small></div><label class="tower-floor" for="tower-floor">도전할 층<input id="tower-floor" type="number" inputmode="numeric" min="1" max="${info.tower.nextFloor}" value="${floor}" step="1"></label><div class="dungeon-reward">${floor > info.tower.best ? `첫 클리어 · ${rewardText(info.tower.reward)}` : '클리어한 층은 골드·보석·경험치를 다시 지급하지 않아요.'}</div><div class="dungeon-actions"><button class="primary" id="tower-enter" data-activity-mode="tower" data-floor="${floor}">${fmt(floor)}층 도전</button></div></article>`;
+    $('dungeon-cards').innerHTML = cards;
+  }
+  function enterActivity(button) {
+    const kind = button.dataset.activityMode;
+    if (!['daily', 'weekly', 'tower'].includes(kind)) return;
+    const input = {kind:'activity', mode:kind};
+    if (kind === 'tower') input.floor = Number(button.dataset.floor || $('tower-floor')?.value);
+    else input.tier = Number(button.dataset.tier || selectedTiers[kind]);
+    act(input);
+  }
+  function showActivityResult(result) {
+    if (!result || String(result.runId) !== String(state.activities?.run?.id)) return;
+    const info = activityInfo(), heading = result.won ? '도전 성공!' : result.reason === 'exit' ? '도전 중단' : '다음 도전을 준비해요';
+    shownActivityResult = `${mode}:${profile?.id || 'guest'}:${result.runId}`;
+    const refund = result.refunded ? '입장 열쇠를 돌려받았어요.' : result.won || result.kind === 'tower' ? '' : '충전 기간이 바뀐 경우 새 열쇠 수량을 유지해요.';
+    openModal(result.won ? '던전 클리어' : '던전 결과', `<div class="dungeon-result ${result.won ? '' : 'is-defeat'}"><h3>${heading}</h3><p>${activityTitle(result.kind)} · ${activityLevel(result)}</p><div class="reward-tokens">${result.won ? (result.reward.gold || result.reward.gems || result.reward.xp ? ['gold','gems','xp'].filter(key => result.reward[key]).map(key => `<span>${key === 'gold' ? '골드' : key === 'gems' ? '보석' : '용병 경험치'} +${fmt(result.reward[key])}</span>`).join('') : '<span>클리어한 층 · 추가 보상 없음</span>') : '<span>이번 도전 보상 없음</span>'}</div><p>${refund}</p><small>결과와 보상은 저장되었어요.</small><div class="run-actions">${resultActions(result, info)}</div></div>`, 'dungeon-result');
+    renderButtons(); if (result.won) play('reward');
+  }
+  function maybeShowActivityResult() {
+    if (mode === 'cloud' && (!connected || verifiedToken !== token)) return;
+    if (busy || pending || !state.activities?.run?.settled || !confirmedActivityResult || $('modal').open) return;
+    const key = `${mode}:${profile?.id || 'guest'}:${confirmedActivityResult.runId}`;
+    if (key !== shownActivityResult) showActivityResult(confirmedActivityResult);
+  }
+  function dungeonHelp() {
+    openModal('던전 이용 안내', '<div class="modal-copy"><p><strong>입장과 열쇠</strong><br>일일 던전은 매일 한국 시간 00:00에 3개, 주간 던전은 매주 월요일 00:00에 2개로 충전됩니다. 남은 열쇠는 이월되지 않아요.</p><p>입장할 때 열쇠 1개를 사용합니다. 패배하거나 포기하면 돌려받으며, 이미 새 충전 기간이 시작됐다면 새 수량을 유지합니다. 자동으로 다음 던전에 입장하거나 열쇠를 사용하지 않습니다.</p><p><strong>뫼비우스의 복도</strong><br>열쇠 없이 다음 층 또는 클리어한 층에 도전할 수 있어요. 층별 첫 클리어 보상은 한 번만 받고, 재도전에서는 모든 재화·경험치 보상이 없습니다.</p><p><strong>편성과 자리 비움</strong><br>모험과 같은 용병을 최대 6명 편성합니다. 도전 중에는 편성과 모험 지역을 바꿀 수 없으니 먼저 도전을 마치거나 포기해 주세요. 90초 넘게 자리를 비우면 도전 전투는 멈추고 모험 기준 방치 보상만 적립됩니다.</p></div>', 'dungeon-help');
   }
   function renderChapters() {
     document.querySelector('.chapter-stamp').innerHTML = `${G.chapter(state.stage) + 1}<br><small>CHAPTER</small>`;
@@ -335,6 +451,7 @@
     $('roster').innerHTML = list.map(h => { const u = state.units[h.id]; return `<button class="hero-card ${h.rarity} ${u ? '' : 'unowned'}" data-hero="${h.id}">${rarity(h.id)}${state.team.includes(h.id) ? '<span class="equipped">출전</span>' : ''}${portrait(h.id, 'portrait')}<b>${h.name}</b><small>${u ? `Lv.${u.level} · ` : ''}${h.role}</small><span class="stars">${u ? '★'.repeat(u.stars) + '☆'.repeat(5 - u.stars) : '미보유'}</span></button>`; }).join('');
   }
   function renderSupplies() {
+    $('coupon-announcement').textContent = '새 코드: LAVA_DEBUT · 보석/골드 각 1,000 / THANK_YOU · 각 500. 11월 20일 23:59 한국 시간까지.';
     $('offline-detail').innerHTML = state.offline.seconds ? `<b>${duration(state.offline.seconds)}의 모험</b><br>골드 ${fmt(state.offline.gold)} · 용병마다 경험치 ${fmt(state.offline.xp)}` : '90초 넘게 자리를 비우면<br>다시 돌아올 때 보상을 모아 드려요.';
     const rate = G.rates(state); $('offline-rate').textContent = `분당 골드 ${rate.gold} · 용병 경험치 ${rate.xp} / 최고 클리어 지역 기준`;
     $('claim-daily').textContent = state.daily >= G.day(Date.now() + offset) ? '수령 완료' : '받기';
@@ -349,15 +466,23 @@
     const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
     const st = G.stats(id, u || {level:1, stars:0});
     const skills = `<details class="hero-skills" ${u ? '' : 'open'}><summary>스킬 · 패시브</summary><div class="skill-box"><b>${h.skill} <span>· ${h.cooldown}초 충전</span></b>${h.desc}</div>${h.passive ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive}</b>${h.passiveDesc}</div>` : ''}${h.passive2 ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive2}</b>${h.passive2Desc}</div>` : ''}</details>`;
-    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div>${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">1레벨 훈련<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${state.team.map((member, i) => `<button data-slot="${i}" class="${member === id ? 'selected' : ''}">${portrait(member)}${i === 0 ? '전열' : i === 1 ? '중열' : '후열'} · ${G.BY_ID[member].name}</button>`).join('')}</div><p class="detail-note">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">모집에서 만나기 →</button>`}</div>`, 'hero');
+    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div>${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">1레벨 훈련<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${Array.from({length:maxTeam()}, (_, i) => { const member = state.team[i]; return `<button data-slot="${i}" class="${member === id ? 'selected' : ''} ${member ? '' : 'empty'}">${member ? portrait(member) : '<span class="empty-slot-mark" aria-hidden="true">+</span>'}${slotName(i)}<br>${member ? G.BY_ID[member].name : '빈자리에 추가'}</button>`; }).join('')}</div>${state.team.includes(id) ? `<button class="text-button remove-hero-action" id="remove-hero">출전에서 빼기</button>` : ''}<p class="detail-note" id="formation-status">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">모집에서 만나기 →</button>`}</div>`, 'hero');
     if (u) {
       $('train-hero').onclick = () => act({kind:'train', hero:id}); $('awaken-hero').onclick = () => act({kind:'awaken', hero:id});
       $('change-hero').onclick = () => { closeModal(); filter = 'owned'; setTab('roster'); };
-      document.querySelectorAll('[data-slot]').forEach(b => { b.onclick = () => { const index = Number(b.dataset.slot), team = [...state.team], old = team.indexOf(id); if (old === index) { toast('이미 이 위치에 출전 중이에요.'); return; } if (old >= 0) team[old] = team[index]; team[index] = id; act({kind:'team', team}); }; });
+      document.querySelectorAll('[data-slot]').forEach(b => { b.onclick = () => {
+        const index = Math.min(Number(b.dataset.slot), state.team.length), team = [...state.team], old = team.indexOf(id);
+        if (old === index) { toast('이미 이 위치에 출전 중이에요.'); return; }
+        if (index === team.length) { if (old >= 0) team.splice(old, 1); team.push(id); }
+        else { if (old >= 0) team[old] = team[index]; team[index] = id; }
+        act({kind:'team', team});
+      }; });
+      if ($('remove-hero')) $('remove-hero').onclick = () => act({kind:'team', team:state.team.filter(member => member !== id)});
     } else $('to-recruit').onclick = () => { if (id === 'osia' || id === 'lava') { selectedBanner = id; storage.set('school-pickup', id); } closeModal(); setTab('recruit'); };
     renderButtons();
   }
   function stageMap() {
+    if (state.battle.activity) { setTab('dungeons'); toast('던전에서 모험 복귀를 누른 뒤 지도를 열어주세요.'); return; }
     openModal('학교 모험 지도', `<p class="modal-copy">열린 지역을 골라 반복 사냥하거나, 다음 지역에 도전하세요.</p><br>${G.CHAPTERS.map((name, i) => `<h3 class="stage-title">${i + 1}. ${name}</h3><div class="stage-grid">${Array.from({length:5}, (_, j) => { const n = i * 5 + j + 1; return `<button class="stage-tile ${n <= state.best ? 'cleared' : ''} ${n === state.stage ? 'current' : ''}" data-stage="${n}" ${n > state.best + 1 ? 'disabled' : ''}>${G.stageName(n)}${n <= state.best ? ' ✓' : ''}</button>`; }).join('')}</div>`).join('')}<button class="primary full" id="next-stage">${state.best === G.MAX_STAGE ? '최종 지역 반복하기' : `${G.stageName(state.best + 1)}부터 자동 도전`} →</button>`, 'map');
     document.querySelectorAll('[data-stage]').forEach(b => b.onclick = () => act({kind:'stage', stage:Number(b.dataset.stage), mode:'farm'}));
     $('next-stage').onclick = () => act({kind:'stage', stage:Math.min(G.MAX_STAGE, state.best + 1), mode:'progress'});
@@ -378,7 +503,7 @@
     openModal('모집 확률 안내', `<div class="modal-copy"><p><strong>${banner.name}</strong><br>1회 보석 100개 / 10회 900개.</p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회</th><th>용병별 실제 확률</th></tr></thead><tbody>${rows}</tbody></table><p>현재 누적 ${progress.pity}회 · <strong>다음 ${progress.pity + 1}회째 확률</strong>입니다. ${progress.guaranteed ? `다음 SSR은 <strong>${G.BY_ID[banner.featured].name} 확정</strong>입니다.` : `SSR이 나오면 <strong>50%는 ${G.BY_ID[banner.featured].name}</strong>, 나머지 50%는 다른 상시 SSR입니다.`}</p><p>메인 이외의 SSR을 얻으면 <strong>그 배너의 다음 SSR은 메인 확정</strong>입니다. 메인을 얻으면 다시 50:50이 됩니다. 두 배너의 누적 횟수와 메인 보장은 각각 저장됩니다.</p><p>기본 확률 SSR 4% · SR 26% · R 70%. SSR 미획득 기준 <strong>60회째 5%</strong>부터 매회 1%p씩 올라 79회째 24%, <strong>80회째 SSR 확정</strong>입니다. 증가분은 R에서 차감합니다. SSR 획득 시 누적만 0으로 초기화됩니다.</p><p>단일·10회 모집 모두 한 번씩 계산합니다. 10회의 앞 9명에 SR 이상이 없고 마지막 결과가 R이면 SR로 올립니다. SSR 천장을 먼저 적용합니다.</p><p>라바는 <strong>2026년 11월 20일 23:59(한국 시간)까지</strong> 한정 배너에서만 나옵니다. 오시아 상시 배너에서는 나오지 않습니다. 이미 얻은 라바는 종료 후에도 사용할 수 있습니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개. 최대 5성까지 각성할 수 있습니다. 표의 소수점은 반올림하여 합계가 조금 다를 수 있습니다.</p></div>`, 'rates');
   }
   function help() {
-    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>3명의 용병이 매초 싸우고 자동으로 스킬을 씁니다. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
+    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>최대 6명의 용병이 자동으로 싸웁니다. 1~3명은 맨 앞 용병이, 4~6명은 전열 3명이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>던전은 일일 열쇠 3개·주간 열쇠 2개로 도전합니다. 패배·포기하면 입장 열쇠가 돌아옵니다.</li><li>뫼비우스의 복도는 열쇠 없이 도전하며 층별 첫 클리어 때만 보상을 받습니다.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
   }
   async function sdk() {
     if (window.google?.accounts?.id) return;
@@ -399,6 +524,7 @@
       profile = identity.profile; mode = 'cloud'; storage.set(MODE, 'cloud'); effects = []; lastSeq = body.state.seq;
       verifiedToken = connectingToken; sessionFingerprint = fingerprint;
       try { const saved = JSON.parse(storage.get(PENDING, true) || 'null'); pending = saved?.accountId === profile.id ? saved : null; if (!pending) storage.remove(PENDING, true); } catch { clearPending(); }
+      if (modalKind === 'dungeon-result') shownActivityResult = null;
       applyCloud(body); closeModal(); toast('계정의 학교용병단을 불러왔어요.'); lastSync = Date.now(); loaded = true;
     } catch (error) {
       if (error.status === 401) { token = null; verifiedToken = null; storage.remove(SESSION, true); }
@@ -459,11 +585,26 @@
       if (target.dataset.tab) setTab(target.dataset.tab);
       if (target.dataset.hero) heroDetail(target.dataset.hero);
       if (target.dataset.banner && G.BANNERS[target.dataset.banner]) { selectedBanner = target.dataset.banner; storage.set('school-pickup', selectedBanner); renderKey = ''; render(); }
+      if (target.dataset.activityMode) enterActivity(target);
+      if (target.hasAttribute('data-activity-exit')) act({kind:'activity-exit'});
+      if (target.hasAttribute('data-activity-result')) showActivityResult(confirmedActivityResult);
       if (target.dataset.speed) act({kind:'speed', speed:Number(target.dataset.speed)});
       if (target.dataset.map !== undefined) stageMap();
       if (target.dataset.filter) { filter = target.dataset.filter; document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === filter)); renderKey = ''; render(); }
       if (target.dataset.action === 'quest') act({kind:'quest', quest:target.dataset.quest});
     });
+    document.addEventListener('change', event => {
+      const target = event.target;
+      if (target.dataset.activityTier) { selectedTiers[target.dataset.activityTier] = Number(target.value); renderKey = ''; render(); }
+      if (target.id === 'tower-floor') {
+        const info = activityInfo(), floor = Number(target.value);
+        if (!Number.isSafeInteger(floor) || floor < 1 || floor > info.tower.nextFloor) { toast(`1~${fmt(info.tower.nextFloor)}층을 선택해 주세요.`); target.value = selectedTowerFloor || info.tower.nextFloor; return; }
+        selectedTowerFloor = floor; renderKey = '';
+        $('tower-enter').dataset.floor = String(floor); $('tower-enter').textContent = `${fmt(floor)}층 도전`;
+        document.querySelector('.tower-card .dungeon-reward').textContent = floor > info.tower.best ? `첫 클리어 · ${rewardText(info.tower.reward)}` : '클리어한 층은 골드·보석·경험치를 다시 지급하지 않아요.';
+      }
+    });
+    $('dungeon-help').onclick = dungeonHelp;
     $('sound-button').onclick = () => { sound = !sound; storage.set('school-sound', sound ? 'on' : 'off'); refreshSound(); play('tap'); };
     $('account-button').onclick = accountModal; $('help-button').onclick = help; $('captain-button').onclick = help;
     $('modal-close').onclick = closeModal; $('modal').addEventListener('cancel', () => { modalKind = ''; loginGeneration++; });
@@ -471,7 +612,7 @@
     $('stage-button').onclick = stageMap;
     $('feature-osia-button').onclick = () => heroDetail('osia');
     $('feature-lava-button').onclick = () => heroDetail('lava');
-    $('battle-stage').onclick = stageMap;
+    $('battle-stage').onclick = () => state.battle.activity ? setTab('dungeons') : stageMap();
     $('offline-strip').onclick = () => setTab('supplies'); $('claim-offline').onclick = () => act({kind:'offline'}); $('claim-daily').onclick = () => act({kind:'daily'});
     $('recruit-one').onclick = () => act({kind:'recruit', count:1, banner:selectedBanner}); $('recruit-ten').onclick = () => act({kind:'recruit', count:10, banner:selectedBanner}); $('rates-button').onclick = ratesModal;
     $('coupon-code').addEventListener('input', () => { couponMessage(''); renderButtons(); });
@@ -507,7 +648,7 @@
         const cache = JSON.parse(storage.get(CLOUD_CACHE, true) || 'null');
         // Server views deliberately omit private action receipts.
         if (sessionFingerprint && cache?.sessionFingerprint === sessionFingerprint && cache?.profile?.id && cache.state && G.validate({ ...cache.state, receipts: [] })) {
-          profile = cache.profile; state = cache.state; revision = cache.revision; hasCloudState = true;
+          rememberActivityResult(cache.state); profile = cache.profile; state = cache.state; revision = cache.revision; hasCloudState = true;
           cloudBalance = { gold: state.gold, gems: state.gems }; lastSeq = state.seq;
         }
       } catch {}
