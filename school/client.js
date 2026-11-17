@@ -19,7 +19,7 @@
   const portrait = (id, cls = '') => `<img class="${cls}" src="${Art.portrait(id)}" alt="${G.BY_ID[id].name}">`;
   const rarity = id => `<span class="rarity ${G.BY_ID[id].rarity}">${G.BY_ID[id].rarity}</span>`;
   const storage = { get(key, session = false) { try { return (session ? sessionStorage : localStorage).getItem(key); } catch { return null; } }, set(key, value, session = false) { try { (session ? sessionStorage : localStorage).setItem(key, value); return true; } catch { return false; } }, remove(key, session = false) { try { (session ? sessionStorage : localStorage).removeItem(key); } catch {} } };
-  let state, mode = 'guest', profile = null, token = null, revision = 0, offset = 0, busy = false, pending = null, connected = true;
+  let state, mode = 'guest', profile = null, token = null, revision = 0, cloudClock = null, busy = false, pending = null, connected = true;
   let tab = 'adventure', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
   let confirmedActivityScope = '', confirmedActivityResult = null, dismissedActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null, selectedDungeon = 'daily';
   let selectedBanner = storage.get('school-pickup') === 'lava' ? 'lava' : 'osia';
@@ -56,7 +56,7 @@
     if (busy || pending) return toast('진행 중인 저장을 먼저 확인해 주세요.');
     stopTraining(); busy = true;
     try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
-    clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; clearPending();
+    clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; cloudClock = null; clearPending();
     storage.remove(CLOUD_CACHE, true); storage.set(MODE, 'guest'); mode = 'guest'; connected = true; effects = [];
     Presentation?.cancel(); rankingCache.clear(); social?.destroy(); social = createSocial(); closeModal();
     try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
@@ -69,7 +69,9 @@
     openModal('전투 기여도', `<div class="damage-report"><p>현재 전투 · 실제 피해 / 회복 / 받은 피해</p>${rows.map(r=>`<div class="damage-row">${portrait(r.id)}<div><b>${esc(G.BY_ID[r.id].name)}</b><span class="damage-meter"><i style="width:${r.damage/maximum*100}%"></i></span><small>피해 ${fmt(r.damage)} · 회복 ${fmt(r.healing)} · 받은 피해 ${fmt(r.taken)}</small></div><strong>${fmt(r.dps)}<small>DPS</small></strong></div>`).join('') || '<p>전투가 시작되면 표시돼요.</p>'}</div>`, 'damage');
   }
 
-  const serverNow = () => Date.now() + (mode === 'cloud' ? offset : 0);
+  // A received server timestamp is a lower bound for the current server time.
+  // Keep it moving between replies; a delayed snapshot must not rewind combat.
+  const serverNow = () => mode === 'cloud' && cloudClock ? cloudClock.time + Math.max(0, performance.now() - cloudClock.at) : Date.now();
   const activityInfo = () => G.activityInfo ? G.activityInfo(state, serverNow()) : null;
   const activityActive = () => !!state?.activities?.run && !state.activities.run.settled;
   const activityAwaitingConfirmation = () => !!state?.activities?.run?.settled && String(confirmedActivityResult?.runId) !== String(state.activities.run.id);
@@ -240,7 +242,7 @@
   }
   function advanceCloudPreview() {
     if (!hasCloudState) return;
-    G.advance(state, Date.now() + offset);
+    G.advance(state, serverNow());
     // Combat may be predicted, but unconfirmed currency must never look spendable.
     state.gold = cloudBalance.gold; state.gems = cloudBalance.gems;
     if (cloudBalance.winter) state.winter = G.clone(cloudBalance.winter); else delete state.winter;
@@ -261,8 +263,10 @@
     return body;
   }
   function applyCloud(body) {
+    const at = performance.now();
+    cloudClock = {time:Math.max(body.serverTime, cloudClock ? cloudClock.time + Math.max(0, at - cloudClock.at) : body.serverTime), at};
     rememberActivityResult(body.state); confirmedEvents(body.state);
-    state = body.state; revision = body.revision; offset = body.serverTime - Date.now(); connected = true; hasCloudState = true;
+    state = body.state; revision = body.revision; connected = true; hasCloudState = true;
     cloudBalance = { gold: state.gold, gems: state.gems, winter: state.winter ? G.clone(state.winter) : null };
     storage.set(CLOUD_CACHE, JSON.stringify({profile, state, revision, serverTime:body.serverTime, sessionFingerprint}), true);
     document.querySelector('.workspace').style.visibility = '';
@@ -349,7 +353,7 @@
   }
   function animationTime() {
     const running = mode === 'cloud' ? hasCloudState && connected : hasGuestState && !guestSaveFailed;
-    const wall = Date.now() + (mode === 'cloud' ? offset : 0);
+    const wall = serverNow();
     const fraction = running ? Math.min(500, Math.max(0, wall - state.at)) : 0;
     return ((state.simTime || 0) + (state.simCredit || 0) + fraction * (state.speed || 1)) / 1000;
   }
@@ -443,7 +447,7 @@
         setText($('next-ssr-chance'), `다음 SSR ${Math.round(G.recruitRates(progress.pity).SSR * 100)}%`);
         setText($('pity-phase'), progress.pity >= G.RECRUIT_PITY.soft - 1 ? '확률 상승 적용 중' : '60회째부터 매회 +1%p');
         setText($('banner-status'), progress.guaranteed ? `다음 SSR은 ${G.BY_ID[banner.featured].name} 확정` : `SSR 등장 시 ${G.BY_ID[banner.featured].name} 50% · 픽뚫 후 다음 SSR 확정`);
-        setText($('banner-deadline'), banner.limited ? (G.bannerAvailable(selectedBanner, Date.now() + (mode === 'cloud' ? offset : 0)) ? '11월 20일 23:59까지 · 한국 시간' : '종료된 픽업입니다. 상시 오시아 픽업을 선택해 주세요.') : '상시 픽업 · 배너별 확정 누적 별도 보관');
+        setText($('banner-deadline'), banner.limited ? (G.bannerAvailable(selectedBanner, serverNow()) ? '11월 20일 23:59까지 · 한국 시간' : '종료된 픽업입니다. 상시 오시아 픽업을 선택해 주세요.') : '상시 픽업 · 배너별 확정 누적 별도 보관');
         document.querySelectorAll('[data-banner]').forEach(button => setAttr(button, 'aria-pressed', String(button.dataset.banner === selectedBanner)));
       }
       if (tab === 'supplies') renderSupplies();
@@ -454,7 +458,7 @@
       if (dungeonKey !== dungeonRenderKey && renderDungeons() !== false) dungeonRenderKey = dungeonContentKey();
     }
     setHidden($('recruit-dot'), state.gems < 900);
-    setHidden($('supply-dot'), !(state.offline.seconds || state.daily < G.day(Date.now() + offset) || G.QUESTS.some(q => !state.claimed.includes(q.id) && G.questValue(state, q) >= q.goal)));
+    setHidden($('supply-dot'), !(state.offline.seconds || state.daily < G.day(serverNow()) || G.QUESTS.some(q => !state.claimed.includes(q.id) && G.questValue(state, q) >= q.goal)));
     renderButtons();
     maybeShowActivityResult();
   }
@@ -463,11 +467,11 @@
     setText($('operation-message'), ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중'})[operation] || '저장 확인 중');
     setAttr($('app'), 'aria-busy', String(busy));
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
-    const bannerClosed = !G.bannerAvailable(selectedBanner, Date.now() + (mode === 'cloud' ? offset : 0));
+    const bannerClosed = !G.bannerAvailable(selectedBanner, serverNow());
     setDisabled($('recruit-one'), blocked || bannerClosed || state.gems < 100); setDisabled($('recruit-ten'), blocked || bannerClosed || state.gems < 900);
     document.querySelectorAll('[data-speed]').forEach(button => { setDisabled(button, blocked); setAttr(button, 'aria-pressed', String(Number(button.dataset.speed) === (state.speed || 1))); });
     setDisabled($('claim-offline'), blocked || !state.offline.seconds);
-    setDisabled($('claim-daily'), blocked || state.daily >= G.day(Date.now() + offset));
+    setDisabled($('claim-daily'), blocked || state.daily >= G.day(serverNow()));
     setDisabled($('redeem-code'), blocked || !$('coupon-code').value.trim());
     setText($('redeem-code'), pending?.action.kind === 'redeem' ? '확인 중…' : '보상 받기');
     document.querySelectorAll('[data-slot]').forEach(button => { setDisabled(button, blocked || activityActive()); });
@@ -566,7 +570,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-lavafix1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-mobilefix1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -640,7 +644,7 @@
     $('coupon-announcement').textContent = '새 코드: LAVA_DEBUT · 보석/골드 각 1,000 / THANK_YOU · 각 500. 11월 20일 23:59 한국 시간까지.';
     $('offline-detail').innerHTML = state.offline.seconds ? `<b>${duration(state.offline.seconds)}의 모험</b><br>골드 ${fmt(state.offline.gold)} · 용병마다 경험치 ${fmt(state.offline.xp)}` : '90초 넘게 자리를 비우면<br>다시 돌아올 때 보상을 모아 드려요.';
     const rate = G.rates(state); $('offline-rate').textContent = `분당 골드 ${rate.gold} · 용병 경험치 ${rate.xp} / 최고 클리어 지역 기준`;
-    $('claim-daily').textContent = state.daily >= G.day(Date.now() + offset) ? '수령 완료' : '받기';
+    $('claim-daily').textContent = state.daily >= G.day(serverNow()) ? '수령 완료' : '받기';
     $('quests').innerHTML = G.QUESTS.map(q => { const value = Math.min(q.goal, G.questValue(state, q)), done = state.claimed.includes(q.id); return `<div class="quest ${done ? 'done' : ''}"><div class="quest-info"><b>${q.name}</b><small>${q.desc} · 골드 ${fmt(q.gold)} / 보석 ${q.gems}</small><div class="quest-progress">${value} / ${q.goal}</div></div><button class="secondary" data-action="quest" data-quest="${q.id}" data-unavailable="${done || value < q.goal}">${done ? '완료' : '받기'}</button></div>`; }).join('');
   }
   function openModal(title, html, kind = '') {
@@ -904,7 +908,9 @@
       if (mode === 'guest' && Date.now() - lastGuestTick >= 250 && !busy && !guestTickPending && (!guestSaveFailed || Date.now() - lastSave > 2000)) {
         lastGuestTick = Date.now(); guestTickPending = true; guestUpdate().then(() => { document.querySelector('.workspace').style.visibility = ''; }).catch(() => {}).finally(() => { guestTickPending = false; });
       }
-      if (mode === 'cloud' && !busy && hasCloudState && connected) { advanceCloudPreview(); consumeEvents(); render(); }
+      // Saving serializes account actions, not the deterministic combat preview.
+      // Only confirmed balances are spendable; applyCloud reconciles the result.
+      if (mode === 'cloud' && hasCloudState && connected) { advanceCloudPreview(); consumeEvents(); render(); }
       if (mode === 'cloud' && token && Date.now() - lastSync > 3000) { lastSync = Date.now(); sync(); }
     }, 250);
     const canvas = $('battle'), ctx = canvas.getContext('2d', {alpha:false, desynchronized:true});
