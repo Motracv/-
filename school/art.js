@@ -1,6 +1,6 @@
 "use strict";
 window.SchoolArt = (() => {
-  const portraits = new Map(), frontPortraits = new Map(), osiaPoses = new Map(), lavaPoses = new Map(), combatLabels = new Map(), S = SchoolRPG;
+  const portraits = new Map(), frontPortraits = new Map(), osiaPoses = new Map(), lavaPoses = new Map(), lavaSources = new Map(), combatLabels = new Map(), S = SchoolRPG;
   let lavaPosePixels = 0, combatLabelPixels = 0;
   const osiaImage = new Image(), lavaImage = new Image();
   let osiaLoaded = false, lavaLoaded = false;
@@ -11,7 +11,7 @@ window.SchoolArt = (() => {
   });
   const lavaReady = new Promise(resolve => {
     const timer = setTimeout(() => resolve(false), 5000);
-    lavaImage.onload = () => { lavaLoaded = true; clearTimeout(timer); portraits.delete("lava"); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
+    lavaImage.onload = () => { lavaLoaded = true; clearTimeout(timer); portraits.delete("lava"); frontPortraits.delete("lava"); lavaPoses.clear(); lavaPosePixels = 0; resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
     lavaImage.onerror = () => { clearTimeout(timer); resolve(false); };
   });
   const ready = Promise.all([osiaReady, lavaReady]).then(([osia, lava]) => osia && lava);
@@ -47,8 +47,8 @@ window.SchoolArt = (() => {
     const spring = Math.sin(progress * Math.PI), release = clamp01((age - .15) / .45);
     let dx = 0, dy = 0, lean = 0, stretch = 1, cloth = 0, pose = age < .4 ? 1 : 2;
     if (id === "lava") {
-      // A measured fan dance: gather, unfold, release, settle. No spring-like
-      // jumps or oscillating bitmap strips; the sleeves and fan have joints.
+      // Keep the original character's silhouette intact while easing into
+      // the cast. The wind effects carry the larger movement.
       const p = clamp01(age / 1.8), ease = p * p * (3 - 2 * p), breath = Math.sin(p * Math.PI);
       dx = Math.sin(ease * Math.PI) * (stage === 1 ? 5 : -3);
       dy = -breath * (stage === 2 ? 5 : 2);
@@ -97,8 +97,8 @@ window.SchoolArt = (() => {
     } else { rect(c, "#76503b", -1, -12, 3, 13); detail(c, "#f5db9c", 0, -11, 1, 11); }
     rect(c, "#6b4834", -1, 0, 2, 5); rect(c, "#e6c16f", -1, 3, 2, 1); c.restore();
   }
-  // Newly articulated pixel figure. All parts share the same anchors; the
-  // skirt, sleeves, hands, fan and head move independently at a calm tempo.
+  // Use the approved source art for battle, portraits and cut-ins alike.
+  // Only the load-failure fallback below is constructed from simple shapes.
   function lavaFigure(c, time = 0, frame = {}, front = false) {
     const motion = frame.motion, reduced = motion?.reduced || frame.reduced;
     const age = Math.max(0, motion?.age ?? frame.attackAge ?? 0);
@@ -106,6 +106,26 @@ window.SchoolArt = (() => {
     const p = clamp01(age / (casting ? 1.8 : passive ? 1.45 : .85));
     const ease = p * p * (3 - 2 * p), wave = Math.sin(ease * Math.PI);
     const idle = reduced ? 0 : Math.sin(time * 1.8) * .45;
+    if (lavaLoaded) {
+      const transform = c.getTransform(), density = Math.max(Math.hypot(transform.a, transform.b), Math.hypot(transform.c, transform.d));
+      const resolution = density > 4 ? 6 : density > 2 ? 4 : 2;
+      let source = lavaSources.get(resolution);
+      const width = 44 * 631 / 1260;
+      if (!source) {
+        source = document.createElement('canvas'); source.width = Math.ceil(width * resolution); source.height = 44 * resolution;
+        const sc = source.getContext('2d'); sc.imageSmoothingEnabled = false;
+        sc.drawImage(lavaImage, 245, 91, 631, 1260, 0, 0, source.width, source.height);
+        lavaSources.set(resolution, source);
+      }
+      const active = casting || passive || frame.attackAge != null;
+      const gesture = reduced ? 0 : active ? wave : 0;
+      c.save();
+      c.translate(gesture * (casting ? .6 : passive ? -.35 : 1.1), active ? -gesture * .6 : -idle * .35);
+      c.rotate(gesture * (casting ? -.025 : passive ? -.018 : .045));
+      c.drawImage(source, -width / 2, -41, width, 44);
+      c.restore();
+      return;
+    }
     const arm = reduced ? -.3 : casting ? -.95 + ease * 1.8 : passive ? -.45 - wave * .8 : frame.attackAge != null && p < 1 ? -.9 + ease * 2.15 : .15 + idle * .1;
     const skirt = reduced ? 0 : Math.sin(time * 2.2) * .45 + wave * .75;
     // Hair behind neck, loose ritual trousers and embroidered old shoes.
