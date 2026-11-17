@@ -27,7 +27,7 @@ test('Daily and weekly tier unlocks and rewards match progression without mutati
  const unlocks={daily:[0,10,20,35,50],weekly:[0,15,30,45,60]};
  for(const kind of ['daily','weekly'])for(let i=0;i<5;i++)for(const best of [...new Set([Math.max(0,unlocks[kind][i]-1),unlocks[kind][i]])]){
   const s=state();s.best=best;const old=G.clone(s),info=G.activityInfo(s,s.at)[kind],tier=info.tiers[i];assert.deepEqual(s,old);assert.equal(tier.tier,i+1);assert.equal(tier.unlocked,best>=unlocks[kind][i]);
-  assert.deepEqual(tier.reward,kind==='daily'?{gold:2000+1500*i,gems:80+30*i,xp:200+100*i}:{gold:12000+6000*i,gems:600+200*i,xp:1000+400*i});
+  assert.deepEqual(tier.reward,kind==='daily'?{gold:2000+1500*i,gems:80+30*i,xp:70+35*i}:{gold:12000+6000*i,gems:600+200*i,xp:350+140*i});
  }
  const s=state();for(const input of [{kind:'activity',mode:'other',tier:1},{kind:'activity',mode:'constructor',tier:1},{kind:'activity',mode:'daily',tier:0},{kind:'activity',mode:'daily',tier:6},{kind:'activity',mode:'daily',tier:1.5},{kind:'activity',mode:'weekly',tier:2},{kind:'activity',mode:'tower',floor:2},{kind:'activity',mode:'tower',floor:0},{kind:'activity',mode:'tower',floor:1.5},{kind:'activity',mode:'tower',floor:Number.MAX_SAFE_INTEGER+1}])rejectUnchanged(s,input);
 });

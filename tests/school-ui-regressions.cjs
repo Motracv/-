@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const G = require('../school/engine.js');
-const SAVE = 'school-mercenaries-v7';
+const SAVE = 'school-mercenaries-v8';
 
 // Seed at the next document's first instruction: lifecycle saves from the old
 // document must finish before the test fixture replaces storage.
@@ -12,7 +12,7 @@ async function installGuestSeed(context) {
     const seed = JSON.parse(raw);
     for (const key of Object.keys(localStorage)) if (key.startsWith('school-mercenaries-')) localStorage.removeItem(key);
     localStorage.setItem(seed.key, typeof seed.state === 'string' ? seed.state : JSON.stringify(seed.state));
-    if (seed.backup) localStorage.setItem('school-mercenaries-v7-backup', JSON.stringify(seed.backup));
+    if (seed.backup) localStorage.setItem('school-mercenaries-v8-backup', JSON.stringify(seed.backup));
   });
 }
 async function seedGuest(page, state, key = SAVE, options = {}) {
@@ -47,18 +47,18 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   // An automatic XP level-up changes the training price while this dialog is
   // open. The button's actual cost and displayed level must update together.
   const changingCost = G.create(Date.now() + 1200, 28);
-  changingCost.gold = 74;
-  changingCost.units.harin.xp = G.needXp(1) - 10;
+  changingCost.gold = G.trainingCost({level:2}) - 16;
+  changingCost.units.harin.xp = G.needXp(1) - 1;
   changingCost.battle.enemies.forEach(enemy => { enemy.hp = 1; });
   await seedGuest(p, changingCost);
   await p.click('#party [data-hero="harin"]');
-  assert.match(await p.locator('#train-cost').textContent(), /70/);
+  assert.equal(await p.locator('#train-cost').textContent(), `골드 ${G.trainingCost({level:1})}`);
   await p.waitForFunction(() => document.getElementById('hero-level').textContent.includes('2'));
-  assert.match(await p.locator('#train-cost').textContent(), /90/);
-  assert.equal(await p.locator('#gold').textContent(), '90');
+  assert.equal(await p.locator('#train-cost').textContent(), `골드 ${G.trainingCost({level:2})}`);
+  assert.equal(Number(await p.locator('#gold').textContent()),G.trainingCost({level:2}));
   assert.equal(await p.locator('#train-hero').isDisabled(), false);
   await p.click('#train-hero');
-  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v7')).units.harin.level === 3);
+  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v8')).units.harin.level === 3);
   assert.equal((await saved(p)).gold, 0);
   await p.reload();
   assert.equal((await saved(p)).units.harin.level, 3);
@@ -70,7 +70,7 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   await seedGuest(p, awakened);
   await p.click('#party [data-hero="harin"]');
   await p.click('#awaken-hero');
-  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v7')).units.harin.stars === 1);
+  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v8')).units.harin.stars === 1);
   assert.equal((await saved(p)).units.harin.shards, 0);
   assert.equal((await saved(p)).gold, 500);
   await p.click('#change-hero');
@@ -91,11 +91,11 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
     await p.click('#party [data-hero="harin"]');
     await second.click('#party [data-hero="harin"]');
     await Promise.all([p.click('#train-hero'), second.click('#train-hero')]);
-    await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v7')).units.harin.level === 3);
+    await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v8')).units.harin.level === 3);
     const concurrent = await saved(p);
-    assert.equal(concurrent.gold, 540);
+    assert.equal(concurrent.gold,700-G.trainingCost({level:1})-G.trainingCost({level:2}));
     await Promise.all([p.reload(), second.reload()]);
-    assert.equal((await saved(p)).gold, 540);
+    assert.equal((await saved(p)).gold,700-G.trainingCost({level:1})-G.trainingCost({level:2}));
     assert.equal((await saved(second)).units.harin.level, 3);
     await second.close();
     console.log(`PASS concurrent guest tabs serialize training with ${fallback ? 'IndexedDB fallback' : 'Web Locks'}`);
@@ -106,7 +106,7 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   await p.evaluate(() => {
     window.restoreStorageSet = Storage.prototype.setItem;
     Storage.prototype.setItem = function(key, value) {
-      if (key.startsWith('school-mercenaries-v7')) throw new DOMException('Quota exceeded (test)', 'QuotaExceededError');
+      if (key.startsWith('school-mercenaries-v8')) throw new DOMException('Quota exceeded (test)', 'QuotaExceededError');
       return window.restoreStorageSet.call(this, key, value);
     };
   });
@@ -119,11 +119,11 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   await p.evaluate(() => { Storage.prototype.setItem = window.restoreStorageSet; });
   await p.waitForFunction(() => !document.getElementById('train-hero').disabled);
   await p.click('#train-hero');
-  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v7')).units.harin.level === 2);
-  assert.equal((await saved(p)).gold, 630);
+  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v8')).units.harin.level === 2);
+  assert.equal((await saved(p)).gold,700-G.trainingCost({level:1}));
   await p.reload();
   assert.equal((await saved(p)).units.harin.level, 2);
-  assert.equal((await saved(p)).gold, 630);
+  assert.equal((await saved(p)).gold,700-G.trainingCost({level:1}));
   console.log('PASS storage failure reports an error, does not spend or level up, and a retry commits once');
 
   const recovery = freeze(4321);
@@ -131,10 +131,10 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   await seedGuest(p, '{broken', SAVE, { backup: recovery });
   assert.equal((await saved(p)).gold, 4321);
   assert.equal((await saved(p)).gems, 987);
-  assert.equal(await p.evaluate(() => localStorage.getItem('school-mercenaries-v7-recovery')), '{broken');
+  assert.equal(await p.evaluate(() => localStorage.getItem('school-mercenaries-v8-recovery')), '{broken');
   await seedGuest(p, '{unrecoverable', SAVE, { corrupt: true });
   await p.waitForFunction(() => /복구|손상|읽지|저장/.test(document.getElementById('connection').textContent));
-  assert.equal(await p.evaluate(() => localStorage.getItem('school-mercenaries-v7')), '{unrecoverable');
+  assert.equal(await p.evaluate(() => localStorage.getItem('school-mercenaries-v8')), '{unrecoverable');
   assert.ok(await p.locator('#recruit-one').isDisabled());
   console.log('PASS valid backup restores corrupt progress; unrecoverable data is preserved instead of overwritten by a fresh game');
   await p.close();
@@ -143,26 +143,26 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   const who = (await t.login('wallet-preview')).data;
   await t.call('/api/school/state', { catalogVersion: G.CATALOG_VERSION }, null, { 'X-Account-Session': who.token });
   const confirmed = G.create(Date.now() + 1800, 41);
-  confirmed.gold = 74;
-  confirmed.units.harin.xp = G.needXp(1) - 10;
+  confirmed.gold = G.trainingCost({level:2}) - 16;
+  confirmed.units.harin.xp = G.needXp(1) - 1;
   confirmed.battle.enemies.forEach(enemy => { enemy.hp = 1; });
   t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(confirmed), who.profile.id);
   await login(cloud);
-  assert.equal(await cloud.locator('#gold').textContent(), '74');
+  assert.equal(await cloud.locator('#gold').textContent(), String(confirmed.gold));
   setStateDelay(2200);
   try {
     await cloud.click('#party [data-hero="harin"]');
     await cloud.waitForFunction(() => document.getElementById('hero-level').textContent.includes('2'));
-    assert.match(await cloud.locator('#train-cost').textContent(), /90/);
-    assert.equal(await cloud.locator('#gold').textContent(), '74', 'Unconfirmed combat rewards cannot appear spendable');
+    assert.equal(await cloud.locator('#train-cost').textContent(), `골드 ${G.trainingCost({level:2})}`);
+    assert.equal(await cloud.locator('#gold').textContent(), String(confirmed.gold), 'Unconfirmed combat rewards cannot appear spendable');
     assert.equal(await cloud.locator('#train-hero').isDisabled(), true);
-    const confirmedCache=await cloud.evaluate(()=>JSON.parse(sessionStorage.getItem('school-confirmed-cloud-view')));assert.equal(confirmedCache.state.gold,74);assert.ok(!('receipts' in confirmedCache.state));
+    const confirmedCache=await cloud.evaluate(()=>JSON.parse(sessionStorage.getItem('school-confirmed-cloud-view')));assert.equal(confirmedCache.state.gold,confirmed.gold);assert.ok(!('receipts' in confirmedCache.state));
     await cloud.reload();
     await cloud.waitForFunction(()=>document.querySelectorAll('#party [data-hero]').length>=1);
-    assert.equal(await cloud.locator('#gold').textContent(),'74','Normal receipt-free server views must restore from the confirmed cache while offline');
+    assert.equal(await cloud.locator('#gold').textContent(),String(confirmed.gold),'Normal receipt-free server views must restore from the confirmed cache while offline');
     assert.notEqual(await cloud.locator('#gold').textContent(), '700', 'A slow account restore cannot expose the guest wallet');
-    await cloud.waitForFunction(() => document.getElementById('account-label').textContent === '계정 저장' && Number(document.getElementById('gold').textContent.replaceAll(',', '')) >= 90);
-    assert.ok(Number((await cloud.locator('#gold').textContent()).replaceAll(',', '')) >= 90);
+    await cloud.waitForFunction(() => document.getElementById('account-label').textContent === '계정 저장' && Number(document.getElementById('gold').textContent.replaceAll(',', '')) >= SchoolRPG.trainingCost({level:2}));
+    assert.ok(Number((await cloud.locator('#gold').textContent()).replaceAll(',', '')) >= G.trainingCost({level:2}));
     console.log('PASS delayed cloud acknowledgement keeps the wallet confirmed and refresh does not flash or switch to guest funds');
   } finally { setStateDelay(0); await cloud.close(); }
 

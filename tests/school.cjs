@@ -7,7 +7,7 @@ const UPDATE_TIME=Date.parse('2026-11-18T12:00:00+09:00');
 function setPity(s,pity,banner='osia') { s.banners[banner].pity=pity; if(banner==='osia')s.pity=pity; }
 test('Automatic combat wins, grants XP, unlocks stages and stays deterministic across reload', () => {
   const a = G.create(1000, 287), b = G.clone(a); run(a, 120); G.advance(b, 61000); const c = G.clone(b); G.advance(c, 121000);
-  assert.deepEqual(a, c); assert.ok(a.best >= 1); assert.ok(a.units.harin.level > 1); assert.ok(a.gold > 700); assert.ok(a.gems > 1800);
+  assert.deepEqual(a, c); assert.ok(a.best >= 1); assert.ok(a.units.harin.level > 1 || a.units.harin.xp > 0); assert.ok(a.gold > 700); assert.ok(a.gems > 1800);
 });
 test('Offline rewards cap at eight hours, never skip stages, and cannot be claimed twice', () => {
   const s = G.create(1000); const best = s.best; G.advance(s, 1000 + 48 * 3600000);
@@ -29,32 +29,32 @@ test('SSR pity triggers on the eightieth draw and resets; 10 pulls guarantee SR+
   assert.equal(ten.results.length, 10); assert.equal(t.gems, 900); assert.equal(ten.results.filter(r => G.BY_ID[r.id].rarity !== 'R').length, 1);
 });
 test('Soft pity starts exactly at draw 60, rises one percentage point, and caps at an SSR on 80',()=>{
-  for(const [misses,expected] of [[0,.04],[39,.04],[58,.04],[59,.05],[60,.06],[69,.15],[78,.24],[79,1]]){
+  for(const [misses,expected] of [[0,.01],[39,.01],[58,.01],[59,.02],[60,.03],[69,.12],[78,.21],[79,1]]){
     const rates=G.recruitRates(misses);assert.equal(rates.SSR,expected);assert.ok(Math.abs(rates.SSR+rates.SR+rates.R-1)<1e-12);
     if(misses<79)assert.equal(rates.SR,.26);else assert.deepEqual(rates,{SSR:1,SR:0,R:0});
   }
   const s=G.create(1000);setPity(s,39);G.action(s,{kind:'recruit',count:1},1000,()=>.99);assert.equal(s.pity,40);assert.ok(G.validate(s));
-  for(const [misses,roll,grade] of [[58,.045,'SR'],[59,.045,'SSR'],[59,.05,'SR'],[78,.23999,'SSR'],[78,.24,'SR'],[79,.99999,'SSR']]){
+  for(const [misses,roll,grade] of [[58,.015,'SR'],[59,.015,'SSR'],[59,.02,'SR'],[78,.20999,'SSR'],[78,.21,'SR'],[79,.99999,'SSR']]){
     const a=G.create(1000);setPity(a,misses);let n=0;const r=G.action(a,{kind:'recruit',count:1},1000,()=>++n%2?roll:.99);
     assert.equal(G.BY_ID[r.results[0].id].rarity,grade);assert.equal(r.results[0].ssrChance,G.recruitRates(misses).SSR);
   }
 });
 test('Ten-pulls update soft pity per slot, reset immediately on SSR, and preserve guarantees',()=>{
   const s=G.create(1000);setPity(s,58);const r=G.action(s,{kind:'recruit',count:10},1000,()=>.99);
-  assert.deepEqual(r.results.map(x=>x.ssrChance),[.04,.05,.06,.07,.08,.09,.10,.11,.12,.13]);assert.equal(s.pity,68);assert.ok(r.results.some(x=>G.BY_ID[x.id].rarity==='SR'));
+  assert.deepEqual(r.results.map(x=>x.ssrChance),[.01,.02,.03,.04,.05,.06,.07,.08,.09,.10]);assert.equal(s.pity,68);assert.ok(r.results.some(x=>G.BY_ID[x.id].rarity==='SR'));
   const hard=G.create(1000);setPity(hard,78);const h=G.action(hard,{kind:'recruit',count:10},1000,()=>.99);
-  assert.equal(h.results[0].ssrChance,.24);assert.equal(h.results[1].pity,true);assert.equal(h.results[1].ssrChance,1);assert.equal(h.results[2].ssrChance,.04);assert.equal(hard.pity,8);
-  const reset=G.create(1000);setPity(reset,59);let i=0;const q=G.action(reset,{kind:'recruit',count:10},1000,()=>++i%2?.049:.99);
-  assert.equal(G.BY_ID[q.results[0].id].rarity,'SSR');assert.equal(q.results[0].ssrChance,.05);assert.ok(q.results.slice(1).every(x=>x.ssrChance===.04&&G.BY_ID[x.id].rarity==='SR'));assert.equal(reset.pity,9);
+  assert.equal(h.results[0].ssrChance,.21);assert.equal(h.results[1].pity,true);assert.equal(h.results[1].ssrChance,1);assert.equal(h.results[2].ssrChance,.01);assert.equal(hard.pity,8);
+  const reset=G.create(1000);setPity(reset,59);let i=0;const q=G.action(reset,{kind:'recruit',count:10},1000,()=>++i%2?.019:.99);
+  assert.equal(G.BY_ID[q.results[0].id].rarity,'SSR');assert.equal(q.results[0].ssrChance,.02);assert.ok(q.results.slice(1).every(x=>x.ssrChance===.01&&G.BY_ID[x.id].rarity==='SR'));assert.equal(reset.pity,9);
 });
-test('Boundary rolls use the documented 4/26/70 probabilities and every hero is obtainable', () => {
+test('Boundary rolls use the documented 1/26/73 probabilities and every hero is obtainable', () => {
   const obtained = new Set();
-  for (const [roll, rarity] of [[0,'SSR'],[.039999,'SSR'],[.04,'SR'],[.299999,'SR'],[.3,'R'],[.999999,'R']]) {
+  for (const [roll, rarity] of [[0,'SSR'],[.009999,'SSR'],[.01,'SR'],[.269999,'SR'],[.27,'R'],[.999999,'R']]) {
     const pool = G.HEROES.filter(h => h.rarity === rarity && h.id!=='lava');
     for (let j = 0; j < pool.length; j++) { const s = G.create(1000), values = [roll,rarity==='SSR'?[.25,.625,.875][j]:(j+.5)/pool.length]; const r = G.action(s,{kind:'recruit',count:1},1000,()=>values.shift()); assert.equal(G.BY_ID[r.results[0].id].rarity,rarity); obtained.add(r.results[0].id); }
   }
   assert.equal(obtained.size,13); assert.ok(obtained.has('osia')); assert.ok(!obtained.has('lava'));
-  const s=G.create(UPDATE_TIME);const featured=G.action(s,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>.01);obtained.add(featured.results[0].id);assert.equal(obtained.size,14);
+  const s=G.create(UPDATE_TIME);const featured=G.action(s,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>.001);obtained.add(featured.results[0].id);assert.equal(obtained.size,14);
 });
 test('Duplicates award shards and awakening spends exact shards without consuming the hero', () => {
   const s = G.create(1000); s.gems = 1000; G.action(s,{kind:'recruit',count:1},1000,()=>.9); G.action(s,{kind:'recruit',count:1},1000,()=>.9); G.action(s,{kind:'recruit',count:1},1000,()=>.9);
@@ -108,13 +108,13 @@ test('Each of fourteen heroes performs their automatic skill; damage and healing
 });
 test('Osia is a permanent SSR, can be drawn by natural roll or pity, and duplicates awaken normally',()=>{
   const s=G.create(1000); const old=G.clone(s); assert.ok(G.validate(old));
-  const values=[.01,.01,.01,.01];const roll=()=>values.shift();
+  const values=[.001,.001,.001,.001];const roll=()=>values.shift();
   const first=G.action(s,{kind:'recruit',count:1},1000,roll);assert.equal(first.results[0].id,'osia');assert.equal(first.results[0].fresh,true);
   const second=G.action(s,{kind:'recruit',count:1},1000,roll);assert.equal(second.results[0].id,'osia');assert.equal(second.results[0].shards,20);
   G.action(s,{kind:'awaken',hero:'osia'});assert.equal(s.units.osia.stars,1);assert.equal(s.units.osia.shards,10);
   setPity(s,79);const valuesAtPity=[.99,.1];const forced=G.action(s,{kind:'recruit',count:1},1000,()=>valuesAtPity.shift());assert.equal(forced.results[0].id,'osia');assert.equal(forced.results[0].pity,true);assert.equal(s.pity,0);
   G.action(s,{kind:'team',team:['taeo','osia','sua']});G.action(s,{kind:'train',hero:'osia'});assert.equal(s.units.osia.level,2);assert.ok(G.validate(G.clone(s)));
-  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,4);assert.equal(G.RECRUIT_RATES.SSR,.04);
+  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,4);assert.equal(G.RECRUIT_RATES.SSR,.01);
 });
 test('Independent pickup banners preserve legacy pity and guarantee the featured SSR after a miss',()=>{
   const legacy=G.create(UPDATE_TIME);delete legacy.banners;legacy.pity=59;const progress={gold:legacy.gold,gems:legacy.gems,units:G.clone(legacy.units)};
@@ -123,33 +123,38 @@ test('Independent pickup banners preserve legacy pity and guarantee the featured
   assert.equal(legacy.gold,progress.gold);assert.equal(legacy.gems,progress.gems);assert.deepEqual(legacy.units,progress.units);
   const s=G.create(UPDATE_TIME);s.gems=20000;
   const draw=(banner,grade,pick)=>{const rolls=[grade,pick];return G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME,()=>rolls.shift()).results[0];};
-  const miss=draw('osia',.01,.99);assert.ok(['ian','lumi'].includes(miss.id));assert.equal(s.banners.osia.guaranteed,true);
+  const miss=draw('osia',.001,.99);assert.ok(['ian','lumi'].includes(miss.id));assert.equal(s.banners.osia.guaranteed,true);
   assert.equal(G.BY_ID[draw('osia',.99,.99).id].rarity,'R');assert.equal(s.banners.osia.guaranteed,true);
-  assert.equal(draw('lava',.01,.01).id,'lava');assert.equal(s.banners.osia.guaranteed,true);assert.equal(s.banners.lava.guaranteed,false);
-  assert.equal(draw('osia',.01,.99).id,'osia');assert.equal(s.banners.osia.guaranteed,false);assert.equal(s.pity,s.banners.osia.pity);
+  assert.equal(draw('lava',.001,.001).id,'lava');assert.equal(s.banners.osia.guaranteed,true);assert.equal(s.banners.lava.guaranteed,false);
+  assert.equal(draw('osia',.001,.99).id,'osia');assert.equal(s.banners.osia.guaranteed,false);assert.equal(s.pity,s.banners.osia.pity);
   setPity(s,79,'lava');const hard=draw('lava',.99,.99);assert.equal(hard.pity,true);assert.ok(['osia','ian','lumi'].includes(hard.id));assert.equal(s.banners.lava.guaranteed,true);assert.equal(s.banners.lava.pity,0);
-  const loaded=G.clone(s);const rolls=[.01,.99];assert.equal(G.action(loaded,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>rolls.shift()).results[0].id,'lava');assert.equal(loaded.banners.lava.guaranteed,false);
+  const loaded=G.clone(s);const rolls=[.001,.99];assert.equal(G.action(loaded,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>rolls.shift()).results[0].id,'lava');assert.equal(loaded.banners.lava.guaranteed,false);
   assert.deepEqual(s.banners.osia,loaded.banners.osia);
 });
 test('Each banner uses exact SSR 50:50 boundaries, one ten-pull guarantee, and never leaks limited Lava into Osia',()=>{
+  for(const banner of ['osia','lava'])for(const guaranteed of [false,true]){
+    const s=G.create(UPDATE_TIME);s.banners[banner].guaranteed=guaranteed;const rates=G.bannerHeroRates(s,banner);
+    for(const[rarity,total]of [['SSR',.01],['SR',.26],['R',.73]])assert.ok(Math.abs(G.HEROES.filter(h=>h.rarity===rarity).reduce((sum,h)=>sum+rates[h.id],0)-total)<1e-12);
+    assert.equal(rates[banner],guaranteed?.01:.005);assert.equal(banner==='osia'?rates.lava:rates.osia,guaranteed?0:banner==='osia'?0:.005/3);
+  }
   for(const banner of ['osia','lava'])for(const [pick,featured]of [[0,true],[.499999,true],[.5,false],[.999999,false]]){
-    const s=G.create(UPDATE_TIME),values=[.01,pick],r=G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME,()=>values.shift());
+    const s=G.create(UPDATE_TIME),values=[.001,pick],r=G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME,()=>values.shift());
     assert.equal(r.results[0].id===banner,featured);assert.equal(s.banners[banner].guaranteed,!featured);
     if(banner==='osia')assert.notEqual(r.results[0].id,'lava');
   }
   const s=G.create(UPDATE_TIME);setPity(s,78,'lava');const r=G.action(s,{kind:'recruit',banner:'lava',count:10},UPDATE_TIME,()=>.99);
-  assert.equal(r.results[0].ssrChance,.24);assert.equal(r.results[1].ssrChance,1);assert.equal(s.banners.lava.pity,8);assert.equal(s.banners.osia.pity,0);assert.equal(s.banners.lava.guaranteed,true);
+  assert.equal(r.results[0].ssrChance,.21);assert.equal(r.results[1].ssrChance,1);assert.equal(s.banners.lava.pity,8);assert.equal(s.banners.osia.pity,0);assert.equal(s.banners.lava.guaranteed,true);
   assert.ok(r.results.some(x=>G.BY_ID[x.id].rarity!=='R'));
-  const s2=G.create(UPDATE_TIME);let n=0;const all=G.action(s2,{kind:'recruit',banner:'lava',count:10},UPDATE_TIME,()=>++n%2?.01:.99);
+  const s2=G.create(UPDATE_TIME);let n=0;const all=G.action(s2,{kind:'recruit',banner:'lava',count:10},UPDATE_TIME,()=>++n%2?.001:.99);
   assert.deepEqual(all.results.map(x=>x.id==='lava'),[false,true,false,true,false,true,false,true,false,true]);assert.equal(s2.banners.lava.guaranteed,false);
 });
 test('Lava pickup ends exactly after November 20 KST and invalid banners do not spend or reset accumulated guarantees',()=>{
   const end=Date.parse('2026-11-21T00:00:00+09:00');
-  const last=G.create(end-1);assert.equal(G.action(last,{kind:'recruit',banner:'lava',count:1},end-1,()=>.01).results[0].id,'lava');
+  const last=G.create(end-1);assert.equal(G.action(last,{kind:'recruit',banner:'lava',count:1},end-1,()=>.001).results[0].id,'lava');
   for(const now of [end,end+1000]){
     const s=G.create(now);s.banners.lava={pity:79,guaranteed:true};const before=G.clone(s);
-    assert.throws(()=>G.action(s,{kind:'recruit',banner:'lava',count:1,now:end-1},now,()=>.01));assert.deepEqual(s,before);
-    assert.equal(G.action(s,{kind:'recruit',banner:'osia',count:1},now,()=>.01).results[0].id,'osia');assert.deepEqual(s.banners.lava,before.banners.lava);
+    assert.throws(()=>G.action(s,{kind:'recruit',banner:'lava',count:1,now:end-1},now,()=>.001));assert.deepEqual(s,before);
+    assert.equal(G.action(s,{kind:'recruit',banner:'osia',count:1},now,()=>.001).results[0].id,'osia');assert.deepEqual(s.banners.lava,before.banners.lava);
   }
   for(const banner of ['unknown','constructor','__proto__',{},null]){const s=G.create(UPDATE_TIME),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME));assert.deepEqual(s,old);}
 });
@@ -306,6 +311,35 @@ test('Long simulations remain finite and preserve combat, economy and progressio
     assert.ok(G.validate(s));assert.ok(s.best>5&&s.best<30);assert.ok(s.gold>=0&&s.gems>=0);assert.ok(s.events.length<=50);assert.ok(s.logs.length<=14);
     assert.ok(s.battle.heroes.concat(s.battle.enemies).every(h=>Number.isFinite(h.hp)&&h.hp>=0&&h.hp<=h.max));
   }
+});
+test('The new growth curve preserves existing levels, raw XP, currencies, guarantees and old offline rewards',()=>{
+  const s=G.create(UPDATE_TIME);delete s.commanderName;s.captain={level:50,xp:1234};s.gold=123456;s.gems=5432;s.banners.osia={pity:79,guaranteed:true};s.pity=79;s.activities.towerBest=234;s.activities.daily.used=2;
+  for(const u of Object.values(s.units))Object.assign(u,{level:60,xp:999,stars:3,shards:17});s.offline={seconds:600,gold:400,xp:480};const old=G.clone(s);assert.ok(G.validate(s));G.advance(s,s.at);
+  assert.equal(s.commanderName,'새내기 단장');assert.deepEqual(s.captain,old.captain);assert.deepEqual(s.units,old.units);assert.equal(s.gold,old.gold);assert.equal(s.gems,old.gems);assert.deepEqual(s.banners,old.banners);assert.deepEqual(s.activities,old.activities);assert.deepEqual(s.battle,old.battle);assert.deepEqual(s.offline,{...old.offline,captainXp:120});assert.equal(G.CAPTAIN_MAX_LEVEL,200);
+  s.captain.xp=G.captainNeed(50)-1;for(const e of s.battle.enemies)e.hp=0;G.advance(s,s.at+500);assert.equal(s.captain.level,51);assert.equal(s.gems,old.gems+30);
+  s.captain={level:G.CAPTAIN_MAX_LEVEL,xp:0};G.action(s,{kind:'stage',stage:1,mode:'farm'},s.at);for(const e of s.battle.enemies)e.hp=0;const gems=s.gems;G.advance(s,s.at+500);assert.deepEqual(s.captain,{level:200,xp:0});assert.equal(s.gems,gems);assert.ok(G.validate(s));
+});
+test('Legacy offline captain XP is preserved separately from slower future deposits and claimed only once',()=>{
+  const s=G.create(UPDATE_TIME);for(const u of Object.values(s.units))u.level=50;s.offline={seconds:600,gold:400,xp:100};G.advance(s,s.at);assert.equal(s.offline.captainXp,25);const xp=G.rates(s).xp*60;G.advance(s,s.at+3600000);assert.equal(s.offline.xp,100+xp);assert.equal(s.offline.captainXp,25+xp/8);
+  const before=G.clone(s);G.action(s,{kind:'offline'},s.at);for(const u of Object.values(s.units))assert.equal(u.xp,100+xp);assert.equal(s.captain.xp,Math.floor(25+xp/8));assert.equal(s.gold,before.gold+before.offline.gold);assert.deepEqual(s.offline,{seconds:0,gold:0,xp:0,captainXp:0});const paid=G.clone(s);assert.throws(()=>G.action(s,{kind:'offline'},s.at));assert.deepEqual(s,paid);
+  const fragmented=G.create(UPDATE_TIME);for(let i=0;i<8;i++)G.advance(fragmented,fragmented.at+91000);assert.equal(fragmented.offline.captainXp,fragmented.offline.xp/8);assert.ok(fragmented.offline.captainXp>=1);for(const value of [-1,NaN,Infinity]){const invalid=G.clone(fragmented);invalid.offline.captainXp=value;assert.equal(G.validate(invalid),false);}
+});
+test('Twenty-four hours of automatic combat cannot reach commander level 50 or unit level 100 without training',()=>{
+  for(const [team,speed]of [[null,1],[['geonu','ian','osia','lumi','nari','sua'],1.5],[['geonu','ian','osia','lumi','nari','lava'],1.5]]){
+    const s=G.create(UPDATE_TIME,287);if(team){for(const id of team)s.units[id]={level:1,xp:0,stars:0,shards:0};G.action(s,{kind:'team',team},s.at);}G.action(s,{kind:'speed',speed},s.at);
+    for(let minute=0;minute<1440;minute++)G.advance(s,s.at+60000);
+    assert.ok(s.captain.level>=10&&s.captain.level<50,`commander reached ${s.captain.level}`);assert.ok(s.team.every(id=>s.units[id].level>1&&s.units[id].level<100));assert.equal(s.offline.seconds,0);assert.ok(G.validate(s));
+  }
+});
+test('Commander names normalize Unicode and spaces, enforce a character limit, and never consume game resources',()=>{
+  const s=G.create(UPDATE_TIME),before=G.clone(s);for(const[raw,want]of [['  새  단장  ','새 단장'],['오시아','오시아'],['반장_24-별','반장_24-별'],['𠮷'.repeat(12),'𠮷'.repeat(12)]]){assert.equal(G.normalizeCommanderName(raw),want);G.action(s,{kind:'rename',name:raw},s.at);assert.equal(s.commanderName,want);assert.ok(G.validate(s));}
+  assert.equal(s.gold,before.gold);assert.equal(s.gems,before.gems);assert.deepEqual(s.units,before.units);assert.deepEqual(s.captain,before.captain);assert.deepEqual(s.battle,before.battle);
+  for(const name of [null,12,{},'',' ','가','가'.repeat(13),'<script>','이름\n변경','이름\u0000','이름\u202E','이름😀']){const old=G.clone(s);assert.equal(G.normalizeCommanderName(name),null);assert.throws(()=>G.action(s,{kind:'rename',name},s.at));assert.deepEqual(s,old);}
+});
+test('Enemy variants cover all school regions while existing saved battles keep their appearance',()=>{
+  assert.equal(G.ENEMY_VARIANTS.length,12);assert.ok(G.ENEMY_VARIANTS.every(a=>a.length===3&&new Set(a).size===3&&a.every(name=>typeof name==='string'&&name.length>0)));
+  for(const stage of [1,2,6,31,60]){const s=G.create(UPDATE_TIME);s.best=60;G.action(s,{kind:'stage',stage,mode:'farm'},s.at);assert.deepEqual(s.battle.enemies.map(e=>e.name),s.battle.enemies.map((_,i)=>G.ENEMY_VARIANTS[G.chapter(stage)][(stage-1+i)%3]));}
+  const legacy=G.create(UPDATE_TIME);for(const e of legacy.battle.enemies){delete e.variant;e.name='기존 적 이름';}const battle=G.clone(legacy.battle);G.advance(legacy,legacy.at);assert.deepEqual(legacy.battle,battle);
 });
 console.log(`${passed} school engine checks passed`);
 require('./school-dungeons.cjs');

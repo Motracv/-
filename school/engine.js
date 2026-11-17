@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 7;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 8;
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
   const OSIA_SKILLS = [
@@ -19,7 +19,7 @@
     { stage: 2, name: "바람의 상처", healMultiplier: 4.5 },
   ];
   const lavaSkill = s => LAVA_SKILLS[(s.units.lava?.nextSkill || 1) - 1];
-  const RECRUIT_RATES = { SSR: .04, SR: .26, R: .70 };
+  const RECRUIT_RATES = { SSR: .01, SR: .26, R: .73 };
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
   const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi"]);
   const BANNERS = Object.freeze({
@@ -39,6 +39,9 @@
     tower: Object.freeze({ id: "tower", name: "뫼비우스의 복도", cap: null }),
   });
   const BOSS_RULES = Object.freeze({ storyHp: 2.6, storyAttack: 1, aoeEvery: 6000, aoeMultiplier: 1.6, rageEvery: 15000, rageStep: .12 });
+  const PROGRESSION = Object.freeze({ unitRequirement: 3, battleXp: .2, dungeonXp: .35, offlineXp: .2, captainBattleXp: .25, captainOfflineDivisor: 8 });
+  // Use integer percentages so 1400 × 35% is exactly 490, not 489.999… .
+  const scaledXp = (amount, multiplier) => amount > 0 ? Math.max(1, Math.floor(amount * Math.round(multiplier * 100) / 100)) : 0;
   function recruitRates(misses) {
     const next = misses + 1;
     if (next >= RECRUIT_PITY.hard) return { SSR: 1, SR: 0, R: 0 };
@@ -88,6 +91,14 @@
   const BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
   const CHAPTERS = ["오래된 교실", "방과 후 복도", "비밀의 도서관", "뒤뜰의 정원", "체육관 결계", "별이 내리는 옥상", "눈 내린 운동장", "잊혀진 별관", "마력 실험실", "지하 통로", "학교의 경계", "바람의 성소"];
   const ENEMIES = ["분필 슬라임", "낙서 유령", "종이 박쥐", "덩굴 정령", "체육관 골렘", "별가루 망령", "눈송이 정령", "종이 갑옷", "마력 실험체", "그림자 박쥐", "경계 파수꾼", "폭풍 정령"];
+  const ENEMY_VARIANTS = [
+    ["분필 슬라임", "지우개 미믹", "연필 꼬마악마"], ["시계 정령", "사물함 미믹", "대걸레 유령"],
+    ["책 박쥐", "두루마리 망령", "잉크 거미"], ["화분 덩굴", "물뿌리개 요정", "갈퀴 허수아비"],
+    ["폭주 농구공", "아령 집게", "호루라기 정령"], ["별빛 망원경", "천체구 정령", "종이학 환영"],
+    ["서리 종", "목도리 눈사람", "얼음 표지콘"], ["빈 교복 기사", "책상 미믹", "금간 칠판병"],
+    ["마력 플라스크", "현미경 감시자", "자석 골렘"], ["양동이 소라게", "배수관 장어", "젖은 우산 요괴"],
+    ["바람 깃발", "나침반 파수꾼", "연 가오리"], ["신당의 방울", "부적 망령", "설원의 여우탈"],
+  ];
   const BOSSES = ["칠판의 수호자", "잃어버린 종소리", "금서의 파수꾼", "오래된 나무", "철벽 체육부장", "옥상의 달그림자", "얼어붙은 운동장지기", "별관의 잊힌 기사", "폭주한 마력핵", "지하의 눈먼 수호자", "경계를 삼키는 그림자", "성소의 폭풍왕"];
   const QUESTS = [
     { id: "first", name: "첫 번째 교실", desc: "1-1 지역 클리어", goal: 1, metric: "best", gold: 200, gems: 100 },
@@ -104,10 +115,16 @@
   function random(s) { let x = s.seed | 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; s.seed = x >>> 0; return s.seed / 4294967296; }
   const day = now => Math.floor((now + 9 * 3600000) / 86400000);
   const week = now => Math.floor((day(now) + 3) / 7);
+  function normalizeCommanderName(raw) {
+    if (typeof raw !== "string" || raw.length > 128 || /[\p{C}<>]/u.test(raw)) return null;
+    const name = raw.normalize("NFC").trim().replace(/\p{Zs}+/gu, " ");
+    const length = Array.from(name).length;
+    return length >= 2 && length <= 12 && /^[\p{L}\p{N} _-]+$/u.test(name) ? name : null;
+  }
   function activityReward(kind, value) {
     if (kind === "tower") return { gold: 100 + 5 * value, gems: 10 + Math.floor(value / 5), xp: 0 };
-    return kind === "daily" ? { gold: 2000 + 1500 * (value - 1), gems: 80 + 30 * (value - 1), xp: 200 + 100 * (value - 1) }
-      : { gold: 12000 + 6000 * (value - 1), gems: 600 + 200 * (value - 1), xp: 1000 + 400 * (value - 1) };
+    return kind === "daily" ? { gold: 2000 + 1500 * (value - 1), gems: 80 + 30 * (value - 1), xp: scaledXp(200 + 100 * (value - 1), PROGRESSION.dungeonXp) }
+      : { gold: 12000 + 6000 * (value - 1), gems: 600 + 200 * (value - 1), xp: scaledXp(1000 + 400 * (value - 1), PROGRESSION.dungeonXp) };
   }
   function newActivities(now) {
     return { daily: { period: day(now), used: 0 }, weekly: { period: week(now), used: 0 }, towerBest: 0, run: null, lastResult: null };
@@ -149,9 +166,9 @@
     const r = a.lastResult;
     return r === null || !!(r && Number.isSafeInteger(r.runId) && r.runId > 0 && Object.hasOwn(DUNGEONS, r.kind) && typeof r.won === "boolean" && typeof r.firstClear === "boolean" && typeof r.refunded === "boolean" && typeof r.reason === "string" && r.reward && ["gold", "gems", "xp"].every(k => Number.isFinite(r.reward[k]) && r.reward[k] >= 0));
   }
-  const needXp = level => 20 + level * 12 + Math.floor(level * level * 1.5);
-  const captainNeed = level => 30 + level * 20;
-  const trainingCost = unit => 50 + unit.level * 20;
+  const needXp = level => (20 + level * 12 + Math.floor(level * level * 1.5)) * PROGRESSION.unitRequirement;
+  const captainNeed = level => 20 + level * 10 + level * level * 5;
+  const trainingCost = unit => 50 + unit.level * 20 + unit.level * unit.level * 8;
   const awakeningCost = unit => 10 + unit.stars * 10;
   function stats(id, unit) {
     const h = BY_ID[id], factor = 1 + unit.stars * .15;
@@ -175,13 +192,13 @@
   }
   function captainXp(s, amount) {
     s.captain.xp += amount;
-    while (s.captain.level < 50 && s.captain.xp >= captainNeed(s.captain.level)) {
+    while (s.captain.level < CAPTAIN_MAX_LEVEL && s.captain.xp >= captainNeed(s.captain.level)) {
       s.captain.xp -= captainNeed(s.captain.level); s.captain.level++; s.gems += 30;
       event(s, "captain", { level: s.captain.level }); log(s, `단장 Lv.${s.captain.level} · 보석 +30`);
     }
-    if (s.captain.level === 50) s.captain.xp = 0;
+    if (s.captain.level === CAPTAIN_MAX_LEVEL) s.captain.xp = 0;
   }
-  function rates(s) { return { gold: 20 + s.best * 7, xp: 8 + s.best * 2 }; }
+  function rates(s) { return { gold: 20 + s.best * 7, xp: scaledXp(8 + s.best * 2, PROGRESSION.offlineXp) }; }
   function campaignScale(stage) {
     const late = Math.max(0, stage - 30) / 30, middle = Math.max(0, Math.min(20, stage - 10)) / 20;
     return { hp: Math.pow(1.18, Math.min(29, stage - 1)) * Math.pow(1.055, Math.max(0, stage - 30)) * (1 + middle * .25 + late * (BOSS_RULES.storyHp - 1.25)),
@@ -204,7 +221,8 @@
     s.battle = { id: s.seq + 1, stage: s.stage, wave: s.wave, boss, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false,
       heroes: freshHeroes(s, previousOsia),
       enemies: Array.from({ length: boss ? 1 : 3 }, (_, i) => {
-        const e = { id: `e${i}`, kind: zone, name: boss ? BOSSES[zone] : ENEMIES[zone], hp: Math.round((boss ? 155 : 30) * scale.hp), max: Math.round((boss ? 155 : 30) * scale.hp), atk: Math.round((boss ? 10 : 3) * scale.atk), boss };
+        const variant = (s.stage + s.wave - 2 + i) % 3;
+        const e = { id: `e${i}`, kind: zone, name: boss ? BOSSES[zone] : ENEMY_VARIANTS[zone][variant], ...(boss ? {} : { variant }), hp: Math.round((boss ? 155 : 30) * scale.hp), max: Math.round((boss ? 155 : 30) * scale.hp), atk: Math.round((boss ? 10 : 3) * scale.atk), boss };
         return boss && s.stage > 30 ? bossAbility(e, .65 + (s.stage - 30) / 30 * .35) : e;
       }),
     };
@@ -218,7 +236,7 @@
     const activity = { kind: run.kind, ...(tower ? { floor: run.floor } : { tier: run.tier }) };
     s.battle = { id: run.id, runId: run.id, stage, wave: 4, boss, activity, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false,
       heroes: freshHeroes(s), enemies: Array.from({ length: boss ? 1 : 3 }, (_, i) => {
-        const e = { id: `e${i}`, kind: chapter(stage), name: tower ? boss ? "뫼비우스의 감시자" : "복도의 잔영" : weekly ? "봉인의 이사장" : "보급고의 수호자", hp: Math.round(hp), max: Math.round(hp), atk: Math.round(atk), boss };
+        const e = { id: `e${i}`, kind: chapter(stage), name: tower ? boss ? "뫼비우스의 감시자" : "복도의 잔영" : weekly ? "봉인의 이사장" : "보급고의 수호자", ...(boss ? {} : { variant: (stage + 2 + i) % 3 }), hp: Math.round(hp), max: Math.round(hp), atk: Math.round(atk), boss };
         return boss && (tower || run.tier >= 3) ? bossAbility(e, 1, tower ? "뒤틀린 종소리" : weekly ? "봉인 해방" : "보급고 대격돌") : e;
       }) };
   }
@@ -241,16 +259,17 @@
   function create(now = Date.now(), seed = 123456789) {
     fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
-      gold: 700, gems: 1800, captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
+      gold: 700, gems: 1800, commanderName: "새내기 단장", captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
       banners: { osia: { pity: 0, guaranteed: false }, lava: { pity: 0, guaranteed: false } },
-      offline: { seconds: 0, gold: 0, xp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], activities: newActivities(now) };
+      offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], activities: newActivities(now) };
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
   }
   function validate(s) {
     return !!(s && s.version === 1 && Number.isFinite(s.at) && s.at >= 0 && Number.isInteger(s.seed) &&
       Number.isFinite(s.gold) && s.gold >= 0 && Number.isFinite(s.gems) && s.gems >= 0 &&
+      (s.commanderName === undefined || typeof s.commanderName === "string" && normalizeCommanderName(s.commanderName) === s.commanderName) &&
       (s.speed === undefined || s.speed === 1 || s.speed === 1.5) &&
       (s.simCredit === undefined || Number.isFinite(s.simCredit) && s.simCredit >= 0 && s.simCredit < STEP_MS) &&
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
@@ -270,7 +289,9 @@
       (!s.activities?.run || s.battle.activity && (s.activities.run.settled ? s.activities.lastResult?.runId === s.activities.run.id && ["victory", "defeat"].includes(s.battle.phase) : s.battle.phase === "fight")) &&
       Array.isArray(s.events) && Array.isArray(s.logs) && Array.isArray(s.claimed) && Array.isArray(s.receipts) && Array.isArray(s.history) &&
       (s.redeemedCodes === undefined || Array.isArray(s.redeemedCodes) && s.redeemedCodes.length <= 1000 && new Set(s.redeemedCodes).size === s.redeemedCodes.length && s.redeemedCodes.every(code => typeof code === "string" && /^[A-Z0-9_]{1,40}$/.test(code))) &&
-      s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) && s.captain && Number.isInteger(s.captain.level));
+      s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) &&
+      (s.offline.captainXp === undefined || Number.isFinite(s.offline.captainXp) && s.offline.captainXp >= 0) &&
+      s.captain && Number.isInteger(s.captain.level) && s.captain.level >= 1 && s.captain.level <= CAPTAIN_MAX_LEVEL && Number.isFinite(s.captain.xp) && s.captain.xp >= 0);
   }
   function hurt(s, from, target, raw, side, skill = false, detail = {}) {
     if (target.hp <= 0) return 0;
@@ -305,9 +326,9 @@
   }
   function victory(s) {
     if (s.battle.activity) { settleActivity(s, true, "victory"); return; }
-    const b = s.battle, gold = (12 + s.stage * 4) * (b.boss ? 3 : 1), xp = 8 + s.stage * 2;
-    s.gold += gold; for (const id of s.team) addUnitXp(s, id, xp * (b.boss ? 2 : 1));
-    captainXp(s, 4 + Math.floor(s.stage / 2));
+    const b = s.battle, gold = (12 + s.stage * 4) * (b.boss ? 3 : 1), xp = scaledXp((8 + s.stage * 2) * (b.boss ? 2 : 1), PROGRESSION.battleXp);
+    s.gold += gold; for (const id of s.team) addUnitXp(s, id, xp);
+    captainXp(s, scaledXp(4 + Math.floor(s.stage / 2), PROGRESSION.captainBattleXp));
     event(s, "reward", { gold, xp, boss: b.boss });
     if (b.boss) {
       s.losses = 0;
@@ -456,6 +477,9 @@
   }
   function advance(s, now) {
     s.speed ??= 1; s.simCredit ??= 0; s.simTime ??= 0;
+    s.commanderName ??= "새내기 단장";
+    // Preserve the captain share already earned under the previous bank rate.
+    s.offline.captainXp ??= Math.floor(s.offline.xp / 4);
     refreshActivities(s, Number.isFinite(now) && now >= 0 ? Math.max(now, s.at) : s.at);
     s.banners ??= { osia: bannerState(s, "osia"), lava: bannerState(s, "lava") };
     s.banners.osia ??= { pity: s.pity, guaranteed: false }; s.banners.lava ??= { pity: 0, guaranteed: false };
@@ -470,7 +494,9 @@
     if (!steps) return { seconds: 0, offline: false };
     if (seconds > 90) {
       const add = Math.min(seconds, Math.max(0, OFFLINE_CAP - s.offline.seconds)), rate = rates(s);
-      s.offline.seconds += add; s.offline.gold += Math.floor(rate.gold * add / 60); s.offline.xp += Math.floor(rate.xp * add / 60);
+      const xp = Math.floor(rate.xp * add / 60);
+      s.offline.seconds += add; s.offline.gold += Math.floor(rate.gold * add / 60); s.offline.xp += xp;
+      s.offline.captainXp += xp / PROGRESSION.captainOfflineDivisor;
       s.at += seconds * 1000;
       if (add) event(s, "offline", { seconds: add });
       return { seconds: add, offline: true };
@@ -525,6 +551,12 @@
   function action(s, input, now = Date.now(), rng = Math.random) {
     fail(input && typeof input === "object" && !Array.isArray(input), "잘못된 행동입니다.");
     const kind = input.kind;
+    if (kind === "rename") {
+      const name = normalizeCommanderName(input.name);
+      fail(name !== null, "단장 이름은 문자·숫자·공백·_·-를 사용해 2~12자로 입력하세요.");
+      s.commanderName = name;
+      return { kind, name };
+    }
     if (kind === "activity") {
       fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
       fail(typeof input.mode === "string" && Object.hasOwn(DUNGEONS, input.mode), "도전할 던전을 선택하세요.");
@@ -603,8 +635,9 @@
     }
     if (kind === "offline") {
       fail(s.offline.seconds > 0, "이미 보상을 받았습니다."); const reward = { ...s.offline };
-      s.offline = { seconds: 0, gold: 0, xp: 0 }; s.gold += reward.gold;
-      for (const id of s.team) addUnitXp(s, id, reward.xp); captainXp(s, Math.floor(reward.xp / 4));
+      const earnedCaptainXp = Math.floor(reward.captainXp ?? reward.xp / 4);
+      s.offline = { seconds: 0, gold: 0, xp: 0, captainXp: 0 }; s.gold += reward.gold;
+      for (const id of s.team) addUnitXp(s, id, reward.xp); captainXp(s, earnedCaptainXp);
       log(s, `방치 보상 골드 +${reward.gold} · 용병 경험치 +${reward.xp}`); return { kind, reward };
     }
     if (kind === "daily") {
@@ -620,5 +653,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { HEROES, BY_ID, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

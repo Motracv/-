@@ -65,7 +65,7 @@ const G=require('../school/engine.js');
  await test('Osia acquired through the server pool persists, can join the party and level up after reconnect',async()=>{
    const who=(await t.login('school-Osia')).data;const current=await call(who,'state');
    const random=crypto.getRandomValues;let n=0;
-   crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=42949672;return array;}return random.call(crypto,array);};
+   crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=4294967;return array;}return random.call(crypto,array);};
    let r;try{r=await call(who,'action',action(current.data.revision,'server-osia-draw-001',{kind:'recruit',count:1}));}finally{crypto.getRandomValues=random;}
    assert.equal(r.status,200);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.gems,1700);
    r=await call(who,'action',action(r.data.revision,'server-osia-team-001',{kind:'team',team:['taeo','osia','sua']}));assert.equal(r.status,200);
@@ -78,10 +78,10 @@ const G=require('../school/engine.js');
    setMisses(39);assert.equal((await call(who,'state')).data.state.pity,39);
    const random=crypto.getRandomValues;
    try{
-     setMisses(59);let n=0;crypto.getRandomValues=function(a){if(a instanceof Uint32Array&&a.length===1){a[0]=++n%2?193273528:42949672;return a;}return random.call(crypto,a);};
+     setMisses(59);let n=0;crypto.getRandomValues=function(a){if(a instanceof Uint32Array&&a.length===1){a[0]=++n%2?64424509:4294967;return a;}return random.call(crypto,a);};
      let current=await call(who,'state');assert.equal(current.data.state.pity,59);
      let r=await call(who,'action',{...action(current.data.revision,'soft-pity-server-001',{kind:'recruit',count:1}),pity:0,ssrChance:1});
-     assert.equal(r.status,200);assert.equal(r.data.result.results[0].ssrChance,.05);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.pity,0);
+     assert.equal(r.status,200);assert.equal(r.data.result.results[0].ssrChance,.02);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.pity,0);
      setMisses(79);crypto.getRandomValues=function(a){if(a instanceof Uint32Array&&a.length===1){a[0]=4294967294;return a;}return random.call(crypto,a);};
      current=await call(who,'state');r=await call(who,'action',action(current.data.revision,'hard-pity-server-001',{kind:'recruit',count:1}));assert.equal(r.status,200);assert.equal(r.data.result.results[0].ssrChance,1);assert.equal(r.data.result.results[0].pity,true);assert.equal(r.data.state.pity,0);
    }finally{crypto.getRandomValues=random;}
@@ -108,17 +108,17 @@ const G=require('../school/engine.js');
      const who=(await t.login('school-banners')).data;await call(who,'state');const old=JSON.parse(save(who).payload);delete old.banners;old.pity=73;old.gems=10000;old.gold=5860;old.units.harin.level=40;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(old),who.profile.id);
      let current=await call(who,'state');assert.equal(current.status,200);assert.deepEqual(current.data.state.banners.osia,{pity:73,guaranteed:false});assert.deepEqual(current.data.state.banners.lava,{pity:0,guaranteed:false});assert.equal(current.data.state.gold,5860);assert.equal(current.data.state.units.harin.level,40);
      const draw=async(banner,id,rolls)=>{let index=0;crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=Math.floor(rolls[index++]*4294967296);return array;}return random.call(crypto,array);};const r=await call(who,'action',{...action(current.data.revision,id,{kind:'recruit',banner,count:1,guaranteed:true,featured:'lava',pity:79}),guaranteed:true});crypto.getRandomValues=random;assert.equal(r.status,200);current=r;return r;};
-     let r=await draw('osia','server-banner-miss-01',[.01,.99]);assert.ok(['ian','lumi'].includes(r.data.result.results[0].id));assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
-     r=await draw('lava','server-banner-lava-01',[.01,.01]);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
+     let r=await draw('osia','server-banner-miss-01',[.001,.99]);assert.ok(['ian','lumi'].includes(r.data.result.results[0].id));assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
+     r=await draw('lava','server-banner-lava-01',[.001,.001]);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
      const again=(await t.login('school-banners')).data;current=await call(again,'state');assert.equal(current.data.state.banners.osia.guaranteed,true);assert.equal(current.data.state.units.lava.level,1);
-     r=await draw('osia','server-banner-guarantee',[.01,.99]);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.banners.osia.guaranteed,false);assert.equal(r.data.state.gems,9700);assert.equal(r.data.state.pity,0);assert.equal(r.data.state.banners.lava.pity,0);
+     r=await draw('osia','server-banner-guarantee',[.001,.99]);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.banners.osia.guaranteed,false);assert.equal(r.data.state.gems,9700);assert.equal(r.data.state.pity,0);assert.equal(r.data.state.banners.lava.pity,0);
      const row=save(who);assert.equal((await call(who,'action',action(row.revision,'server-banner-invalid',{kind:'recruit',banner:'constructor',count:1}))).status,400);assert.equal(save(who).payload,row.payload);
    }finally{Date.now=realNow;crypto.getRandomValues=random;}
  });
  await test('Lava uses the server cutoff and remains playable after the limited banner closes',async()=>{
    const realNow=Date.now,random=crypto.getRandomValues;let now=Date.parse('2026-11-21T00:00:00+09:00')-1;Date.now=()=>now;
    try{
-     const who=(await t.login('school-limited-expiry')).data;let current=await call(who,'state');crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=42949672;return array;}return random.call(crypto,array);};
+     const who=(await t.login('school-limited-expiry')).data;let current=await call(who,'state');crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=4294967;return array;}return random.call(crypto,array);};
      current=await call(who,'action',action(current.data.revision,'limited-last-millisecond',{kind:'recruit',banner:'lava',count:1}));assert.equal(current.status,200);assert.equal(current.data.result.results[0].id,'lava');
      const state=JSON.parse(save(who).payload);state.banners.lava={pity:79,guaranteed:true};t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);now++;
      const row=save(who);const expired=await call(who,'action',{...action(row.revision,'limited-expired-server',{kind:'recruit',banner:'lava',count:1,now:now-1000}),now:now-1000});assert.equal(expired.status,400);assert.equal(save(who).payload,row.payload);
@@ -177,7 +177,7 @@ const G=require('../school/engine.js');
      const ready=JSON.parse(save(who).payload);for(const e of ready.battle.enemies)e.hp=0;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(ready),who.profile.id);now+=500;let drop=true;
      t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
      const lost=await call(who,'state');assert.equal(lost.status,503);t.db.prepare=prepare;
-     current=await call(who,'state');assert.equal(current.status,200);assert.equal(current.data.state.activities.run.settled,true);assert.equal(current.data.state.gold,before.gold+2000);assert.equal(current.data.state.gems,before.gems+80);assert.deepEqual(current.data.state.activities.lastResult.reward,{gold:2000,gems:80,xp:200});
+     current=await call(who,'state');assert.equal(current.status,200);assert.equal(current.data.state.activities.run.settled,true);assert.equal(current.data.state.gold,before.gold+2000);assert.equal(current.data.state.gems,before.gems+80);assert.deepEqual(current.data.state.activities.lastResult.reward,{gold:2000,gems:80,xp:70});
      const paid=G.clone(current.data.state.activities);now+=30000;const retries=await Promise.all([call(who,'state'),call(who,'action',intent)]);for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.state.gold,before.gold+2000);assert.equal(r.data.state.gems,before.gems+80);assert.equal(r.data.state.activities.daily.used,1);assert.equal(r.data.state.activities.run.id,paid.run.id);assert.equal(r.data.state.battle.phase,'victory');}
    }finally{t.db.prepare=prepare;Date.now=realNow;}
  });
@@ -247,6 +247,63 @@ const G=require('../school/engine.js');
      const expired=await call(who,'action',{...action(before.revision,'coupon-expired-00001',{kind:'redeem',code:'BUG_FIX',now:couponEnd-86400000}),now:couponEnd-86400000});
      assert.equal(expired.status,400);assert.equal(save(who).payload,before.payload);
      current=await call(who,'state');assert.deepEqual(current.data.state.redeemedCodes,['OSIA_DEBUT']);
+   }finally{Date.now=realNow;}
+ });
+ await test('Commander renames are normalized, validated and confirmed once across simultaneous sessions and lost responses',async()=>{
+   const realNow=Date.now,prepare=t.db.prepare;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
+   try{
+     const who=(await t.login('school-rename')).data;let current=await call(who,'state');const before=current.data.state;
+     current=await call(who,'action',action(current.data.revision,'commander-rename-first',{kind:'rename',name:'  오시아  단장  ',gold:1e12,captain:{level:200}}));assert.equal(current.status,200);assert.equal(current.data.state.commanderName,'오시아 단장');assert.equal(current.data.state.gold,before.gold);assert.deepEqual(current.data.state.captain,before.captain);
+     for(const[index,name]of ['<script>','단장\n이름','가'.repeat(13),null].entries()){const row=save(who);assert.equal((await call(who,'action',action(row.revision,'commander-invalid-name'+index,{kind:'rename',name}))).status,400);assert.equal(save(who).payload,row.payload);}
+     const again=(await t.login('school-rename')).data;current=await call(again,'state');const races=await Promise.all(['붉은 단장','푸른 단장'].map((name,i)=>call(i?again:who,'action',action(current.data.revision,'commander-racing-name'+i,{kind:'rename',name}))));assert.deepEqual(races.map(r=>r.status).sort(),[200,409]);assert.equal(JSON.parse(save(who).payload).commanderName,races.find(r=>r.status===200).data.state.commanderName);
+     current=await call(who,'state');const intent=action(current.data.revision,'commander-response-lost',{kind:'rename',name:'확인된 단장'});let drop=true;t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
+     assert.equal((await call(who,'action',intent)).status,503);t.db.prepare=prepare;const retry=await call(again,'action',intent);assert.equal(retry.status,200);assert.equal(retry.data.repeated,true);assert.equal(retry.data.state.commanderName,'확인된 단장');assert.equal((await call(again,'state')).data.state.commanderName,'확인된 단장');
+   }finally{t.db.prepare=prepare;Date.now=realNow;}
+ });
+ await test('Growth migration retains old level 50, raw XP and the previously earned offline captain share on the server',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
+   try{
+     const who=(await t.login('school-growth-preserved')).data;await call(who,'state');const old=JSON.parse(save(who).payload);delete old.commanderName;old.captain={level:50,xp:1234};old.gold=123456;old.gems=5432;for(const u of Object.values(old.units))Object.assign(u,{level:60,xp:999,stars:3,shards:17});old.offline={seconds:600,gold:400,xp:1003};old.banners.osia={pity:79,guaranteed:true};old.pity=79;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(old),who.profile.id);
+     let current=await call(who,'state',{captain:{level:200},units:{},gems:0});assert.equal(current.status,200);assert.deepEqual(current.data.state.captain,old.captain);assert.deepEqual(current.data.state.units,old.units);assert.equal(current.data.state.gold,123456);assert.equal(current.data.state.gems,5432);assert.equal(current.data.state.commanderName,'새내기 단장');assert.deepEqual(current.data.state.offline,{...old.offline,captainXp:250});assert.deepEqual(current.data.state.banners,old.banners);
+     current=await call(who,'action',action(current.data.revision,'growth-old-bank-claim',{kind:'offline',captainXp:1e12,xp:1e12}));assert.equal(current.status,200);assert.equal(current.data.state.captain.level,50);assert.equal(current.data.state.captain.xp,1484);assert.equal(current.data.state.gold,123856);for(const u of Object.values(current.data.state.units))assert.equal(u.xp,2002);assert.equal(current.data.state.offline.captainXp,0);
+   }finally{Date.now=realNow;}
+ });
+ let rankViewer,rankSubjects=[];
+ await test('Public rankings expose only saved game names and server scores, with shared ties and a fifty-entry limit',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
+   try{
+     rankViewer=(await t.login('school-ranking-viewer')).data;let current=await call(rankViewer,'state');current=await call(rankViewer,'action',action(current.data.revision,'ranking-viewer-name01',{kind:'rename',name:'순위 확인자'}));assert.equal(current.status,200);
+     for(let i=0;i<60;i++){
+       const id='rank-internal-'+String(i).padStart(2,'0'),s=G.create(Date.now(),i+1);s.commanderName='단장'+String(i).padStart(2,'0');s.captain={level:i>=57?180:100+i,xp:i>=58?300:i===57?100:i};s.activities.towerBest=i>=58?2000:i===57?1999:1000+i;if(i===56){delete s.commanderName;s.googleName='Never Publish Real Name';}
+       t.sqlite.prepare('INSERT INTO accounts(id,google_key,created_at) VALUES(?,?,?)').run(id,'rank-private-google-'+i,Date.now());t.sqlite.prepare('INSERT INTO school_saves(account_id,payload,revision,updated_at) VALUES(?,?,0,?)').run(id,JSON.stringify(s),Date.now());rankSubjects.push({id,state:s});
+     }
+     const r=await call(null,'rankings',{mode:'level',score:1e12,level:200,floor:1e12,state:{captain:{level:200}}});assert.equal(r.status,200);assert.equal(r.data.mode,'level');assert.equal(r.data.limit,50);assert.equal(r.data.entries.length,50);assert.equal(r.data.me,null);assert.deepEqual(r.data.entries.slice(0,3).map(e=>({rank:e.rank,name:e.name,level:e.level})),[{rank:1,name:'단장58',level:180},{rank:1,name:'단장59',level:180},{rank:3,name:'단장57',level:180}]);assert.ok(r.headers.get('cache-control')?.includes('no-store'));
+     assert.equal(r.data.entries.find(e=>e.level===156).name,'새내기 단장');for(const e of r.data.entries){assert.deepEqual(Object.keys(e).sort(),['floor','isMe','level','name','rank']);assert.equal(e.isMe,false);}const json=JSON.stringify(r.data);for(const secret of ['rank-internal-','rank-private-google-','never-store@example.test','Never Publish Real Name',rankViewer.token,rankViewer.profile.id,'receipts','units','google_key','account_id'])assert.ok(!json.includes(secret),secret);
+     const forged=await call({token:'f'.repeat(64)},'rankings',{mode:'level'});assert.equal(forged.status,200);assert.equal(forged.data.me,null);assert.deepEqual(forged.data.entries,r.data.entries);assert.equal((await call(null,'rankings',{mode:'constructor'})).status,400);assert.equal((await call(null,'rankings',{mode:'level',catalogVersion:G.CATALOG_VERSION-1})).status,426);
+   }finally{Date.now=realNow;}
+ });
+ await test('Signed ranking viewers receive their global rank outside the top fifty and never another account’s identity',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
+   try{
+     const r=await call(rankViewer,'rankings',{mode:'level'});assert.equal(r.status,200);assert.ok(r.data.me);assert.equal(r.data.me.name,'순위 확인자');assert.equal(r.data.me.isMe,true);assert.ok(r.data.me.rank>50);assert.ok(r.data.entries.every(e=>!e.isMe));
+     const row=JSON.parse(save(rankViewer).payload),higher=t.sqlite.prepare('SELECT payload FROM school_saves').all().map(r=>JSON.parse(r.payload)).filter(s=>s.captain.level>row.captain.level||s.captain.level===row.captain.level&&s.captain.xp>row.captain.xp).length;assert.equal(r.data.me.rank,higher+1);
+     const other=await call(b,'rankings',{mode:'level'});assert.equal(other.status,200);assert.ok(other.data.me);assert.notEqual(other.data.me.name,r.data.me.name);const guest=await call(null,'rankings',{mode:'level'});assert.equal(guest.data.me,null);assert.ok(guest.data.entries.every(e=>!e.isMe));
+     const noSave=(await t.login('school-rank-only-account')).data;assert.equal(save(noSave),undefined);const empty=await call(noSave,'rankings',{mode:'level'});assert.equal(empty.status,200);assert.equal(empty.data.me,null);assert.equal(save(noSave),undefined);
+   }finally{Date.now=realNow;}
+ });
+ await test('Tower rankings use first-clear floors only, ignore fake scores, and safely exclude malformed JSON saves',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
+   try{
+     const r=await call(rankViewer,'rankings',{mode:'tower',floor:999999,towerBest:999999,accountId:rankSubjects[0].id});assert.equal(r.status,200);assert.equal(r.data.me,null);assert.ok(r.data.entries.every(e=>e.floor>0));assert.deepEqual(r.data.entries.slice(0,3).map(e=>({rank:e.rank,name:e.name,floor:e.floor})),[{rank:1,name:'단장58',floor:2000},{rank:1,name:'단장59',floor:2000},{rank:3,name:'단장57',floor:1999}]);
+     const before=await call(null,'rankings',{mode:'level'});t.sqlite.prepare('INSERT INTO accounts(id,google_key,created_at) VALUES(?,?,?)').run('rank-invalid-json','rank-invalid-private',Date.now());t.sqlite.prepare('INSERT INTO school_saves(account_id,payload,revision,updated_at) VALUES(?,?,0,?)').run('rank-invalid-json','{',Date.now());const safe=await call(null,'rankings',{mode:'level'});assert.equal(safe.status,200);assert.equal(safe.data.total,before.data.total);assert.deepEqual(safe.data.entries,before.data.entries);
+     const s=JSON.parse(save(rankViewer).payload);s.captain={level:190,xp:100};s.activities.towerBest=2001;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),rankViewer.profile.id);for(const mode of ['level','tower']){const top=await call(rankViewer,'rankings',{mode});assert.equal(top.status,200);assert.equal(top.data.me.rank,1);assert.equal(top.data.me.isMe,true);assert.equal(top.data.entries[0].name,'순위 확인자');assert.equal(top.data.entries[0].isMe,true);}
+   }finally{Date.now=realNow;}
+ });
+ await test('Deleting an account removes its ranking immediately while leaving other saved competitors intact',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
+   try{
+     const before=await call(null,'rankings',{mode:'level'});assert.equal(before.data.entries[0].name,'순위 확인자');assert.equal((await t.call('/api/account/delete',{confirm:'DELETE'},rankViewer.token)).status,200);assert.equal(save(rankViewer),undefined);
+     const after=await call(null,'rankings',{mode:'level'});assert.equal(after.status,200);assert.equal(after.data.total,before.data.total-1);assert.ok(!after.data.entries.some(e=>e.name==='순위 확인자'));assert.equal(after.data.entries[0].name,'단장58');assert.equal(t.sqlite.prepare('SELECT count(*) AS n FROM school_saves WHERE account_id LIKE ?').get('rank-internal-%').n,60);
    }finally{Date.now=realNow;}
  });
  t.sqlite.close();console.log(`${passed} school server checks passed (SQLite + signed test Google credentials)`);

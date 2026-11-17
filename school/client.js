@@ -2,7 +2,7 @@
   'use strict';
   const G = window.SchoolRPG, Art = window.SchoolArt, $ = id => document.getElementById(id);
   const BASE = 'https://motracv-card-room.densedormouse4.chatgpt.site';
-  const SAVE = 'school-mercenaries-v7', LEGACY_SAVES = ['school-mercenaries-v6', 'school-mercenaries-v5', 'school-mercenaries-v4', 'school-mercenaries-v3', 'school-mercenaries-v2', 'school-mercenaries-v1'], MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
+  const SAVE = 'school-mercenaries-v8', LEGACY_SAVES = ['school-mercenaries-v7', 'school-mercenaries-v6', 'school-mercenaries-v5', 'school-mercenaries-v4', 'school-mercenaries-v3', 'school-mercenaries-v2', 'school-mercenaries-v1'], MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
   const esc = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = n => Math.floor(n).toLocaleString('ko-KR');
   const duration = seconds => seconds >= 3600 ? `${Math.floor(seconds / 3600)}시간 ${Math.floor(seconds % 3600 / 60)}분` : `${Math.floor(seconds / 60)}분`;
@@ -15,13 +15,19 @@
   const storage = { get(key, session = false) { try { return (session ? sessionStorage : localStorage).getItem(key); } catch { return null; } }, set(key, value, session = false) { try { (session ? sessionStorage : localStorage).setItem(key, value); return true; } catch { return false; } }, remove(key, session = false) { try { (session ? sessionStorage : localStorage).removeItem(key); } catch {} } };
   let state, mode = 'guest', profile = null, token = null, revision = 0, offset = 0, busy = false, pending = null, connected = true;
   let tab = 'adventure', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
-  let confirmedActivityResult = null, shownActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null;
+  let confirmedActivityResult = null, shownActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null, selectedDungeon = 'daily';
   let selectedBanner = storage.get('school-pickup') === 'lava' ? 'lava' : 'osia';
-  let sound = storage.get('school-sound') === 'on', audio, renderKey = '', dungeonRenderKey = '', partyKey = '', lastSave = 0, lastSync = 0;
+  let preferences; try { preferences = JSON.parse(storage.get('school-settings') || '{}'); } catch { preferences = {}; }
+  preferences ||= {};
+  let sound = typeof preferences.sound === 'boolean' ? preferences.sound : storage.get('school-sound') === 'on', renderKey = '', dungeonRenderKey = '', partyKey = '', lastSave = 0, lastSync = 0;
   const CLOUD_CACHE = 'school-confirmed-cloud-view';
   let guestQueue = Promise.resolve(), guestTickPending = false, guestSaveFailed = false, mutexDatabase;
   let cloudBalance = null, hasCloudState = false, hasGuestState = false, clientReady = false, verifiedToken = null, sessionFingerprint = null;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let reduced = preferences.motion ? preferences.motion === 'reduced' : matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let theme = preferences.theme === 'dark' ? 'dark' : 'light', operation = '', completedActionKey = '', confirmedScope = '', confirmedSeq = 0, rankingMode = 'level', rankingGeneration = 0;
+  const rankingCache = new Map();
+  const Presentation = window.SchoolPresentation;
+  Presentation?.configure({soundEnabled:()=>sound, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
   try { token = JSON.parse(storage.get(SESSION, true) || 'null')?.token || null; } catch {}
 
   const serverNow = () => Date.now() + (mode === 'cloud' ? offset : 0);
@@ -41,14 +47,55 @@
     $('connection').textContent = message || '';
     if (retry) { const b = document.createElement('button'); b.textContent = retry === 'reload' ? '새로고침' : '다시 연결'; b.onclick = () => retry === 'reload' ? location.reload() : sync(true); $('connection').append(b); }
   }
-  function play(kind, stage = 4) {
-    if (!sound) return;
-    try {
-      audio ||= new (window.AudioContext || window.webkitAudioContext)(); audio.resume().catch(() => {});
-      const frequencies = kind === 'water' ? [[392], [440, 587], [523, 659, 784], [196, 392, 587, 784, 1175]][stage - 1] : kind === 'rare' ? [440, 554, 659, 880] : kind === 'reward' ? [523, 659, 784] : kind === 'level' ? [392, 523, 659] : [440];
-      frequencies.forEach((hz, i) => { const osc = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime + i * .09; osc.type = 'triangle'; osc.frequency.value = hz; gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(.045, t + .01); gain.gain.exponentialRampToValueAtTime(.001, t + .18); osc.connect(gain); gain.connect(audio.destination); osc.start(t); osc.stop(t + .2); });
-    } catch {}
+  function play(kind, stage = 4) { Presentation?.play(kind, stage); }
+  const accountScope = () => `${mode}:${profile?.id || 'guest'}`;
+  function confirmedEvents(source) {
+    const scope = accountScope();
+    if (!clientReady || confirmedScope !== scope) { confirmedScope = scope; confirmedSeq = source.seq || 0; return; }
+    const fresh = (source.events || []).filter(e => e.seq > confirmedSeq);
+    confirmedSeq = Math.max(confirmedSeq, source.seq || 0);
+    for (const event of fresh) {
+      if (event.kind === 'captain') Presentation?.captain({level:event.level, reward:30, key:`${scope}:captain:${event.seq}`});
+      if (event.kind === 'clear') { toast(`${G.stageName(event.stage)} 클리어! 보석 +60`); play('reward'); }
+    }
   }
+  function applyPreferences(save = false) {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.motion = reduced ? 'reduced' : 'full';
+    document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#222e2b' : '#f5f1e5';
+    if (save) {
+      if (!storage.set('school-settings', JSON.stringify({theme,motion:reduced?'reduced':'full',sound}))) toast('설정을 저장하지 못했어요. 이 화면에서만 적용됩니다.');
+      storage.set('school-sound', sound ? 'on' : 'off');
+    }
+    refreshSound(); Presentation?.refreshPreferences();
+  }
+  function settingsModal() {
+    openModal('설정', `<div class="settings-list"><label class="setting-row" for="setting-theme"><span><b>다크 모드</b><small>눈이 편한 짙은 초록 화면</small></span><input id="setting-theme" type="checkbox" role="switch" ${theme === 'dark' ? 'checked' : ''}></label><label class="setting-row" for="setting-sound"><span><b>효과음</b><small>전투·모집·성장 효과음</small></span><input id="setting-sound" type="checkbox" role="switch" ${sound ? 'checked' : ''}></label><label class="setting-row" for="setting-motion"><span><b>모션 줄이기</b><small>큰 움직임과 섬광을 간단하게</small></span><input id="setting-motion" type="checkbox" role="switch" ${reduced ? 'checked' : ''}></label></div><div class="settings-links"><button class="secondary" id="settings-help">${icon('book')} 게임 안내</button><button class="secondary" id="settings-rotate">${icon('rotate')} 가로 화면</button></div><p class="settings-note">설정은 이 브라우저에 저장됩니다.</p>`, 'settings');
+    $('settings-help').onclick = help; $('settings-rotate').onclick = () => { closeModal(); attemptLandscape(); };
+  }
+  function showBoot(message) { $('boot-message').textContent = message; }
+  function finishBoot() { $('boot-screen').hidden = true; updateOrientation(); }
+  function updateOrientation() {
+    const portrait = matchMedia('(orientation:portrait) and (max-width:1000px)').matches;
+    const show = portrait && !storage.get('school-landscape-ack', true) && $('boot-screen').hidden;
+    $('rotate-prompt').hidden = !show; $('app').inert = show;
+    if (!portrait) $('board-viewport').scrollLeft = 0;
+  }
+  function dismissRotation() { storage.set('school-landscape-ack', '1', true); $('rotate-prompt').hidden = true; $('app').inert = false; }
+  async function attemptLandscape() {
+    dismissRotation();
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+      if (screen.orientation?.lock) await screen.orientation.lock('landscape');
+    } catch { /* The horizontal board remains usable when rotation is unavailable. */ }
+    updateOrientation();
+    if (matchMedia('(orientation:portrait)').matches) toast('화면을 좌우로 밀거나 전장·용병 버튼을 눌러 이동하세요.');
+  }
+  function boardJump(where) {
+    const viewport = $('board-viewport');
+    viewport.scrollTo({left:where === 'party' ? viewport.scrollWidth - viewport.clientWidth : 0, behavior:reduced?'auto':'smooth'});
+  }
+  const yieldForPaint = () => document.hidden ? Promise.resolve() : new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
   function refreshSound() { $('sound-button').classList.toggle('muted', !sound); $('sound-button').setAttribute('aria-label', `효과음 ${sound ? '끄기' : '켜기'}`); $('sound-button').setAttribute('aria-pressed', String(sound)); }
   function freshGuest() { return G.create(Date.now(), crypto.getRandomValues(new Uint32Array(1))[0]); }
   function saveStatus(status, message) {
@@ -116,7 +163,7 @@
       if (input) try { result = G.action(next, input); } catch (error) { error.guestAction = true; actionError = error; }
       // Commit first: displayed rewards and successful actions are always durable.
       const recoveredWrite = guestSaveFailed;
-      writeGuest(next, record.raw); rememberActivityResult(next); state = next; hasGuestState = true; guestSaveFailed = false; lastSave = Date.now();
+      writeGuest(next, record.raw); rememberActivityResult(next); confirmedEvents(next); state = next; hasGuestState = true; guestSaveFailed = false; lastSave = Date.now();
       saveStatus('saved', '기기 저장 완료');
       if (record.recovered) note('자동 저장 사본에서 기록을 복구했습니다.');
       else if (recoveredWrite) note('');
@@ -144,14 +191,14 @@
     let response;
     const payload = path.startsWith('/api/school/') ? { ...data, catalogVersion: G.CATALOG_VERSION } : data || {};
     try {
-      response = await fetch(BASE + path, { method: path.endsWith('/config') ? 'GET' : 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token ? auth === 'school' ? { 'X-Account-Session': token } : { Authorization: `Bearer ${token}` } : {}) }, ...(path.endsWith('/config') ? {} : { body: JSON.stringify(payload) }), signal: AbortSignal.timeout(14000) });
+      response = await fetch(BASE + path, { method: path.endsWith('/config') ? 'GET' : 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token && auth !== 'public' ? auth === 'school' ? { 'X-Account-Session': token } : { Authorization: `Bearer ${token}` } : {}) }, ...(path.endsWith('/config') ? {} : { body: JSON.stringify(payload) }), signal: AbortSignal.timeout(14000) });
     } catch { throw Error('저장 서버에 연결하지 못했습니다. 연결 후 다시 시도하세요.'); }
     let body; try { body = await response.json(); } catch { throw Error('저장 서버의 응답을 읽지 못했습니다.'); }
     if (!response.ok && !body.conflict) throw Object.assign(Error(body.error || '요청을 처리하지 못했습니다.'), { status: response.status });
     return body;
   }
   function applyCloud(body) {
-    rememberActivityResult(body.state);
+    rememberActivityResult(body.state); confirmedEvents(body.state);
     state = body.state; revision = body.revision; offset = body.serverTime - Date.now(); connected = true; hasCloudState = true;
     cloudBalance = { gold: state.gold, gems: state.gems };
     storage.set(CLOUD_CACHE, JSON.stringify({profile, state, revision, serverTime:body.serverTime, sessionFingerprint}), true);
@@ -161,6 +208,7 @@
   function clearPending() { pending = null; storage.remove(PENDING, true); }
   async function sendPending() {
     if (!token || verifiedToken !== token || !profile || pending?.accountId !== profile.id) throw Object.assign(Error('계정 연결을 다시 확인한 뒤 요청을 이어갑니다.'), {status:401});
+    const actionKey = pending.requestId;
     const body = await request('/api/school/action', pending);
     if (body.conflict) {
       // An expired receipt can belong to an already committed action. Changing
@@ -168,7 +216,7 @@
       applyCloud(body); clearPending();
       throw Object.assign(Error('다른 기기 진행을 불러왔어요. 보유 재화와 결과를 확인한 뒤 다시 눌러주세요.'), {confirmedConflict:true});
     }
-    clearPending(); applyCloud(body); return body.result;
+    clearPending(); applyCloud(body); completedActionKey = actionKey; return body.result;
   }
   async function sync(manual = false) {
     if (mode !== 'cloud' || busy || (!manual && document.hidden)) return;
@@ -176,7 +224,7 @@
     const checkingCoupon = pending?.action.kind === 'redeem';
     busy = true; renderButtons(); saveStatus('saving', '계정 저장 중');
     try {
-      if (pending) { const result = await sendPending(); showResult(result); }
+      if (pending) { const result = await sendPending(); await showResult(result); }
       else applyCloud(await request('/api/school/state'));
       lastSync = Date.now();
     } catch (error) {
@@ -193,15 +241,16 @@
   async function act(input) {
     if (busy || pending) { toast('이전 요청을 확인하고 있어요. 잠시 기다려주세요.'); return; }
     if (mode === 'cloud' && (!connected || verifiedToken !== token)) { sync(true); return; }
-    busy = true; renderButtons(); saveStatus('saving', mode === 'cloud' ? '계정 저장 중' : '기기 저장 중');
+    busy = true; operation = input.kind; completedActionKey = crypto.randomUUID(); renderButtons(); saveStatus('saving', mode === 'cloud' ? '계정 저장 중' : '기기 저장 중');
     try {
+      await yieldForPaint();
       let result;
       if (mode === 'cloud') {
         pending = { action: input, revision, requestId: crypto.randomUUID().replaceAll('-', ''), accountId: profile.id };
         if (!storage.set(PENDING, JSON.stringify(pending), true)) { pending = null; throw Error('이 브라우저는 안전한 요청 저장을 지원하지 않습니다. 일반 브라우저에서 다시 시도하세요.'); }
         result = await sendPending(); lastSync = Date.now();
       } else result = await guestUpdate(input);
-      showResult(result);
+      await showResult(result);
     } catch (error) {
       if (error.confirmedConflict) { if (input.kind === 'redeem') couponMessage(error.message, 'error'); toast(error.message); return; }
       if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
@@ -213,17 +262,18 @@
       }
       else if (mode === 'cloud') { connected = false; saveStatus('error', '계정 연결 대기'); note(error.message, true); }
       toast(error.message);
-    } finally { busy = false; renderButtons(); }
+    } finally { busy = false; operation = ''; renderButtons(); }
   }
-  function showResult(result) {
+  async function showResult(result) {
     if (!result) return;
-    if (result.kind === 'recruit') { reveal(result.results); play(result.results.some(r => G.BY_ID[r.id].rarity === 'SSR') ? 'rare' : 'reward'); }
+    if (result.kind === 'recruit') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.recruit({results:result.results,key:`${accountScope()}:recruit:${completedActionKey}`}); if (!shown?.cancelled) reveal(result.results); }
     else if (result.kind === 'redeem') {
       const message = `${result.code} · 보석 +${fmt(result.gems)} · 코인 +${fmt(result.gold)} 수령 완료!`;
       $('coupon-code').value = ''; couponMessage(message, 'success'); toast(message); play('reward');
     }
     else if (result.kind === 'train') { toast(`${G.BY_ID[result.hero].name} Lv.${result.level}!`); heroDetail(result.hero); play('level'); }
-    else if (result.kind === 'awaken') { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); play('rare'); }
+    else if (result.kind === 'awaken') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.awaken({hero:result.hero,stars:result.stars,key:`${accountScope()}:awaken:${completedActionKey}`}); if (!shown?.cancelled) { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); } }
+    else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); captainModal(); }
     else if (result.kind === 'team') { closeModal(); toast(`새 편성으로 출발합니다. ${formationHint()}`); }
     else if (result.kind === 'activity') { closeModal(); setTab('adventure'); toast('던전에 입장했어요. 전투가 끝나면 결과를 확인하세요.'); }
     else if (result.kind === 'activity-exit') { closeModal(); setTab('adventure'); toast(result.result?.refunded ? '입장 열쇠를 돌려받고 모험으로 돌아왔어요.' : '모험으로 돌아왔어요.'); }
@@ -246,8 +296,6 @@
     for (const e of events) {
       const eventTime = e.simAt == null ? now : e.simAt / 1000, age = Math.max(0, now - eventTime);
       if (age < 3.1 && e.kind !== 'offline') effects.push({ ...e, time: eventTime });
-      if (e.kind === 'clear') { toast(`${G.stageName(e.stage)} 클리어! 보석 +60`); play('reward'); }
-      if (e.kind === 'captain') { toast(`단장 레벨 ${e.level}! 보석 +30`); play('level'); }
       if (e.kind === 'skill-impact' && age < .5 && e.battleId === state.battle.id) play('water', e.stage);
     }
     effects = effects.filter(e => now - e.time < 3.1 && (!e.battleId || e.battleId === state.battle.id)).slice(-90);
@@ -266,20 +314,22 @@
     tab = next; $('app').dataset.tab = tab;
     for (const name of ['adventure', 'roster', 'dungeons', 'recruit', 'supplies']) $('tab-' + name).hidden = name !== tab;
     document.querySelectorAll('.bottom-nav>button').forEach(b => { const active = b.dataset.tab === (tab === 'roster' ? 'adventure' : tab); b.classList.toggle('active', active); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
-    document.querySelector('.content-panel').scrollTop = 0; document.querySelector('.workspace').scrollTop = 0; renderKey = dungeonRenderKey = ''; render();
+    document.querySelector('.content-panel').scrollTop = 0; document.querySelector('.workspace').scrollTop = 0; renderKey = dungeonRenderKey = ''; render(); boardJump(tab === 'adventure' ? 'battle' : 'party');
   }
   function render() {
     if (!state) return;
     $('gold').textContent = fmt(state.gold); $('gems').textContent = fmt(state.gems);
     $('captain-level').textContent = `Lv.${state.captain.level}`;
-    $('captain-xp').style.width = `${state.captain.level === 50 ? 100 : state.captain.xp / G.captainNeed(state.captain.level) * 100}%`;
+    $('captain-name-label').textContent = state.commanderName === '새내기 단장' ? '이름 정하기' : state.commanderName || '단장';
+    $('captain-button').setAttribute('aria-label', `${state.commanderName || '단장'} Lv.${state.captain.level} · 이름과 랭킹`);
+    $('captain-xp').style.width = `${state.captain.level >= G.CAPTAIN_MAX_LEVEL ? 100 : state.captain.xp / G.captainNeed(state.captain.level) * 100}%`;
     $('account-label').textContent = mode === 'cloud' ? '계정 저장' : '게스트'; $('account-button').classList.toggle('cloud', mode === 'cloud');
     $('stage-number').textContent = G.stageName(state.battle.stage); $('stage-name').textContent = G.CHAPTERS[G.chapter(state.battle.stage)];
     $('wave-label').textContent = state.battle.boss ? 'BOSS · ' + G.BOSSES[G.chapter(state.battle.stage)] : `WAVE ${state.battle.wave} / 4`;
     $('wave-label').classList.toggle('boss', state.battle.boss);
     renderBossHUD();
     $('power').textContent = `전투력 ${fmt(G.power(state))}`;
-    $('battle-status').textContent = state.mode === 'farm' ? '반복 사냥 중 · 지도를 열어 다음 지역에 도전' : state.battle.phase === 'defeat' ? '다시 도전 중 · 용병을 훈련해 보세요.' : '자동 전투 · 승리할 때마다 경험치를 받아요.';
+    $('battle-status').textContent = state.mode === 'farm' ? '반복 사냥' : state.battle.phase === 'defeat' ? '재도전 준비' : '자동 전투';
     const activity = state.battle.activity;
     if (activity) {
       $('stage-number').textContent = activityLevel(activity); $('stage-name').textContent = activityTitle(activity.kind);
@@ -302,7 +352,7 @@
     }
     document.querySelectorAll('.party-card[data-hero]').forEach(el => { const id = el.dataset.hero, h = state.battle.heroes.find(h => h.id === id), u = state.units[id]; el.querySelector('small').textContent = `Lv.${u.level} · ${G.BY_ID[id].role}`; el.querySelector('i').style.width = `${h ? Math.max(0, h.hp / h.max) * 100 : 100}%`; el.classList.toggle('fallen', !!h && h.hp <= 0); });
     $('offline-summary').textContent = state.offline.seconds ? `${duration(state.offline.seconds)} · 골드 ${fmt(state.offline.gold)} 수령 가능` : '자리를 비워도 최대 8시간까지';
-    const key = JSON.stringify([tab, filter, state.units, state.team, state.best, state.stage, state.mode, state.offline, state.claimed, state.daily, state.pulls, state.banners, state.pity, selectedBanner, G.bannerAvailable(selectedBanner, serverNow()), state.captain.level, state.activities, confirmedActivityResult?.runId, G.day(serverNow()), selectedTiers, selectedTowerFloor]);
+    const key = JSON.stringify([tab, filter, state.units, state.team, state.best, state.stage, state.mode, state.offline, state.claimed, state.daily, state.pulls, state.banners, state.pity, selectedBanner, G.bannerAvailable(selectedBanner, serverNow()), state.captain.level, state.activities, confirmedActivityResult?.runId, G.day(serverNow()), selectedTiers, selectedTowerFloor, selectedDungeon]);
     if (key !== renderKey) {
       renderKey = key;
       if (tab === 'adventure') renderChapters();
@@ -320,8 +370,8 @@
 
     }
     if (tab === 'dungeons') {
-      const dungeonKey = JSON.stringify([state.activities, state.best, G.day(serverNow()), selectedTiers, selectedTowerFloor, confirmedActivityResult?.runId]);
-      if (dungeonKey !== dungeonRenderKey && renderDungeons() !== false) dungeonRenderKey = JSON.stringify([state.activities, state.best, G.day(serverNow()), selectedTiers, selectedTowerFloor, confirmedActivityResult?.runId]);
+      const dungeonKey = JSON.stringify([state.activities, state.best, G.day(serverNow()), selectedTiers, selectedTowerFloor, selectedDungeon, confirmedActivityResult?.runId]);
+      if (dungeonKey !== dungeonRenderKey && renderDungeons() !== false) dungeonRenderKey = JSON.stringify([state.activities, state.best, G.day(serverNow()), selectedTiers, selectedTowerFloor, selectedDungeon, confirmedActivityResult?.runId]);
     }
     $('recruit-dot').hidden = state.gems < 900;
     $('supply-dot').hidden = !(state.offline.seconds || state.daily < G.day(Date.now() + offset) || G.QUESTS.some(q => !state.claimed.includes(q.id) && G.questValue(state, q) >= q.goal));
@@ -329,6 +379,9 @@
     maybeShowActivityResult();
   }
   function renderButtons() {
+    $('operation-status').hidden = !operation || !busy;
+    $('operation-message').textContent = ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중'})[operation] || '저장 확인 중';
+    $('app').setAttribute('aria-busy', String(busy));
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
     const bannerClosed = !G.bannerAvailable(selectedBanner, Date.now() + (mode === 'cloud' ? offset : 0));
     $('recruit-one').disabled = blocked || bannerClosed || state.gems < 100; $('recruit-ten').disabled = blocked || bannerClosed || state.gems < 900;
@@ -343,6 +396,7 @@
     document.querySelectorAll('[data-activity-mode]').forEach(button => { button.disabled = blocked || activityActive() || activityAwaitingConfirmation() || button.dataset.unavailable === 'true'; });
     document.querySelectorAll('[data-activity-exit]').forEach(button => { button.disabled = blocked || activityAwaitingConfirmation(); });
     document.querySelectorAll('[data-activity-tier], #tower-floor').forEach(input => { input.disabled = blocked; });
+    if ($('save-commander-name')) $('save-commander-name').disabled = blocked;
     $('stage-button').disabled = blocked || !!state.battle.activity;
     if ($('formation-status')) $('formation-status').textContent = activityActive() ? '던전 도전 중에는 편성을 바꿀 수 없어요. 던전에서 도전을 마친 뒤 편성하세요.' : `${formationHint()} 편성을 바꾸면 현재 전투를 다시 시작합니다.`;
 
@@ -389,24 +443,58 @@
     const next = mode === 'tower' && result.won && result.floor < info.tower.maxFloor && Number.isSafeInteger(result.floor + 1) ? `<button class="primary" data-activity-mode="tower" data-floor="${result.floor + 1}">다음 층 도전</button>` : '';
     return `${next}<button class="secondary" data-activity-mode="${mode}" ${level} data-unavailable="${unavailable}">${unavailable ? '열쇠 충전 대기' : '재도전'}</button><button class="secondary" data-activity-exit>모험 복귀</button>`;
   }
+  function captainModal() {
+    const captain = state.captain, maxed = captain.level >= G.CAPTAIN_MAX_LEVEL, need = G.captainNeed(captain.level);
+    openModal('내 단장', `<section class="captain-profile"><span class="crest" aria-hidden="true">校</span><div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3><p>단장 <strong>Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">저장</button></div><p id="name-message" role="status">한글·영문·숫자·공백·_·- 사용 가능. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><p class="detail-note">전투와 방치 보상으로 단장 경험치를 얻어요. 레벨업마다 보석 30개!</p>`, 'captain');
+    $('captain-name-form').onsubmit = event => {
+      event.preventDefault(); const name = G.normalizeCommanderName($('commander-name').value);
+      if (!name) { $('name-message').textContent = '이름은 2~12글자로 입력해 주세요. 특수문자는 _와 -만 사용할 수 있어요.'; return; }
+      if (busy || pending) { $('name-message').textContent = '이전 요청을 저장하고 있어요. 잠시 기다려주세요.'; return; }
+      act({kind:'rename',name});
+    };
+    renderButtons();
+  }
+  async function rankingModal(next = 'level', refresh = false) {
+    rankingMode = next === 'tower' ? 'tower' : 'level'; const requestedMode = rankingMode, generation = ++rankingGeneration;
+    const scope = accountScope(), cacheKey = `${scope}:${requestedMode}`;
+    openModal('용병단 랭킹', `<div class="ranking-tabs"><button class="secondary ${requestedMode === 'level' ? 'active' : ''}" data-ranking="level" aria-pressed="${requestedMode === 'level'}">${icon('trophy')} 단장 레벨</button><button class="secondary ${requestedMode === 'tower' ? 'active' : ''}" data-ranking="tower" aria-pressed="${requestedMode === 'tower'}">${icon('dungeon')} 복도 기록</button></div><div id="ranking-content" aria-live="polite"><p class="ranking-notice"><span class="loading-spinner" aria-hidden="true"></span> 랭킹을 불러오고 있어요.</p></div><div class="ranking-footer"><span id="ranking-updated"></span><button class="text-button" id="refresh-ranking">새로고침</button></div>`, 'rankings');
+    $('refresh-ranking').onclick = () => rankingModal(requestedMode, true);
+    const cached = rankingCache.get(cacheKey);
+    try {
+      let data;
+      if (!refresh && cached && Date.now() - cached.at < 60000) data = cached.data;
+      else {
+        $('refresh-ranking').disabled = true;
+        data = await request('/api/school/rankings', {mode:requestedMode}, mode === 'cloud' ? 'school' : 'public');
+        rankingCache.set(cacheKey, {at:Date.now(),data});
+      }
+      if (generation !== rankingGeneration || modalKind !== 'rankings' || scope !== accountScope()) return;
+      const score = entry => requestedMode === 'tower' ? `${fmt(entry.floor)}층` : `Lv.${fmt(entry.level)}`;
+      $('ranking-content').innerHTML = `${data.me ? `<div class="ranking-mine" id="ranking-me">내 순위 <b>${fmt(data.me.rank)}위</b> · ${esc(data.me.name)} · ${score(data.me)}</div>` : `<p class="ranking-notice">${mode === 'guest' ? 'Google 계정의 용병단이 랭킹에 등록됩니다. 게스트도 랭킹을 볼 수 있어요.' : requestedMode === 'tower' ? '복도를 1층 이상 클리어하면 기록이 올라가요.' : '계정의 저장 기록을 확인한 뒤 다시 확인해 주세요.'}</p>`}<ol class="ranking-list">${data.entries.map(entry => `<li class="ranking-row ${entry.isMe ? 'mine' : ''}"><span>${fmt(entry.rank)}</span><b>${esc(entry.name)}</b><small>${score(entry)}</small></li>`).join('')}</ol>${!data.entries.length ? '<p class="ranking-notice">아직 등록된 기록이 없어요. 첫 기록에 도전해 보세요!</p>' : ''}`;
+      $('ranking-updated').textContent = `상위 ${data.limit || 50}명 · 총 ${fmt(data.total)}명 · ${new Date(data.updatedAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})} 갱신`;
+    } catch (error) {
+      if (generation === rankingGeneration && modalKind === 'rankings') $('ranking-content').innerHTML = `<p class="ranking-notice" role="alert">${esc(error.message)}<br>새로고침을 눌러 다시 확인해 주세요.</p>`;
+    } finally { if (generation === rankingGeneration && $('refresh-ranking')) $('refresh-ranking').disabled = false; }
+  }
   function renderDungeons() {
     const info = activityInfo();
     if (!info) { $('dungeon-cards').textContent = '던전 정보를 불러오고 있어요.'; return; }
     $('dungeon-keys').innerHTML = ['daily', 'weekly'].map(kind => `<span class="key-chip"><b>${kind === 'daily' ? '일일' : '주간'} 열쇠</b> <span id="${kind}-keys">${info[kind].keys}</span> / ${info[kind].cap}</span>`).join('');
-    $('dungeon-reset').textContent = `한국 시간 · 일일 ${resetTime(info.daily.resetAt)} / 주간 ${resetTime(info.weekly.resetAt)} 충전`;
+    $('dungeon-reset').textContent = `${selectedDungeon === 'tower' ? '열쇠 없이 도전 · 층별 첫 클리어 보상' : `다음 충전 ${resetTime(info[selectedDungeon].resetAt)} · 한국 시간`}`;
     const run = info.run, result = run?.settled && String(confirmedActivityResult?.runId) === String(run.id) ? confirmedActivityResult : null;
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-polish1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
       const unavailable = !chosen.unlocked || item.keys <= 0;
-      return `<article class="dungeon-card"><h3>${esc(item.name)}</h3><p>${kind === 'daily' ? '매일 3개의 열쇠로 골드와 보석을 모아요.' : '매주 2개의 열쇠로 강력한 보스에게 도전해요.'}</p><label class="dungeon-tier" for="${kind}-tier">도전 단계<select id="${kind}-tier" data-activity-tier="${kind}">${item.tiers.map(tier => `<option value="${tier.tier}" ${tier.tier === chosen.tier ? 'selected' : ''} ${tier.unlocked ? '' : 'disabled'}>${tier.tier}단계${tier.unlocked ? '' : tier.unlockBest ? ` · ${G.stageName(tier.unlockBest)} 클리어 후` : ' · 잠김'}</option>`).join('')}</select></label><div class="dungeon-reward">승리 보상 · ${rewardText(chosen.reward)}</div><div class="dungeon-meta"><small>입장 1개 · 패배·포기 시 반환</small><small>${kind === 'daily' ? '매일 00:00' : '월요일 00:00'} 충전</small></div><div class="dungeon-actions"><button class="primary" id="${kind}-enter" data-activity-mode="${kind}" data-tier="${chosen.tier}" data-unavailable="${unavailable}">${!chosen.unlocked ? '아직 잠긴 단계' : item.keys <= 0 ? '열쇠 충전 대기' : '열쇠 1개로 도전'}</button></div></article>`;
+      return `<article class="dungeon-card" ${selectedDungeon === kind ? '' : 'hidden'}><h3>${esc(item.name)}</h3><p>${kind === 'daily' ? '매일 골드와 보석을 모아요.' : '강력한 보스에게 도전하세요.'}</p><label class="dungeon-tier" for="${kind}-tier">도전 단계<select id="${kind}-tier" data-activity-tier="${kind}">${item.tiers.map(tier => `<option value="${tier.tier}" ${tier.tier === chosen.tier ? 'selected' : ''} ${tier.unlocked ? '' : 'disabled'}>${tier.tier}단계${tier.unlocked ? '' : tier.unlockBest ? ` · ${G.stageName(tier.unlockBest)} 클리어 후` : ' · 잠김'}</option>`).join('')}</select></label><div class="dungeon-reward">승리 보상 · ${rewardText(chosen.reward)}</div><div class="dungeon-meta"><small>입장 1개 · 패배·포기 시 반환</small><small>${kind === 'daily' ? '매일 00:00' : '월요일 00:00'} 충전</small></div><div class="dungeon-actions"><button class="primary" id="${kind}-enter" data-activity-mode="${kind}" data-tier="${chosen.tier}" data-unavailable="${unavailable}">${!chosen.unlocked ? '아직 잠긴 단계' : item.keys <= 0 ? '열쇠 충전 대기' : '열쇠 1개로 도전'}</button></div></article>`;
     }).join('');
     const floor = Number.isSafeInteger(selectedTowerFloor) && selectedTowerFloor >= 1 && selectedTowerFloor <= info.tower.nextFloor ? selectedTowerFloor : info.tower.nextFloor;
     selectedTowerFloor = floor;
-    cards += `<article class="dungeon-card tower-card"><h3>${esc(info.tower.name)}</h3><p>끝없이 이어지는 복도. 한 층씩 올라가 최고 기록에 도전하세요.</p><div class="dungeon-meta"><b>최고 ${fmt(info.tower.best)}층</b><small>열쇠 없이 무제한 도전</small></div><label class="tower-floor" for="tower-floor">도전할 층<input id="tower-floor" type="number" inputmode="numeric" min="1" max="${info.tower.nextFloor}" value="${floor}" step="1"></label><div class="dungeon-reward">${floor > info.tower.best ? `첫 클리어 · ${rewardText(info.tower.reward)}` : '클리어한 층은 골드·보석·경험치를 다시 지급하지 않아요.'}</div><div class="dungeon-actions"><button class="primary" id="tower-enter" data-activity-mode="tower" data-floor="${floor}">${fmt(floor)}층 도전</button></div></article>`;
+    cards += `<article class="dungeon-card tower-card" ${selectedDungeon === 'tower' ? '' : 'hidden'}><h3>${esc(info.tower.name)}</h3><p>한 층씩 올라가는 무한 도전</p><div class="dungeon-meta"><b>최고 ${fmt(info.tower.best)}층</b><small>열쇠 없이 무제한 도전</small></div><label class="tower-floor" for="tower-floor">도전할 층<input id="tower-floor" type="number" inputmode="numeric" min="1" max="${info.tower.nextFloor}" value="${floor}" step="1"></label><div class="dungeon-reward">${floor > info.tower.best ? `첫 클리어 · ${rewardText(info.tower.reward)}` : '클리어한 층은 골드·보석·경험치를 다시 지급하지 않아요.'}</div><div class="dungeon-actions"><button class="primary" id="tower-enter" data-activity-mode="tower" data-floor="${floor}">${fmt(floor)}층 도전</button></div></article>`;
     $('dungeon-cards').innerHTML = cards;
   }
   function enterActivity(button) {
@@ -500,10 +588,10 @@
       const pool = G.HEROES.filter(h => h.rarity === grade && (grade !== 'SSR' || h.id === banner.featured || ['osia','ian','lumi'].includes(h.id)));
       return `<tr><td>${grade} · ${pool.length}명</td><td>${percent(rates[grade])}</td><td>${pool.map(h => `${h.name} ${percent(heroRates[h.id])}`).join('<br>')}</td></tr>`;
     }).join('');
-    openModal('모집 확률 안내', `<div class="modal-copy"><p><strong>${banner.name}</strong><br>1회 보석 100개 / 10회 900개.</p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회</th><th>용병별 실제 확률</th></tr></thead><tbody>${rows}</tbody></table><p>현재 누적 ${progress.pity}회 · <strong>다음 ${progress.pity + 1}회째 확률</strong>입니다. ${progress.guaranteed ? `다음 SSR은 <strong>${G.BY_ID[banner.featured].name} 확정</strong>입니다.` : `SSR이 나오면 <strong>50%는 ${G.BY_ID[banner.featured].name}</strong>, 나머지 50%는 다른 상시 SSR입니다.`}</p><p>메인 이외의 SSR을 얻으면 <strong>그 배너의 다음 SSR은 메인 확정</strong>입니다. 메인을 얻으면 다시 50:50이 됩니다. 두 배너의 누적 횟수와 메인 보장은 각각 저장됩니다.</p><p>기본 확률 SSR 4% · SR 26% · R 70%. SSR 미획득 기준 <strong>60회째 5%</strong>부터 매회 1%p씩 올라 79회째 24%, <strong>80회째 SSR 확정</strong>입니다. 증가분은 R에서 차감합니다. SSR 획득 시 누적만 0으로 초기화됩니다.</p><p>단일·10회 모집 모두 한 번씩 계산합니다. 10회의 앞 9명에 SR 이상이 없고 마지막 결과가 R이면 SR로 올립니다. SSR 천장을 먼저 적용합니다.</p><p>라바는 <strong>2026년 11월 20일 23:59(한국 시간)까지</strong> 한정 배너에서만 나옵니다. 오시아 상시 배너에서는 나오지 않습니다. 이미 얻은 라바는 종료 후에도 사용할 수 있습니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개. 최대 5성까지 각성할 수 있습니다. 표의 소수점은 반올림하여 합계가 조금 다를 수 있습니다.</p></div>`, 'rates');
+    openModal('모집 확률 안내', `<div class="modal-copy"><p><strong>${banner.name}</strong><br>1회 보석 100개 / 10회 900개.</p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회</th><th>용병별 실제 확률</th></tr></thead><tbody>${rows}</tbody></table><p>현재 누적 ${progress.pity}회 · <strong>다음 ${progress.pity + 1}회째 확률</strong>입니다. ${progress.guaranteed ? `다음 SSR은 <strong>${G.BY_ID[banner.featured].name} 확정</strong>입니다.` : `SSR이 나오면 <strong>50%는 ${G.BY_ID[banner.featured].name}</strong>, 나머지 50%는 다른 상시 SSR입니다.`}</p><p>메인 이외의 SSR을 얻으면 <strong>그 배너의 다음 SSR은 메인 확정</strong>입니다. 메인을 얻으면 다시 50:50이 됩니다. 두 배너의 누적 횟수와 메인 보장은 각각 저장됩니다.</p><p>기본 확률 SSR ${percent(G.RECRUIT_RATES.SSR)} · SR ${percent(G.RECRUIT_RATES.SR)} · R ${percent(G.RECRUIT_RATES.R)}. SSR 미획득 기준 <strong>${G.RECRUIT_PITY.soft}회째 ${percent(G.recruitRates(G.RECRUIT_PITY.soft - 1).SSR)}</strong>부터 매회 1%p씩 올라 ${G.RECRUIT_PITY.hard - 1}회째 ${percent(G.recruitRates(G.RECRUIT_PITY.hard - 2).SSR)}, <strong>${G.RECRUIT_PITY.hard}회째 SSR 확정</strong>입니다. 증가분은 R에서 차감합니다. SSR 획득 시 누적만 0으로 초기화됩니다.</p><p>단일·10회 모집 모두 한 번씩 계산합니다. 10회의 앞 9명에 SR 이상이 없고 마지막 결과가 R이면 SR로 올립니다. SSR 천장을 먼저 적용합니다.</p><p>라바는 <strong>2026년 11월 20일 23:59(한국 시간)까지</strong> 한정 배너에서만 나옵니다. 오시아 상시 배너에서는 나오지 않습니다. 이미 얻은 라바는 종료 후에도 사용할 수 있습니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개. 최대 5성까지 각성할 수 있습니다. 표의 소수점은 반올림하여 합계가 조금 다를 수 있습니다.</p></div>`, 'rates');
   }
   function help() {
-    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>최대 6명의 용병이 자동으로 싸웁니다. 1~3명은 맨 앞 용병이, 4~6명은 전열 3명이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>던전은 일일 열쇠 3개·주간 열쇠 2개로 도전합니다. 패배·포기하면 입장 열쇠가 돌아옵니다.</li><li>뫼비우스의 복도는 열쇠 없이 도전하며 층별 첫 클리어 때만 보상을 받습니다.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
+    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>최대 6명의 용병이 자동으로 싸웁니다. 1~3명은 맨 앞 용병이, 4~6명은 전열 3명이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>던전은 일일 열쇠 3개·주간 열쇠 2개로 도전합니다. 패배·포기하면 입장 열쇠가 돌아옵니다.</li><li>뫼비우스의 복도는 열쇠 없이 도전하며 층별 첫 클리어 때만 보상을 받습니다.</li><li>단장은 최대 Lv.${G.CAPTAIN_MAX_LEVEL}까지 성장하며, 레벨업마다 보석 30개를 받아요. 단장 버튼에서 이름을 정하고 레벨·복도 랭킹을 볼 수 있습니다. Google 계정에 저장한 기록과 게임 안에서 정한 이름만 공개됩니다.</li><li>기본 SSR 확률은 ${Number((G.RECRUIT_RATES.SSR * 100).toFixed(2))}%입니다. 픽업별 확률과 확정 횟수는 모집 화면의 확률 안내에서 확인하세요.</li><li>가로 화면에서는 전장과 용병을 함께 볼 수 있어요. 세로에서는 좌우로 밀어 이동하세요. 설정에서 다크 모드·효과음·모션을 바꿀 수 있고, 모집·각성·단장 성장 연출은 바로 건너뛸 수 있습니다.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
   }
   async function sdk() {
     if (window.google?.accounts?.id) return;
@@ -521,6 +609,7 @@
       const body = await request('/api/school/state');
       const fingerprint = await tokenFingerprint(connectingToken);
       if (!connectingToken || connectingToken !== token) throw Error('로그인 계정이 바뀌었습니다. 다시 연결하세요.');
+      Presentation?.cancel(); confirmedScope = '';
       profile = identity.profile; mode = 'cloud'; storage.set(MODE, 'cloud'); effects = []; lastSeq = body.state.seq;
       verifiedToken = connectingToken; sessionFingerprint = fingerprint;
       try { const saved = JSON.parse(storage.get(PENDING, true) || 'null'); pending = saved?.accountId === profile.id ? saved : null; if (!pending) storage.remove(PENDING, true); } catch { clearPending(); }
@@ -545,6 +634,7 @@
         if (busy || pending) { toast('진행 중인 요청을 먼저 확인해 주세요.'); return; }
         const prior = { profile, state, hasCloudState, cloudBalance, connected };
         busy = true; renderButtons();
+        Presentation?.cancel(); confirmedScope = ''; rankingCache.clear();
         mode = 'guest'; profile = null; storage.set(MODE, 'guest'); effects = []; connected = true; hasCloudState = false; cloudBalance = null;
         try { await guestUpdate(); lastSeq = state.seq; document.querySelector('.workspace').style.visibility = ''; note(''); closeModal(); renderKey = partyKey = ''; render(); toast('이 기기의 게스트 기록으로 돌아왔어요.'); }
         catch (error) { mode = 'cloud'; profile = prior.profile; state = prior.state; hasCloudState = prior.hasCloudState; cloudBalance = prior.cloudBalance; connected = prior.connected; storage.set(MODE, 'cloud'); saveStatus(connected ? 'saved' : 'error', connected ? '계정 저장 완료' : '계정 연결 대기'); toast(error.message); }
@@ -582,7 +672,10 @@
   function bind() {
     document.addEventListener('click', e => {
       const target = e.target.closest('button'); if (!target || target.disabled) return;
-      if (target.dataset.tab) setTab(target.dataset.tab);
+      if (target.dataset.tab) { setTab(target.dataset.tab); if (target.dataset.tab !== 'adventure') boardJump('party'); }
+      if (target.dataset.boardJump) boardJump(target.dataset.boardJump);
+      if (target.dataset.dungeon) { selectedDungeon = target.dataset.dungeon; dungeonRenderKey = ''; render(); }
+      if (target.dataset.ranking) rankingModal(target.dataset.ranking);
       if (target.dataset.hero) heroDetail(target.dataset.hero);
       if (target.dataset.banner && G.BANNERS[target.dataset.banner]) { selectedBanner = target.dataset.banner; storage.set('school-pickup', selectedBanner); renderKey = ''; render(); }
       if (target.dataset.activityMode) enterActivity(target);
@@ -595,6 +688,9 @@
     });
     document.addEventListener('change', event => {
       const target = event.target;
+      if (target.id === 'setting-theme') { theme = target.checked ? 'dark' : 'light'; applyPreferences(true); }
+      if (target.id === 'setting-sound') { sound = target.checked; applyPreferences(true); play('tap'); }
+      if (target.id === 'setting-motion') { reduced = target.checked; applyPreferences(true); }
       if (target.dataset.activityTier) { selectedTiers[target.dataset.activityTier] = Number(target.value); renderKey = ''; render(); }
       if (target.id === 'tower-floor') {
         const info = activityInfo(), floor = Number(target.value);
@@ -605,8 +701,11 @@
       }
     });
     $('dungeon-help').onclick = dungeonHelp;
-    $('sound-button').onclick = () => { sound = !sound; storage.set('school-sound', sound ? 'on' : 'off'); refreshSound(); play('tap'); };
-    $('account-button').onclick = accountModal; $('help-button').onclick = help; $('captain-button').onclick = help;
+    $('sound-button').onclick = () => { sound = !sound; applyPreferences(true); play('tap'); };
+    $('settings-button').onclick = settingsModal; $('continue-landscape').onclick = dismissRotation; $('rotate-screen').onclick = attemptLandscape;
+    $('tower-ranking-button').onclick = () => rankingModal('tower');
+    window.addEventListener('resize', updateOrientation);
+    $('account-button').onclick = accountModal; $('help-button').onclick = help; $('captain-button').onclick = captainModal;
     $('modal-close').onclick = closeModal; $('modal').addEventListener('cancel', () => { modalKind = ''; loginGeneration++; });
     $('modal').addEventListener('click', e => { const r = $('modal').getBoundingClientRect(); if (e.target === $('modal') && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) closeModal(); });
     $('stage-button').onclick = stageMap;
@@ -640,7 +739,9 @@
     window.addEventListener('storage', e => { if (e.key === SAVE && mode === 'guest' && !busy) guestUpdate().catch(() => {}); });
   }
   async function boot() {
+    applyPreferences();
     const wantsCloud = storage.get(MODE) === 'cloud';
+    showBoot(wantsCloud ? '계정 기록을 확인하고 있어요' : '기기에 저장된 모험을 불러와요');
     if (wantsCloud) {
       mode = 'cloud'; connected = false;
       try {
@@ -662,13 +763,16 @@
         $('gold').textContent = $('gems').textContent = '—'; note(error.message);
       }
     }
+    showBoot('용병과 전장을 준비하고 있어요');
     await Art.ready;
     $('feature-osia').src = Art.portrait('osia'); $('feature-lava').src = Art.portrait('lava'); $('recruit-count').textContent = '상시 오시아 · 한정 라바';
     clientReady = true; bind(); refreshSound(); renderButtons();
     if (!guestSaveFailed && (!wantsCloud || hasCloudState)) render();
     if (wantsCloud) {
+      showBoot('서버의 최신 기록을 확인하고 있어요');
       if (token) await useCloud(); else { saveStatus('error', '로그인 필요'); note('계정 기록을 이어 하려면 계정 메뉴에서 Google로 로그인하세요. 게스트 기록으로 자동 전환하지 않습니다.'); }
     }
+    finishBoot();
     setInterval(() => {
       if (document.hidden || !state) return;
       if (mode === 'guest' && !busy && !guestTickPending && (!guestSaveFailed || Date.now() - lastSave > 2000)) {
@@ -699,10 +803,10 @@
     window.visualViewport?.addEventListener('resize', () => { canvasSizeDirty = true; });
     function animate(time) {
       requestAnimationFrame(animate);
-      if (document.hidden || tab !== 'adventure' && innerWidth <= 650 || time - previous < (reduced ? 120 : 32)) return;
+      if (document.hidden || time - previous < (reduced ? 120 : 32)) return;
       previous = time; if (fitBattleCanvas()) Art.draw(ctx, state, animationTime(), effects, reduced);
     }
     requestAnimationFrame(animate);
   }
-  boot().catch(error => { saveStatus('error', '저장 확인 필요'); note(error.message || '게임을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.'); console.error(error); });
+  boot().catch(error => { $('boot-screen').hidden = true; $('rotate-prompt').hidden = true; $('app').inert = false; saveStatus('error', '저장 확인 필요'); note(error.message || '게임을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.', 'reload'); console.error(error); });
 })();

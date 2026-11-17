@@ -6,11 +6,54 @@ export function createSchool() {
     if (!condition) throw Object.assign(new Error(message), { status });
   };
   const secure = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+  // All scores come from the same server-owned save transaction. CASE also
+  // protects public reads from a damaged legacy JSON record.
+  const safePayload = "CASE WHEN json_valid(payload) THEN payload ELSE '{}' END";
+  const levelScore = `CAST(json_extract(${safePayload}, '$.captain.level') AS INTEGER)`;
+  const xpScore = `CAST(COALESCE(json_extract(${safePayload}, '$.captain.xp'), 0) AS INTEGER)`;
+  const towerScore = `CAST(COALESCE(json_extract(${safePayload}, '$.activities.towerBest'), 0) AS INTEGER)`;
+  async function rankings(env, mode, signed) {
+    requireSchool(mode === 'level' || mode === 'tower', '랭킹 종류를 확인하세요.');
+    const order = mode === 'level' ? `${levelScore} DESC, ${xpScore} DESC` : `${towerScore} DESC`;
+    const valid = `json_valid(payload) AND json_type(${safePayload}, '$.captain.level') = 'integer'
+      AND ${levelScore} BETWEEN 1 AND ${game.CAPTAIN_MAX_LEVEL} AND ${xpScore} >= 0
+      ${mode === 'tower' ? `AND ${towerScore} > 0` : ''}`;
+    const result = await env.DB.prepare(`WITH ranked AS (
+      SELECT account_id, RANK() OVER (ORDER BY ${order}) AS rank,
+        ROW_NUMBER() OVER (ORDER BY ${order}, account_id ASC) AS position,
+        COUNT(*) OVER () AS total
+      FROM school_saves WHERE ${valid}
+    ) SELECT ranked.*, json_extract(${safePayload}, '$.commanderName') AS name,
+      ${levelScore} AS level, ${towerScore} AS floor
+      FROM ranked JOIN school_saves USING (account_id)
+      WHERE position <= 50 OR account_id = ? ORDER BY position`)
+      .bind(signed?.id || '').all();
+    const rows = result.results || [];
+    const publicEntry = row => ({
+      rank: row.rank, name: game.normalizeCommanderName(row.name) || '새내기 단장',
+      level: row.level, floor: Math.max(0, row.floor), isMe: row.account_id === signed?.id,
+    });
+    const mine = signed && rows.find(row => row.account_id === signed.id);
+    return { mode, entries: rows.filter(row => row.position <= 50).map(publicEntry),
+      me: mine ? publicEntry(mine) : null, total: rows[0]?.total || 0,
+      updatedAt: Date.now(), limit: 50 };
+  }
   return {
     async request(path, request, env, data, accounts) {
       try {
-      requireSchool(["/api/school/state", "/api/school/action"].includes(path), "지원하지 않는 경로입니다.", 404);
-      const signed = await accounts.identity(request, env, Date.now());
+      requireSchool(["/api/school/state", "/api/school/action", "/api/school/rankings"].includes(path), "지원하지 않는 경로입니다.", 404);
+      let signed;
+      try { signed = await accounts.identity(request, env, Date.now()); }
+      catch (error) {
+        // Public boards remain readable after a session expires. Only absence
+        // of identity is ignored; database/service failures still surface.
+        if (path !== '/api/school/rankings' || error.status !== 401) throw error;
+        signed = null;
+      }
+      if (path === '/api/school/rankings') {
+        requireSchool(data.catalogVersion === game.CATALOG_VERSION, "게임이 업데이트되었습니다. 페이지를 새로고침해 주세요.", 426);
+        return await rankings(env, data.mode, signed);
+      }
       requireSchool(signed, "계정으로 로그인하세요.", 401);
       // Older bundles cannot render newly recruited heroes. Reject before any
       // write or charge, so a refresh can safely resume the same saved request.

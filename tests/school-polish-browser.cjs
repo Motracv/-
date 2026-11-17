@@ -1,0 +1,88 @@
+const assert=require('node:assert/strict'),fs=require('node:fs');
+const G=require('../school/engine.js');
+const {seedGuest}=require('./school-ui-regressions.cjs');
+const SAVE='school-mercenaries-v8';
+const fresh=()=>G.create(Date.now()+60000,860);
+async function closeModal(p){if(await p.locator('#modal').evaluate(el=>el.open))await p.click('#modal-close');}
+async function skip(p){await p.click('#school-presentation .presentation-skip');await p.waitForFunction(()=>!document.getElementById('school-presentation')?.open);}
+async function runPolishRegressions({pageFor,saved,tab,t,login,origin,setStateDelay}){
+ const pages=[];const page=async(...args)=>{const p=await pageFor(...args);pages.push(p);p.setDefaultTimeout(12000);return p;};
+ try{
+  const p=await page('polish-portrait',320,568,1,{orientation:false});
+  await p.waitForSelector('#rotate-prompt:not([hidden])');assert.ok(await p.locator('#app').evaluate(el=>el.inert));
+  await p.evaluate(()=>{document.documentElement.requestFullscreen=()=>Promise.reject(new Error('Unsupported fixture fullscreen'));});
+  await p.click('#rotate-screen');await p.waitForSelector('#rotate-prompt',{state:'hidden'});assert.equal(await p.locator('#app').evaluate(el=>el.inert),false);
+  await p.click('[data-board-jump="party"]');await p.waitForFunction(()=>document.getElementById('board-viewport').scrollLeft>0);
+  await p.click('#party [data-hero="harin"]');assert.ok(await p.locator('#train-hero').isVisible());await closeModal(p);
+  await p.click('[data-board-jump="battle"]');await p.waitForFunction(()=>document.getElementById('board-viewport').scrollLeft===0);
+  assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await p.screenshot({path:'/tmp/school-polish-portrait-fallback.png'});
+  for(const [width,height]of[[844,390],[568,280],[2560,1440]]){
+   await p.setViewportSize({width,height});await tab(p,'adventure');
+   for(const selector of['#settings-button','#account-button','#captain-button','#formation-button','[data-speed="1"]','[data-speed="1.5"]','.bottom-nav button']){
+    const sizes=await p.locator(selector).evaluateAll(els=>els.map(el=>({w:el.getBoundingClientRect().width,h:el.getBoundingClientRect().height})));assert.ok(sizes.every(r=>r.w>=43.9&&r.h>=43.9),`44px controls ${width}: ${selector} ${JSON.stringify(sizes)}`);
+   }
+   const layout=await p.evaluate(()=>{const b=document.querySelector('.battle-panel').getBoundingClientRect(),r=document.querySelector('.party-panel').getBoundingClientRect(),n=document.querySelector('.bottom-nav').getBoundingClientRect();return{battle:b.toJSON(),party:r.toJSON(),nav:n.toJSON(),w:innerWidth,h:innerHeight,sw:document.documentElement.scrollWidth,sh:document.documentElement.scrollHeight};});
+   assert.ok(layout.nav.right<=layout.battle.left+3&&layout.battle.right<=layout.party.left+3,'Landscape keeps the PC rail/battle/party layout: '+JSON.stringify(layout));assert.ok(layout.sw<=width+1&&layout.sh<=height+1);
+   await p.screenshot({path:`/tmp/school-polish-landscape-${width}.png`});
+  }
+  await p.click('#settings-button');assert.equal(await p.locator('#setting-sound').isChecked(),false);await p.check('#setting-theme');await p.check('#setting-sound');await p.check('#setting-motion');await closeModal(p);
+  assert.equal(await p.evaluate(()=>document.documentElement.dataset.theme),'dark');const dark=await p.locator('body').evaluate(el=>getComputedStyle(el).backgroundColor);assert.notEqual(dark,'rgb(0, 0, 0)');
+  await p.reload();await p.click('#settings-button');assert.ok(await p.locator('#setting-theme').isChecked());assert.ok(await p.locator('#setting-sound').isChecked());assert.ok(await p.locator('#setting-motion').isChecked());await closeModal(p);
+  await tab(p,'dungeons');const sources=[];
+  for(const kind of['daily','weekly','tower']){await p.click(`[data-dungeon="${kind}"]`);assert.ok(await p.locator(`#${kind}-enter`).isVisible());const image=p.locator(`[data-dungeon="${kind}"] img`);assert.equal(await image.count(),1);await image.evaluate(el=>el.decode());sources.push(await image.getAttribute('src'));}
+  assert.equal(new Set(sources).size,3);await p.screenshot({path:'/tmp/school-polish-dark-dungeons.png'});
+  console.log('PASS portrait rotation denial remains playable, PC-like landscape controls reach 44px, three dungeon pictures and persisted theme/sound/motion settings');
+
+  // A deferred production script keeps real initialization pending; the loader
+  // ends when that dependency becomes available rather than after a fake timer.
+  let release;const gate=new Promise(resolve=>{release=resolve;});await p.route('**/school/engine.js?*',async route=>{await gate;await route.continue();});
+  await p.reload({waitUntil:'commit'});await p.waitForSelector('#boot-screen:not([hidden])');await p.waitForTimeout(250);assert.ok(await p.locator('#boot-screen').isVisible());release();await p.waitForSelector('#boot-screen',{state:'hidden'});await p.unroute('**/school/engine.js?*');
+  await seedGuest(p,'{broken',SAVE,{corrupt:true});await p.waitForSelector('#boot-screen',{state:'hidden'});await p.waitForSelector('#connection:not([hidden])');assert.equal(await p.evaluate(key=>localStorage.getItem(key),SAVE),'{broken');assert.ok(await p.locator('#account-button').isVisible());
+  console.log('PASS loading follows initialization and a corrupt save exposes recovery controls instead of an endless loading screen');
+
+  const fx=await page('polish-presentations',844,390,1,{presentation:false});await fx.emulateMedia({reducedMotion:'no-preference'});
+  await fx.context().addInitScript(()=>{window.testTones=[];const scheduled=new WeakMap(),set=AudioParam.prototype.setValueAtTime,original=OscillatorNode.prototype.start;AudioParam.prototype.setValueAtTime=function(value,...args){scheduled.set(this,value);return set.call(this,value,...args);};OscillatorNode.prototype.start=function(...args){window.testTones.push({hz:scheduled.get(this.frequency)??this.frequency.value,type:this.type});return original.apply(this,args);};});
+  await seedGuest(fx,fresh());await fx.click('#settings-button');await fx.check('#setting-sound');await fx.uncheck('#setting-motion');await closeModal(fx);await fx.emulateMedia({reducedMotion:'reduce'});
+  for(const [grade,roll]of[['SR',.1],['SSR',.001]]){
+   await tab(fx,'recruit');await fx.evaluate(roll=>{window.normalRandom=Math.random;let index=0;Math.random=()=>++index%2?roll:.1;window.testTones=[];},roll);
+   const before=await saved(fx);await fx.click('#recruit-one');await fx.waitForSelector(`#school-presentation[open][data-grade="${grade}"]`);await fx.evaluate(()=>Math.random=window.normalRandom);
+   assert.equal(await fx.locator('#school-presentation').getAttribute('data-motion'),'full','Explicit full motion overrides the system reduced-motion default');assert.equal((await saved(fx)).pulls,before.pulls+1);assert.equal((await saved(fx)).gems,before.gems-100);assert.ok(await fx.locator('.presentation-skip').isVisible());
+   await fx.waitForSelector(`#school-presentation[data-grade="${grade}"][data-phase="revealed"]`);await fx.screenshot({path:`/tmp/school-polish-recruit-${grade}.png`});const tones=await fx.evaluate(()=>window.testTones);assert.ok(tones.length>=5,`${grade} produces synthesized notes after a user gesture`);fs.writeFileSync(`/tmp/school-${grade}-tones.json`,JSON.stringify(tones));
+   await skip(fx);await fx.waitForSelector(`.result-card.${grade}`);await closeModal(fx);
+  }
+  assert.notDeepEqual(JSON.parse(fs.readFileSync('/tmp/school-SR-tones.json')),JSON.parse(fs.readFileSync('/tmp/school-SSR-tones.json')));
+  let s=await saved(fx);s.at=Date.now()+60000;s.units.harin.shards=10;await seedGuest(fx,s);await tab(fx,'adventure');await fx.click('#party [data-hero="harin"]');await fx.click('#awaken-hero');await fx.waitForSelector('#school-presentation[open][data-kind="awaken"]');assert.equal((await saved(fx)).units.harin.stars,1);assert.equal((await saved(fx)).units.harin.shards,0);assert.equal(await fx.locator('.fusion-source').count(),2);await fx.waitForSelector('.new-star[data-star="1"]');await fx.screenshot({path:'/tmp/school-polish-awakening.png'});await skip(fx);await fx.reload();assert.equal((await saved(fx)).units.harin.stars,1);assert.equal(await fx.locator('#school-presentation[open]').count(),0);
+  // Training a character is distinct from advancing the commander.
+  await fx.click('#party [data-hero="harin"]');await fx.click('#train-hero');await fx.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v8')).units.harin.level===2);assert.equal(await fx.locator('#school-presentation[open][data-kind="captain"]').count(),0);await closeModal(fx);
+  s=fresh();s.at=Date.now()+700;s.captain.xp=G.captainNeed(1)-1;s.battle.enemies.forEach(e=>e.hp=1);await seedGuest(fx,s);await fx.waitForSelector('#school-presentation[open][data-kind="captain"]');assert.equal((await saved(fx)).captain.level,2);assert.ok((await saved(fx)).gems>=1830);await fx.screenshot({path:'/tmp/school-polish-captain.png'});await skip(fx);await fx.reload();assert.equal(await fx.locator('#school-presentation[open]').count(),0);
+  await fx.click('#settings-button');await fx.uncheck('#setting-sound');await fx.check('#setting-motion');await closeModal(fx);await fx.evaluate(()=>window.testTones=[]);await tab(fx,'recruit');await fx.click('#recruit-one');await fx.waitForSelector('#school-presentation[open]');await skip(fx);assert.deepEqual(await fx.evaluate(()=>window.testTones),[]);await fx.waitForSelector('.result-card');
+  console.log('PASS real SR/SSR pulls have distinct effects and synthesized notes; awakening merges into the saved star; only confirmed commander advancement plays level-up; skip/reload and muted reduced motion preserve rewards');
+  const identity=(await t.login('polish-confirmed-captain')).data;await t.call('/api/school/state',{catalogVersion:G.CATALOG_VERSION},null,{'X-Account-Session':identity.token});const confirmed=await page('polish-confirmed-captain',844,390,1,{presentation:false});s=G.create(Date.now()+500,861);s.captain.xp=G.captainNeed(1)-1;s.battle.enemies.forEach(e=>e.hp=1);t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),identity.profile.id);
+  await login(confirmed);assert.equal(await confirmed.locator('#captain-level').textContent(),'Lv.1');await confirmed.emulateMedia({reducedMotion:'no-preference'});setStateDelay(4500);await confirmed.waitForFunction(()=>document.getElementById('captain-level').textContent==='Lv.2');assert.equal(await confirmed.locator('#school-presentation[open][data-kind="captain"]').count(),0,'Cloud prediction must not celebrate an uncommitted level');await confirmed.waitForSelector('#school-presentation[open][data-kind="captain"]').catch(async error=>{fs.writeFileSync('/tmp/school-captain-debug.json',JSON.stringify({view:await confirmed.evaluate(()=>JSON.parse(sessionStorage.getItem('school-confirmed-cloud-view'))?.state),server:JSON.parse(t.sqlite.prepare('SELECT payload FROM school_saves WHERE account_id=?').get(identity.profile.id).payload)}));throw error;});assert.equal(JSON.parse(t.sqlite.prepare('SELECT payload FROM school_saves WHERE account_id=?').get(identity.profile.id).payload).captain.level,2);await skip(confirmed);setStateDelay(0);await confirmed.reload();await confirmed.waitForSelector('#boot-screen',{state:'hidden'});assert.equal(await confirmed.locator('#school-presentation[open][data-kind="captain"]').count(),0);console.log('PASS cloud commander celebration waits for the authoritative save and is not replayed on reload');
+  await runMonsterChecks(fx);
+  await runSocialChecks({page,saved,tab,t,login});
+ }finally{for(const p of pages)if(!p.isClosed())await p.context().close();setStateDelay(0);}
+}
+async function runMonsterChecks(p){
+ const result=await p.evaluate(()=>{const appearances=[],frames=[];const draw=(kind,variant,pose)=>{const canvas=document.createElement('canvas');canvas.width=160;canvas.height=180;const ctx=canvas.getContext('2d'),enemy={id:'e0',kind,variant,hp:pose==='death'?0:100,max:100,boss:false};SchoolArt.monster(ctx,enemy,80,145,{time:1.2,spawnAge:1,reduced:false,stage:kind*5+1,wave:1,index:0,...(pose==='attack'?{attackAge:.15}:pose==='hurt'?{hitAge:.1}:pose==='death'?{deathAge:.3}:{})});return canvas.toDataURL();};for(let kind=0;kind<12;kind++)for(let variant=0;variant<3;variant++){appearances.push(draw(kind,variant,'idle'));frames.push(['idle','attack','hurt','death'].map(pose=>draw(kind,variant,pose)));}return{appearances,frames,types:SchoolArt.enemyAppearances};});
+ assert.equal(result.types.length,12);assert.ok(result.types.every(row=>row.length===3));assert.equal(new Set(result.appearances).size,36,'Each region and species has a distinct painted enemy');for(const [index,frames]of result.frames.entries())assert.equal(new Set(frames).size,4,`Enemy ${index} has distinct idle/attack/hurt/death poses`);
+ for(const [index,png]of result.appearances.entries())fs.writeFileSync(`/tmp/school-enemy-${index}.png`,Buffer.from(png.split(',')[1],'base64'));
+ console.log('PASS all 36 enemy silhouettes and their idle, attack, hit and death poses produce distinct visible pixels');
+}
+async function runSocialChecks({page,saved,tab,t,login}){
+ const guest=await page('polish-name-guest',844,390);await seedGuest(guest,fresh());await guest.click('#captain-button');await guest.fill('#commander-name','<script>');await guest.click('#save-commander-name');assert.match(await guest.locator('#name-message').textContent(),/2~12/);assert.equal((await saved(guest)).commanderName,'새내기 단장');
+ await guest.fill('#commander-name','  도트  단장  ');await guest.click('#save-commander-name');await guest.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v8')).commanderName==='도트 단장');await guest.reload();await guest.click('#captain-button');assert.equal(await guest.locator('#commander-display-name').textContent(),'도트 단장');assert.match(await guest.locator('#modal-content').textContent(),/200/);await closeModal(guest);
+ const identities=[];
+ for(const [subject,name,level,xp,floor]of[['rank-a','바람 단장',33,7,9],['rank-b','물결 단장',33,7,12],['rank-c','별빛 단장',32,10,12]]){
+  const who=(await t.login(subject)).data;identities.push(who);await t.call('/api/school/state',{catalogVersion:G.CATALOG_VERSION},null,{'X-Account-Session':who.token});const state=fresh();state.commanderName=name;state.captain={level,xp};state.activities.towerBest=floor;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);
+ }
+ const responses=[];guest.on('response',async response=>{if(response.url().includes('/api/school/rankings'))responses.push(await response.json());});await guest.click('#captain-button');await guest.click('[data-ranking="level"]');await guest.waitForSelector('.ranking-row');assert.equal(await guest.locator('#ranking-me').count(),0);assert.ok(!(await guest.locator('#ranking-content').textContent()).includes('도트 단장'));
+ let rows=await guest.locator('.ranking-row').allTextContents();assert.ok(rows[0].includes('33')&&rows[1].includes('33'));await guest.click('[data-ranking="tower"]');await guest.waitForFunction(()=>document.querySelector('.ranking-row')?.textContent.includes('12층'));rows=await guest.locator('.ranking-row').allTextContents();assert.ok(rows[0].includes('12층')&&rows[1].includes('12층'));await guest.screenshot({path:'/tmp/school-polish-ranking-public.png'});
+ for(const body of responses){assert.equal(body.me,null);for(const entry of body.entries)assert.deepEqual(Object.keys(entry).sort(),['floor','isMe','level','name','rank'].sort());const raw=JSON.stringify(body);for(const privateValue of['never-store@example.test','Never Publish Real Name',...identities.flatMap(x=>[x.token,x.profile.id])])assert.ok(!raw.includes(privateValue),'Ranking response must not expose account identity');}
+ const cloud=await page('rank-a',844,390);await login(cloud);await cloud.click('#captain-button');await cloud.fill('#commander-name','용왕 부대');await cloud.click('#save-commander-name');await cloud.waitForFunction(()=>document.getElementById('commander-display-name')?.textContent==='용왕 부대');assert.equal(JSON.parse(t.sqlite.prepare('SELECT payload FROM school_saves WHERE account_id=?').get(identities[0].profile.id).payload).commanderName,'용왕 부대');await cloud.click('[data-ranking="level"]');await cloud.waitForSelector('#ranking-me');assert.match(await cloud.locator('#ranking-me').textContent(),/용왕 부대/);await cloud.click('[data-ranking="tower"]');await cloud.waitForFunction(()=>document.getElementById('ranking-me')?.textContent.includes('9층'));assert.match(await cloud.locator('#ranking-me').textContent(),/3위/);
+ const other=await page('rank-a',844,390);await login(other);await other.click('#captain-button');assert.equal(await other.locator('#commander-display-name').textContent(),'용왕 부대');
+ const requestsBefore=responses.length;await guest.click('[data-ranking="level"]');await guest.waitForSelector('.ranking-row');assert.equal(responses.length,requestsBefore,'Mode cache avoids redundant public requests');const refreshed=guest.waitForResponse(response=>response.url().includes('/api/school/rankings')&&response.status()===200);await guest.click('#refresh-ranking');assert.ok((await (await refreshed).json()).entries.some(entry=>entry.name==='용왕 부대'));await guest.waitForFunction(()=>document.querySelector('#ranking-content')?.textContent.includes('용왕 부대'));
+ console.log('PASS names normalize and persist locally/server-side; account and tower rankings sort ties, preserve private identities, cache public requests and sync renamed commanders across browsers');
+}
+module.exports={runPolishRegressions};

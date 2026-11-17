@@ -1,0 +1,122 @@
+/* Saved rewards are shown in a separate, skippable presentation layer. */
+.school-presentation {
+  --present-paper: #fff9e8;
+  --present-ink: #3a453d;
+  --present-muted: #737561;
+  --present-line: #d4bd7b;
+  --present-accent: #d7a53f;
+  --present-glow: #f2cb6c;
+  width: min(94vw, 560px);
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 2px solid var(--present-line);
+  border-radius: 12px;
+  color: var(--present-ink);
+  background: radial-gradient(ellipse at 50% 48%, color-mix(in srgb, var(--present-glow) 22%, var(--present-paper)), var(--present-paper) 72%);
+  box-shadow: 0 0 0 4px #fff5, 0 0 70px color-mix(in srgb, var(--present-glow) 32%, transparent), 0 24px 100px #18281d66;
+  isolation: isolate;
+}
+.school-presentation::backdrop { background: #13271fe0; backdrop-filter: blur(6px); }
+.school-presentation[data-grade="SR"] { --present-accent: #9070ce; --present-glow: #b69bea; --present-line: #b9a0da; }
+.school-presentation[data-grade="SSR"] { --present-accent: #bc7b1b; --present-glow: #ffd66f; --present-line: #d8a542; box-shadow: 0 0 0 4px #ffe7a644, 0 0 100px #ffca5759, 0 24px 100px #18281d88; }
+.school-presentation[data-grade="R"] { --present-accent: #508b75; --present-glow: #91c6ac; --present-line: #94b79b; }
+.school-presentation[data-grade="awaken"] { --present-accent: #a67ac7; --present-glow: #e3b8e8; --present-line: #bc95d0; }
+.presentation-panel { position: relative; z-index: 1; display: grid; grid-template-rows: auto auto auto; gap: 14px; padding: 24px; }
+.presentation-heading { text-align: center; }
+.presentation-kicker { display: block; margin-bottom: 7px; color: var(--present-accent); font: 11px/1.4 var(--pixel, monospace); }
+.presentation-heading h2 { margin: 0; color: var(--present-ink); font: 25px/1.4 var(--pixel, monospace); letter-spacing: -.8px; overflow-wrap: anywhere; }
+.presentation-heading p { margin: 8px 0 0; color: var(--present-muted); font: 14px/1.4 var(--body, sans-serif); }
+.presentation-scene { position: relative; height: clamp(210px, 39dvh, 285px); min-height: 0; perspective: 700px; overflow: visible; }
+.presentation-rays { position: absolute; left: 50%; top: 47%; width: 730px; height: 730px; pointer-events: none; border-radius: 50%; opacity: .36; transform: translate(-50%, -50%); background: repeating-conic-gradient(from 0deg, transparent 0deg 17deg, color-mix(in srgb, var(--present-glow) 50%, transparent) 17deg 23deg, transparent 23deg 45deg); mask-image: radial-gradient(circle, #000 10%, #000a 29%, transparent 62%); }
+.school-presentation[open] .presentation-rays { animation: presentation-rays-turn 18s linear infinite; }
+@keyframes presentation-rays-turn { to { transform: translate(-50%, -50%) rotate(180deg); } }
+.presentation-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; position: relative; z-index: 4; min-height: 44px; }
+.presentation-footer small { color: var(--present-muted); font-size: 11px; line-height: 1.4; }
+.presentation-skip { min-height: 44px; flex: 0 0 auto; padding: 10px 15px; border: 1px solid var(--present-line); border-radius: 6px; color: var(--present-ink); background: var(--present-paper); box-shadow: inset 0 1px #fff8, 0 3px 0 color-mix(in srgb, var(--present-line) 55%, transparent); font: 700 12px/1.2 var(--body, sans-serif); }
+.presentation-skip:focus-visible { outline: 3px solid var(--present-accent); outline-offset: 3px; }
+.presentation-captain-crest { position: absolute; top: 42%; left: 50%; width: 180px; height: 190px; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: translate(-50%,-50%); border: 3px solid #e8c66a; clip-path: polygon(50% 0, 95% 18%, 90% 67%, 76% 87%, 50% 100%, 24% 87%, 10% 67%, 5% 18%); background: linear-gradient(130deg, #fce9a7, #f3d573 23%, #a9802e 24%, #436e55 26%, #254e3e 73%, #e6bd56 75%, #ffecaa); color: #fff4c0; filter: drop-shadow(0 6px 0 #8b6d2d) drop-shadow(0 0 24px #e8bd56aa); }
+.presentation-captain-crest::before { content: ""; position: absolute; inset: 15px; border: 1px solid #dfc579; clip-path: inherit; pointer-events: none; }
+.captain-laurel { position: absolute; top: 71px; left: 50%; transform: translateX(-50%); white-space: nowrap; letter-spacing: 57px; padding-left: 57px; font-size: 43px; color: #dfbc5d; opacity: .72; }
+.captain-medal { font-size: 43px; line-height: 1.2; color: #ffe68d; text-shadow: 0 0 15px #ffda6c; }
+.presentation-captain-crest small { font: 11px/1.4 var(--pixel, monospace); margin: 3px 0; z-index: 1; }
+.presentation-captain-crest strong { font: 31px/1.5 var(--pixel, monospace); z-index: 1; }
+.presentation-captain-reward { position: absolute; left: 50%; bottom: 0; white-space: nowrap; transform: translateX(-50%); padding: 8px 17px; background: color-mix(in srgb, var(--present-paper) 88%, transparent); border: 1px solid var(--present-line); border-radius: 20px; font: 16px/1.4 var(--pixel, monospace); color: var(--present-accent); box-shadow: 0 3px 0 #a8792420; }
+.presentation-hero-card { position: absolute; top: 50%; left: 50%; width: 154px; height: 222px; transform: translate(-50%,-50%); transform-style: preserve-3d; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 11px 12px; border: 3px solid var(--present-line); border-radius: 8px; background: radial-gradient(circle at 50% 30%, #fff9, transparent 53%), linear-gradient(135deg, color-mix(in srgb, var(--present-glow) 18%, var(--present-paper)), var(--present-paper)); box-shadow: 5px 7px 0 color-mix(in srgb, var(--present-accent) 45%, #302844), 0 0 30px color-mix(in srgb, var(--present-glow) 40%, transparent); }
+.presentation-hero-card::after { content: ""; position: absolute; inset: 5px; border: 1px solid color-mix(in srgb, var(--present-line) 55%, transparent); border-radius: 4px; pointer-events: none; }
+.presentation-rarity { position: absolute; top: 9px; left: 10px; color: var(--present-accent); font: 700 14px/1.2 var(--pixel, monospace); text-shadow: 0 1px #fff8; }
+.presentation-portrait { height: 134px; width: 115px; display: flex; align-items: flex-end; justify-content: center; min-height: 0; }
+.presentation-portrait > img, .presentation-portrait > canvas, .presentation-portrait > svg { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 5px 0 #342f3f20); }
+.presentation-fallback { font-size: 72px; color: var(--present-accent); }
+.presentation-hero-name { font: 14px/1.3 var(--pixel, monospace); color: var(--present-ink); text-align: center; }
+.presentation-stars { display: flex; justify-content: center; gap: 3px; color: #aca89e; font-size: 19px; line-height: 1; white-space: nowrap; }
+.presentation-stars .filled { color: #d7a43c; text-shadow: 0 1px #fff0b8; }
+.presentation-stars .new-star { color: #f6bd43; text-shadow: 0 0 12px #ffe09b, 0 0 22px #edbd5f; display: inline-block; }
+.fusion-source { opacity: 0; }
+.fusion-result { border-color: #d2a34b; }
+.presentation-gate { position: absolute; left: 50%; top: 50%; width: 180px; height: 210px; display: grid; place-items: center; transform: translate(-50%,-50%); border: 4px solid var(--present-accent); border-radius: 45% 45% 8px 8px; background: radial-gradient(ellipse, #fff6, var(--present-glow) 40%, #55407b 80%); box-shadow: inset 0 0 0 6px #ffeaaa55, inset 0 0 25px #fff9, 0 0 35px color-mix(in srgb, var(--present-glow) 70%, transparent); }
+.school-presentation[data-grade="SR"] .presentation-gate { width: 177px; height: 177px; border-radius: 14px; background: repeating-conic-gradient(#634a95 0deg 30deg, #b79cdd 30deg 60deg); border-style: double; border-width: 8px; }
+.school-presentation[data-grade="SSR"] .presentation-gate { border-color: #fff2b3; background: radial-gradient(ellipse at 50% 40%, #fff9df, #ffd87a 35%, #c38635 65%, #795430); box-shadow: 0 0 0 5px #d7a84a77, 0 0 65px #ffd56e88, inset 0 0 30px #fff7b7; }
+.gate-seal { color: #fff8d9; font-size: 85px; text-shadow: 0 0 28px #fff8da; }
+.presentation-grade { position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); padding: 2px 20px; font: 900 33px/1.3 var(--pixel, monospace); color: var(--present-accent); text-shadow: 0 2px var(--present-paper), 2px 0 var(--present-paper), -2px 0 var(--present-paper), 0 0 18px var(--present-glow); z-index: 3; }
+.presentation-spark { position: absolute; left: 50%; top: 45%; width: 8px; height: 8px; background: var(--spark); box-shadow: 0 0 8px var(--spark); pointer-events: none; z-index: 3; }
+.presentation-spark:nth-child(3n) { clip-path: polygon(50% 0, 63% 36%, 100% 50%, 63% 64%, 50% 100%, 37% 64%, 0 50%, 37% 36%); width: 17px; height: 17px; }
+button.school-press-active, [role="button"].school-press-active { scale: .96; filter: brightness(.96); transition: scale 65ms ease-out; }
+html[data-theme="dark"] .school-presentation { --present-paper: #202938; --present-ink: #f2eee0; --present-muted: #bdc4c7; --present-line: #a68a4b; --present-accent: #f3cd7b; --present-glow: #c79d4e; box-shadow: 0 0 0 4px #ead89a1c, 0 0 70px #d7ad4f33, 0 24px 100px #0009; }
+html[data-theme="dark"] .school-presentation[data-grade="SR"] { --present-line: #8e72b6; --present-accent: #d5b5ff; --present-glow: #a57bdd; }
+html[data-theme="dark"] .school-presentation[data-grade="SSR"] { --present-line: #d1a652; --present-accent: #ffe4a3; --present-glow: #edbd59; }
+html[data-theme="dark"] .school-presentation[data-grade="awaken"] { --present-line: #bc85c8; --present-accent: #efc5ff; --present-glow: #c392d6; }
+html[data-theme="dark"] .school-presentation[data-grade="R"] { --present-line: #79a58b; --present-accent: #b2dfbc; --present-glow: #78a98b; }
+html[data-theme="dark"] .presentation-hero-card { background: radial-gradient(circle at 50% 30%, #f4da6e19, transparent 55%), var(--present-paper); }
+html[data-theme="dark"] .presentation-rarity { text-shadow: none; }
+@media (max-width: 380px) { .presentation-panel { padding: 17px; gap: 10px; } .presentation-heading h2 { font-size: 21px; } .presentation-footer { gap: 7px; } .presentation-footer small { font-size: 10px; } .presentation-skip { padding-inline: 11px; } }
+@media (max-height: 500px) and (orientation: landscape) {
+  .school-presentation { width: min(92vw, 560px); max-height: calc(100dvh - 16px); }
+  .presentation-panel { padding: 12px 18px; gap: 6px; }
+  .presentation-kicker { margin-bottom: 3px; font-size: 9px; }
+  .presentation-heading h2 { font-size: 20px; }
+  .presentation-heading p { margin-top: 3px; font-size: 12px; }
+  .presentation-scene { height: min(44dvh, 170px); }
+  .presentation-captain-crest { width: 130px; height: 135px; top: 40%; }
+  .presentation-captain-crest strong { font-size: 23px; }
+  .presentation-captain-crest small { font-size: 9px; }
+  .captain-medal { font-size: 26px; }
+  .captain-laurel { top: 52px; font-size: 25px; letter-spacing: 45px; padding-left: 45px; }
+  .presentation-captain-reward { padding: 5px 12px; font-size: 12px; }
+  .presentation-hero-card { width: 111px; height: 158px; padding: 9px 7px 8px; gap: 4px; }
+  .presentation-portrait { height: 91px; width: 87px; }
+  .presentation-rarity { font-size: 10px; top: 6px; left: 7px; }
+  .presentation-hero-name { font-size: 11px; }
+  .presentation-stars { font-size: 15px; gap: 1px; }
+  .presentation-grade { font-size: 23px; bottom: -4px; }
+  .presentation-gate { width: 120px; height: 150px; }
+  .school-presentation[data-grade="SR"] .presentation-gate { width: 130px; height: 130px; }
+  .gate-seal { font-size: 65px; }
+}
+@media (max-height: 310px) and (orientation: landscape) {
+  .presentation-panel { padding: 8px 16px; gap: 4px; }
+  .presentation-kicker { display: none; }
+  .presentation-heading h2 { font-size: 17px; }
+  .presentation-heading p { font-size: 11px; }
+  .presentation-scene { height: 118px; }
+  .presentation-hero-card { width: 87px; height: 116px; padding: 7px 5px; gap: 3px; }
+  .presentation-portrait { height: 57px; width: 64px; }
+  .presentation-hero-name { font-size: 10px; }
+  .presentation-stars { font-size: 13px; }
+  .presentation-grade { font-size: 17px; bottom: -6px; }
+  .presentation-gate, .school-presentation[data-grade="SR"] .presentation-gate { width: 100px; height: 110px; }
+  .presentation-captain-crest { width: 99px; height: 104px; top: 35%; }
+  .captain-medal { font-size: 19px; }
+  .presentation-captain-crest strong { font-size: 17px; }
+  .presentation-captain-crest small { font-size: 8px; }
+  .captain-laurel { display: none; }
+  .presentation-captain-reward { font-size: 10px; padding: 4px 9px; }
+  .presentation-footer small { font-size: 10px; }
+}
+html[data-motion="reduced"] .school-presentation .presentation-rays { animation: none; }
+html[data-motion="reduced"] button.school-press-active { scale: 1; filter: brightness(.9); }
+@media (prefers-reduced-motion: reduce) { html:not([data-motion=full]) .school-presentation .presentation-rays { animation: none; } html:not([data-motion=full]) button.school-press-active { scale: 1; transition: none; filter: brightness(.9); } }
+.school-presentation[data-motion="reduced"] .presentation-rays { animation: none; }
+button.school-press-active.school-press-reduced, [role="button"].school-press-active.school-press-reduced { scale: 1; transition: none; filter: brightness(.9); }

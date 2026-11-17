@@ -47,15 +47,15 @@ async function runExpansionRegressions({pageFor,saved,tab,t,login}){
     assert.deepEqual(s.banners,{osia:{pity:59,guaranteed:false},lava:{pity:0,guaranteed:false}});assert.equal(s.speed,1);
     await tab(p,'recruit');assert.equal(await p.locator('#pity-count').textContent(),'59 / 80');
     await p.click('[data-banner="lava"]');assert.equal(await p.locator('#pity-count').textContent(),'0 / 80');assert.match(await p.locator('#banner-deadline').textContent(),/11월 20|11\/20|11\.20/);
-    await p.click('#rates-button');const rates=await p.locator('#modal-content').innerText();assert.match(rates,/라바/);assert.match(rates,/50%/);assert.match(rates,/0\.6667/);await p.click('#modal-close');
+    await p.click('#rates-button');const rates=await p.locator('#modal-content').innerText();assert.match(rates,/라바/);assert.match(rates,/50%/);assert.match(rates,/0\.1667/);await p.click('#modal-close');
     await draw(p,.99,.99);await p.click('#modal-close');s=await saved(p);assert.equal(s.banners.lava.pity,1);assert.equal(s.banners.osia.pity,59);
     await p.reload();await tab(p,'recruit');assert.equal(await p.locator('[data-banner="lava"]').getAttribute('aria-pressed'),'true');assert.equal(await p.locator('#pity-count').textContent(),'1 / 80');
     await p.click('[data-banner="osia"]');assert.equal(await p.locator('#pity-count').textContent(),'59 / 80');
-    assert.doesNotMatch(await draw(p,.01,.99),/오시아|라바/);await p.click('#modal-close');assert.equal((await saved(p)).banners.osia.guaranteed,true);assert.match(await p.locator('#banner-status').textContent(),/확정|100%/);
-    assert.match(await draw(p,.01,.99),/오시아/);await p.click('#modal-close');assert.equal((await saved(p)).banners.osia.guaranteed,false);assert.equal((await saved(p)).banners.lava.pity,1);
-    await p.click('[data-banner="lava"]');assert.match(await draw(p,.01,.1),/라바/);await p.click('#modal-close');assert.ok((await saved(p)).units.lava);assert.equal((await saved(p)).banners.lava.pity,0);
+    assert.doesNotMatch(await draw(p,.001,.99),/오시아|라바/);await p.click('#modal-close');assert.equal((await saved(p)).banners.osia.guaranteed,true);assert.match(await p.locator('#banner-status').textContent(),/확정|100%/);
+    assert.match(await draw(p,.001,.99),/오시아/);await p.click('#modal-close');assert.equal((await saved(p)).banners.osia.guaranteed,false);assert.equal((await saved(p)).banners.lava.pity,1);
+    await p.click('[data-banner="lava"]');assert.match(await draw(p,.001,.1),/라바/);await p.click('#modal-close');assert.ok((await saved(p)).units.lava);assert.equal((await saved(p)).banners.lava.pity,0);
     assert.equal(await p.evaluate(()=>SchoolArt.assetsReady('lava')),true);
-    console.log('PASS v5→v7 migration, two actual banner draws, separate pity, 50/50 miss guarantee, selected banner reload and Lava asset');
+    console.log('PASS v5→v8 migration, two actual banner draws, separate pity, 50/50 miss guarantee, selected banner reload and Lava asset');
 
     for(const [width,height]of[[2560,1440],[320,568],[568,280]]){
       await p.setViewportSize({width,height});await tab(p,'recruit');
@@ -67,7 +67,7 @@ async function runExpansionRegressions({pageFor,saved,tab,t,login}){
     }
     await p.setViewportSize({width:844,height:390});await tab(p,'adventure');await p.click('#formation-button');await p.click('#roster [data-hero="lava"]');
     assert.match(await p.locator('#modal-content').innerText(),/라바/);await p.locator('.hero-skills summary').click();assert.match(await p.locator('#modal-content').innerText(),/바람의 부채|바람의 상처/);
-    await p.click('#train-hero');await p.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v7')).units.lava.level===2);await p.click('[data-slot="1"]');await p.waitForFunction(()=>!document.getElementById('modal').open);
+    await p.click('#train-hero');await p.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v8')).units.lava.level===2);await p.click('[data-slot="1"]');await p.waitForFunction(()=>!document.getElementById('modal').open);
     await p.reload();assert.equal((await saved(p)).team[1],'lava');assert.equal((await saved(p)).units.lava.level,2);
 
     s=await saved(p);s.at=Date.now()+600;s.speed=1;s.simCredit=0;s.units.lava.nextSkill=1;s.units.lava.basicHits=9;G.action(s,{kind:'stage',stage:1,mode:'farm'},Date.now());
@@ -82,7 +82,7 @@ async function runExpansionRegressions({pageFor,saved,tab,t,login}){
     s=await saved(p);s.at=Date.now()+600;s.units.lava.basicHits=0;G.action(s,{kind:'stage',stage:1,mode:'farm'},Date.now());for(const h of s.battle.heroes){h.hp=1;h.shield=0;}for(const e of s.battle.enemies){e.hp=e.max=100000;e.atk=10000;}
     await seedGuest(p,s);await watch(p);
     try{await p.waitForFunction(()=>!!window.expFrames.rescue,{},{timeout:5000});}
-    catch(error){const details=await p.evaluate(()=>({state:JSON.parse(localStorage.getItem('school-mercenaries-v7')),events:window.expEvents,frames:Object.keys(window.expFrames),live:window.expLive,now:Date.now()}));fs.writeFileSync('/tmp/school-expansion-rescue-debug.json',JSON.stringify(details,null,2));console.error('Rescue capture details:',{at:details.state.at,now:details.now,battle:details.state.battle,frames:details.frames,live:details.live,events:details.events.filter(e=>e.kind==='rescue')});throw error;}
+    catch(error){const details=await p.evaluate(()=>({state:JSON.parse(localStorage.getItem('school-mercenaries-v8')),events:window.expEvents,frames:Object.keys(window.expFrames),live:window.expLive,now:Date.now()}));fs.writeFileSync('/tmp/school-expansion-rescue-debug.json',JSON.stringify(details,null,2));console.error('Rescue capture details:',{at:details.state.at,now:details.now,battle:details.state.battle,frames:details.frames,live:details.live,events:details.events.filter(e=>e.kind==='rescue')});throw error;}
     const rescue=await p.evaluate(()=>window.expFrames.rescue);
     assert.ok(rescue.changed>100);assert.equal(rescue.event.duration,2000);assert.ok(rescue.state.battle.heroes.find(h=>h.id===rescue.event.to).hp>=1);png('lava-rescue',rescue.png);
     console.log('PASS recruited Lava trains/equips/reloads and renders both healing skills, shields, ten-hit passive and lethal-hit rescue');
@@ -101,7 +101,7 @@ async function runExpansionRegressions({pageFor,saved,tab,t,login}){
 
     s=G.create(Date.now()+60000,16);s.gold=100000;s.best=59;s.units.lava={level:99,xp:0,stars:0,shards:0};s.team[1]='lava';G.action(s,{kind:'stage',stage:60,mode:'farm'},Date.now());await seedGuest(p,s);
     await p.click('#battle-stage');assert.equal(await p.locator('[data-stage]').count(),60);assert.ok(await p.locator('[data-stage="60"]').isEnabled());await p.click('[data-stage="60"]');await p.waitForFunction(()=>!document.getElementById('modal').open);assert.equal((await saved(p)).stage,60);
-    await p.click('#party [data-hero="lava"]');assert.match(await p.locator('.hero-stat-grid').innerText(),/100/);await p.click('#train-hero');await p.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v7')).units.lava.level===100);assert.ok(await p.locator('#train-hero').isDisabled());await p.reload();assert.equal((await saved(p)).units.lava.level,100);
+    await p.click('#party [data-hero="lava"]');assert.match(await p.locator('.hero-stat-grid').innerText(),/100/);await p.click('#train-hero');await p.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v8')).units.lava.level===100);assert.ok(await p.locator('#train-hero').isDisabled());await p.reload();assert.equal((await saved(p)).units.lava.level,100);
     console.log('PASS all 60 stage choices and level 99→100 training cap persist through reload');
 
     const identity=(await t.login('expansion-speed')).data;await t.call('/api/school/state',{catalogVersion:G.CATALOG_VERSION},null,{'X-Account-Session':identity.token});s=G.create(Date.now(),8);for(const h of s.battle.heroes){h.hp=h.max=100000;}for(const e of s.battle.enemies){e.hp=e.max=100000;e.atk=1;}
