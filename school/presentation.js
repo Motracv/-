@@ -82,6 +82,12 @@
     dialog = node('dialog', 'school-presentation'); dialog.id = 'school-presentation'; dialog.dataset.motion = reduced() ? 'reduced' : 'full';
     dialog.setAttribute('aria-labelledby', 'presentation-title'); dialog.setAttribute('aria-describedby', 'presentation-description');
     dialog.addEventListener('cancel', event => { event.preventDefault(); skip(); });
+    dialog.addEventListener('close', () => {
+      // Native close can bypass the skip button while its animations still run.
+      // A queued job may already have reopened this shared dialog by the time an
+      // earlier close event arrives; never dismiss that newer presentation.
+      if (!dialog.open && current) skip();
+    });
     dialog.addEventListener('click', event => { if (event.target.closest('[data-presentation-skip]')) skip(); });
     document.body.append(dialog); return dialog;
   }

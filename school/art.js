@@ -28,9 +28,15 @@ window.SchoolArt = (() => {
     return shades.get(key);
   }
   const clamp01 = value => Math.max(0, Math.min(1, value));
+  // Android WebViews predating Array.findLast must still paint every frame.
+  // Keep this local: the renderer must not change built-in array prototypes.
+  function lastEffect(effects, matches) {
+    for (let i = effects.length - 1; i >= 0; i--) if (matches(effects[i])) return effects[i];
+  }
   // Keep the current scenery at display resolution, not a 480px enlargement.
   // Weak ownership releases it with the battle canvas; a resize replaces it.
-  const backgrounds = new WeakMap(), sprites = new Map();
+  let backgrounds = new WeakMap();
+  const sprites = new Map();
   let spritePixels = 0, fontRevision = 0;
   const SPRITE_PIXEL_LIMIT = 2 * 1024 * 1024;
   document.fonts?.ready.then(() => { fontRevision++; });
@@ -747,20 +753,33 @@ window.SchoolArt = (() => {
     c.save(); if (extendedParty) { c.translate(-36, -42); c.scale(1.15, 1.15); }
     weather(c, battle, reduced ? 0 : time); c.restore();
   }
-  const dragon = document.createElement("canvas"); dragon.width = 104; dragon.height = 72;
-  const dc = dragon.getContext("2d");
-  const spine = [[8,60],[16,63],[25,59],[29,51],[25,43],[20,36],[24,27],[34,24],[44,29],[49,37],[55,43],[64,39],[68,31],[64,23],[64,16],[71,12],[80,15]];
-  for (const [size, color] of [[13,"#196ca5"],[9,"#249dd5"],[5,"#6cdced"]]) {
-    for (let j = 1; j < spine.length; j++) { const a = spine[j - 1], b = spine[j]; for (let t = 0; t <= 1; t += .12) rect(dc, color, a[0] + (b[0] - a[0]) * t - size / 2, a[1] + (b[1] - a[1]) * t - size / 2, size, size); }
+  function makeDragon() {
+    const dragon = document.createElement("canvas"); dragon.width = 104; dragon.height = 72;
+    const dc = dragon.getContext("2d");
+    const spine = [[8,60],[16,63],[25,59],[29,51],[25,43],[20,36],[24,27],[34,24],[44,29],[49,37],[55,43],[64,39],[68,31],[64,23],[64,16],[71,12],[80,15]];
+    for (const [size, color] of [[13,"#196ca5"],[9,"#249dd5"],[5,"#6cdced"]]) {
+      for (let j = 1; j < spine.length; j++) { const a = spine[j - 1], b = spine[j]; for (let t = 0; t <= 1; t += .12) rect(dc, color, a[0] + (b[0] - a[0]) * t - size / 2, a[1] + (b[1] - a[1]) * t - size / 2, size, size); }
+    }
+    for (const [x,y] of [[20,40],[32,22],[48,29],[58,42],[63,19]]) { rect(dc,"#b0f5fa",x-3,y-5,4,7); rect(dc,"#6bd9ee",x-5,y-8,3,4); }
+    rect(dc,"#186d9f",70,7,18,15); rect(dc,"#35b7e1",71,7,17,12); rect(dc,"#87e9f3",74,7,13,4);
+    rect(dc,"#197aa9",84,14,16,8); rect(dc,"#64dbed",84,14,15,5); rect(dc,"#bdfbfa",94,14,5,3);
+    rect(dc,"#18769f",81,22,15,4); rect(dc,"#85e6f2",82,22,14,2); rect(dc,"#eafffb",86,19,3,4);
+    rect(dc,"#dcffff",82,11,5,3); rect(dc,"#185681",86,11,2,2);
+    rect(dc,"#a3f4f6",70,0,3,9); rect(dc,"#6cdbef",67,0,4,3); rect(dc,"#bdfbfa",78,2,3,7); rect(dc,"#60c9eb",80,0,3,3);
+    for (const [x,y] of [[62,7],[59,12],[61,17]]) { rect(dc,"#5acdeb",x,y,11,3); rect(dc,"#a6f1f7",x-3,y-2,5,2); }
+    rect(dc,"#b0f6fa",94,20,9,2); rect(dc,"#b0f6fa",101,21,2,7); rect(dc,"#8eeaf5",97,27,6,2);
+    return dragon;
   }
-  for (const [x,y] of [[20,40],[32,22],[48,29],[58,42],[63,19]]) { rect(dc,"#b0f5fa",x-3,y-5,4,7); rect(dc,"#6bd9ee",x-5,y-8,3,4); }
-  rect(dc,"#186d9f",70,7,18,15); rect(dc,"#35b7e1",71,7,17,12); rect(dc,"#87e9f3",74,7,13,4);
-  rect(dc,"#197aa9",84,14,16,8); rect(dc,"#64dbed",84,14,15,5); rect(dc,"#bdfbfa",94,14,5,3);
-  rect(dc,"#18769f",81,22,15,4); rect(dc,"#85e6f2",82,22,14,2); rect(dc,"#eafffb",86,19,3,4);
-  rect(dc,"#dcffff",82,11,5,3); rect(dc,"#185681",86,11,2,2);
-  rect(dc,"#a3f4f6",70,0,3,9); rect(dc,"#6cdbef",67,0,4,3); rect(dc,"#bdfbfa",78,2,3,7); rect(dc,"#60c9eb",80,0,3,3);
-  for (const [x,y] of [[62,7],[59,12],[61,17]]) { rect(dc,"#5acdeb",x,y,11,3); rect(dc,"#a6f1f7",x-3,y-2,5,2); }
-  rect(dc,"#b0f6fa",94,20,9,2); rect(dc,"#b0f6fa",101,21,2,7); rect(dc,"#8eeaf5",97,27,6,2);
+  let dragon = null;
+  const dragonSprite = () => dragon || (dragon = makeDragon());
+  // A restored main canvas may share a GPU context with cached canvases.
+  // Rebuild their pixels lazily; decoded source images and portrait URLs stay.
+  function resetRenderCache() {
+    backgrounds = new WeakMap();
+    osiaPoses.clear(); lavaPoses.clear(); lavaSources.clear(); sprites.clear(); combatLabels.clear();
+    lavaPosePixels = spritePixels = combatLabelPixels = 0;
+    dragon = null;
+  }
   function waterOrb(c, x, y, radius) {
     const r = Math.round(radius);
     rect(c,"#17649e",x-r,y-r+4,r*2,r*2-8); rect(c,"#17649e",x-r+4,y-r,r*2-8,r*2);
@@ -777,7 +796,7 @@ window.SchoolArt = (() => {
     const destination = Math.min(453, Math.max(...targets.map(p=>p.x)) + 24);
     c.save();
     if(reduced){
-      c.globalAlpha=.85; c.drawImage(dragon,age<1?source.x+20:150,44,age<1?145:300,age<1?100:208);
+      c.globalAlpha=.85; c.drawImage(dragonSprite(),age<1?source.x+20:150,44,age<1?145:300,age<1?100:208);
       for(const p of targets)rect(c,"#80e5f0",p.x-22,p.y-10,44,6);
     }else{
       // 0-.5s: the summoning pool opens; .5-1s: the body uncoils and rushes right.
@@ -795,7 +814,7 @@ window.SchoolArt = (() => {
         rect(c,"#83edf4",x-size/2+4,y-size/2+3,Math.max(2,size-8),Math.max(2,size*.27));
         if(i%4===0&&i<20){rect(c,"#b9ffff",x-2,y-size/2-8,4,10);rect(c,"#60daed",x-5,y-size/2-10,4,5);}
       }
-      c.drawImage(dragon,63,0,41,32,Math.round(nose-123),Math.round(headY-57),123,96);
+      c.drawImage(dragonSprite(),63,0,41,32,Math.round(nose-123),Math.round(headY-57),123,96);
       for(let i=0;i<(economy?5:13);i++){const x=source.x+26+(i*43+age*185)%Math.max(40,nose-source.x-10),y=166+Math.sin(i+age*8)*28;rect(c,"#94edf5",x,y,7+12*rush,3);}
       if(age>=.5)for(let i=0;i<(economy?7:17);i++){const x=source.x+30+i*(economy?45:19);if(x>nose)break;const y=227+Math.sin(i*.7-age*10)*8;rect(c,"#188bc4aa",x,y,22,18);rect(c,"#82e7f1",x,y-2,15,4);}
       if(age>=1){
@@ -941,7 +960,7 @@ window.SchoolArt = (() => {
     }
   }
   function osiaCinematic(c, state, time, effects, reduced) {
-    const active = state.battle.cinematic, event = effects.findLast(e => e.kind === "cinematic" && e.from === "osia" && (!active || e.castId === active.castId));
+    const active = state.battle.cinematic, event = lastEffect(effects, e => e.kind === "cinematic" && e.from === "osia" && (!active || e.castId === active.castId));
     const duration = (event?.duration || active?.duration || S.OSIA_CINEMATIC_MS) / 1000, age = event ? time - event.time : active ? 0 : -1;
     if (age < 0 || !active && age >= duration || !active && !event) return;
     const enter = reduced ? 1 : Math.min(1, age / .12), offset = reduced ? 0 : (1 - enter) * -45;
@@ -949,7 +968,7 @@ window.SchoolArt = (() => {
     c.beginPath(); c.rect(0, 61, 480, 143); c.clip(); c.translate(offset, 0);
     rect(c, "#123a55f5", -50, 62, 580, 141); rect(c, "#1a5671", 0, 69, 480, 126);
     for (let i = 0; i < 15; i++) { const x = reduced ? i * 41 : (i * 41 + age * 230) % 550 - 50; rect(c, i % 2 ? "#75d8e741" : "#b6f6f12e", x, 78 + i * 8, 65 + i % 4 * 21, 2); }
-    c.globalAlpha = .42; c.drawImage(dragon, 278, 69, 195, 135); c.globalAlpha = 1;
+    c.globalAlpha = .42; c.drawImage(dragonSprite(), 278, 69, 195, 135); c.globalAlpha = 1;
     // This cut-in has its own articulated pose, not a crop of an idle sprite.
     const charge=reduced?.65:clamp01(age/duration);
     c.save();c.translate(80+(reduced?0:charge*10),234);c.scale(2.55,2.55);
@@ -1061,7 +1080,7 @@ window.SchoolArt = (() => {
       let life = scene.enemies.get(enemy.id);
       if (!life) { life = {dead:enemy.hp <= 0, diedAt:enemy.hp <= 0 ? time-.8 : null}; scene.enemies.set(enemy.id, life); }
       if (enemy.hp <= 0 && !life.dead) {
-        const hit = effects.findLast(e => e.kind === "hit" && e.to === enemy.id);
+        const hit = lastEffect(effects, e => e.kind === "hit" && e.to === enemy.id);
         life.diedAt = Math.max(time-.15, hit?.time ?? time); life.dead = true;
       } else if (enemy.hp > 0 && life.dead) { life.dead = false; life.diedAt = null; }
     }
@@ -1069,9 +1088,18 @@ window.SchoolArt = (() => {
   }
   function draw(c, state, time, effects = [], reduced = false) {
     c.save();
+    try { drawFrame(c, state, time, effects, reduced); }
+    catch (error) {
+      // A failed nested effect can leave several saves/clips on the stack.
+      // Reset only on failure, then let the client report/retry the real error.
+      c.canvas.width = c.canvas.width;
+      throw error;
+    } finally { c.restore(); }
+  }
+  function drawFrame(c, state, time, effects, reduced) {
     c.setTransform(c.canvas.width / 480, 0, 0, c.canvas.height / 280, 0, 0); c.imageSmoothingEnabled = false;
     const economy=Number(c.canvas.dataset?.renderScale||1)<.8;
-    const battle = state.battle, extendedParty = Math.max(battle.heroes.length, state.team?.length || 0) > 3, cinematicEvent = effects.findLast(e => e.kind === "cinematic" && e.castId === battle.cinematic?.castId);
+    const battle = state.battle, extendedParty = Math.max(battle.heroes.length, state.team?.length || 0) > 3, cinematicEvent = lastEffect(effects, e => e.kind === "cinematic" && e.castId === battle.cinematic?.castId);
     const sceneTime = battle.cinematic ? cinematicEvent?.time ?? time : time;
     // A slightly closer background camera brings the floor up behind both
     // formation rows; rear allies must not appear to stand on the classroom wall.
@@ -1091,7 +1119,7 @@ window.SchoolArt = (() => {
     }
     // Only a critical impact nudges the combat layer (never the DOM or camera
     // layout). Ordinary attack traffic cannot continuously shake the screen.
-    const strongHit=effects.findLast(e=>e.kind==="hit"&&e.critical&&e.amount>0&&time-e.time<.16);
+    const strongHit=lastEffect(effects,e=>e.kind==="hit"&&e.critical&&e.amount>0&&time-e.time<.16);
     if(strongHit&&!reduced&&!battle.cinematic){const age=time-strongHit.time,decay=1-age/.16;c.translate(Math.sin(age*75)*1.4*decay,Math.cos(age*65)*.7*decay);}
     const lifecycle = sceneLife(c.canvas, battle, time, effects);
     const positions = {};
@@ -1197,7 +1225,6 @@ window.SchoolArt = (() => {
       c.restore();
     }
     osiaCinematic(c, state, time, effects, reduced);
-    c.restore();
   }
-  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, ready, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : osiaLoaded };
+  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : osiaLoaded };
 })();

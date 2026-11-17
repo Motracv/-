@@ -37,6 +37,8 @@
   Presentation?.configure({soundEnabled:()=>sound, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
   let social, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
+  let repairBattle = () => false;
+  const graphics = {frames:0, lastFrame:0, lastDraw:0, failures:0, lastError:'', losses:0, recoveries:0, lost:false};
   function clearLogin() { token = null; verifiedToken = null; storage.remove(SESSION); storage.remove(SESSION, true); }
   function stopTraining() { if (trainingHold) { trainingHold.stopped = true; clearTimeout(trainingHold.timer); } trainingHold = null; }
   function beginTraining(event, id) {
@@ -115,6 +117,29 @@
     openModal('설정', `<div class="settings-list"><label class="setting-row" for="setting-theme"><span><b>다크 모드</b><small>눈이 편한 차분한 어두운 화면</small></span><input id="setting-theme" type="checkbox" role="switch" ${theme === 'dark' ? 'checked' : ''}></label><label class="setting-row" for="setting-sound"><span><b>효과음</b><small>전투·모집·성장 효과음</small></span><input id="setting-sound" type="checkbox" role="switch" ${sound ? 'checked' : ''}></label><label class="setting-row" for="setting-motion"><span><b>모션 줄이기</b><small>큰 움직임과 섬광을 간단하게</small></span><input id="setting-motion" type="checkbox" role="switch" ${reduced ? 'checked' : ''}></label></div><div class="settings-links"><button class="secondary" id="settings-help">${icon('book')} 게임 안내</button><button class="secondary" id="settings-rotate">${icon('fullscreen')} 전체 화면 · 상태바</button></div><div id="school-install-controls"></div><p class="settings-note">설정은 이 브라우저에 저장됩니다.</p>`, 'settings');
     window.SchoolInstall?.renderControls?.($('school-install-controls'));
     $('settings-help').onclick = help; $('settings-rotate').onclick = () => { closeModal(); attemptLandscape(); };
+    const repairs = document.createElement('div'); repairs.className = 'settings-links';
+    repairs.innerHTML = '<button class="secondary" id="settings-recover">전투 화면 복구</button><button class="secondary" id="settings-diagnostics">문제 정보</button>';
+    $('school-install-controls').before(repairs);
+    $('settings-recover').onclick = () => { closeModal(); Presentation?.cancel(); repairBattle(true); };
+    $('settings-diagnostics').onclick = diagnosticsModal;
+  }
+  function diagnosticsModal() {
+    const canvas = $('battle'), box = canvas?.getBoundingClientRect(), script = document.querySelector('script[src*="school/client.js"]');
+    const age = value => value ? Math.round(performance.now() - value) : null;
+    const report = {
+      version:script ? new URL(script.src).searchParams.get('v') : 'unknown', browser:navigator.userAgent,
+      viewport:[innerWidth,innerHeight,devicePixelRatio], canvas:canvas ? [canvas.width,canvas.height,Math.round(box.width),Math.round(box.height)] : null,
+      app:matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches, hidden:document.hidden,
+      account:{mode,connected,busy,pending:!!pending}, battle:state ? {stage:state.stage,wave:state.wave,phase:state.battle.phase,elapsed:state.battle.elapsed,simTime:state.simTime,cutin:state.battle.cinematic?.remaining || 0} : null,
+      graphics:{...graphics,lastFrame:age(graphics.lastFrame),lastDraw:age(graphics.lastDraw),modal:modalKind,covered:resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden},
+      support:{findLast:typeof Array.prototype.findLast==='function',abortTimeout:typeof window.AbortSignal?.timeout==='function',contextLost:typeof canvas?.getContext('2d')?.isContextLost==='function'}
+    };
+    openModal('문제 정보', `<p class="modal-copy">멈춤이 반복되면 아래 정보를 복사해서 알려주세요. 로그인 토큰과 계정 이름은 포함하지 않아요.</p><textarea id="diagnostic-report" class="diagnostic-report" readonly aria-label="게임 문제 정보">${esc(JSON.stringify(report,null,2))}</textarea><button class="primary" id="copy-diagnostics">문제 정보 복사</button>`, 'diagnostics');
+    $('copy-diagnostics').onclick = async () => {
+      const input = $('diagnostic-report');
+      try { await navigator.clipboard.writeText(input.value); toast('문제 정보를 복사했어요.'); }
+      catch { input.focus(); input.select(); toast('선택된 내용을 길게 눌러 복사해 주세요.'); }
+    };
   }
   function showBoot(message) { $('boot-message').textContent = message; }
   function finishBoot() { $('boot-screen').hidden = true; updateOrientation(); }
@@ -184,56 +209,149 @@
     for (const key of LEGACY_SAVES) {
       const legacy = storage.get(key); if (!legacy) continue;
       const saved = validSave(legacy);
-      if (saved) return { saved, raw: null };
+      if (saved) return { saved, raw: null, legacyKey: key, legacyRaw: legacy };
       if (!storage.get(SAVE + '-recovery')) storage.set(SAVE + '-recovery', legacy);
       throw Error('이전 기기 저장을 읽지 못했습니다. 원본을 유지했습니다. 계정 메뉴에서 저장을 확인하세요.');
     }
     return { saved: freshGuest(), raw: null };
   }
   function readGuest() { return readGuestRecord().saved; }
-  function writeGuest(next, previousRaw, previousValid) {
-    const current = JSON.stringify(next);
-    if (current === previousRaw) return;
+  function writeGuest(next, previousRaw, previousValid, coordinator) {
+    if (JSON.stringify(next) === previousRaw) return;
     next._saveRevision = (Number.isSafeInteger(next._saveRevision) ? next._saveRevision : 0) + 1;
-    const committed = JSON.stringify(next);
+    next._saveCommit = Array.from(crypto.getRandomValues(new Uint32Array(4)), value => value.toString(16).padStart(8, '0')).join('');
+    const committed = JSON.stringify(next), journalKey = !coordinator.prior || coordinator.identity !== coordinator.prior.identity ? SAVE + '-journal:' + next._saveCommit : null;
+    const journal = {before:coordinator.rollbackRaw, beforeBackup:journalKey ? storage.get(SAVE + '-backup') : null, after:committed, priorCommit:coordinator.prior?.commitId || null};
+    coordinator.staged = {raw:committed, journalKey, journal};
+    // The write-ahead record survives a page/transaction abort between the two
+    // storage systems. A unique key cannot erase another tab's in-flight log.
+    if (journalKey && !storage.set(journalKey, JSON.stringify(journal))) throw Error('안전한 자동 저장을 준비하지 못했습니다. 재화는 사용하지 않았습니다.');
     if (previousValid) storage.set(SAVE + '-backup', previousRaw);
     if (!storage.set(SAVE, committed)) throw Error('자동 저장에 실패했습니다. 재화는 사용하지 않았습니다. 저장 공간·브라우저 설정을 확인한 뒤 다시 눌러주세요.');
     storage.set(SAVE + '-backup', committed);
   }
   function guestLock(update) {
-    if (navigator.locks) return navigator.locks.request('school-guest-save', update);
-    // IndexedDB's exclusive transaction coordinates tabs on older browsers too.
+    // Web Locks alone does not flush another renderer's localStorage cache.
+    // Both browser paths therefore use the same transactional committed head.
     mutexDatabase ||= new Promise((resolve, reject) => {
-      const request = indexedDB.open('school-save-coordination', 1);
+      let request;
+      try { request = indexedDB.open('school-save-coordination', 1); }
+      catch { reject(Error('안전한 기기 저장을 열지 못했습니다. 기존 기록은 유지됩니다.')); return; }
       request.onupgradeneeded = () => request.result.createObjectStore('locks');
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => { mutexDatabase = null; reject(Error('안전한 기기 저장을 열지 못했습니다. 브라우저 저장 설정을 확인하세요.')); };
-    });
-    return mutexDatabase.then(db => new Promise((resolve, reject) => {
-      const tx = db.transaction('locks', 'readwrite'); let result, completed = false, failure;
-      tx.objectStore('locks').get('guest').onsuccess = () => {
-        try { result = update(); completed = true; } catch (error) { failure = error; tx.abort(); }
+      request.onerror = () => reject(Error('안전한 기기 저장을 열지 못했습니다. 브라우저 저장 설정을 확인하세요.'));
+    }).catch(error => { mutexDatabase = null; throw error; });
+    const locked = () => mutexDatabase.then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction('locks', 'readwrite'), store = tx.objectStore('locks');
+      let result, failure, coordinator, recoveredJournalKey;
+      const read = store.get('guest');
+      read.onsuccess = () => {
+        try {
+          const prior = read.result?.raw && validSave(read.result.raw) ? read.result : null;
+          let record = readGuestRecord();
+          const journalKey = record.saved._saveCommit && SAVE + '-journal:' + record.saved._saveCommit;
+          const rawJournal = journalKey && (!prior || record.saved._saveIdentity !== prior.identity) && storage.get(journalKey);
+          if (!record.recovered && rawJournal) {
+            const journal = JSON.parse(rawJournal);
+            if (journal.after === record.raw && prior?.commitId !== record.saved._saveCommit) {
+              recoveredJournalKey = journalKey;
+              // A prior local mirror never reached the IndexedDB commit.
+              const before = (prior?.commitId || null) === journal.priorCommit ? journal.before : prior?.raw;
+              if (before === null) {
+                storage.remove(SAVE);
+                if (storage.get(SAVE) !== null) throw Error('중단된 저장을 복구하지 못했습니다. 원본 기록을 유지합니다.');
+                record = readGuestRecord();
+              } else {
+                const saved = validSave(before);
+                if (!saved) throw Error('중단된 저장을 확인하지 못했습니다. 원본 기록을 유지합니다.');
+                record = {saved, raw:before};
+              }
+            }
+          }
+          const committed = prior && validSave(prior.raw), sameIdentity = committed && record.saved._saveIdentity === prior.identity;
+          // An explicit reset/seed can retain metadata but replace the contents
+          // of the exact same revision. It must not resurrect the old game.
+          const replaced = sameIdentity && record.saved._saveRevision >= committed._saveRevision && record.raw !== prior.raw && record.saved._saveCommit === prior.commitId;
+          const sameLegacy = prior && !record.saved._saveIdentity && record.raw === prior.initialRaw &&
+            (record.legacyKey || null) === (prior.initialLegacyKey || null) &&
+            (record.legacyRaw || null) === (prior.initialLegacyRaw || null);
+          const useCommitted = !record.recovered && !replaced && (sameIdentity || sameLegacy);
+          if (useCommitted) record = {saved:committed, raw:prior.raw};
+          const identity = useCommitted ? prior.identity : Array.from(crypto.getRandomValues(new Uint32Array(4)), value => value.toString(16).padStart(8, '0')).join('');
+          coordinator = {prior, identity, initialRaw:useCommitted ? prior.initialRaw : record.raw,
+            initialLegacyKey:useCommitted ? prior.initialLegacyKey : record.legacyKey,
+            initialLegacyRaw:useCommitted ? prior.initialLegacyRaw : record.legacyRaw,
+            rollbackRaw:record.raw && !record.recovered ? record.raw : JSON.stringify(record.saved)};
+          result = update(record, coordinator);
+          if (coordinator.staged) store.put({raw:coordinator.staged.raw, identity, initialRaw:coordinator.initialRaw,
+            initialLegacyKey:coordinator.initialLegacyKey, initialLegacyRaw:coordinator.initialLegacyRaw, commitId:result.next._saveCommit}, 'guest');
+          else if (useCommitted && storage.get(SAVE) !== prior.raw) {
+            // Mirror repair is not a new purchase or a new revision.
+            if (!storage.set(SAVE, prior.raw)) throw Error('기기 저장 표시를 동기화하지 못했습니다. 기존 기록은 유지됩니다.');
+          }
+        } catch (error) { failure = error; tx.abort(); }
       };
-      tx.oncomplete = () => resolve(result);
-      tx.onabort = tx.onerror = () => completed ? resolve(result) : reject(failure || Error('기기 저장을 잠시 사용할 수 없습니다. 다시 시도하세요.'));
+      tx.oncomplete = () => {
+        if (coordinator?.staged?.journalKey) storage.remove(coordinator.staged.journalKey);
+        if (recoveredJournalKey) storage.remove(recoveredJournalKey);
+        resolve(result);
+      };
+      tx.onabort = () => {
+        const error = failure || Error('기기 저장을 잠시 사용할 수 없습니다. 재화는 사용하지 않았습니다.');
+        if (!coordinator?.staged) { reject(error); return; }
+        // Obtain a new exclusive transaction before compensation. A later
+        // successful tab may already have committed; never overwrite its head.
+        try {
+          const repair = db.transaction('locks', 'readwrite'), request = repair.objectStore('locks').get('guest');
+          request.onsuccess = () => {
+            const latest = request.result, stage = coordinator.staged;
+            if (storage.get(SAVE) === stage.raw) {
+              const raw = (latest?.commitId || null) === (coordinator.prior?.commitId || null) ? stage.journal.before : latest?.raw;
+              if (raw && validSave(raw) && storage.set(SAVE, raw)) { storage.set(SAVE + '-backup', raw); if (stage.journalKey) storage.remove(stage.journalKey); }
+              else if (raw === null) {
+                storage.remove(SAVE);
+                if (storage.get(SAVE) === null) {
+                  if (stage.journal.beforeBackup) storage.set(SAVE + '-backup', stage.journal.beforeBackup); else storage.remove(SAVE + '-backup');
+                  if (stage.journalKey) storage.remove(stage.journalKey);
+                }
+              }
+              // If compensation itself is unavailable, retain its journal.
+            } else if (stage.journalKey) storage.remove(stage.journalKey);
+          };
+          repair.oncomplete = repair.onabort = () => reject(error);
+          repair.onerror = () => {};
+        } catch { reject(error); }
+      };
+      tx.onerror = () => {};
     }));
+    // Preserve the existing outer lock for already-open clients while all new
+    // clients also share the IndexedDB head (including locks-less browsers).
+    return navigator.locks ? navigator.locks.request('school-guest-save', locked) : locked();
   }
   function guestUpdate(input) {
-    const update = () => {
+    const update = (record, coordinator) => {
       if (mode !== 'guest') return;
-      const record = readGuestRecord(), next = record.saved;
+      let next = G.clone(record.saved); next._saveIdentity = coordinator.identity;
       G.advance(next, Date.now());
       let result = null, actionError;
-      if (input) try { result = G.action(next, input); } catch (error) { error.guestAction = true; actionError = error; }
-      // Commit first: displayed rewards and successful actions are always durable.
-      const recoveredWrite = guestSaveFailed;
-      writeGuest(next, record.raw, !!record.raw && !record.recovered); rememberActivityResult(next); confirmedEvents(next); state = next; hasGuestState = true; guestSaveFailed = false; lastSave = Date.now();
+      if (input) {
+        const candidate = G.clone(next);
+        try { result = G.action(candidate, input); next = candidate; }
+        catch (error) { error.guestAction = true; actionError = error; }
+      }
+      writeGuest(next, record.raw, !!record.raw && !record.recovered, coordinator);
+      return {next, result, actionError, recovered:record.recovered};
+    };
+    const task = guestQueue.then(() => guestLock(update)).then(committed => {
+      if (!committed || mode !== 'guest') return;
+      const {next, result, actionError, recovered} = committed, recoveredWrite = guestSaveFailed;
+      // Publish only after the exclusive transaction confirms the save.
+      rememberActivityResult(next); confirmedEvents(next); state = next; hasGuestState = true; guestSaveFailed = false; lastSave = Date.now();
       saveStatus('saved', '기기 저장 완료');
-      if (record.recovered) note('자동 저장 사본에서 기록을 복구했습니다.');
+      if (recovered) note('자동 저장 사본에서 기록을 복구했습니다.');
       else if (recoveredWrite) note('');
       consumeEvents(); if (clientReady) render(); if (actionError) throw actionError; return result;
-    };
-    const task = guestQueue.then(() => guestLock(update));
+    });
     guestQueue = task.catch(() => {});
     return task.catch(error => {
       if (!error.guestAction) { guestSaveFailed = true; lastSave = Date.now(); saveStatus('error', '저장 확인 필요'); note(error.message); }
@@ -255,12 +373,17 @@
   async function request(path, data, auth = 'school') {
     let response;
     const payload = path.startsWith('/api/school/') ? { ...data, catalogVersion: G.CATALOG_VERSION } : data || {};
+    // Older Android browsers support AbortController but not AbortSignal.timeout.
+    // Keep the deadline active while reading the response body as well.
+    const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), 14000);
     try {
-      response = await fetch(BASE + path, { method: path.endsWith('/config') ? 'GET' : 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token && auth !== 'public' ? auth === 'school' ? { 'X-Account-Session': token } : { Authorization: `Bearer ${token}` } : {}) }, ...(path.endsWith('/config') ? {} : { body: JSON.stringify(payload) }), signal: AbortSignal.timeout(14000) });
-    } catch { throw Error('저장 서버에 연결하지 못했습니다. 연결 후 다시 시도하세요.'); }
-    let body; try { body = await response.json(); } catch { throw Error('저장 서버의 응답을 읽지 못했습니다.'); }
-    if (!response.ok && !body.conflict) throw Object.assign(Error(body.error || '요청을 처리하지 못했습니다.'), { status: response.status });
-    return body;
+      try {
+        response = await fetch(BASE + path, { method: path.endsWith('/config') ? 'GET' : 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token && auth !== 'public' ? auth === 'school' ? { 'X-Account-Session': token } : { Authorization: `Bearer ${token}` } : {}) }, ...(path.endsWith('/config') ? {} : { body: JSON.stringify(payload) }), signal: controller.signal });
+      } catch { throw Error('저장 서버에 연결하지 못했습니다. 연결 후 다시 시도하세요.'); }
+      let body; try { body = await response.json(); } catch { throw Error('저장 서버의 응답을 읽지 못했습니다.'); }
+      if (!response.ok && !body.conflict) throw Object.assign(Error(body.error || '요청을 처리하지 못했습니다.'), { status: response.status });
+      return body;
+    } finally { clearTimeout(deadline); }
   }
   function applyCloud(body) {
     const at = performance.now();
@@ -570,7 +693,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-mobilefix1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-renderfix1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -728,7 +851,7 @@
     } catch (error) {
       if (error.status === 401) { clearLogin(); }
       connected = false; saveStatus('error', '계정 연결 대기'); lastSync = Date.now();
-      note('계정 기록을 불러오지 못했습니다. 계정 메뉴에서 다시 연결해 주세요.', true);
+      note(error.status === 426 ? error.message : error.status === 401 ? '로그인이 만료되었습니다. 계정 메뉴에서 다시 로그인해 주세요.' : '계정 기록을 불러오지 못했습니다. 계정 메뉴에서 다시 연결해 주세요.', error.status === 426 ? 'reload' : true);
       toast(error.message); const status = $('login-message'); if (status) status.textContent = error.message;
     } finally { busy = false; renderButtons(); }
     if (loaded && pending) sync(true);
@@ -913,9 +1036,55 @@
       if (mode === 'cloud' && hasCloudState && connected) { advanceCloudPreview(); consumeEvents(); render(); }
       if (mode === 'cloud' && token && Date.now() - lastSync > 3000) { lastSync = Date.now(); sync(); }
     }, 250);
-    const canvas = $('battle'), ctx = canvas.getContext('2d', {alpha:false, desynchronized:true});
+    let canvas = $('battle'), ctx = canvas.getContext('2d', {alpha:false, desynchronized:true});
     let nextDrawAt = 0, drawInterval = 0, canvasSizeDirty = true, canvasDpr = 0;
     let rasterScale = 1, previousRaf = 0, sampleStarted = 0, sampleFrames = 0, slowFrames = 0, drawCost = 0, drawSamples = 0, lastScaleChange = 0;
+    let frameId = 0, recoveryTimer = 0, retryDrawAt = 0, failedDraws = 0, recoveryTried = false;
+    const resizeObserver = window.ResizeObserver ? new ResizeObserver(() => { canvasSizeDirty = true; }) : null;
+    function recoveryNotice(message) {
+      setHidden($('battle-recovery'), !message);
+      if (message) setText('battle-recovery-message', message);
+    }
+    function recordDrawingError(error) {
+      graphics.failures++;
+      graphics.lastError = `${error.name || 'Error'}: ${error.message || '그리기 실패'}`.slice(0,240);
+    }
+    function resetDrawing() {
+      try { Art.resetRenderCache?.(); } catch (error) { recordDrawingError(error); }
+      canvasSizeDirty = true; nextDrawAt = 0; retryDrawAt = 0; previousRaf = 0;
+      if (ctx) ctx.imageSmoothingEnabled = false;
+    }
+    function trackCanvas(target) {
+      resizeObserver?.observe(target);
+      target.addEventListener('contextlost', event => {
+        if (target !== canvas) return;
+        // Unlike WebGL, cancelling a 2D contextlost event prevents restoration.
+        graphics.lost = true; graphics.losses++;
+        recoveryNotice('전투 화면을 복구하고 있어요.');
+        clearTimeout(recoveryTimer);
+        recoveryTimer = setTimeout(() => { if (graphics.lost && !document.hidden) repairBattle(); }, 1800);
+      });
+      target.addEventListener('contextrestored', () => {
+        if (target !== canvas) return;
+        clearTimeout(recoveryTimer); graphics.lost = false; graphics.recoveries++;
+        resetDrawing(); // Offscreen sprite/background surfaces may have been lost too.
+      });
+    }
+    repairBattle = (manual = false) => {
+      if (document.hidden) return false;
+      clearTimeout(recoveryTimer);
+      const replacement = canvas.cloneNode(false), nextContext = replacement.getContext('2d', {alpha:false});
+      if (!nextContext) { recoveryNotice('전투 화면을 열지 못했어요. 문제 정보를 확인해 주세요.'); return false; }
+      resizeObserver?.unobserve(canvas); canvas.replaceWith(replacement); canvas = replacement; ctx = nextContext;
+      graphics.lost = false; graphics.recoveries++; failedDraws = 0; recoveryTried = true;
+      trackCanvas(canvas); resetDrawing();
+      cancelAnimationFrame(frameId); frameId = requestAnimationFrame(animate);
+      recoveryNotice('전투 화면을 다시 그리고 있어요.');
+      if (manual) toast('전투 화면을 다시 준비했어요.');
+      return true;
+    };
+    $('recover-battle').onclick = () => repairBattle(true);
+    trackCanvas(canvas);
     function fitBattleCanvas() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       if (!canvasSizeDirty && canvasDpr === dpr) return true;
@@ -927,16 +1096,25 @@
       const width = Math.max(1, Math.round(Math.min(fitWidth * dpr * rasterScale, 2880)));
       const height = Math.max(1, Math.round(width * 7 / 12));
       if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width; canvas.height = height; ctx.imageSmoothingEnabled = false;
+        canvas.width = width; canvas.height = height; if (ctx) ctx.imageSmoothingEnabled = false;
       }
       canvasDpr = dpr; canvasSizeDirty = false; return true;
     }
-    if (window.ResizeObserver) new ResizeObserver(() => { canvasSizeDirty = true; }).observe(canvas);
     window.addEventListener('resize', () => { canvasSizeDirty = true; });
     window.visualViewport?.addEventListener('resize', () => { canvasSizeDirty = true; });
+    function resumeDrawing() {
+      if (document.hidden) return;
+      canvasSizeDirty = true; nextDrawAt = 0; previousRaf = 0;
+      if (graphics.lost || ctx?.isContextLost?.()) repairBattle();
+      cancelAnimationFrame(frameId); frameId = requestAnimationFrame(animate);
+    }
+    window.addEventListener('pageshow', resumeDrawing);
+    document.addEventListener('visibilitychange', resumeDrawing);
+    document.addEventListener('fullscreenchange', () => { canvasSizeDirty = true; });
     function animate(time) {
-      requestAnimationFrame(animate);
+      frameId = requestAnimationFrame(animate); graphics.lastFrame = performance.now();
       if (document.hidden || resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden) { nextDrawAt = 0; previousRaf = 0; sampleStarted = 0; sampleFrames = slowFrames = drawCost = drawSamples = 0; return; }
+      if (graphics.lost || time < retryDrawAt) return;
       if (previousRaf && time - previousRaf < 300) { sampleFrames++; if (time - previousRaf > 25) slowFrames++; }
       previousRaf = time; sampleStarted ||= time;
       if (time - sampleStarted >= 2000 && sampleFrames > 12) {
@@ -950,9 +1128,22 @@
       if (time + .25 < nextDrawAt) return;
       // Carry the cadence across 90/144Hz refreshes, but never replay missed frames.
       nextDrawAt = !nextDrawAt || time - nextDrawAt > interval * 4 ? time + interval : nextDrawAt + Math.max(1, Math.floor((time - nextDrawAt) / interval) + 1) * interval;
-      if (fitBattleCanvas()) { const began = performance.now(); Art.draw(ctx, state, animationTime(), effects, reduced); drawCost += performance.now()-began; drawSamples++; }
+      if (fitBattleCanvas()) {
+        const began = performance.now();
+        try {
+          if (!ctx || ctx.isContextLost?.()) throw Error('전투 화면의 그래픽 연결이 끊겼어요.');
+          Art.draw(ctx, state, animationTime(), effects, reduced);
+          graphics.frames++; graphics.lastDraw = performance.now(); failedDraws = 0; recoveryTried = false;
+          recoveryNotice(''); drawCost += performance.now()-began; drawSamples++;
+        } catch (error) {
+          recordDrawingError(error); failedDraws++;
+          retryDrawAt = time + 1000;
+          recoveryNotice('전투 화면 오류 · 설정에서 문제 정보를 확인할 수 있어요.');
+          if (!recoveryTried && failedDraws === 1) { recoveryTried = true; queueMicrotask(() => repairBattle()); }
+        }
+      }
     }
-    requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
   }
   boot().catch(error => { $('boot-screen').hidden = true; $('rotate-prompt').hidden = true; $('app').inert = false; saveStatus('error', '저장 확인 필요'); note(error.message || '게임을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.', 'reload'); console.error(error); });
 })();
