@@ -13,6 +13,9 @@
   let state, mode = 'guest', profile = null, token = null, revision = 0, offset = 0, busy = false, pending = null, connected = true;
   let tab = 'adventure', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
   let sound = storage.get('school-sound') === 'on', audio, renderKey = '', partyKey = '', lastSave = 0, lastSync = 0;
+  const CLOUD_CACHE = 'school-confirmed-cloud-view';
+  let guestQueue = Promise.resolve(), guestTickPending = false, guestSaveFailed = false, mutexDatabase;
+  let cloudBalance = null, hasCloudState = false, hasGuestState = false, clientReady = false, verifiedToken = null, sessionFingerprint = null;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   try { token = JSON.parse(storage.get(SESSION, true) || 'null')?.token || null; } catch {}
 
@@ -32,26 +35,94 @@
   }
   function refreshSound() { $('sound-button').classList.toggle('muted', !sound); $('sound-button').setAttribute('aria-label', `효과음 ${sound ? '끄기' : '켜기'}`); $('sound-button').setAttribute('aria-pressed', String(sound)); }
   function freshGuest() { return G.create(Date.now(), crypto.getRandomValues(new Uint32Array(1))[0]); }
-  function readGuest() {
-    // Keep old combat clients from overwriting the staged skill and stun state.
-    const raw = storage.get(SAVE) || LEGACY_SAVES.map(key => storage.get(key)).find(Boolean);
-    if (!raw) return freshGuest();
-    try { const saved = JSON.parse(raw); if (G.validate(saved)) return saved; } catch {}
-    storage.set(SAVE + '-recovery', raw);
-    note('이전 기기 저장을 읽지 못해 복구 사본을 남겼습니다. 계정 저장이 있다면 불러오세요.');
-    return freshGuest();
+  function saveStatus(status, message) {
+    const el = $('save-status'); if (!el) return;
+    el.dataset.state = status; el.textContent = message;
+    el.title = message;
   }
-  function writeGuest(next) {
-    if (!storage.set(SAVE, JSON.stringify(next))) note('이 브라우저는 기기 저장을 막고 있습니다. 계정 저장을 이용하세요.');
+  function validSave(raw) {
+    if (!raw) return null;
+    try { const parsed = JSON.parse(raw); return G.validate(parsed) ? parsed : null; } catch { return null; }
   }
-  async function guestUpdate(input) {
+  function readGuestRecord() {
+    let raw;
+    try { raw = localStorage.getItem(SAVE); } catch { throw Error('기기 저장을 읽을 수 없습니다. 브라우저의 저장 허용을 확인하세요.'); }
+    if (raw) {
+      const saved = validSave(raw); if (saved) return { saved, raw };
+      // Preserve the broken original. Never replace it with a fresh account.
+      if (!storage.get(SAVE + '-recovery')) storage.set(SAVE + '-recovery', raw);
+      const backup = validSave(storage.get(SAVE + '-backup'));
+      if (backup) return { saved: backup, raw, recovered: true };
+      throw Error('기기 저장을 읽지 못했습니다. 원본은 보관했습니다. 계정 메뉴에서 계정 기록을 불러올 수 있습니다.');
+    }
+    for (const key of LEGACY_SAVES) {
+      const legacy = storage.get(key); if (!legacy) continue;
+      const saved = validSave(legacy);
+      if (saved) return { saved, raw: null };
+      if (!storage.get(SAVE + '-recovery')) storage.set(SAVE + '-recovery', legacy);
+      throw Error('이전 기기 저장을 읽지 못했습니다. 원본을 유지했습니다. 계정 메뉴에서 저장을 확인하세요.');
+    }
+    return { saved: freshGuest(), raw: null };
+  }
+  function readGuest() { return readGuestRecord().saved; }
+  function writeGuest(next, previousRaw) {
+    const current = JSON.stringify(next);
+    if (current === previousRaw) return;
+    next._saveRevision = (Number.isSafeInteger(next._saveRevision) ? next._saveRevision : 0) + 1;
+    if (validSave(previousRaw)) storage.set(SAVE + '-backup', previousRaw);
+    if (!storage.set(SAVE, JSON.stringify(next))) throw Error('자동 저장에 실패했습니다. 재화는 사용하지 않았습니다. 저장 공간·브라우저 설정을 확인한 뒤 다시 눌러주세요.');
+    storage.set(SAVE + '-backup', JSON.stringify(next));
+  }
+  function guestLock(update) {
+    if (navigator.locks) return navigator.locks.request('school-guest-save', update);
+    // IndexedDB's exclusive transaction coordinates tabs on older browsers too.
+    mutexDatabase ||= new Promise((resolve, reject) => {
+      const request = indexedDB.open('school-save-coordination', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('locks');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => { mutexDatabase = null; reject(Error('안전한 기기 저장을 열지 못했습니다. 브라우저 저장 설정을 확인하세요.')); };
+    });
+    return mutexDatabase.then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction('locks', 'readwrite'); let result, completed = false, failure;
+      tx.objectStore('locks').get('guest').onsuccess = () => {
+        try { result = update(); completed = true; } catch (error) { failure = error; tx.abort(); }
+      };
+      tx.oncomplete = () => resolve(result);
+      tx.onabort = tx.onerror = () => completed ? resolve(result) : reject(failure || Error('기기 저장을 잠시 사용할 수 없습니다. 다시 시도하세요.'));
+    }));
+  }
+  function guestUpdate(input) {
     const update = () => {
       if (mode !== 'guest') return;
-      const next = readGuest(); G.advance(next, Date.now());
-      const result = input ? G.action(next, input) : null;
-      writeGuest(next); state = next; consumeEvents(); render(); return result;
+      const record = readGuestRecord(), next = record.saved;
+      G.advance(next, Date.now());
+      let result = null, actionError;
+      if (input) try { result = G.action(next, input); } catch (error) { error.guestAction = true; actionError = error; }
+      // Commit first: displayed rewards and successful actions are always durable.
+      const recoveredWrite = guestSaveFailed;
+      writeGuest(next, record.raw); state = next; hasGuestState = true; guestSaveFailed = false; lastSave = Date.now();
+      saveStatus('saved', '기기 저장 완료');
+      if (record.recovered) note('자동 저장 사본에서 기록을 복구했습니다.');
+      else if (recoveredWrite) note('');
+      consumeEvents(); if (clientReady) render(); if (actionError) throw actionError; return result;
     };
-    return navigator.locks ? navigator.locks.request('school-guest-save', update) : update();
+    const task = guestQueue.then(() => guestLock(update));
+    guestQueue = task.catch(() => {});
+    return task.catch(error => {
+      if (!error.guestAction) { guestSaveFailed = true; lastSave = Date.now(); saveStatus('error', '저장 확인 필요'); note(error.message); }
+      throw error;
+    });
+  }
+  function advanceCloudPreview() {
+    if (!hasCloudState) return;
+    G.advance(state, Date.now() + offset);
+    // Combat may be predicted, but unconfirmed currency must never look spendable.
+    state.gold = cloudBalance.gold; state.gems = cloudBalance.gems;
+  }
+  async function tokenFingerprint(value) {
+    if (!value) return null;
+    const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
   }
   async function request(path, data, auth = 'school') {
     let response;
@@ -64,28 +135,37 @@
     return body;
   }
   function applyCloud(body) {
-    state = body.state; revision = body.revision; offset = body.serverTime - Date.now(); connected = true;
-    G.advance(state, Date.now() + offset); consumeEvents(); render(); note('');
+    state = body.state; revision = body.revision; offset = body.serverTime - Date.now(); connected = true; hasCloudState = true;
+    cloudBalance = { gold: state.gold, gems: state.gems };
+    storage.set(CLOUD_CACHE, JSON.stringify({profile, state, revision, serverTime:body.serverTime, sessionFingerprint}), true);
+    document.querySelector('.workspace').style.visibility = '';
+    advanceCloudPreview(); consumeEvents(); render(); note(''); saveStatus('saved', '계정 저장 완료');
   }
   function clearPending() { pending = null; storage.remove(PENDING, true); }
   async function sendPending() {
-    let body = await request('/api/school/action', pending);
+    if (!token || verifiedToken !== token || !profile || pending?.accountId !== profile.id) throw Object.assign(Error('계정 연결을 다시 확인한 뒤 요청을 이어갑니다.'), {status:401});
+    const body = await request('/api/school/action', pending);
     if (body.conflict) {
-      applyCloud(body); pending.revision = revision; storage.set(PENDING, JSON.stringify(pending), true);
-      body = await request('/api/school/action', pending);
+      // An expired receipt can belong to an already committed action. Changing
+      // its revision would turn a lost response into a second purchase.
+      applyCloud(body); clearPending();
+      throw Object.assign(Error('다른 기기 진행을 불러왔어요. 보유 재화와 결과를 확인한 뒤 다시 눌러주세요.'), {confirmedConflict:true});
     }
-    if (body.conflict) { applyCloud(body); clearPending(); throw Error('다른 기기에서 진행 상황이 바뀌었습니다. 다시 눌러주세요.'); }
     clearPending(); applyCloud(body); return body.result;
   }
   async function sync(manual = false) {
     if (mode !== 'cloud' || busy || (!manual && document.hidden)) return;
-    busy = true; renderButtons();
+    if (!profile || verifiedToken !== token) return useCloud();
+    busy = true; renderButtons(); saveStatus('saving', '계정 저장 중');
     try {
       if (pending) { const result = await sendPending(); showResult(result); }
       else applyCloud(await request('/api/school/state'));
       lastSync = Date.now();
     } catch (error) {
+      if (error.confirmedConflict) { toast(error.message); return; }
       connected = false;
+      saveStatus('error', '계정 연결 대기');
+      if (error.status === 401) { token = null; verifiedToken = null; storage.remove(SESSION, true); }
       if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
       note(error.status === 426 ? error.message : error.status === 401 ? '로그인이 만료되었습니다. 계정 메뉴에서 다시 연결하세요.' : '계정 저장 연결을 기다리고 있어요. 재화 사용은 연결 후 계속됩니다.', error.status === 426 ? 'reload' : true);
       if (manual) toast(error.message);
@@ -93,8 +173,8 @@
   }
   async function act(input) {
     if (busy || pending) { toast('이전 요청을 확인하고 있어요. 잠시 기다려주세요.'); return; }
-    if (mode === 'cloud' && !connected) { sync(true); return; }
-    busy = true; renderButtons();
+    if (mode === 'cloud' && (!connected || verifiedToken !== token)) { sync(true); return; }
+    busy = true; renderButtons(); saveStatus('saving', mode === 'cloud' ? '계정 저장 중' : '기기 저장 중');
     try {
       let result;
       if (mode === 'cloud') {
@@ -104,8 +184,14 @@
       } else result = await guestUpdate(input);
       showResult(result);
     } catch (error) {
+      if (error.confirmedConflict) { toast(error.message); return; }
       if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
-      if (mode === 'cloud' && pending) { connected = false; note(error.status === 426 ? error.message : '요청 결과를 확인 중입니다. 같은 모집을 중복 결제하지 않도록 재연결하고 있어요.', error.status === 426 ? 'reload' : true); }
+      if (mode === 'cloud' && pending) { connected = false; saveStatus('error', '저장 결과 확인 중'); note(error.status === 426 ? error.message : '요청 결과를 확인 중입니다. 재연결 후 같은 요청을 안전하게 확인합니다.', error.status === 426 ? 'reload' : true); }
+      else if (mode === 'cloud' && error.status && error.status < 500 && error.status !== 401) {
+        try { applyCloud(await request('/api/school/state')); lastSync = Date.now(); }
+        catch { connected = false; saveStatus('error', '계정 연결 대기'); note('계정의 최신 비용과 재화를 확인하지 못했습니다. 다시 연결해 주세요.', true); }
+      }
+      else if (mode === 'cloud') { connected = false; saveStatus('error', '계정 연결 대기'); note(error.message, true); }
       toast(error.message);
     } finally { busy = false; renderButtons(); }
   }
@@ -142,7 +228,7 @@
     if (!['adventure', 'roster', 'recruit', 'supplies'].includes(next)) return;
     tab = next; $('app').dataset.tab = tab;
     for (const name of ['adventure', 'roster', 'recruit', 'supplies']) $('tab-' + name).hidden = name !== tab;
-    document.querySelectorAll('.bottom-nav>button').forEach(b => { b.classList.toggle('active', b.dataset.tab === tab); if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+    document.querySelectorAll('.bottom-nav>button').forEach(b => { const active = b.dataset.tab === (tab === 'roster' ? 'adventure' : tab); b.classList.toggle('active', active); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     document.querySelector('.content-panel').scrollTop = 0; document.querySelector('.workspace').scrollTop = 0; renderKey = ''; render();
   }
   function render() {
@@ -182,7 +268,7 @@
     renderButtons();
   }
   function renderButtons() {
-    if (!state) return; const blocked = busy || !!pending || (mode === 'cloud' && !connected);
+    if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
     $('recruit-one').disabled = blocked || state.gems < 100; $('recruit-ten').disabled = blocked || state.gems < 900;
     $('claim-offline').disabled = blocked || !state.offline.seconds;
     $('claim-daily').disabled = blocked || state.daily >= G.day(Date.now() + offset);
@@ -191,6 +277,15 @@
       const u = state.units[selectedHero]; const train = $('train-hero'), awaken = $('awaken-hero');
       if (train) train.disabled = blocked || u.level >= 60 || state.gold < G.trainingCost(u);
       if (awaken) awaken.disabled = blocked || u.stars >= 5 || u.shards < G.awakeningCost(u);
+      const st = G.stats(selectedHero, u), cost = G.trainingCost(u), shards = G.awakeningCost(u);
+      if ($('hero-level')) {
+        $('hero-level').textContent = u.level; $('hero-hp').textContent = fmt(st.hp); $('hero-atk').textContent = fmt(st.atk);
+        $('hero-gold').textContent = fmt(state.gold); $('hero-xp').textContent = u.level === 60 ? '최대 레벨' : `경험치 ${fmt(u.xp)} / ${fmt(G.needXp(u.level))}`;
+        $('train-cost').textContent = u.level === 60 ? '최대 레벨' : `골드 ${fmt(cost)}`;
+        $('awaken-cost').textContent = u.stars === 5 ? '최대 각성' : `조각 ${fmt(shards)} / 보유 ${fmt(u.shards)}`;
+        $('hero-stars').textContent = `각성 ${u.stars} / 5성`; $('hero-shards').textContent = `조각 ${fmt(u.shards)}개`;
+        $('training-status').textContent = pending ? '이전 요청의 저장을 확인하고 있어요.' : busy ? '저장 확인 중…' : mode === 'cloud' && !connected ? '서버에 다시 연결하면 육성할 수 있어요.' : u.level === 60 ? '최대 레벨에 도달했어요.' : state.gold < cost ? `훈련에 골드 ${fmt(cost - state.gold)}가 더 필요해요.` : `훈련하면 Lv.${u.level + 1} · 골드 ${fmt(cost)} 사용`;
+      }
     }
   }
   function renderChapters() {
@@ -199,6 +294,10 @@
       const complete = Math.min(5, Math.max(0, state.best - i * 5)), unlocked = state.best >= i * 5;
       return `<button class="chapter-item ${G.chapter(state.stage) === i ? 'current' : ''} ${unlocked ? '' : 'locked'}" data-map="${i}"><span class="chapter-num">0${i + 1}</span><span class="chapter-copy"><b>${name}</b><small>${unlocked ? `${complete} / 5 지역 클리어` : `${i}-5 클리어 후 개방`}</small></span><span class="chapter-end">${complete === 5 ? '✓' : unlocked ? '→' : '잠김'}</span></button>`;
     }).join('');
+    if ($('adventure-quests')) $('adventure-quests').innerHTML = G.QUESTS.filter(q => !state.claimed.includes(q.id)).slice(0, 2).map(q => {
+      const value = Math.min(q.goal, G.questValue(state, q));
+      return `<button class="adventure-quest" data-tab="supplies"><span>${q.name}<small>${value} / ${q.goal}</small></span><progress value="${value}" max="${q.goal}" aria-label="${q.name}"></progress></button>`;
+    }).join('') || '<p class="detail-note">모든 모험 목표를 달성했어요.</p>';
   }
   function renderRoster() {
     $('roster-count').textContent = `${Object.keys(state.units).length} / ${G.HEROES.length}`;
@@ -219,9 +318,11 @@
   function heroDetail(id) {
     const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
     const st = G.stats(id, u || {level:1, stars:0});
-    openModal('용병 정보', `<div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small>${u ? u.level : 1}<small>/ 60</small></div><div><small>체력</small>${fmt(st.hp)}</div><div><small>공격력</small>${fmt(st.atk)}</div></div><div class="skill-box"><b>${h.skill} <span>· ${h.cooldown}초마다 자동 사용</span></b>${h.desc}</div>${h.passive ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive}</b>${h.passiveDesc}</div>` : ''}${u ? `<div class="detail-note">경험치 ${fmt(u.xp)} / ${G.needXp(u.level)} · 각성 ${u.stars} / 5성<br>각성마다 기본 능력치 +15% · 조각 ${u.shards}개 보유</div><div class="detail-actions"><button class="primary" id="train-hero">1레벨 훈련<small>${u.level >= 60 ? '최대 레벨' : `골드 ${fmt(G.trainingCost(u))}`}</small></button><button class="secondary" id="awaken-hero">각성하기<small>${u.stars >= 5 ? '최대 각성' : `조각 ${G.awakeningCost(u)}개`}</small></button></div><p class="detail-note">훈련·각성 능력치는 다음 전투부터 적용됩니다.</p><h3 class="stage-title">출전 위치 선택</h3><div class="slot-buttons">${state.team.map((member, i) => `<button data-slot="${i}" class="${member === id ? 'selected' : ''}">${portrait(member)}${i === 0 ? '전열' : i === 1 ? '중열' : '후열'} · ${G.BY_ID[member].name}</button>`).join('')}</div><p class="detail-note">전열은 적의 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 처음부터 시작합니다.</p>` : '<p class="detail-note">아직 만나지 못한 용병입니다. 모집에서 획득할 수 있어요.</p><button class="primary full" id="to-recruit">모집하러 가기 →</button>'}`, 'hero');
+    const skills = `<details class="hero-skills" ${u ? '' : 'open'}><summary>스킬 · 패시브</summary><div class="skill-box"><b>${h.skill} <span>· ${h.cooldown}초 충전</span></b>${h.desc}</div>${h.passive ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive}</b>${h.passiveDesc}</div>` : ''}</details>`;
+    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ 60</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div>${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">1레벨 훈련<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${state.team.map((member, i) => `<button data-slot="${i}" class="${member === id ? 'selected' : ''}">${portrait(member)}${i === 0 ? '전열' : i === 1 ? '중열' : '후열'} · ${G.BY_ID[member].name}</button>`).join('')}</div><p class="detail-note">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">모집에서 만나기 →</button>`}</div>`, 'hero');
     if (u) {
       $('train-hero').onclick = () => act({kind:'train', hero:id}); $('awaken-hero').onclick = () => act({kind:'awaken', hero:id});
+      $('change-hero').onclick = () => { closeModal(); filter = 'owned'; setTab('roster'); };
       document.querySelectorAll('[data-slot]').forEach(b => { b.onclick = () => { const index = Number(b.dataset.slot), team = [...state.team], old = team.indexOf(id); if (old === index) { toast('이미 이 위치에 출전 중이에요.'); return; } if (old >= 0) team[old] = team[index]; team[index] = id; act({kind:'team', team}); }; });
     } else $('to-recruit').onclick = () => { closeModal(); setTab('recruit'); };
     renderButtons();
@@ -256,27 +357,40 @@
     }); return sdkPromise;
   }
   async function useCloud() {
-    if (busy) return; busy = true; renderButtons();
+    if (busy) return false; busy = true; renderButtons(); saveStatus('saving', '계정 불러오는 중');
+    let loaded = false; const connectingToken = token;
     try {
       const identity = await request('/api/account/me', {}, 'account');
       const body = await request('/api/school/state');
+      const fingerprint = await tokenFingerprint(connectingToken);
+      if (!connectingToken || connectingToken !== token) throw Error('로그인 계정이 바뀌었습니다. 다시 연결하세요.');
       profile = identity.profile; mode = 'cloud'; storage.set(MODE, 'cloud'); effects = []; lastSeq = body.state.seq;
+      verifiedToken = connectingToken; sessionFingerprint = fingerprint;
       try { const saved = JSON.parse(storage.get(PENDING, true) || 'null'); pending = saved?.accountId === profile.id ? saved : null; if (!pending) storage.remove(PENDING, true); } catch { clearPending(); }
-      applyCloud(body); closeModal(); toast('계정의 학교용병단을 불러왔어요.'); lastSync = Date.now();
+      applyCloud(body); closeModal(); toast('계정의 학교용병단을 불러왔어요.'); lastSync = Date.now(); loaded = true;
     } catch (error) {
-      if (error.status === 401) { token = null; storage.remove(SESSION, true); }
+      if (error.status === 401) { token = null; verifiedToken = null; storage.remove(SESSION, true); }
+      connected = false; saveStatus('error', '계정 연결 대기'); lastSync = Date.now();
+      note('계정 기록을 불러오지 못했습니다. 계정 메뉴에서 다시 연결해 주세요.', true);
       toast(error.message); const status = $('login-message'); if (status) status.textContent = error.message;
     } finally { busy = false; renderButtons(); }
-    if (pending) sync(true);
+    if (loaded && pending) sync(true);
+    return loaded;
   }
   async function accountModal() {
     openModal('내 용병단 저장', `<div class="modal-copy"><p>${mode === 'cloud' ? '<strong>Google 계정에 저장 중입니다.</strong><br>다른 기기에서도 같은 계정으로 이어 할 수 있어요.' : '<strong>지금은 이 브라우저에 저장 중입니다.</strong><br>Google 계정을 연결하면 기기를 바꿔도 이어 할 수 있어요.'}</p><div class="account-box"><span>${mode === 'cloud' ? '계정 용병단' : '게스트 용병단'}<br>단장 Lv.${state.captain.level}</span><b>${Object.keys(state.units).length}명 보유</b></div><p>게스트와 계정 기록은 따로 유지됩니다. 로그인 시 계정 기록을 불러오며 게스트 기록은 이 기기에 남습니다.</p><p>카드게임과 로그인은 공유하고, 성장 기록은 각각 저장합니다.</p></div><div id="account-controls"></div><div id="login-message" class="login-message" role="status"></div><p class="detail-note"><a href="privacy.html" target="_blank" rel="noopener">개인정보 및 계정 삭제 안내</a></p>`, 'account');
     if (mode === 'cloud') {
-      $('account-controls').innerHTML = '<div class="account-actions"><button class="secondary" id="cloud-refresh">저장 확인</button><button class="secondary" id="guest-return">게스트로 전환</button></div>';
+      $('account-controls').innerHTML = `<div class="account-actions"><button class="secondary" id="cloud-refresh">저장 확인</button><button class="secondary" id="guest-return">게스트로 전환</button>${!connected || !token ? '<button class="primary" id="cloud-login-again">다시 로그인</button>' : ''}</div>`;
+      if ($('cloud-login-again')) $('cloud-login-again').onclick = prepareGoogle;
       $('cloud-refresh').onclick = async () => { await sync(true); if (connected) toast('계정 저장을 확인했습니다.'); };
-      $('guest-return').onclick = () => {
+      $('guest-return').onclick = async () => {
         if (busy || pending) { toast('진행 중인 요청을 먼저 확인해 주세요.'); return; }
-        mode = 'guest'; profile = null; storage.set(MODE, 'guest'); state = readGuest(); G.advance(state, Date.now()); writeGuest(state); lastSeq = state.seq; effects = []; connected = true; note(''); closeModal(); renderKey = partyKey = ''; render(); toast('이 기기의 게스트 기록으로 돌아왔어요.');
+        const prior = { profile, state, hasCloudState, cloudBalance, connected };
+        busy = true; renderButtons();
+        mode = 'guest'; profile = null; storage.set(MODE, 'guest'); effects = []; connected = true; hasCloudState = false; cloudBalance = null;
+        try { await guestUpdate(); lastSeq = state.seq; document.querySelector('.workspace').style.visibility = ''; note(''); closeModal(); renderKey = partyKey = ''; render(); toast('이 기기의 게스트 기록으로 돌아왔어요.'); }
+        catch (error) { mode = 'cloud'; profile = prior.profile; state = prior.state; hasCloudState = prior.hasCloudState; cloudBalance = prior.cloudBalance; connected = prior.connected; storage.set(MODE, 'cloud'); saveStatus(connected ? 'saved' : 'error', connected ? '계정 저장 완료' : '계정 연결 대기'); toast(error.message); }
+        finally { busy = false; renderButtons(); }
       };
       return;
     }
@@ -295,7 +409,9 @@
         busy = true; $('login-message').textContent = '계정을 확인하고 있어요.'; renderButtons();
         try {
           const result = await request('/api/account/google', { credential: response.credential, nonce: challenge.nonce });
-          token = result.token;
+          token = result.token; verifiedToken = null; profile = null; pending = null; connected = false;
+          // Keep the pending storage receipt untouched until the new identity is verified.
+          if (mode === 'cloud') { hasCloudState = false; cloudBalance = null; document.querySelector('.workspace').style.visibility = 'hidden'; $('gold').textContent = $('gems').textContent = '—'; }
           if (!storage.set(SESSION, JSON.stringify({token}), true)) throw Error('계정 세션을 저장할 수 없습니다. 브라우저의 저장 허용을 확인하세요.');
           busy = false; await useCloud();
         } catch (error) { if ($('login-message')) $('login-message').textContent = error.message; toast(error.message); busy = false; await prepareGoogle(); }
@@ -325,28 +441,59 @@
     $('recruit-one').onclick = () => act({kind:'recruit', count:1}); $('recruit-ten').onclick = () => act({kind:'recruit', count:10}); $('rates-button').onclick = ratesModal;
     $('log-button').onclick = () => openModal('모험 기록', `<ul class="log-list">${state.logs.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`, 'logs');
     $('history-button').onclick = () => openModal('최근 모집 기록', state.history.length ? state.history.map(r => `<div class="history-row">${portrait(r.id)}${rarity(r.id)}<b>${G.BY_ID[r.id].name}</b><small>${r.fresh ? '첫 만남' : `조각 +${r.shards}`}</small></div>`).join('') : '<p class="modal-copy">아직 모집한 용병이 없어요.</p>', 'history');
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (mode === 'cloud') sync(true); else guestUpdate().catch(e => toast(e.message)); } });
+    document.addEventListener('visibilitychange', () => {
+      if (mode === 'guest') guestUpdate().catch(() => {});
+      else if (!document.hidden) sync(true);
+    });
+    // Visible guest changes are already committed; these checkpoints cover the
+    // fractional elapsed time without relying on an unload promise succeeding.
+    window.addEventListener('pagehide', () => { if (mode === 'guest') guestUpdate().catch(() => {}); });
+    window.addEventListener('pageshow', () => { if (mode === 'guest') guestUpdate().catch(() => {}); else sync(true); });
     window.addEventListener('online', () => sync(true));
     window.addEventListener('school-art-ready', () => { renderKey = partyKey = ''; $('feature-osia').src = Art.portrait('osia'); render(); if (modalKind === 'hero' && selectedHero === 'osia') heroDetail('osia'); });
-    window.addEventListener('storage', e => { if (e.key === SAVE && mode === 'guest' && !busy) { state = readGuest(); consumeEvents(); render(); } });
+    window.addEventListener('storage', e => { if (e.key === SAVE && mode === 'guest' && !busy) guestUpdate().catch(() => {}); });
   }
   async function boot() {
-    state = readGuest(); G.advance(state, Date.now()); writeGuest(state); lastSeq = state.seq;
+    const wantsCloud = storage.get(MODE) === 'cloud';
+    if (wantsCloud) {
+      mode = 'cloud'; connected = false;
+      try {
+        sessionFingerprint = await tokenFingerprint(token);
+        const cache = JSON.parse(storage.get(CLOUD_CACHE, true) || 'null');
+        // Server views deliberately omit private action receipts.
+        if (sessionFingerprint && cache?.sessionFingerprint === sessionFingerprint && cache?.profile?.id && cache.state && G.validate({ ...cache.state, receipts: [] })) {
+          profile = cache.profile; state = cache.state; revision = cache.revision; hasCloudState = true;
+          cloudBalance = { gold: state.gold, gems: state.gems }; lastSeq = state.seq;
+        }
+      } catch {}
+      if (!state) { state = freshGuest(); document.querySelector('.workspace').style.visibility = 'hidden'; $('gold').textContent = $('gems').textContent = '—'; }
+      saveStatus('saving', '계정 불러오는 중');
+    } else {
+      try { await guestUpdate(); lastSeq = state.seq; }
+      catch (error) {
+        // Keep account/recovery controls available while preserving the original.
+        state = freshGuest(); document.querySelector('.workspace').style.visibility = 'hidden';
+        $('gold').textContent = $('gems').textContent = '—'; note(error.message);
+      }
+    }
     await Art.ready;
     $('feature-osia').src = Art.portrait('osia'); $('recruit-count').textContent = `상시 모집 · 용병 ${G.HEROES.length}명`;
-    bind(); refreshSound(); render();
-    if (storage.get(MODE) === 'cloud') {
-      if (token) await useCloud(); else note('계정 기록을 이어 하려면 계정 메뉴에서 Google로 로그인하세요. 지금은 게스트 화면입니다.');
+    clientReady = true; bind(); refreshSound(); renderButtons();
+    if (!guestSaveFailed && (!wantsCloud || hasCloudState)) render();
+    if (wantsCloud) {
+      if (token) await useCloud(); else { saveStatus('error', '로그인 필요'); note('계정 기록을 이어 하려면 계정 메뉴에서 Google로 로그인하세요. 게스트 기록으로 자동 전환하지 않습니다.'); }
     }
     setInterval(() => {
       if (document.hidden || !state) return;
-      if (!busy) { G.advance(state, Date.now() + (mode === 'cloud' ? offset : 0)); consumeEvents(); render(); }
-      if (mode === 'guest' && !busy && Date.now() - lastSave > 2000) { lastSave = Date.now(); guestUpdate().catch(e => toast(e.message)); }
-      if (mode === 'cloud' && Date.now() - lastSync > 12000) { lastSync = Date.now(); sync(); }
+      if (mode === 'guest' && !busy && !guestTickPending && (!guestSaveFailed || Date.now() - lastSave > 2000)) {
+        guestTickPending = true; guestUpdate().then(() => { document.querySelector('.workspace').style.visibility = ''; }).catch(() => {}).finally(() => { guestTickPending = false; });
+      }
+      if (mode === 'cloud' && !busy && hasCloudState && connected) { advanceCloudPreview(); consumeEvents(); render(); }
+      if (mode === 'cloud' && token && Date.now() - lastSync > 3000) { lastSync = Date.now(); sync(); }
     }, 250);
     const ctx = $('battle').getContext('2d'); ctx.imageSmoothingEnabled = false; let previous = 0;
     function animate(time) { requestAnimationFrame(animate); if (document.hidden || tab !== 'adventure' && innerWidth <= 650 || time - previous < (reduced ? 120 : 32)) return; previous = time; Art.draw(ctx, state, time / 1000, effects, reduced); }
     requestAnimationFrame(animate);
   }
-  boot().catch(error => { note('게임을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.'); console.error(error); });
+  boot().catch(error => { saveStatus('error', '저장 확인 필요'); note(error.message || '게임을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.'); console.error(error); });
 })();

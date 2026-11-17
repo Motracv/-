@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f3efdf">
+  <meta name="theme-color" content="#f5f1e5">
   <meta name="description" content="방과 후, 우리의 모험이 시작된다. 도트 용병을 모으고 자동으로 성장하는 방치형 수집 RPG 학교용병단.">
   <title>학교용병단 · 방과 후의 모험</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%233c6555' d='M4 2h24v20l-12 8L4 22z'/%3E%3Cpath fill='%23f5deb0' d='M14 6h4v14h5v4H9v-4h5z'/%3E%3C/svg%3E">
   <link rel="preload" href="assets/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="school/assets/osia-sprites.png?v=osia1" as="image">
-  <link rel="stylesheet" href="school/style.css?v=osia-cycle1">
-  <script defer src="school/engine.js?v=osia-cycle1"></script>
-  <script defer src="school/art.js?v=osia-cycle1"></script>
-  <script defer src="school/client.js?v=osia-cycle1"></script>
+  <link rel="stylesheet" href="school/style.css?v=school-ui2">
+  <script defer src="school/engine.js?v=school-ui2"></script>
+  <script defer src="school/art.js?v=school-ui2"></script>
+  <script defer src="school/client.js?v=school-ui2"></script>
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -28,42 +28,40 @@
 </defs></svg>
 <div class="app" id="app" data-tab="adventure">
   <header class="topbar">
-    <a class="brand" href="school.html" aria-label="학교용병단 처음 화면"><span class="crest"><svg><use href="#i-sword"/></svg></span><span><strong>학교용병단</strong><small>방과 후, 우리의 모험.</small></span></a>
-    <div class="header-actions"><button class="icon-button muted" id="sound-button" aria-label="효과음 켜기" aria-pressed="false"><svg><use href="#i-sound"/></svg></button><button class="account-button" id="account-button"><span class="status-dot"></span><span id="account-label">게스트</span></button></div>
+    <div class="brand"><span class="crest" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M3 13h8V7h10v6h8v16H3zM11 7l5-4 5 4M13 29v-8h6v8M6 17h2M6 22h2M24 17h2M24 22h2M14 12h4M16 10v4"/></svg></span><span><strong>학교용병단</strong><small id="save-status" role="status" aria-live="polite">저장 확인 중</small></span></div>
+    <section class="resources" aria-label="내 용병단">
+      <button class="captain" id="captain-button" aria-label="단장 정보"><span class="captain-emblem">단장</span><span><b id="captain-level">Lv.1</b><span class="mini-track"><i id="captain-xp"></i></span></span></button>
+      <div class="currency"><svg class="coin" aria-hidden="true"><use href="#i-coin"/></svg><span><small>골드</small><b id="gold">—</b></span></div>
+      <div class="currency"><svg class="gem" aria-hidden="true"><use href="#i-gem"/></svg><span><small>보석</small><b id="gems">—</b></span></div>
+    </section>
+    <div class="header-actions"><button class="icon-button muted" id="sound-button" aria-label="효과음 켜기" aria-pressed="false"><svg><use href="#i-sound"/></svg></button><button id="help-button" class="icon-button help-button" aria-label="게임 안내"><svg><use href="#i-book"/></svg></button><button class="account-button" id="account-button"><span class="status-dot"></span><span id="account-label">게스트</span></button></div>
   </header>
-  <section class="resources" aria-label="내 용병단">
-    <button class="captain" id="captain-button"><span class="captain-emblem">단장</span><span><b id="captain-level">Lv.1</b><span class="mini-track"><i id="captain-xp"></i></span></span></button>
-    <div class="currency"><svg class="coin"><use href="#i-coin"/></svg><span><small>골드</small><b id="gold">700</b></span></div>
-    <div class="currency"><svg class="gem"><use href="#i-gem"/></svg><span><small>보석</small><b id="gems">1,800</b></span></div>
-    <button id="help-button" class="icon-button help-button" aria-label="게임 안내"><svg><use href="#i-book"/></svg></button>
-  </section>
   <div class="connection" id="connection" hidden role="status"></div>
   <main class="workspace">
     <section class="battle-panel" aria-label="자동 전투">
-      <div class="battle-heading"><div><span class="eyebrow">오늘의 모험</span><h1><button id="battle-stage" aria-label="현재 지역과 모험 지도"><span id="stage-number">1-1</span> <span id="stage-name">오래된 교실</span> <span class="map-arrow">⌄</span></button></h1></div><span class="auto-badge"><i></i> AUTO</span></div>
+      <div class="battle-heading"><div><h1><button id="battle-stage" aria-label="현재 지역과 모험 지도"><span id="stage-number">1-1</span> <span id="stage-name">오래된 교실</span> <span class="map-arrow">⌄</span></button></h1></div><span class="auto-badge"><i></i> AUTO</span></div>
       <div class="battle-frame"><canvas id="battle" width="480" height="280" role="img" aria-label="용병 세 명이 자동으로 싸우는 도트 전투 장면"></canvas><div class="wave-label" id="wave-label">WAVE 1 / 4</div><button class="battle-log" id="log-button" aria-label="모험 기록"><svg><use href="#i-book"/></svg></button></div>
-      <div class="party-title"><span>출전 용병 <b>3 / 3</b></span><button class="text-button" data-tab="roster">편성하기 <span>↗</span></button></div>
-      <div class="party" id="party"></div>
-      <div class="battle-footer"><span id="battle-status">용병들이 알아서 싸우고 성장해요.</span><span id="power">전투력 —</span></div>
-      <button class="offline-strip" id="offline-strip"><span class="chest-icon"><svg><use href="#i-bag"/></svg></span><span><b>기다린 만큼 쌓이는 보상</b><small id="offline-summary">자리를 비워도 최대 8시간까지</small></span><span class="strip-arrow">→</span></button>
+      <div class="battle-footer"><span id="battle-status">자동 전투 중</span><span id="power">전투력 —</span></div>
     </section>
+    <aside class="party-panel" aria-label="출전 용병과 보상">
+      <div class="party-title"><h2>출전 용병 <span>3 / 3</span></h2><button class="text-button" id="formation-button" data-tab="roster">편성 <span>↗</span></button></div>
+      <p class="party-hint">용병을 눌러 육성·교체</p>
+      <div class="party" id="party"></div>
+      <button class="offline-strip" id="offline-strip"><span class="chest-icon"><svg><use href="#i-bag"/></svg></span><span><b>방치 보상</b><small id="offline-summary">최대 8시간 자동 적립</small></span><span class="strip-arrow" aria-hidden="true">›</span></button>
+      <section class="adventure-tasks" aria-label="모험 임무"><div class="subheading"><h3>모험 수첩</h3><button class="text-button" data-tab="supplies">전체 보기</button></div><div id="adventure-quests"></div></section>
+      <button class="text-button map-button" id="stage-button"><svg><use href="#i-book"/></svg> 모험 지도</button>
+    </aside>
     <section class="content-panel" aria-label="용병단 관리">
-      <article class="tab-panel adventure-panel" id="tab-adventure">
-        <div class="section-heading"><div><span class="eyebrow">AFTER SCHOOL ADVENTURE</span><h2>우리 학교에<br>무슨 일이?</h2></div><span class="chapter-stamp">1<br><small>CHAPTER</small></span></div>
-        <p class="story">종이 울리면, 평범한 학교가 모험의 무대로.<br>작은 용병들과 학교의 비밀을 찾아보세요.</p>
-        <div class="chapter-list" id="chapter-list"></div>
-        <button class="primary full" id="stage-button">모험 지도 보기 <span>→</span></button>
-        <div class="note"><svg><use href="#i-star"/></svg><span>새로운 동료와 함께라면 더 멀리.<br><button class="text-button" data-tab="recruit">용병 모집하러 가기 →</button></span></div>
-      </article>
+      <article class="tab-panel adventure-panel" id="tab-adventure" hidden><span class="chapter-stamp" hidden></span><div id="chapter-list" hidden></div></article>
       <article class="tab-panel" id="tab-roster" hidden>
-        <div class="section-heading"><div><span class="eyebrow">OUR LITTLE HEROES</span><h2>우리 용병들</h2></div><span class="count-tag" id="roster-count">3 / 13</span></div>
-        <p class="panel-description">용병을 눌러 육성하고, 함께할 3명을 골라요.</p>
+        <div class="section-heading"><div><button class="text-button back-button" id="back-adventure" data-tab="adventure">← 전투로</button><h2>편성</h2></div><span class="count-tag" id="roster-count">3 / 13</span></div>
+        <p class="panel-description">교체할 용병을 고른 뒤 출전 위치를 선택하세요.</p>
         <div class="filter-row" aria-label="용병 보기"><button class="filter active" data-filter="owned">보유 용병</button><button class="filter" data-filter="all">전체 도감</button></div>
         <div class="roster-grid" id="roster"></div>
       </article>
       <article class="tab-panel" id="tab-recruit" hidden>
-        <div class="section-heading"><div><span class="eyebrow">A NEW FRIEND AWAITS</span><h2>새로운 동료</h2></div><button class="text-button" id="rates-button">확률 안내 ↗</button></div>
-        <p class="panel-description">어떤 동아리의 친구가 찾아올까요?</p>
+        <div class="section-heading"><div><h2>동료 모집</h2></div><button class="text-button" id="rates-button">확률 안내 ↗</button></div>
+
         <button class="recruit-banner osia-banner" id="feature-osia-button" aria-label="물의 용왕 오시아 상세 보기"><span class="banner-stars">✧ · ✦ · ✧</span><span class="recruit-tag" id="recruit-count">상시 모집 · 용병 13명</span><span class="featured-heroes"><img id="feature-osia" alt="오른쪽을 바라보는 SSR 오시아"></span><span class="banner-copy"><small>SSR · 물속성 마법사</small><strong>물의 용왕, 오시아</strong><span>Osia · 상시 모집 합류</span></span></button>
         <div class="pity-line"><span>SSR 확정까지 <b id="pity-left">80</b>회</span><span id="pity-count">0 / 80</span></div><div class="pity-track"><i id="pity-bar"></i></div><div class="pity-chance"><span id="pity-phase">60회째부터 매회 +1%p</span><b id="next-ssr-chance">다음 SSR 4%</b></div>
         <div class="recruit-buttons"><button class="secondary" id="recruit-one"><b>1회 모집</b><span><svg><use href="#i-gem"/></svg>100</span></button><button class="primary" id="recruit-ten"><span class="button-ribbon">SR 이상 1명 확정</span><b>10회 모집</b><span><svg><use href="#i-gem"/></svg>900</span></button></div>
@@ -71,14 +69,14 @@
         <button class="text-button history-button" id="history-button">최근 모집 기록 ↗</button>
       </article>
       <article class="tab-panel" id="tab-supplies" hidden>
-        <div class="section-heading"><div><span class="eyebrow">A LITTLE HELP FOR THE ROAD</span><h2>용병단 보급소</h2></div><svg class="heading-icon"><use href="#i-bag"/></svg></div>
+        <div class="section-heading"><div><h2>보급</h2></div><svg class="heading-icon"><use href="#i-bag"/></svg></div>
         <div class="supply-card offline-card"><span class="eyebrow">최대 8시간 자동 적립</span><h3>방치 보상</h3><p id="offline-detail">쌓인 보상이 아직 없어요.</p><button class="primary full" id="claim-offline">보상 받기</button><small id="offline-rate"></small></div>
         <div class="daily-card"><div><b>매일 찾아오는 선물</b><small>골드 250 · 보석 150</small></div><button class="secondary" id="claim-daily">받기</button></div>
         <div class="subheading"><h3>모험 수첩</h3><span>작은 목표, 든든한 보상</span></div><div class="quest-list" id="quests"></div>
       </article>
     </section>
   </main>
-  <nav class="bottom-nav" aria-label="게임 메뉴"><button data-tab="adventure" class="active" aria-current="page"><svg><use href="#i-sword"/></svg><span>모험</span></button><button data-tab="roster"><svg><use href="#i-people"/></svg><span>용병</span></button><button data-tab="recruit"><svg><use href="#i-star"/></svg><span>모집</span><i class="nav-dot" id="recruit-dot"></i></button><button data-tab="supplies"><svg><use href="#i-bag"/></svg><span>보급</span><i class="nav-dot" id="supply-dot"></i></button></nav>
+  <nav class="bottom-nav" aria-label="게임 메뉴"><button data-tab="adventure" class="active" aria-current="page"><svg><use href="#i-sword"/></svg><span>모험</span></button><button data-tab="recruit"><svg><use href="#i-star"/></svg><span>모집</span><i class="nav-dot" id="recruit-dot"></i></button><button data-tab="supplies"><svg><use href="#i-bag"/></svg><span>보급</span><i class="nav-dot" id="supply-dot"></i></button></nav>
 </div>
 <dialog id="modal" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title"></h2><button id="modal-close" class="close-button" aria-label="닫기">×</button></div><div id="modal-content"></div></dialog>
 <div id="toast" role="status" aria-live="polite"></div>
