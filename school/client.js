@@ -2,7 +2,7 @@
   'use strict';
   const G = window.SchoolRPG, Art = window.SchoolArt, $ = id => document.getElementById(id);
   const BASE = 'https://motracv-card-room.densedormouse4.chatgpt.site';
-  const SAVE = 'school-mercenaries-v4', LEGACY_SAVES = ['school-mercenaries-v3', 'school-mercenaries-v2', 'school-mercenaries-v1'], MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
+  const SAVE = 'school-mercenaries-v5', LEGACY_SAVES = ['school-mercenaries-v4', 'school-mercenaries-v3', 'school-mercenaries-v2', 'school-mercenaries-v1'], MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
   const esc = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = n => Math.floor(n).toLocaleString('ko-KR');
   const duration = seconds => seconds >= 3600 ? `${Math.floor(seconds / 3600)}시간 ${Math.floor(seconds % 3600 / 60)}분` : `${Math.floor(seconds / 60)}분`;
@@ -128,9 +128,15 @@
       if (age < 2) effects.push({ ...e, time: now - age });
       if (e.kind === 'clear') { toast(`${G.stageName(e.stage)} 클리어! 보석 +60`); play('reward'); }
       if (e.kind === 'captain') { toast(`단장 레벨 ${e.level}! 보석 +30`); play('level'); }
-      if (e.kind === 'skill-stage' && age < .5 && e.battleId === state.battle.id) play('water', e.stage);
+      if (e.kind === 'skill-impact' && age < .5 && e.battleId === state.battle.id) play('water', e.stage);
     }
     effects = effects.filter(e => now - e.time < 2 && (!e.battleId || e.battleId === state.battle.id)).slice(-70);
+    const cast = state.battle.osiaCast;
+    if (cast && !effects.some(e => e.kind === 'skill-stage' && e.castId === cast.id)) {
+      const part = G.OSIA_SKILLS[cast.stage - 1], beganAt = state.at - (state.battle.elapsed - cast.began);
+      const age = Math.max(0, (Date.now() + (mode === 'cloud' ? offset : 0) - beganAt) / 1000);
+      effects.push({kind:'skill-stage',from:'osia',castId:cast.id,battleId:state.battle.id,...part,targets:cast.targets.map(t=>t.id),time:now-age});
+    }
   }
   function setTab(next) {
     if (!['adventure', 'roster', 'recruit', 'supplies'].includes(next)) return;
@@ -150,6 +156,11 @@
     $('wave-label').classList.toggle('boss', state.battle.boss);
     $('power').textContent = `전투력 ${fmt(G.power(state))}`;
     $('battle-status').textContent = state.mode === 'farm' ? '반복 사냥 중 · 지도를 열어 다음 지역에 도전' : state.battle.phase === 'defeat' ? '다시 도전 중 · 용병을 훈련해 보세요.' : '자동 전투 · 승리할 때마다 경험치를 받아요.';
+    const osia = state.battle.heroes.find(h => h.id === 'osia' && h.hp > 0);
+    if (osia && state.battle.phase === 'fight') {
+      const cast = state.battle.osiaCast, next = G.osiaSkill(state);
+      $('battle-status').textContent = cast ? `오시아 스킬 ${cast.stage}/4 · ${G.OSIA_SKILLS[cast.stage-1].name} 시전 중` : `오시아 다음 ${next.stage}/4 · ${next.name} · 충전 ${Math.max(0, G.BY_ID.osia.cooldown - osia.energy)}초`;
+    }
     const pk = state.team.join('|');
     if (pk !== partyKey) { partyKey = pk; $('party').innerHTML = state.team.map(id => `<button class="party-card" data-hero="${id}" aria-label="${G.BY_ID[id].name} 상세 정보">${portrait(id)}<span class="party-info"><b>${G.BY_ID[id].name}</b><small></small><span class="party-hp"><i></i></span></span></button>`).join(''); }
     document.querySelectorAll('.party-card').forEach(el => { const id = el.dataset.hero, h = state.battle.heroes.find(h => h.id === id), u = state.units[id]; el.querySelector('small').textContent = `Lv.${u.level} · ${G.BY_ID[id].role}`; el.querySelector('i').style.width = `${h ? Math.max(0, h.hp / h.max) * 100 : 100}%`; el.classList.toggle('fallen', !!h && h.hp <= 0); });

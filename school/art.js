@@ -142,54 +142,86 @@ window.SchoolArt = (() => {
   rect(dc,"#a3f4f6",70,0,3,9); rect(dc,"#6cdbef",67,0,4,3); rect(dc,"#bdfbfa",78,2,3,7); rect(dc,"#60c9eb",80,0,3,3);
   for (const [x,y] of [[62,7],[59,12],[61,17]]) { rect(dc,"#5acdeb",x,y,11,3); rect(dc,"#a6f1f7",x-3,y-2,5,2); }
   rect(dc,"#b0f6fa",94,20,9,2); rect(dc,"#b0f6fa",101,21,2,7); rect(dc,"#8eeaf5",97,27,6,2);
-  function waterEffects(c, effects, positions, time, reduced) {
+  function waterOrb(c, x, y, radius) {
+    const r = Math.round(radius);
+    rect(c,"#17649e",x-r,y-r+4,r*2,r*2-8); rect(c,"#17649e",x-r+4,y-r,r*2-8,r*2);
+    rect(c,"#259fd0",x-r+3,y-r+5,r*2-6,r*2-10); rect(c,"#63deee",x-r+6,y-r+3,r*2-12,r);
+    rect(c,"#d4ffff",x-r+7,y-r+6,Math.max(3,r/2),4); rect(c,"#a1f2f6",x+r-6,y,3,Math.max(3,r-6));
+  }
+  function waterBurst(c, p, age, reduced, size = 1) {
+    const spread = reduced ? 15 * size : (10 + age * 50) * size;
+    c.save(); c.globalAlpha *= Math.max(0, 1 - age / .65);
+    for(let i=0;i<10;i++){const a=i*Math.PI/5;rect(c,i%2?"#bffbff":"#47cbe8",p.x+Math.cos(a)*spread,p.y-34+Math.sin(a)*spread*.7,4*size,6*size);}
+    c.restore();
+  }
+  function waterDragon(c, source, targets, age, reduced) {
+    const destination = Math.min(453, Math.max(...targets.map(p=>p.x)) + 24);
+    c.save();
+    if(reduced){
+      c.globalAlpha=.85; c.drawImage(dragon,age<1?source.x+20:150,44,age<1?145:300,age<1?100:208);
+      for(const p of targets)rect(c,"#80e5f0",p.x-22,p.y-10,44,6);
+    }else{
+      // 0-.5s: the summoning pool opens; .5-1s: the body uncoils and rushes right.
+      const summon=Math.min(1,age/.5),rush=Math.max(0,Math.min(1,(age-.5)/.5)),impact=Math.max(0,age-1);
+      c.globalAlpha=Math.min(1,summon*2)*Math.max(0,1-impact/.8);
+      for(let ring=0;ring<3;ring++){
+        c.strokeStyle=["#187ba5","#45cee5","#c3ffff"][ring];c.lineWidth=4-ring;c.beginPath();c.ellipse(source.x+18,source.y-4-ring*4,18+summon*27-ring*5,5+summon*8,0,0,Math.PI*2);c.stroke();
+      }
+      const nose=source.x+108+(destination-source.x-108)*(rush*rush),headY=179-summon*43-Math.sin(rush*Math.PI)*33;
+      // Animated pixel segments bend independently instead of moving a static dragon image.
+      for(let i=23;i>=0;i--){
+        const x=source.x+18+(nose-96-source.x-18)*(1-i/24),y=headY-8+Math.sin(i*.5-age*10)*(12+i*.65)+i*1.6;
+        const size=Math.max(4,(28-i*.8)*summon);
+        rect(c,"#176799",x-size/2,y-size/2,size,size);rect(c,"#2aafd5",x-size/2+3,y-size/2+2,Math.max(2,size-5),Math.max(2,size-4));
+        rect(c,"#83edf4",x-size/2+4,y-size/2+3,Math.max(2,size-8),Math.max(2,size*.27));
+        if(i%4===0&&i<20){rect(c,"#b9ffff",x-2,y-size/2-8,4,10);rect(c,"#60daed",x-5,y-size/2-10,4,5);}
+      }
+      c.drawImage(dragon,63,0,41,32,Math.round(nose-123),Math.round(headY-57),123,96);
+      for(let i=0;i<13;i++){const x=source.x+26+(i*43+age*185)%Math.max(40,nose-source.x-10),y=166+Math.sin(i+age*8)*28;rect(c,"#94edf5",x,y,7+12*rush,3);}
+      if(age>=.5)for(let i=0;i<17;i++){const x=source.x+30+i*19;if(x>nose)break;const y=227+Math.sin(i*.7-age*10)*8;rect(c,"#188bc4aa",x,y,22,18);rect(c,"#82e7f1",x,y-2,15,4);}
+      if(age>=1){
+        for(const p of targets){waterBurst(c,p,impact,false,2);c.strokeStyle="#d3ffff";c.lineWidth=3;c.beginPath();c.ellipse(p.x,p.y-34,12+impact*65,10+impact*45,0,0,Math.PI*2);c.stroke();}
+      }
+    }
+    c.restore();
+  }
+  function waterEffects(c, effects, positions, time, reduced, pending) {
     for (const e of effects) {
       if (e.from !== "osia") continue;
-      const age = time - e.time, source = positions.osia; if (!source || age < 0) continue;
-      if (e.kind === "skill-stage" && age < (e.stage === 4 ? 1.15 : .5)) {
-        const targets = e.targets.map(id => positions[id]).filter(Boolean), motion = reduced ? .22 : age;
+      const age = pending && pending.id === e.castId ? Math.min(time - e.time, e.impactDelay / 1000 - .001) : time - e.time;
+      const source = positions.osia; if (!source || age < 0) continue;
+      if (e.kind === "skill-stage" && age < (e.stage === 4 ? 1.8 : 1.1)) {
+        const targets=e.targets.map(id=>positions[id]).filter(Boolean);if(!targets.length)continue;
+        const motion=reduced?.3:age,impactAge=age-e.impactDelay/1000;
         c.save();
-        if (e.stage === 1) {
-          for (const p of targets) {
-            const progress = reduced ? 1 : Math.min(1, age / .18), x = source.x + 20 + (p.x - source.x - 20) * progress, y = source.y - 39 + (p.y - source.y) * progress;
-            rect(c,"#2087be",x-9,y-7,18,14); rect(c,"#66ddf2",x-6,y-5,13,10); rect(c,"#efffff",x-4,y-4,5,3);
-            rect(c,"#6edaf0",x-22,y-3,10,5); rect(c,"#baf6ff",x-32,y-1,7,2);
+        if(e.stage===1){
+          for(const p of targets){
+            if(age<.5){const progress=reduced?1:Math.min(1,age/.5),x=source.x+23+(p.x-source.x-23)*progress,y=source.y-41+(p.y-source.y+7)*progress-Math.sin(progress*Math.PI)*22;waterOrb(c,x,y,19);if(!reduced){rect(c,"#8eeaf3",x-40,y-3,16,5);rect(c,"#d1ffff",x-56,y-1,10,2);}}
+            else {waterOrb(c,p.x,p.y-34,Math.max(6,22-impactAge*24));waterBurst(c,p,impactAge,reduced,1.3);}
           }
-        } else if (e.stage === 2) {
-          for (const p of targets) {
-            for (let ring = 0; ring < 3; ring++) {
-              c.strokeStyle = ["#1b7aa9", "#38bcd9", "#b9faff"][ring]; c.lineWidth = 4 - ring;
-              c.beginPath(); c.ellipse(p.x, p.y - 27 - ring * 9, 30 - ring * 5, 12, -motion * 4, 0, Math.PI * 2); c.stroke();
-            }
-            for (let i=0;i<8;i++) { const a=i*Math.PI/4+motion*13; rect(c,"#87ecf9",p.x+Math.cos(a)*33,p.y-37+Math.sin(a)*24,4,5); }
+        } else if(e.stage===2){
+          c.globalAlpha=age<.5?.6+age*.8:Math.max(0,1-impactAge/.65);
+          for(const p of targets){
+            for(let ring=0;ring<4;ring++){c.strokeStyle=["#176ba1","#229dce","#5bdaed","#cbffff"][ring];c.lineWidth=4-ring*.5;c.beginPath();c.ellipse(p.x,p.y-21-ring*13,34-ring*5,12,-motion*6,0,Math.PI*2);c.stroke();}
+            for(let i=0;i<12;i++){const a=i*Math.PI/6+motion*13;rect(c,"#92f0f9",p.x+Math.cos(a)*37,p.y-42+Math.sin(a)*31,4,6);}
           }
-        } else if (e.stage === 3) {
-          for (const p of targets) {
-            const height = reduced ? 95 : 76 + Math.sin(Math.min(1, age / .4) * Math.PI) * 32;
-            rect(c,"#197aaccc",p.x-21,p.y-height,42,height); rect(c,"#2cbbdfcc",p.x-15,p.y-height-8,30,height+8);
-            rect(c,"#a5f8ff",p.x-5,p.y-height-14,9,height+12); rect(c,"#efffff",p.x-2,p.y-height-14,3,height+10);
-            for(let i=0;i<6;i++){const spread=(i-2.5)*13;rect(c,"#75e3f4",p.x+spread,p.y-height+Math.abs(spread)*.5-motion*22,5,9);}
-            rect(c,"#c7ffff",p.x-27,p.y-2,54,4);
+        } else if(e.stage===3){
+          for(const p of targets){
+            const height=reduced?100:age<.5?16+age*180:106-Math.max(0,impactAge)*75;
+            c.globalAlpha=age<.8?1:Math.max(0,(1.1-age)/.3);
+            rect(c,"#197aaccc",p.x-21,p.y-height,42,height);rect(c,"#2cbbdfcc",p.x-15,p.y-height-8,30,height+8);rect(c,"#a5f8ff",p.x-5,p.y-height-14,9,height+12);rect(c,"#efffff",p.x-2,p.y-height-14,3,height+10);
+            for(let i=0;i<6;i++){const spread=(i-2.5)*13;rect(c,"#75e3f4",p.x+spread,p.y-height+Math.abs(spread)*.5-motion*22,5,9);}rect(c,"#c7ffff",p.x-27,p.y-2,54,4);
           }
-        } else {
-          c.globalAlpha = Math.min(1, (1.15 - age) * 3);
-          rect(c,"#154e7926",0,0,480,280);
-          for(let i=0;i<18;i++){const x=174+i*17,y=224+Math.sin(i*.75-motion*10)*11;rect(c,"#168ec8cc",x,y,20,23);rect(c,"#62dbf0",x,y-5,17,9);rect(c,"#d5ffff",x+2,y-7,11,3);}
-          // The final dragon fills the battlefield; its head reaches the enemy line at impact.
-          c.drawImage(dragon, Math.round(150 + (reduced ? 0 : Math.min(age, .5) * 24)), 25, 300, 208);
-          for(let i=0;i<18;i++){const x=195+i*15+motion*23,y=176-Math.sin(i+motion*6)*37; if(x<476){rect(c,"#5fd7ee",x,y,5,8);rect(c,"#dfffff",x,y,2,3);}}
-        }
-        rect(c,"#52c7e4",source.x-18,source.y+3,37,3); rect(c,"#cbffff",source.x-11,source.y,23,2);
+        } else waterDragon(c,source,targets,age,reduced);
         c.restore();
-        c.save(); c.font = "11px Galmuri, monospace"; c.textAlign = "center";
-        const label = e.stage === 4 ? "용왕의 해일 · 거대 수룡!" : `용왕의 권능 · ${e.stage}타 ${e.name}`, width = c.measureText(label).width + 24;
-        rect(c,"#153c55ed",240-width/2,13,width,23); rect(c,"#8beaff",240-width/2,35,width,2);
-        c.fillStyle = "#d4fbff"; c.fillText(label,240,29); c.restore();
+        c.save();c.font="11px Galmuri, monospace";c.textAlign="center";
+        const label=`스킬 ${e.stage}/4 · ${e.name}${e.stage===4?(age<.5?" 소환":age<1?" 돌진":" 명중!"):""}`,width=c.measureText(label).width+24;
+        rect(c,"#153c55ed",240-width/2,13,width,23);rect(c,"#8beaff",240-width/2,35,width,2);c.fillStyle="#d4fbff";c.fillText(label,240,29);c.restore();
       }
-      if (e.kind === "hit" && !e.skill && age < .5 && !reduced) {
-        const target = positions[e.to]; if (!target) continue;
-        const progress = Math.min(1, age / .32), x = source.x + 17 + (target.x - source.x - 17) * progress, y = source.y - 38 + (target.y - source.y - 5) * progress;
-        rect(c,"#248fbf",x-5,y-5,11,9); rect(c,"#63d9f0",x-3,y-4,8,7); rect(c,"#daffff",x-2,y-3,3,2); rect(c,"#82e1ef",x-10,y-1,4,2);
+      if(e.kind==="hit"&&!e.skill&&age<.65){
+        const p=positions[e.to];if(!p)continue;
+        if(age<.3){const progress=reduced?1:Math.min(1,age/.3),x=source.x+17+(p.x-source.x-17)*progress,y=source.y-38+(p.y-source.y+4)*progress-Math.sin(progress*Math.PI)*13;waterOrb(c,x,y,9);}
+        else waterBurst(c,p,age-.3,reduced,.7);
       }
     }
   }
@@ -197,6 +229,7 @@ window.SchoolArt = (() => {
     c.imageSmoothingEnabled = false; c.clearRect(0, 0, 480, 280);
     const battle = state.battle; background(c, battle.stage, reduced ? 0 : time);
     effects = effects.filter(e => (!e.battleId || e.battleId === battle.id) && time >= e.time);
+    effects = effects.filter(e => e.kind !== "skill-stage" || battle.osiaCast?.id === e.castId || effects.some(hit => hit.kind === "skill-impact" && hit.castId === e.castId));
     const positions = {};
     battle.heroes.forEach((h, i) => { positions[h.id] = [{ x: 173, y: 208 }, { x: 115, y: 181 }, { x: 68, y: 221 }][i]; });
     battle.enemies.forEach((e, i) => { positions[e.id] = battle.boss ? { x: 375, y: 210 } : [{ x: 325, y: 207 }, { x: 384, y: 180 }, { x: 425, y: 225 }][i]; });
@@ -206,15 +239,15 @@ window.SchoolArt = (() => {
       const stunned = item.hp > 0 && (item.stunUntil || 0) > battle.elapsed;
       const bounce = reduced || item.hp <= 0 || stunned ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
       const nudge = attacking && !reduced && !stunned ? (item.side === "hero" ? 8 : -6) : 0;
-      const combo = item.id === "osia" && effects.findLast(e => e.kind === "skill-stage" && time - e.time < .5);
-      if (item.side === "hero") hero(c, item.id, p.x + nudge, p.y + bounce, 1.8, { hit, dead: item.hp <= 0, attack: attacking, pose: combo ? (combo.stage === 2 || combo.stage === 3 ? 1 : 2) : undefined, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: effects.some(e => e.kind === "skill" && e.from === item.id && time - e.time < .8), blink: Math.sin(time * .7 + p.x) > .99 });
+      const combo = item.id === "osia" && effects.findLast(e => e.kind === "skill-stage" && time - e.time < (e.stage === 4 ? 1.1 : .6));
+      if (item.side === "hero") hero(c, item.id, p.x + nudge, p.y + bounce, 1.8, { hit, dead: item.hp <= 0, attack: attacking, pose: combo ? (time - combo.time < combo.impactDelay / 1000 ? 1 : 2) : undefined, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: effects.some(e => e.kind === "skill" && e.from === item.id && time - e.time < .8), blink: Math.sin(time * .7 + p.x) > .99 });
       else monster(c, item, p.x + nudge, p.y + bounce, { hit });
       const w = item.boss ? 62 : 37, by = p.y + 9;
       rect(c, "#28362f", p.x - w / 2 - 1, by - 1, w + 2, 6); rect(c, "#4d5146", p.x - w / 2, by, w, 4);
       rect(c, item.side === "hero" ? "#9dbd7b" : "#d99c73", p.x - w / 2, by, Math.max(0, w * item.hp / item.max), 4);
       if (item.side === "hero") { rect(c, "#536270", p.x - w / 2, by + 7, w, 2); rect(c, "#e2c679", p.x - w / 2, by + 7, w * item.energy / S.BY_ID[item.id].cooldown, 2); }
     }
-    waterEffects(c, effects, positions, time, reduced);
+    waterEffects(c, effects, positions, time, reduced, battle.osiaCast);
     for (const e of effects) {
       const age = time - e.time; if (age > 1.1 || age < 0) continue;
       const p = positions[e.to] || positions[e.from]; if (!p) continue;
@@ -238,6 +271,15 @@ window.SchoolArt = (() => {
       rect(c,"#26324bea",p.x-32,y,64,17); c.fillStyle="#fff0a8"; c.fillText(`기절 ${remaining.toFixed(1)}초`,p.x,y+12);
       for(let i=0;i<3;i++){const x=p.x+(i-1)*15,sy=y-9+(reduced?0:Math.sin(time*7+i*2)*2);rect(c,"#ffdd73",x-4,sy-1,9,3);rect(c,"#ffdd73",x-1,sy-4,3,9);rect(c,"#fff4bc",x-1,sy-1,3,3);}
       c.restore();
+    }
+    const osiaHero = battle.heroes.find(h => h.id === "osia" && h.hp > 0);
+    if (osiaHero && battle.phase === "fight") {
+      const current = battle.osiaCast, next = S.osiaSkill(state), stage = current?.stage || next.stage;
+      const label = current ? `스킬 ${stage}/4 · ${S.OSIA_SKILLS[stage-1].name} 시전 중` : `다음 ${stage}/4 · ${next.name} · 충전 ${Math.max(0, S.BY_ID.osia.cooldown-osiaHero.energy)}초`;
+      c.save(); c.font="9px Galmuri, monospace"; c.textAlign="left"; const width=c.measureText(label).width+59;
+      rect(c,"#153c55ed",480-width-8,257,width,18);
+      for(let i=1;i<=4;i++)rect(c,i===stage?"#c5ffff":"#4e7288",480-width-2+(i-1)*10,263,7,6);
+      c.fillStyle="#dbffff"; c.fillText(label,480-width+43,270); c.restore();
     }
     if (battle.phase !== "fight") {
       rect(c, "#243a3277", 0, 0, 480, 280); c.textAlign = "center"; c.font = "18px Galmuri, monospace"; c.fillStyle = "#fff1c8";

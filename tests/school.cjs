@@ -94,38 +94,52 @@ function osiaBattle(boss = false) {
   if(boss){s.battle.boss=true;s.battle.enemies=s.battle.enemies.slice(0,1);s.battle.enemies[0].boss=true;}
   for(const e of s.battle.enemies){e.hp=e.max=100000;e.atk=1;}return s;
 }
-test('One Osia cast deals four progressively stronger hits at 0/.5/1/1.5s, totaling the original 220% roll',()=>{
-  const s=osiaBattle();run(s,4);assert.ok(!s.events.some(e=>e.kind==='skill'&&e.from==='osia'));
-  run(s,1);const cast=G.clone(s.battle.osiaCast),hits=[];
-  for(let stage=1;stage<=4;stage++){
-    if(stage>1)G.advance(s,s.at+500);
-    const part=s.events.filter(e=>e.kind==='hit'&&e.castId===cast.id&&e.stage===stage);hits.push(part);
-    assert.equal(part.length,3);assert.ok(part.every(e=>e.element==='water'&&e.at===6000+(stage-1)*500));
-    assert.equal(s.events.filter(e=>e.kind==='skill'&&e.from==='osia').length,1);
-    if(stage<4)assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
+test('Osia casts one successive skill each five-second cooldown with water-bomb basics between casts, then repeats',()=>{
+  const s=osiaBattle(),seen=[],hitStages=[];let seq=s.seq;
+  for(let ms=500;ms<=26000;ms+=500){
+    G.advance(s,s.at+500);for(const e of s.events.filter(e=>e.seq>seq)){if(e.from==='osia')seen.push(e);if(e.kind==='hit'&&e.skill&&e.from==='osia')hitStages.push(e);}seq=s.seq;
   }
-  for(const target of cast.targets){const amounts=hits.map(list=>list.find(e=>e.to===target.id).amount);assert.equal(amounts.reduce((a,b)=>a+b,0),target.total);assert.ok(amounts.every((v,i)=>i===0||v>amounts[i-1]));assert.ok(target.total>=40&&target.total<=73);}
-  assert.equal(s.battle.osiaCast,undefined);assert.equal(G.BY_ID.osia.passive,'용왕의 권능');
+  const casts=seen.filter(e=>e.kind==='skill-stage');assert.deepEqual(casts.map(e=>e.stage),[1,2,3,4,1]);assert.deepEqual(casts.map(e=>e.at),[6000,11000,16000,21000,26000]);
+  for(let i=0;i<casts.length;i++){
+    const cast=casts[i],hits=hitStages.filter(e=>e.castId===cast.castId);assert.equal(hits.length,3);assert.ok(hits.every(e=>e.stage===cast.stage&&e.at===cast.at+(cast.stage===4?1000:500)&&e.amount>=40&&e.amount<=73));
+    if(i<casts.length-1)assert.ok(seen.filter(e=>e.kind==='hit'&&!e.skill&&e.at>cast.at&&e.at<casts[i+1].at).length>=3);
+  }
+  assert.equal(s.units.osia.nextSkill,2);assert.equal(G.BY_ID.osia.passive,'용왕의 권능');
 });
-test('Final water dragon stuns every surviving target including bosses for exactly 1500ms and prevents attacks',()=>{
+test('Water dragon deals no damage or stun while summoning; impact stuns all survivors/bosses for 1500ms',()=>{
   for(const boss of [false,true]){
-    const s=osiaBattle(boss);G.advance(s,7500);assert.equal(s.battle.elapsed,6500);
-    assert.ok(s.battle.enemies.every(e=>e.stunUntil===8000));
-    for(const elapsed of [7000,7500]){G.advance(s,s.at+500);assert.ok(s.battle.enemies.every(e=>e.stunUntil>s.battle.elapsed));assert.equal(s.battle.elapsed,elapsed);assert.ok(!s.events.some(e=>e.kind==='hit'&&e.side==='hero'&&e.at===s.at));}
-    G.advance(s,s.at+500);assert.equal(s.battle.elapsed,8000);assert.ok(s.battle.enemies.every(e=>e.stunUntil<=s.battle.elapsed));assert.equal(s.events.filter(e=>e.kind==='hit'&&e.side==='hero'&&e.at===s.at).length,boss?1:3);
+    const s=osiaBattle(boss);s.units.osia.nextSkill=4;run(s,5);const id=s.battle.osiaCast.id;
+    assert.ok(!s.events.some(e=>e.castId===id&&e.kind==='hit'));assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
+    G.advance(s,s.at+500);assert.ok(s.battle.osiaCast);assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
+    G.advance(s,s.at+500);assert.equal(s.battle.elapsed,6000);assert.equal(s.battle.osiaCast,undefined);assert.ok(s.battle.enemies.every(e=>e.stunUntil===7500));
+    for(let i=0;i<2;i++){G.advance(s,s.at+500);assert.ok(s.battle.enemies.every(e=>e.stunUntil>s.battle.elapsed));assert.ok(!s.events.some(e=>e.kind==='hit'&&e.side==='hero'&&e.at===s.at));}
+    G.advance(s,s.at+500);assert.equal(s.battle.elapsed,7500);assert.ok(s.battle.enemies.every(e=>e.stunUntil===s.battle.elapsed));
+    G.advance(s,s.at+500);assert.equal(s.events.filter(e=>e.kind==='hit'&&e.side==='hero'&&e.at===s.at).length,boss?1:3);
   }
 });
-test('Mid-combo and stunned saves reload identically; large and half-second advances have identical outcomes',()=>{
-  const a=osiaBattle(),b=G.clone(a);G.advance(a,a.at+5500);const loaded=G.clone(a);
-  G.advance(a,a.at+1000);for(let i=0;i<2;i++)G.advance(loaded,loaded.at+500);assert.deepEqual(a,loaded);
-  const stunned=G.clone(a);G.advance(a,a.at+3500);G.advance(stunned,stunned.at+3500);assert.deepEqual(a,stunned);
-  for(let i=0;i<20;i++)G.advance(b,b.at+500);assert.deepEqual(a,b);
-  const old=osiaBattle();G.advance(old,old.at+4000);delete old.battle.elapsed;delete old.battle.id;assert.ok(G.validate(old));G.advance(old,old.at+500);assert.equal(old.battle.elapsed,4500);assert.ok(old.battle.id);
+test('Every pending skill, next stage and stun survives reload and produces identical fine/batched results',()=>{
+  for(let stage=1;stage<=4;stage++){
+    const a=osiaBattle();a.units.osia.nextSkill=stage;run(a,5);const b=G.clone(a);assert.equal(a.battle.osiaCast.stage,stage);
+    G.advance(a,a.at+2500);for(let i=0;i<5;i++)G.advance(b,b.at+500);assert.deepEqual(a,b);
+  }
+  const a=osiaBattle(),b=G.clone(a);G.advance(a,a.at+30000);for(let i=0;i<60;i++)G.advance(b,b.at+500);assert.deepEqual(a,b);
+  const old=osiaBattle();run(old,4);delete old.battle.elapsed;delete old.battle.id;delete old.units.osia.nextSkill;old.battle.osiaCast={id:17,began:4000,next:2,targets:[]};assert.ok(G.validate(old));G.advance(old,old.at);assert.equal(old.units.osia.nextSkill,1);assert.equal(old.battle.osiaCast,undefined);G.advance(old,old.at+500);assert.equal(old.battle.elapsed,4500);
 });
-test('Caster death, early victory and changing party cancel the combo instead of hitting the next wave',()=>{
-  const dead=osiaBattle();run(dead,5);dead.battle.heroes.find(h=>h.id==='osia').hp=0;G.advance(dead,dead.at+500);assert.equal(dead.battle.osiaCast,undefined);assert.ok(!dead.events.some(e=>e.kind==='skill-stage'&&e.stage===2));
-  const win=osiaBattle();run(win,5);win.battle.enemies.forEach(e=>e.hp=1);G.advance(win,win.at+500);assert.equal(win.battle.phase,'victory');assert.equal(win.battle.osiaCast,undefined);G.advance(win,win.at+2000);assert.ok(win.battle.enemies.every(e=>e.hp===e.max&&!e.stunUntil));
-  const swap=osiaBattle();run(swap,5);const prior=swap.battle.id;G.action(swap,{kind:'team',team:['osia','taeo','sua']});assert.notEqual(swap.battle.id,prior);G.advance(swap,swap.at+500);assert.equal(swap.battle.osiaCast,undefined);assert.ok(swap.battle.enemies.every(e=>e.hp===e.max));
+test('Wave transitions preserve the next skill and charge; defeat/formation restart cannot grant an instant cast',()=>{
+  const s=osiaBattle();run(s,7);assert.equal(s.units.osia.nextSkill,2);assert.equal(s.battle.heroes[1].energy,2);
+  s.battle.enemies.forEach(e=>e.hp=0);G.advance(s,s.at+500);G.advance(s,s.at+2000);assert.equal(s.battle.heroes[1].energy,2);assert.equal(s.units.osia.nextSkill,2);
+  for(const e of s.battle.enemies){e.hp=e.max=10000;e.atk=1;}run(s,3);assert.equal(s.battle.osiaCast.stage,2);assert.equal(s.units.osia.nextSkill,3);
+  G.action(s,{kind:'team',team:['osia','taeo','sua']});assert.equal(s.battle.osiaCast,undefined);assert.equal(s.units.osia.nextSkill,3);assert.equal(s.battle.heroes[0].energy,0);
+  run(s,2);s.battle.heroes.forEach(h=>h.hp=0);run(s,1);assert.equal(s.battle.phase,'defeat');run(s,5);assert.equal(s.battle.heroes[0].energy,0);assert.equal(s.units.osia.nextSkill,3);
+});
+test('Caster death, another hero ending the wave, and party changes cancel a pending dragon without stale damage',()=>{
+  for(const mode of ['death','victory','party']){
+    const s=osiaBattle();s.units.osia.nextSkill=4;run(s,5);const id=s.battle.osiaCast.id;
+    if(mode==='death')s.battle.heroes.find(h=>h.id==='osia').hp=0;
+    if(mode==='victory')s.battle.enemies.forEach(e=>e.hp=0);
+    if(mode==='party')G.action(s,{kind:'team',team:['osia','taeo','sua']});
+    G.advance(s,s.at+1500);assert.equal(s.battle.osiaCast,undefined);assert.ok(!s.events.some(e=>e.kind==='hit'&&e.castId===id));assert.ok(s.battle.enemies.every(e=>!e.stunUntil));assert.equal(s.units.osia.nextSkill,1);
+  }
 });
 test('Korean midnight daily reset and one-time quests cannot pay twice',()=>{
   const s=G.create(1000), time=Date.UTC(2026,10,17,14,59,59);G.action(s,{kind:'daily'},time);assert.throws(()=>G.action(s,{kind:'daily'},time));G.action(s,{kind:'daily'},time+1000);
