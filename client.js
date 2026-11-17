@@ -143,7 +143,8 @@ function pickTarget(title, fn, allowSelf = false) {
 function refresh(next) {
   const was = view;
   view = next;
-  if (view.online && !was?.online) {
+  const restoring = view.online && !was?.online;
+  if (restoring) {
     resetPresentation();
     // A snapshot on join/reload is current state, not 80 past animations.
     epoch++;
@@ -168,7 +169,7 @@ function refresh(next) {
     exchange = false;
     if ($("choice-dialog").open) closeChoice();
   }
-  render();
+  render({ silentPresentation: restoring });
   animateEvents();
   mandatoryChoice();
   scheduleAI();
@@ -202,6 +203,7 @@ function localStart() {
   refresh(local.view(0));
 }
 function resetPresentation() {
+  window.DuelSound?.reset();
   shownResults.clear();
   $("result-dialog").close();
   $("result-reopen").hidden = true;
@@ -267,17 +269,19 @@ function showResult() {
   for (const other of document.querySelectorAll("dialog[open]")) if (other !== dialog) other.close();
   if (!dialog.open) dialog.showModal();
 }
-function updatePresentation() {
+function updatePresentation(silent = false) {
   const p = self(), alive = p.hp > 0 && view.phase !== "over";
   const danger = alive && p.hp <= 10 ? "last" : alive && p.hp <= 25 ? "critical" : "normal";
   document.body.dataset.danger = danger;
   $("danger-label").hidden = danger === "normal";
   $("danger-label").textContent = danger === "last" ? `치명적 · HP ${p.hp}` : `위험 · HP ${p.hp}`;
+  window.DuelSound?.danger(danger, silent);
   const result = outcome();
   $("result-reopen").hidden = !result;
   if (result && !shownResults.has(result)) {
     shownResults.add(result);
     showResult();
+    window.DuelSound?.outcome(result, silent);
   }
 }
 async function command(input) {
@@ -363,7 +367,7 @@ function fighter(p) {
   };
   return x;
 }
-function render() {
+function render({ silentPresentation = false } = {}) {
   if (!view) return;
   const p = self();
   $("opponents").replaceChildren(
@@ -548,7 +552,7 @@ function render() {
   $("new-game").textContent = online ? "나가기" : "새 게임";
   $("log").replaceChildren(...view.logs.map((x) => el("li", x)));
   updateClock();
-  updatePresentation();
+  updatePresentation(silentPresentation);
 }
 function play(target) {
   if (busy || !view || $("play").disabled) return;
@@ -913,6 +917,7 @@ async function enter(kind) {
       code: $("room-code").value.trim(),
     });
     online = { token: result.token, code: result.code };
+    window.DuelSound?.stop();
     transport = result.transport || "sse";
     clearTimeout(aiTimer);
     local = null;
@@ -1463,6 +1468,7 @@ function animateEvents() {
   if (!fresh.length) return;
   const version = epoch;
   const ctx = effectContext(version);
+  const soundToken = window.DuelSound?.capture();
   for (const e of fresh) {
     lastEvent = e.seq;
     if (e.kind === "card") showPlayedCard(e);
@@ -1491,6 +1497,7 @@ function animateEvents() {
     .then(async () => {
       for (const e of fresh) {
         if (epoch !== version) return;
+        window.DuelSound?.event(e, soundToken);
         if (e.kind === "card") {
           const d = CARDS[e.card - 1],
             type = {
@@ -1544,6 +1551,43 @@ function animateEvents() {
       }
     });
 }
+
+function updateSoundControls() {
+  const setting = window.DuelSound?.settings() || { supported: false };
+  const on = setting.supported && setting.enabled && setting.volume > 0;
+  $("sound-quick").textContent = on ? "♪" : "♪×";
+  $("sound-quick").setAttribute("aria-pressed", String(!!on));
+  $("sound-quick").setAttribute("aria-label", on ? "효과음 끄기" : "효과음 켜기");
+  $("sound-quick").title = on ? "효과음 끄기 · 메뉴에서 볼륨 조절" : "효과음 켜기";
+  $("sound-toggle").setAttribute("aria-pressed", String(!!on));
+  $("sound-toggle").textContent = on ? "켜짐" : "꺼짐";
+  $("sound-volume").value = Math.round((setting.volume ?? .4) * 100);
+  $("sound-level").textContent = $("sound-volume").value + "%";
+  for (const id of ["sound-quick", "sound-toggle", "sound-volume", "sound-test"]) $(id).disabled = !setting.supported;
+  $("sound-status").textContent = !setting.supported ? "이 브라우저에서는 효과음을 지원하지 않습니다."
+    : !on ? "효과음이 꺼져 있습니다." : setting.ready ? "공격·방어·회복에 맞춰 재생돼요." : "첫 터치 후 소리가 재생됩니다.";
+}
+function toggleSound() {
+  const setting = DuelSound.settings(), on = setting.enabled && setting.volume > 0;
+  DuelSound.configure({ enabled: !on, volume: setting.volume || .4 });
+  if (!on) void DuelSound.unlock();
+}
+$("sound-quick").onclick = $("sound-toggle").onclick = toggleSound;
+$("sound-volume").oninput = () => {
+  const volume = Number($("sound-volume").value) / 100;
+  DuelSound.configure({ volume, enabled: volume > 0 });
+  if (volume > 0) void DuelSound.unlock();
+};
+$("sound-test").onclick = async () => {
+  const setting = DuelSound.settings();
+  if (!setting.enabled || setting.volume === 0) {
+    toast("효과음을 켜고 볼륨을 올려주세요.");
+    return;
+  }
+  if (!await DuelSound.preview()) toast("미리 듣기를 다시 눌러 소리를 켜주세요.");
+};
+window.addEventListener("duel-sound-change", updateSoundControls);
+updateSoundControls();
 
 localStart();
 try {

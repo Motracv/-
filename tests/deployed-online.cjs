@@ -25,6 +25,10 @@ const frontend = localFrontend
       const context = await browser.newContext({
         viewport: { width: 844, height: 390 },
       });
+      await context.addInitScript(() => {
+        window.publicSounds = [];
+        window.addEventListener("duel-sound-play", (e) => publicSounds.push(e.detail.cue));
+      });
       await context.addInitScript(
         (url) => localStorage.setItem("card-server", url),
         backend,
@@ -35,7 +39,7 @@ const frontend = localFrontend
             relative = u.pathname.replace(/^\/-\//, "");
           if (
             route.request().method() !== "GET" ||
-            !/^(game\.html|engine\.js|client\.js|game\.css|effects\.js|effects\.css|assets\/cards\/manifest\.json|assets\/fonts\/(PretendardVariable\.woff2|OFL\.txt))$/.test(
+            !/^(game\.html|engine\.js|client\.js|game\.css|effects\.js|effects\.css|sound\.js|assets\/cards\/manifest\.json|assets\/fonts\/(PretendardVariable\.woff2|OFL\.txt))$/.test(
               relative,
             )
           ) {
@@ -70,6 +74,7 @@ const frontend = localFrontend
         () => typeof view !== "undefined" && view?.players.length === 5,
       );
       assert.equal(await page.evaluate(() => Object.keys(window.DuelFX?.profiles || {}).length), 40);
+      assert.equal(await page.evaluate(() => DuelSound.cues.length), 24);
       pages.push(page);
     }
     console.log(
@@ -119,6 +124,7 @@ const frontend = localFrontend
     console.log(
       "PASS public server: five independent browser sessions join/start, HP100, private hands",
     );
+    for (const p of pages) assert(await p.evaluate(() => DuelSound.settings().ready), "Sound is unlocked by the player's room-entry touch");
     const bad = await guests[0].evaluate(async () => {
       try {
         await api("/api/action", { kind: "pass", revision: view.revision });
@@ -201,6 +207,7 @@ const frontend = localFrontend
       assert(["turn", "react"].includes(state.phase), `Unexpected phase ${state.phase}`);
       const actingId = state.phase === "react" ? state.pending.to : state.turn;
       const actor = pages[actingId];
+      const audioCounts = await Promise.all(pages.map((p) => p.evaluate(() => publicSounds.length)));
       await actor.waitForFunction((r) => view.revision === r, state.revision);
       let chosen;
       if (state.phase === "react") {
@@ -240,13 +247,14 @@ const frontend = localFrontend
       }))));
       for (const publicState of publicStates.slice(1)) assert.deepEqual(publicState, publicStates[0]);
       if (chosen) {
-        for (const page of pages) {
+        for (const [i, page] of pages.entries()) {
           assert(await page.evaluate((id) => view.events.some((e) => e.kind === "card" && e.card === id), chosen.id));
           await page.waitForFunction((name) => window.publicCardCasts.some((text) => text.includes(name)), chosen.name);
           await page.waitForFunction((id) => window.publicDuelCards.includes(id), chosen.id);
+          await page.waitForFunction((count) => publicSounds.length > count, audioCounts[i]);
         }
         playedNewCards.set(chosen.id, chosen.name);
-        console.log(`PASS public card ${chosen.id} played through UI: synchronized state, private hands and five visible cast and card-specific effects`);
+        console.log(`PASS public card ${chosen.id}: synchronized state, private hands, distinct effects and synthesized sound on all five browsers`);
       }
     }
     assert(playedNewCards.size >= 2, "Two distinct new cards must be acquired and used through normal public-server play");
@@ -288,6 +296,7 @@ const frontend = localFrontend
     assert(rejoined.token === identity.token, "Resume token changed");
     await pages[3].waitForTimeout(1500);
     assert.deepEqual(await pages[3].evaluate(() => window.replayedCasts), []);
+    assert.deepEqual(await pages[3].evaluate(() => publicSounds), []);
     assert(await pages[3].evaluate((id) =>
       document.querySelector("#played-slot").textContent.includes(CARDS[id - 1].name),
     identity.lastCard));
@@ -333,12 +342,14 @@ const frontend = localFrontend
       return dialog.open && dialog.dataset.outcome === "win";
     });
     assert((await host.locator("#result-title").innerText()).trim());
+    assert.equal(await host.evaluate(() => publicSounds.filter((cue) => cue === "win").length), 1);
     await host.screenshot({ path: "/tmp/deployed-result.png", animations: "disabled" });
     await host.click("#result-close");
     await host.waitForTimeout(1500);
     assert.equal(await host.locator("#result-dialog").evaluate((x) => x.open), false);
     await host.click("#result-reopen");
     assert.equal(await host.locator("#result-dialog").getAttribute("data-outcome"), "win");
+    assert.equal(await host.evaluate(() => publicSounds.filter((cue) => cue === "win").length), 1);
     console.log(
       "PASS four UI resignations produce public-server victory, a winner dialog and intentional result reopen without polling reopen",
     );

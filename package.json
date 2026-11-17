@@ -1,12 +1,13 @@
 {
   "name": "friends-card-table",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "private": true,
   "scripts": {
     "start": "node server.cjs",
     "test": "node tests/engine.cjs",
     "test:browser": "node tests/landscape.cjs",
     "test:presentation": "node tests/presentation.cjs",
+    "test:sound": "node tests/sound.cjs",
     "test:server": "node tests/server.cjs",
     "test:worker": "node tests/worker.cjs",
     "test:online": "node tests/deployed-online.cjs"
