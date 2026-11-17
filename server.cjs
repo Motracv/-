@@ -244,6 +244,10 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, { ok: true });
       return;
     }
+    if (u.pathname === "/api/account/config" && req.method === "GET") {
+      json(res, 200, { enabled: false, clientId: null });
+      return;
+    }
     if (req.method === "GET") {
       const files = {
         "/": "game.html",
@@ -253,6 +257,8 @@ const server = http.createServer(async (req, res) => {
         "/game.css": "game.css",
         "/effects.js": "effects.js",
         "/sound.js": "sound.js",
+        "/account.js": "account.js",
+        "/privacy.html": "privacy.html",
         "/effects.css": "effects.css",
         "/assets/cards/manifest.json": "assets/cards/manifest.json",
         "/assets/fonts/PretendardVariable.woff2":

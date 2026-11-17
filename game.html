@@ -8,7 +8,7 @@
     />
     <meta name="theme-color" content="#101528" />
     <title>친구들의 카드 테이블</title>
-    <link rel="stylesheet" href="game.css?v=sound-v1" />
+    <link rel="stylesheet" href="game.css?v=accounts-v1" />
     <link rel="stylesheet" href="effects.css?v=impact-v1" />
   </head>
   <body>
@@ -84,7 +84,8 @@
       <div class="menu-options">
         <button id="new-game">새 게임</button
         ><button id="rules-open">게임 규칙 · 카드 확률</button
-        ><button id="log-open">전투 기록</button>
+        ><button id="log-open">전투 기록</button
+        ><button id="account-open">내 계정 · 레벨</button>
       </div>
       <section class="sound-settings" aria-label="효과음 설정">
         <div class="sound-heading"><strong>효과음</strong><button id="sound-toggle" aria-pressed="true">켜짐</button></div>
@@ -132,6 +133,7 @@
       <button data-close>닫기</button>
     </dialog>
     <dialog id="online-dialog">
+      <button id="online-account" class="account-link">게스트 · 계정 연결</button>
       <h2>초대 코드 대전</h2>
       <label
         >닉네임<input
@@ -192,15 +194,40 @@
       <h2 id="result-title"></h2>
       <p id="result-detail"></p>
       <div id="result-standings" aria-label="참가자 상태"></div>
+      <div id="result-xp" role="status" hidden></div>
       <div class="result-controls">
         <button id="result-rematch" class="primary">다시 플레이</button>
         <button id="result-watch" hidden>관전 계속</button>
         <button id="result-close">전장 보기</button>
       </div>
     </dialog>
+    <dialog id="account-dialog" aria-labelledby="account-heading">
+      <h2 id="account-heading">내 계정</h2>
+      <section id="account-member" hidden>
+        <div class="account-rank"><strong id="account-level">Lv.1</strong><span id="account-title">새내기</span></div>
+        <progress id="account-xp" value="0" max="100"></progress>
+        <div id="account-xp-text" class="account-muted"></div>
+        <p id="account-stats"></p>
+        <div class="controls"><button id="account-logout">로그아웃</button><button id="account-delete">게임 계정 삭제</button></div>
+      </section>
+      <section id="account-guest">
+        <p>Google 계정으로 경험치와 전적을 저장하고 레벨을 올려보세요.</p>
+        <div id="google-button"></div>
+        <button id="account-retry" hidden>로그인 다시 준비</button>
+      </section>
+      <p id="account-status" role="status"></p>
+      <p id="account-room-note" hidden>계정 연결·변경은 현재 방에서 나온 뒤 할 수 있습니다.</p>
+      <details class="account-rules"><summary>경험치 · 레벨 안내</summary>
+        <p>온라인 완주 +30 XP, 승리하면 추가 +50 XP, 무승부는 추가 +10 XP. 레벨이 올라도 HP와 카드 확률은 모두 같습니다.</p>
+        <p>로그인한 참가자 2명 이상, 경기 1분 이상, 본인의 카드 사용·방어·교환·합성 합계 2회부터 경험치가 지급됩니다. 기권·연결 종료와 AI 연습은 경험치를 주지 않습니다. 전적은 완료된 온라인 경기에서 기록됩니다.</p>
+        <p>Lv.2까지 100 XP, 이후 필요한 경험치는 레벨마다 50씩 증가합니다. Lv.5 도전자 · 10 듀얼리스트 · 20 베테랑 · 30 마스터 · 50 전설.</p>
+      </details>
+      <div class="account-footer"><a href="privacy.html" target="_blank" rel="noopener">개인정보 안내</a><button data-close>닫기</button></div>
+    </dialog>
     <script src="engine.js?v=duel40-v1"></script>
     <script src="effects.js?v=impact-v1"></script>
     <script src="sound.js?v=sound-v1"></script>
-    <script src="client.js?v=sound-v1"></script>
+    <script src="account.js?v=accounts-v1"></script>
+    <script src="client.js?v=accounts-v1"></script>
   </body>
 </html>

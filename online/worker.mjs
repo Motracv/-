@@ -1,5 +1,6 @@
 // Cloudflare Worker + D1. Every room change uses optimistic compare-and-swap.
 // Only Game.view(actor), never a persisted game or member token, reaches a client.
+import { createAccounts, accountReward } from "./accounts.mjs";
 const TTL = 6 * 60 * 60 * 1000;
 const GRACE = 90000;
 const MAX_BODY = 8192;
@@ -116,9 +117,11 @@ function maintenance(room, game, now) {
       game.s.phase !== "over"
     ) {
       game.log(`${member.name} 연결 종료로 탈락`);
+      member.forfeited = true;
       game.forfeit(member.id);
     }
   game.timeout();
+  if (game.s.phase === "over" && !room.endedAt) room.endedAt = now;
 }
 function snapshot(room, game, member, now) {
   return {
@@ -131,11 +134,13 @@ function snapshot(room, game, member, now) {
       id: m.id,
       name: m.name,
       connected: !m.left && now - m.lastSeen < 15000,
+      ...(m.accountId ? { level: m.level, title: m.title } : {}),
     })),
+    progression: accountReward({ ...room, ...(game ? { game: { s: game.s } } : {}) }, member),
     ...(game ? { game: game.view(member.id) } : {}),
   };
 }
-export function createWorker(Battle) {
+export function createWorker(Battle, { accounts = createAccounts() } = {}) {
   const { Game } = Battle;
   // Best-effort abuse brake per live isolate, supplemented by hard body/room TTL limits.
   const entryRates = new Map();
@@ -177,10 +182,12 @@ export function createWorker(Battle) {
         failure = error;
       }
       if (game) room.game = saveGame(game);
+      if (room.game?.s.phase === "over" && !room.endedAt) room.endedAt = now;
       const payload = JSON.stringify(room);
       // Polls may return a consistent snapshot without writing. Heartbeats are
       // coalesced below, so five clients cannot continuously invalidate an action.
       if (payload === row.payload) {
+        await accounts.settle(db, room);
         if (failure) throw failure;
         return result;
       }
@@ -191,6 +198,7 @@ export function createWorker(Battle) {
         .bind(payload, code, row.version, now)
         .run();
       if (changed.meta.changes === 1) {
+        await accounts.settle(db, room);
         if (failure) throw failure;
         return result;
       }
@@ -222,7 +230,7 @@ export function createWorker(Battle) {
         Object.assign(headers, {
           "Access-Control-Allow-Origin": origin,
           Vary: "Origin",
-          "Access-Control-Allow-Headers": "Authorization, Content-Type",
+          "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Account-Session",
           "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
         });
       const reply = (value, status = 200) =>
@@ -234,12 +242,16 @@ export function createWorker(Battle) {
       try {
         if (url.pathname === "/health")
           return reply({ ok: true, transport: "poll" });
+        if (url.pathname === "/api/account/config" && request.method === "GET")
+          return reply(accounts.config(env));
         requireValue(
           request.method === "POST",
           "지원하지 않는 요청입니다.",
           405,
         );
         requireValue(env.DB, "게임 저장소가 설정되지 않았습니다.", 503);
+        if (url.pathname.startsWith("/api/account/"))
+          return reply(await accounts.route(url.pathname, request, await readBody(request), env, Date.now()));
         const routes = [
           "/api/create",
           "/api/join",
@@ -265,10 +277,10 @@ export function createWorker(Battle) {
             "닉네임은 1~16자로 입력하세요.",
           );
           const name = data.name.trim();
+          const profile = await accounts.member(request, env, now);
+          const identity = profile ? { accountId: profile.id, level: profile.level, title: profile.title } : {};
           if (url.pathname === "/api/create") {
-            await env.DB.prepare("DELETE FROM rooms WHERE expires <= ?")
-              .bind(now)
-              .run();
+            await accounts.cleanExpired(env.DB, now);
             const count = await env.DB.prepare(
               "SELECT COUNT(*) AS count FROM rooms",
             ).first();
@@ -283,6 +295,7 @@ export function createWorker(Battle) {
                   lastSeen: now,
                   lastAction: 0,
                   left: false,
+                  ...identity,
                 };
               const room = {
                 code,
@@ -313,6 +326,7 @@ export function createWorker(Battle) {
           const result = await mutate(env.DB, code, (room, game, now) => {
             requireValue(!game, "이미 시작한 방입니다.");
             requireValue(room.members.length < 5, "방이 가득 찼습니다.");
+            requireValue(!profile || !room.members.some(m => m.accountId === profile.id), "같은 계정은 한 방에 한 번만 참가할 수 있습니다.");
             const member = {
               id: room.members.length,
               name,
@@ -320,6 +334,7 @@ export function createWorker(Battle) {
               lastSeen: now,
               lastAction: 0,
               left: false,
+              ...identity,
             };
             room.members.push(member);
             return { token, ...snapshot(room, null, member, now) };
@@ -360,6 +375,8 @@ export function createWorker(Battle) {
               },
             );
             room.game = saveGame(game);
+            room.matchId = randomHex(24);
+            room.startedAt = now;
             return snapshot(room, game, member, now);
           }
           if (url.pathname === "/api/action") {
@@ -374,12 +391,16 @@ export function createWorker(Battle) {
               429,
             );
             game.action(member.id, data);
+            if (["play", "react", "exchange", "fuse"].includes(data.kind))
+              member.accountActions = (member.accountActions || 0) + 1;
+            if (game.s.phase === "over" && !room.endedAt) room.endedAt = now;
             member.lastAction = now;
             return snapshot(room, game, member, now);
           }
           if (game) {
             if (game.s.phase !== "over" && game.player(member.id).hp > 0) {
               game.log(`${member.name} 기권`);
+              member.forfeited = true;
               game.forfeit(member.id);
             }
             member.left = true;

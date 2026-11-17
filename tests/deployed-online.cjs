@@ -39,7 +39,7 @@ const frontend = localFrontend
             relative = u.pathname.replace(/^\/-\//, "");
           if (
             route.request().method() !== "GET" ||
-            !/^(game\.html|engine\.js|client\.js|game\.css|effects\.js|effects\.css|sound\.js|assets\/cards\/manifest\.json|assets\/fonts\/(PretendardVariable\.woff2|OFL\.txt))$/.test(
+            !/^(game\.html|engine\.js|client\.js|account\.js|privacy\.html|game\.css|effects\.js|effects\.css|sound\.js|assets\/cards\/manifest\.json|assets\/fonts\/(PretendardVariable\.woff2|OFL\.txt))$/.test(
               relative,
             )
           ) {

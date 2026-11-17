@@ -175,6 +175,7 @@ function refresh(next) {
   scheduleAI();
 }
 function localStart() {
+  window.DuelAccount?.clearMatch();
   clearTimeout(aiTimer);
   resetPresentation();
   epoch++;
@@ -266,6 +267,7 @@ function showResult() {
   $("result-close").hidden = result === "eliminated";
   $("result-rematch").hidden = result === "eliminated";
   $("result-rematch").textContent = online ? "새 온라인 방" : "다시 플레이";
+  window.DuelAccount?.result({ online: !!online, finished: view.phase === "over" });
   for (const other of document.querySelectorAll("dialog[open]")) if (other !== dialog) other.close();
   if (!dialog.open) dialog.showModal();
 }
@@ -318,6 +320,10 @@ function fighter(p) {
   x.classList.toggle("target", selectedTarget === p.id);
   x.setAttribute("aria-label", `${p.name}, HP ${p.hp}, 손패 ${p.count}장`);
   x.append(el("b", p.name));
+  if (p.level) {
+    const badge = el("span", `Lv.${p.level}`, "fighter-level");
+    badge.title = p.title || ""; x.append(badge);
+  }
   const row = el("div", undefined, "hp-row"),
     track = el("div", undefined, "track"),
     fill = el("div", undefined, "fill");
@@ -807,6 +813,7 @@ async function api(path, data) {
       headers: {
         "Content-Type": "application/json",
         ...(online ? { Authorization: "Bearer " + online.token } : {}),
+        ...(["/api/create", "/api/join"].includes(path) ? window.DuelAccount?.headers() : {}),
       },
       body: JSON.stringify(data || {}),
       signal: controller.signal,
@@ -824,6 +831,7 @@ async function api(path, data) {
 }
 function receive(data) {
   if (!online) return;
+  window.DuelAccount?.observe(data);
   online.code = data.code;
   online.me = data.me;
   if (data.started) {
@@ -835,6 +843,10 @@ function receive(data) {
       (view?.me === data.me && view?.online ? view.revision : -1)
     ) {
       data.game.online = true;
+      for (const p of data.game.players) {
+        const publicProfile = data.players.find(member => member.id === p.id);
+        if (publicProfile?.level) { p.level = publicProfile.level; p.title = publicProfile.title; }
+      }
       refresh(data.game);
     }
   } else {
@@ -844,7 +856,7 @@ function receive(data) {
       ...data.players.map((p) =>
         el(
           "li",
-          `${p.name}${p.id === data.host ? " · 방장" : ""}${p.connected ? " · 연결됨" : " · 연결 대기"}`,
+          `${p.name}${p.level ? ` · Lv.${p.level}` : ""}${p.id === data.host ? " · 방장" : ""}${p.connected ? " · 연결됨" : " · 연결 대기"}`,
         ),
       ),
     );
@@ -1017,6 +1029,7 @@ $("join-room").onclick = () => enter("join");
 $("server-url").value = server;
 $("save-server").onclick = () => {
   try {
+    if (online) throw Error("현재 방을 나간 뒤 서버를 변경하세요.");
     const url = new URL($("server-url").value);
     if (
       url.protocol !== "https:" &&
@@ -1025,6 +1038,7 @@ $("save-server").onclick = () => {
       throw Error("HTTPS 주소가 필요합니다.");
     server = url.origin;
     localStorage.setItem("card-server", server);
+    void window.DuelAccount?.connect();
     toast("서버 주소 저장 완료");
   } catch (e) {
     toast(e.message);
@@ -1603,6 +1617,7 @@ try {
 } catch {
   sessionStorage.removeItem(sessionKey);
 }
+window.DuelAccount?.init({ getServer: () => server, isPlaying: () => !!online, notify: toast });
 
 fetch("assets/cards/manifest.json")
   .then((r) => (r.ok ? r.json() : []))
