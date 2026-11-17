@@ -251,15 +251,15 @@ const G=require('../school/engine.js');
    }finally{Date.now=realNow;}
  });
  await test('Commander renames are normalized, validated and confirmed once across simultaneous sessions and lost responses',async()=>{
-   const realNow=Date.now,prepare=t.db.prepare;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
+   const realNow=Date.now,prepare=t.db.prepare,originalBatch=t.db.batch;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
    try{
-     const who=(await t.login('school-rename')).data;let current=await call(who,'state');const before=current.data.state;
+     const who=(await t.login('school-rename')).data;let current=await call(who,'state');const funded=JSON.parse(save(who).payload);funded.gems=10000;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(funded),who.profile.id);current=await call(who,'state');const before=current.data.state;
      current=await call(who,'action',action(current.data.revision,'commander-rename-first',{kind:'rename',name:'  오시아  단장  ',gold:1e12,captain:{level:200}}));assert.equal(current.status,200);assert.equal(current.data.state.commanderName,'오시아 단장');assert.equal(current.data.state.gold,before.gold);assert.deepEqual(current.data.state.captain,before.captain);
      for(const[index,name]of ['<script>','단장\n이름','가'.repeat(13),null].entries()){const row=save(who);assert.equal((await call(who,'action',action(row.revision,'commander-invalid-name'+index,{kind:'rename',name}))).status,400);assert.equal(save(who).payload,row.payload);}
      const again=(await t.login('school-rename')).data;current=await call(again,'state');const races=await Promise.all(['붉은 단장','푸른 단장'].map((name,i)=>call(i?again:who,'action',action(current.data.revision,'commander-racing-name'+i,{kind:'rename',name}))));assert.deepEqual(races.map(r=>r.status).sort(),[200,409]);assert.equal(JSON.parse(save(who).payload).commanderName,races.find(r=>r.status===200).data.state.commanderName);
-     current=await call(who,'state');const intent=action(current.data.revision,'commander-response-lost',{kind:'rename',name:'확인된 단장'});let drop=true;t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
-     assert.equal((await call(who,'action',intent)).status,503);t.db.prepare=prepare;const retry=await call(again,'action',intent);assert.equal(retry.status,200);assert.equal(retry.data.repeated,true);assert.equal(retry.data.state.commanderName,'확인된 단장');assert.equal((await call(again,'state')).data.state.commanderName,'확인된 단장');
-   }finally{t.db.prepare=prepare;Date.now=realNow;}
+     current=await call(who,'state');const intent=action(current.data.revision,'commander-response-lost',{kind:'rename',name:'확인된 단장'});let drop=true;t.db.batch=async statements=>{const result=await originalBatch(statements);if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;};
+     assert.equal((await call(who,'action',intent)).status,503);t.db.batch=originalBatch;t.db.prepare=prepare;const retry=await call(again,'action',intent);assert.equal(retry.status,200);assert.equal(retry.data.repeated,true);assert.equal(retry.data.state.commanderName,'확인된 단장');assert.equal((await call(again,'state')).data.state.commanderName,'확인된 단장');
+   }finally{t.db.prepare=prepare;t.db.batch=originalBatch;Date.now=realNow;}
  });
  await test('Growth migration retains old level 50, raw XP and the previously earned offline captain share on the server',async()=>{
    const realNow=Date.now;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');

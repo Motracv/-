@@ -2,7 +2,7 @@
   'use strict';
   let promptEvent, registration, registering = false, error = false;
   let prompting = false, guideOpen = false, installMessage = '';
-  const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const standalone = () => (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches) || navigator.standalone === true;
   const targets = new Set();
   const element = (tag, className, text) => {
     const node = document.createElement(tag); node.className = className;

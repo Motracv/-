@@ -79,8 +79,8 @@ async function runExpansionRegressions({pageFor,saved,tab,t,login}){
     assert.notEqual(lava.frames['lava-1'].png,lava.frames['lava-2'].png);
     assert.ok(lava.events.some(e=>e.kind==='heal'&&e.from==='lava'&&e.amount>0));assert.ok(lava.events.some(e=>e.kind==='guard'&&e.from==='lava'&&e.amount>0));
     assert.ok(lava.frames['lava-1'].labels.some(text=>text.includes('바람의 부채')));assert.ok(lava.frames['lava-2'].labels.some(text=>text.includes('바람의 상처')));
-    for(const stage of[1,2]){assert.ok(lava.frames[`lava-${stage}`].labels.includes('바람의 무당 · 라바'));const reduced=await p.evaluate(stage=>window.expStatic(`lava-${stage}`,true),stage),expired=await p.evaluate(stage=>window.expStatic(`lava-${stage}`,false,.8),stage);assert.ok(!reduced.includes('바람의 무당 · 라바'));assert.ok(!expired.includes('바람의 무당 · 라바'));assert.ok(reduced.some(label=>label.startsWith('라바 · ')));}
-    console.log('PASS both light Lava cut-ins appear during the live skill, expire after 0.72s, and become simple labels in reduced motion');
+    for(const stage of[1,2]){assert.ok(lava.frames[`lava-${stage}`].labels.includes('바람의 무당 · 라바'));const reduced=await p.evaluate(stage=>window.expStatic(`lava-${stage}`,true),stage),expired=await p.evaluate(stage=>window.expStatic(`lava-${stage}`,false,1.2),stage);assert.ok(!reduced.includes('바람의 무당 · 라바'));assert.ok(!expired.includes('바람의 무당 · 라바'));assert.ok(reduced.some(label=>label.startsWith('라바 · ')));}
+    console.log('PASS both light Lava cut-ins appear during the live skill, expire after the slower 1.15s motion, and become simple labels in reduced motion');
     s=await saved(p);s.at=Date.now()+600;s.units.lava.basicHits=0;G.action(s,{kind:'stage',stage:1,mode:'farm'},Date.now());for(const h of s.battle.heroes){h.hp=1;h.shield=0;}for(const e of s.battle.enemies){e.hp=e.max=100000;e.atk=10000;}
     await seedGuest(p,s);await watch(p);
     try{await p.waitForFunction(()=>!!window.expFrames.rescue,{},{timeout:5000});}

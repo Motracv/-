@@ -1,7 +1,9 @@
 import "../school/engine.js";
+import { createSocial, ensureSchoolName, nameKey } from './social.mjs';
 
 export function createSchool() {
   const game = globalThis.SchoolRPG;
+  const social = createSocial(game);
   const requireSchool = (condition, message, status = 400) => {
     if (!condition) throw Object.assign(new Error(message), { status });
   };
@@ -41,6 +43,7 @@ export function createSchool() {
   return {
     async request(path, request, env, data, accounts) {
       try {
+      if (path === '/api/school/social') return await social.request(request, env, data, accounts);
       requireSchool(["/api/school/state", "/api/school/action", "/api/school/rankings"].includes(path), "지원하지 않는 경로입니다.", 404);
       let signed;
       try { signed = await accounts.identity(request, env, Date.now()); }
@@ -81,18 +84,40 @@ export function createSchool() {
         if (action && data.revision !== row.revision) {
           return { conflict: true, state: game.view(state), revision: row.revision, serverTime: now };
         }
+        await ensureSchoolName(env.DB, signed.id, state, game, now);
         game.advance(state, now);
         let result = null;
+        const renaming = action && data.action.kind === 'rename';
+        if (renaming) {
+          const normalized = game.normalizeCommanderName(data.action.name);
+          requireSchool(normalized && normalized !== '새내기 단장', '사용할 단장 이름을 2~12글자로 정해 주세요.');
+          const owner = await env.DB.prepare('SELECT account_id FROM school_names WHERE name_key = ?').bind(nameKey(normalized)).first();
+          requireSchool(!owner || owner.account_id === signed.id, '이미 사용 중인 단장 이름이에요.', 409);
+        }
         if (action) {
           // The client submits intentions only. Time, loot, draws and costs are server-owned.
           try { result = game.action(state, data.action, now, secure); }
           catch (error) { throw Object.assign(error, { status: 400 }); }
           state.receipts.push({ id: data.requestId, result }); state.receipts = state.receipts.slice(-20);
+          if (renaming) state.nameNeedsClaim = false;
         }
         const payload = JSON.stringify(state);
         if (payload === row.payload) return { state: game.view(state), revision: row.revision, serverTime: now, result };
-        const written = await env.DB.prepare("UPDATE school_saves SET payload = ?, revision = revision + 1, updated_at = ? WHERE account_id = ? AND revision = ?")
-          .bind(payload, now, signed.id, row.revision).run();
+        const update = env.DB.prepare("UPDATE school_saves SET payload = ?, revision = revision + 1, updated_at = ? WHERE account_id = ? AND revision = ?")
+          .bind(payload, now, signed.id, row.revision);
+        let written;
+        if (renaming) {
+          try {
+            const results = await env.DB.batch([update, env.DB.prepare(`INSERT INTO school_names(account_id,name_key,display_name,created_at)
+              SELECT account_id,?,?,? FROM school_saves WHERE account_id = ? AND revision = ? AND json_extract(payload,'$.receipts[#-1].id') = ?
+              ON CONFLICT(account_id) DO UPDATE SET name_key = excluded.name_key, display_name = excluded.display_name`)
+              .bind(nameKey(state.commanderName), state.commanderName, now, signed.id, row.revision + 1, data.requestId)]);
+            written = results[0];
+          } catch (error) {
+            if (/UNIQUE constraint failed.*school_names/i.test(error.message || '')) throw Object.assign(new Error('이미 사용 중인 단장 이름이에요.'), {status:409});
+            throw error;
+          }
+        } else written = await update.run();
         if (written.meta.changes === 1) return { state: game.view(state), revision: row.revision + 1, serverTime: now, result };
         // On a CAS conflict, a duplicate action finds its receipt on the next read.
       }

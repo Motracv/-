@@ -1,6 +1,7 @@
 "use strict";
 window.SchoolArt = (() => {
-  const portraits = new Map(), S = SchoolRPG;
+  const portraits = new Map(), frontPortraits = new Map(), osiaPoses = new Map(), lavaPoses = new Map(), combatLabels = new Map(), S = SchoolRPG;
+  let lavaPosePixels = 0, combatLabelPixels = 0;
   const osiaImage = new Image(), lavaImage = new Image();
   let osiaLoaded = false, lavaLoaded = false;
   const osiaReady = new Promise(resolve => {
@@ -46,9 +47,14 @@ window.SchoolArt = (() => {
     const spring = Math.sin(progress * Math.PI), release = clamp01((age - .15) / .45);
     let dx = 0, dy = 0, lean = 0, stretch = 1, cloth = 0, pose = age < .4 ? 1 : 2;
     if (id === "lava") {
-      if (stage === 1) { dx = spring * 17 - Math.sin(clamp01(age / .18) * Math.PI) * 4; dy = age < .15 ? age * 22 : -Math.sin(clamp01((age - .15) / .85) * Math.PI) * 17; lean = -.17 * Math.sin(progress * Math.PI * 2); cloth = 2.4 * spring; }
-      else { dx = Math.sin(progress * Math.PI * 1.6) * 12; dy = -Math.sin(clamp01(age / 1.1) * Math.PI) * 29; lean = .19 * Math.sin(progress * Math.PI * 2); cloth = 3.8 * spring; }
-      stretch = 1 - (age < .15 ? .09 * (1 - age / .15) : 0) + Math.max(0, -dy) * .0015;
+      // A measured fan dance: gather, unfold, release, settle. No spring-like
+      // jumps or oscillating bitmap strips; the sleeves and fan have joints.
+      const p = clamp01(age / 1.8), ease = p * p * (3 - 2 * p), breath = Math.sin(p * Math.PI);
+      dx = Math.sin(ease * Math.PI) * (stage === 1 ? 5 : -3);
+      dy = -breath * (stage === 2 ? 5 : 2);
+      lean = Math.sin(p * Math.PI * 2) * .035;
+      cloth = breath * 1.35; stretch = 1 + breath * .012;
+      pose = p < .28 ? 1 : 2;
     } else if (stage === 1) { dx = Math.sin(release * Math.PI) * 17 - Math.sin(clamp01(age / .2) * Math.PI) * 3; dy = age < .2 ? 4 * Math.sin(age / .2 * Math.PI) : -spring * 2; lean = -.12 * Math.sin(progress * Math.PI); stretch = age < .2 ? .93 : 1; }
     else if (stage === 2) { dx = Math.sin(progress * Math.PI * 2) * 10; dy = -spring * 9; lean = .2 * Math.sin(progress * Math.PI * 2); pose = age < .28 ? 2 : age < .62 ? 1 : 2; }
     else if (stage === 3) { dy = -Math.sin(clamp01(age / .9) * Math.PI) * 28; dx = spring * 4; stretch = dy < -6 ? 1.06 : .95; lean = -.055; pose = age < .5 ? 1 : 2; }
@@ -56,15 +62,19 @@ window.SchoolArt = (() => {
     return {dx,dy,lean,stretch,cloth,pose,stage,age,reduced};
   }
   function osia(c, x, y, scale, frame) {
-    c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale, scale);
+    c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale * (frame.flip ? -1 : 1), scale);
     if (frame.dead) { c.globalAlpha = .4; c.rotate(-Math.PI / 2); }
-    if (frame.hit) c.filter = "brightness(1.8)";
     rect(c, "#26333b35", -8, 1 + (frame.shadowY || 0), 17, 2);
     if (frame.motion) c.transform(1, 0, frame.motion.lean, frame.motion.stretch, 0, 0);
     if (osiaLoaded) {
       const tile = osiaImage.naturalWidth / 3, pose = frame.pose ?? (frame.attack || frame.casting ? 2 : frame.ready ? 1 : 0);
       // The atlas is three equal right-facing cells, with identical foot anchors.
-      c.drawImage(osiaImage, pose * tile, 0, tile, osiaImage.naturalHeight, -21, -40, 44, 44);
+      // Downsample each atlas cell once at the required display density; do
+      // not repeatedly sample a large source PNG on the battle render path.
+      const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d)),resolution=density>4?6:density>2?4:2;
+      const key=pose+":"+resolution;let sprite=osiaPoses.get(key);
+      if(!sprite){sprite=document.createElement("canvas");sprite.width=sprite.height=44*resolution;const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.drawImage(osiaImage,pose*tile,0,tile,osiaImage.naturalHeight,0,0,sprite.width,sprite.height);osiaPoses.set(key,sprite);}
+      c.drawImage(sprite,-21,-40,44,44);
     } else {
       // Small, right-facing fallback when the optional art file cannot load.
       c.translate(0, -7);
@@ -87,52 +97,124 @@ window.SchoolArt = (() => {
     } else { rect(c, "#76503b", -1, -12, 3, 13); detail(c, "#f5db9c", 0, -11, 1, 11); }
     rect(c, "#6b4834", -1, 0, 2, 5); rect(c, "#e6c16f", -1, 3, 2, 1); c.restore();
   }
+  // Newly articulated pixel figure. All parts share the same anchors; the
+  // skirt, sleeves, hands, fan and head move independently at a calm tempo.
+  function lavaFigure(c, time = 0, frame = {}, front = false) {
+    const motion = frame.motion, reduced = motion?.reduced || frame.reduced;
+    const age = Math.max(0, motion?.age ?? frame.attackAge ?? 0);
+    const casting = !!frame.casting, passive = !!frame.passive;
+    const p = clamp01(age / (casting ? 1.8 : passive ? 1.45 : .85));
+    const ease = p * p * (3 - 2 * p), wave = Math.sin(ease * Math.PI);
+    const idle = reduced ? 0 : Math.sin(time * 1.8) * .45;
+    const arm = reduced ? -.3 : casting ? -.95 + ease * 1.8 : passive ? -.45 - wave * .8 : frame.attackAge != null && p < 1 ? -.9 + ease * 2.15 : .15 + idle * .1;
+    const skirt = reduced ? 0 : Math.sin(time * 2.2) * .45 + wave * .75;
+    // Hair behind neck, loose ritual trousers and embroidered old shoes.
+    rect(c,"#395269",-8,-41,16,17);rect(c,"#70aac5",-7,-40,14,16);
+    rect(c,"#dadfd1",-7,-8,6,11);rect(c,"#f6f0d8",-6,-7,4,9);rect(c,"#dadfd1",2,-8,6,11);rect(c,"#f6f0d8",3,-7,4,9);
+    detail(c,"#7f8f9b",-5,-4,1,7);detail(c,"#7f8f9b",4,-4,1,7);
+    rect(c,"#343c48",-8,2,8,3);rect(c,"#343c48",2,2,9,3);detail(c,"#c5a072",-7,2,6,1);detail(c,"#c5a072",3,2,6,1);
+    // Full red chima with layered hem and narrow gold embroidery.
+    rect(c,"#65353d",-10+skirt,-17,20,17);rect(c,"#a63e50",-9+skirt,-16,18,15);
+    rect(c,"#c65a62",-8+skirt,-16,4,14);rect(c,"#872f46",3+skirt,-15,4,14);
+    detail(c,"#e19678",-8+skirt,-15,1,12);detail(c,"#e4bd85",-9+skirt,-2,18,1);
+    rect(c,"#5b6039",-8,-29,16,14);rect(c,"#a7ad55",-7,-28,14,12);rect(c,"#c8cd7b",-7,-28,4,11);
+    rect(c,"#e3c88a",-2,-28,6,2);rect(c,"#b17c49",0,-26,3,3);rect(c,"#eddbac",-1,-27,3,1);
+    detail(c,"#f0d795",-6,-17,13,1);rect(c,"#83424a",2,-17,2,8);rect(c,"#d7935e",4,-17,3,3);
+    // Far sleeve opens slightly as the fan is raised.
+    c.save();c.translate(-7,-27);c.rotate(reduced?0:-.12-wave*.25);
+    rect(c,"#59663f",-4,0,6,12);rect(c,"#a6b567",-3,1,4,10);rect(c,"#e9c8aa",-2,10,4,3);c.restore();
+    // The head is kept rigid to avoid the old rubber-sheet distortion.
+    c.save();c.translate(front?0:1,idle*.3);
+    rect(c,"#f0cdb1",-6,-39,12,12);rect(c,"#dba98f",-4,-29,9,2);
+    rect(c,"#9bcedf",-8,-42,16,7);rect(c,"#c1e5ed",-5,-43,10,3);
+    rect(c,"#84bcd4",-8,-37,3,9);rect(c,"#8bc2d7",5,-38,3,7);rect(c,"#a6d9e7",-3,-39,5,6);
+    detail(c,"#e0f3f3",-5,-41,7,1);detail(c,"#5b8da9",-8,-34,1,7);
+    const eyeY=-33, blink=frame.blink;
+    rect(c,"#2d4353",front?-4:0,eyeY,2,blink?1:2);rect(c,"#2d4353",front?3:5,eyeY,2,blink?1:2);
+    if(!blink){detail(c,"#eef7ef",front?-4:0,eyeY,1,.5);detail(c,"#eef7ef",front?3:5,eyeY,1,.5);}
+    detail(c,"#b98379",front?-1:3,-29,2,.5);c.restore();
+    // Near arm really swings from the shoulder; hand and fan stay attached.
+    c.save();c.translate(front?7:8,-26);c.rotate(arm);
+    rect(c,"#59663f",-1,-1,8,12);rect(c,"#b8c470",0,0,6,10);rect(c,"#d9dca0",0,1,2,8);
+    rect(c,"#f0cdb1",2,9,4,4);detail(c,"#f8e5c7",3,9,2,1);
+    c.translate(4,11);c.rotate(-.95 + (casting?wave*.22:0));c.scale(.8,.8);fan(c,0,0,casting||passive||frame.attackAge!=null||front);c.restore();
+    if(passive){c.save();c.globalAlpha=.5*wave;c.strokeStyle="#d7f3d6";c.lineWidth=.6;c.beginPath();c.ellipse(0,-15,16,23,0,-1,4.5);c.stroke();c.restore();}
+  }
   function lava(c, x, y, scale, frame) {
-    c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale, scale);
-    if (frame.dead) { c.globalAlpha = .4; c.rotate(-Math.PI / 2); }
-    if (frame.hit) c.filter = "brightness(1.8)";
-    rect(c, "#26333b35", -10, 1 + (frame.shadowY || 0), 21, 2);
-    if (frame.motion) c.transform(1, 0, frame.motion.lean, frame.motion.stretch, 0, 0);
-    if (lavaLoaded) {
-      // The generated source is kept intact. Its known transparent padding is
-      // excluded while drawing so Lava shares the party's foot and height scale.
-      const crop = {x:245, y:91, width:631, height:1260}, width = 44 * crop.width / crop.height;
-      if (frame.motion && !frame.motion.reduced) {
-        // Adjacent strips bend the torso and flutter the long skirt separately;
-        // the head stays rigid, the feet trail, and the source PNG is untouched.
-        const motion = frame.motion;
-        for (let row = 0; row < 44; row += 4) {
-          const part = row / 44, skirt = part > .48 && part < .86, legs = part >= .86;
-          const sway = skirt ? Math.sin(part * 10 - motion.age * 12) * motion.cloth : legs ? Math.sin(motion.age * 9) * motion.cloth * .25 : Math.sin(part * 3) * motion.cloth * .18;
-          const spread = skirt ? 1 + Math.sin((part - .48) / .38 * Math.PI) * Math.abs(motion.cloth) * .055 : 1;
-          c.drawImage(lavaImage, crop.x, crop.y + row / 44 * crop.height, crop.width, Math.min(4, 44 - row) / 44 * crop.height, -width * spread / 2 + sway, -41 + row, width * spread, 4.12);
-        }
-      } else c.drawImage(lavaImage, crop.x, crop.y, crop.width, crop.height, -width / 2, -41, width, 44);
-      if (frame.attack && !frame.casting) { c.strokeStyle = "#e1f1b9"; c.lineWidth = .8; c.beginPath(); c.arc(15, -22, 12, -1.5, .8); c.stroke(); }
-    } else {
-      // A human shaman in a hanbok: no fins, horns or animal ears.
-      c.scale(.88, .88); c.translate(0, -5);
-      rect(c, "#40576b", -8, -39, 16, 17); rect(c, "#8fc6dd", -7, -38, 14, 15);
-      rect(c, "#f4d0ae", -1, -34, 9, 12); rect(c, "#f4d0ae", 7, -30, 3, 3);
-      rect(c, "#bee6ec", -5, -38, 10, 3); rect(c, "#8fc6dd", -4, -35, 5, 6); rect(c, "#6ea8c5", -8, -32, 4, 12);
-      rect(c, "#293f4c", 5, -31, 1, frame.blink ? 1 : 2); detail(c, "#fff5d8", 5, -31, .5, .5); detail(c, "#bf8970", 5, -25, 2, .5);
-      rect(c, "#596638", -8, -23, 17, 13); rect(c, "#9eae56", -7, -22, 16, 12);
-      rect(c, "#c1cb72", -7, -22, 3, 10); rect(c, "#d58743", -1, -22, 6, 3); rect(c, "#e6b26a", 1, -21, 3, 2);
-      rect(c, "#536036", -11, -22, 5, 13); rect(c, "#b4c16a", -10, -21, 4, 11);
-      rect(c, "#586439", 7, -22, 7, 10); rect(c, "#bdca78", 8, -21, 5, 8); rect(c, "#f4d0ae", 12, -17, 4, 3);
-      rect(c, "#724137", -9, -11, 19, 14); rect(c, "#b35545", -8, -10, 17, 12); rect(c, "#d17b57", -7, -10, 2, 11);
-      rect(c, "#933f38", 2, -9, 2, 12); rect(c, "#8e3f39", 7, -8, 2, 10);
-      rect(c, "#e9dfc1", -7, 0, 7, 7); rect(c, "#f7eed3", -6, 0, 5, 6); rect(c, "#e9dfc1", 2, 0, 7, 7); rect(c, "#f7eed3", 3, 0, 5, 6);
-      rect(c, "#554539", -8, 6, 9, 3); rect(c, "#554539", 2, 6, 10, 3); detail(c, "#ac8761", -7, 6.5, 6, .5); detail(c, "#ac8761", 3, 6.5, 6, .5);
-      detail(c, "#e7be75", -2, -13, 10, 1); rect(c, "#d89553", 1, -13, 2, 6); rect(c, "#edc48a", 3, -13, 4, 2);
-      fan(c, frame.casting ? 20 : 17, frame.casting ? -28 : -17, true);
-    }
+    c.save();c.translate(Math.round(x),Math.round(y));c.scale(scale*(frame.flip?-1:1),scale);
+    if(frame.dead){c.globalAlpha=.4;c.rotate(-Math.PI/2);}
+    rect(c,"#26333b35",-10,1+(frame.shadowY||0),21,2);
+    if(frame.motion)c.transform(1,0,frame.motion.lean,frame.motion.stretch,0,0);
+    const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d));
+    const resolution=density>4?6:density>2?4:2;
+    const kind=frame.casting?"skill":frame.passive?"passive":frame.attackAge!=null?"attack":"idle";
+    const duration=kind==="skill"?1.8:kind==="passive"?1.45:.85,steps=kind==="skill"?18:kind==="idle"?8:12;
+    const rawAge=frame.motion?.age??frame.attackAge??0;
+    // Limb poses are a fixed tiny atlas. Position/lean still interpolate each
+    // rendered frame, but identical pixel poses do not submit 70+ draw calls.
+    const poseReduced=!!frame.reduced||!!frame.motion?.reduced;
+    const step=poseReduced?0:kind==="idle"?Math.floor(((frame.time||0)%(Math.PI*2/1.8))/(Math.PI*2/1.8)*steps):Math.min(steps,Math.max(0,Math.floor(rawAge/duration*steps)));
+    const key=`${resolution}:${kind}:${step}:${+!!frame.blink}:${+poseReduced}`;
+    let sprite=lavaPoses.get(key);
+    if(!sprite){
+      sprite=document.createElement("canvas");sprite.width=72*resolution;sprite.height=64*resolution;
+      const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.scale(resolution,resolution);sc.translate(32,52);
+      const age=step/steps*duration,poseTime=kind==="idle"?step/steps*Math.PI*2/1.8:age;
+      lavaFigure(sc,poseTime,{...frame,motion:frame.motion?{...frame.motion,age}:undefined,attackAge:kind==="idle"?undefined:age},false);
+      while(lavaPoses.size&&lavaPosePixels+sprite.width*sprite.height>3*1024*1024){const oldest=lavaPoses.keys().next().value,old=lavaPoses.get(oldest);lavaPosePixels-=old.width*old.height;lavaPoses.delete(oldest);}
+      lavaPoses.set(key,sprite);lavaPosePixels+=sprite.width*sprite.height;
+    }else{lavaPoses.delete(key);lavaPoses.set(key,sprite);}
+    c.drawImage(sprite,-32,-52,72,64);
     c.restore();
+  }
+  function osiaFigure(c, time = 0, frame = {}) {
+    const reduced=frame.reduced, phase=clamp01(frame.charge||0), breath=reduced?0:Math.sin(time*1.6)*.4;
+    const gather=Math.sin(clamp01(phase/.6)*Math.PI/2), release=clamp01((phase-.48)/.52);
+    // Boots and white stockings, black pleated skirt, cropped Osia shirt.
+    rect(c,"#f3eee6",-7,-11,5,14);rect(c,"#f3eee6",2,-11,5,14);
+    rect(c,"#79533f",-8,-2,7,9);rect(c,"#79533f",2,-2,7,9);detail(c,"#bd9167",-7,-1,2,6);detail(c,"#bd9167",3,-1,2,6);
+    rect(c,"#23344b",-11,-25,22,17);rect(c,"#343f55",-10,-24,20,15);rect(c,"#4b5468",-7,-23,3,13);rect(c,"#202d42",2,-23,3,14);
+    rect(c,"#f1f0dd",-10,-12,20,1);rect(c,"#f1f0dd",-10,-9,20,1);
+    rect(c,"#f0c8aa",-6,-28,12,5);rect(c,"#25374b",-9,-41,18,14);rect(c,"#f7f3df",-8,-40,16,13);
+    rect(c,"#dfdfd0",5,-38,3,9);detail(c,"#ffffff",-6,-39,5,1);
+    // Necklace and small 'O' mark remain legible at the sprite scale.
+    detail(c,"#66af9c",-3,-39,1,5);detail(c,"#66af9c",3,-39,1,5);rect(c,"#3c9c8a",-1,-35,3,3);
+    rect(c,"#273846",-3,-31,5,1);rect(c,"#273846",-3,-30,1,2);rect(c,"#273846",1,-30,1,2);rect(c,"#273846",-3,-28,5,1);
+    // Independently pivoting arms: water gathers between hands, then the
+    // leading hand extends toward the dragon instead of zooming a static PNG.
+    for(const side of[-1,1]){c.save();c.translate(side*8,-38);
+      c.rotate(side*(.16+gather*.72-release*(side===1?1.5:.3)));
+      rect(c,"#25374b",side===1?-1:-5,-1,6,7);rect(c,"#f6f2df",side===1?0:-4,0,4,5);
+      rect(c,"#edc3a3",side===1?0:-4,5,4,11);detail(c,"#ffdec0",side===1?0:-4,6,1,7);c.restore();}
+    c.save();c.translate(0,breath);
+    rect(c,"#243f66",-12,-60,24,23);rect(c,"#4c74a8",-11,-59,22,21);rect(c,"#f1c9ab",-7,-55,14,15);
+    rect(c,"#7097c6",-11,-61,22,8);rect(c,"#a0bfdc",-7,-62,12,3);
+    rect(c,"#5882b4",-12,-53,5,15);rect(c,"#5278aa",8,-53,4,15);
+    rect(c,"#85a9d1",-5,-57,7,8);rect(c,"#678ebe",-1,-54,5,6);
+    detail(c,"#bfd6e7",-7,-60,8,1);detail(c,"#345887",-12,-48,2,9);
+    // Symmetrical amber gill fins identify the fish dragon king.
+    for(const side of[-1,1]){rect(c,"#aa775b",side<0?-17:11,-58,6,9);rect(c,"#e8af76",side<0?-16:12,-57,4,7);rect(c,"#f4c998",side<0?-17:14,-60,3,6);detail(c,"#815c53",side<0?-15:12,-56,3,1);}
+    const blink=frame.blink;rect(c,"#263956",-5,-48,3,blink?1:3);rect(c,"#263956",3,-48,3,blink?1:3);
+    if(!blink){detail(c,"#b8d6e7",-4,-48,1,1);detail(c,"#b8d6e7",4,-48,1,1);}
+    detail(c,"#d99289",-6,-44,3,.5);detail(c,"#d99289",5,-44,2,.5);detail(c,"#ab746e",-1,-41,3,.5);c.restore();
+  }
+  function recruitPortrait(c,id,time=0,reduced=false){
+    const w=c.canvas.width,h=c.canvas.height;c.save();c.clearRect(0,0,w,h);c.imageSmoothingEnabled=false;
+    const z=Math.min(w/62,h/86),breath=reduced?0:Math.sin(time*1.6)*.6;
+    c.translate(w/2,h*.88);c.scale(z,z);
+    if(id==="osia")osiaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85});
+    else if(id==="lava"){c.translate(-3,0);c.scale(1.38,1.38);lavaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85},true);}
+    else hero(c,id,0,breath,1.4,{blink:!reduced&&time%5>4.85});
+    c.restore();
+  }
+  function frontPortrait(id){
+    if(!frontPortraits.has(id)){const canvas=document.createElement("canvas");canvas.width=248;canvas.height=344;recruitPortrait(canvas.getContext("2d"),id,0,true);frontPortraits.set(id,canvas.toDataURL());}
+    return frontPortraits.get(id);
   }
   function hero(c, id, x, y, scale = 2, frame = {}) {
     if (id === "osia" || id === "lava") { heroShape(c, id, x, y, scale, frame); return; }
     const transform = c.getTransform(), density = Math.max(Math.hypot(transform.a, transform.b), Math.hypot(transform.c, transform.d)) * scale;
-    const resolution = density > 4 ? 8 : density > 2 ? 4 : 2;
+    const resolution = density > 6 ? 8 : density > 4 ? 6 : density > 2 ? 4 : 2;
     const key = `${id}:${+!!frame.attack}:${+!!frame.blink}:${resolution}`;
     let sprite = sprites.get(key);
     if (!sprite) {
@@ -147,7 +229,6 @@ window.SchoolArt = (() => {
     } else { sprites.delete(key); sprites.set(key, sprite); }
     c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale * (frame.flip ? -1 : 1), scale);
     if (frame.dead) { c.globalAlpha *= .4; c.rotate(-Math.PI / 2); }
-    if (frame.hit) c.filter = "brightness(1.8)";
     c.drawImage(sprite, -25, -49, 56, 56); c.restore();
   }
   function heroShape(c, id, x, y, scale = 2, frame = {}) {
@@ -156,7 +237,6 @@ window.SchoolArt = (() => {
     const h = S.BY_ID[id], index = S.HEROES.indexOf(h), dead = frame.dead;
     c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale * (frame.flip ? -1 : 1), scale);
     if (dead) { c.globalAlpha = .4; c.rotate(-Math.PI / 2); }
-    if (frame.hit) c.filter = "brightness(1.8)";
     const skin = index % 3 === 0 ? "#efc69a" : "#f4d6b3", dark = "#263340", boot = "#3b3840";
     rect(c, "#26333b35", -9, -1, 20, 3);
     if (["ian", "lumi", "siu"].includes(id)) { rect(c, dark, -10, -21, 6, 19); rect(c, h.color, -9, -20, 3, 16); }
@@ -209,7 +289,6 @@ window.SchoolArt = (() => {
   function activityBoss(c, enemy, x, y, frame) {
     const kind = frame.activity.kind, bob = frame.reduced ? 0 : Math.sin((frame.time || 0) * 2) * 2;
     c.save(); c.translate(Math.round(x), Math.round(y + bob)); c.scale(2.45,2.45);
-    if (frame.hit) c.filter = "brightness(1.7)";
     rect(c,"#162b3d45",-21,1,43,3);
     if (kind === "daily") {
       // The storehouse guardian is a walking brass-bound supply chest.
@@ -240,7 +319,6 @@ window.SchoolArt = (() => {
   }
   function campaignBoss(c, enemy, x, y, frame = {}) {
     c.save(); c.translate(Math.round(x), Math.round(y)); const z = enemy.boss ? 2.7 : 1.7; c.scale(z, z);
-    if (frame.hit) c.filter = "brightness(2)";
     const palettes = [["#477d68", "#9dc497"], ["#6c627e", "#b9a6c7"], ["#796247", "#d1ba85"], ["#4d7651", "#91af64"], ["#666b79", "#a1a4ab"], ["#5c5379", "#ba9dd6"], ["#6c91ad", "#c0e0e7"], ["#48485f", "#8f86a4"], ["#557d80", "#a4d3c6"], ["#526e6c", "#92b89a"], ["#76895c", "#d4df9c"], ["#8d6572", "#e2ccd3"]];
     const [edge, body] = palettes[enemy.kind] || palettes[0]; rect(c, "#20302b35", -13, 0, 27, 3);
     if (enemy.kind === 2) { rect(c, edge, -23, -23, 14, 8); rect(c, body, -21, -22, 11, 5); rect(c, edge, 10, -23, 14, 8); rect(c, body, 11, -22, 11, 5); }
@@ -669,13 +747,13 @@ window.SchoolArt = (() => {
     rect(c,"#259fd0",x-r+3,y-r+5,r*2-6,r*2-10); rect(c,"#63deee",x-r+6,y-r+3,r*2-12,r);
     rect(c,"#d4ffff",x-r+7,y-r+6,Math.max(3,r/2),4); rect(c,"#a1f2f6",x+r-6,y,3,Math.max(3,r-6));
   }
-  function waterBurst(c, p, age, reduced, size = 1) {
+  function waterBurst(c, p, age, reduced, size = 1, economy = false) {
     const spread = reduced ? 15 * size : (10 + age * 50) * size;
     c.save(); c.globalAlpha *= Math.max(0, 1 - age / .65);
-    for(let i=0;i<10;i++){const a=i*Math.PI/5;rect(c,i%2?"#bffbff":"#47cbe8",p.x+Math.cos(a)*spread,p.y-34+Math.sin(a)*spread*.7,4*size,6*size);}
+    for(let i=0,n=economy?4:10;i<n;i++){const a=i*Math.PI*2/n;rect(c,i%2?"#bffbff":"#47cbe8",p.x+Math.cos(a)*spread,p.y-34+Math.sin(a)*spread*.7,4*size,6*size);}
     c.restore();
   }
-  function waterDragon(c, source, targets, age, reduced) {
+  function waterDragon(c, source, targets, age, reduced, economy = false) {
     const destination = Math.min(453, Math.max(...targets.map(p=>p.x)) + 24);
     c.save();
     if(reduced){
@@ -685,7 +763,7 @@ window.SchoolArt = (() => {
       // 0-.5s: the summoning pool opens; .5-1s: the body uncoils and rushes right.
       const summon=Math.min(1,age/.5),rush=Math.max(0,Math.min(1,(age-.5)/.5)),impact=Math.max(0,age-1);
       c.globalAlpha=Math.min(1,summon*2)*Math.max(0,1-impact/.8);
-      for(let ring=0;ring<3;ring++){
+      for(let ring=0;ring<(economy?1:3);ring++){
         c.strokeStyle=["#187ba5","#45cee5","#c3ffff"][ring];c.lineWidth=4-ring;c.beginPath();c.ellipse(source.x+18,source.y-4-ring*4,18+summon*27-ring*5,5+summon*8,0,0,Math.PI*2);c.stroke();
       }
       const nose=source.x+108+(destination-source.x-108)*(rush*rush),headY=179-summon*43-Math.sin(rush*Math.PI)*33;
@@ -698,15 +776,15 @@ window.SchoolArt = (() => {
         if(i%4===0&&i<20){rect(c,"#b9ffff",x-2,y-size/2-8,4,10);rect(c,"#60daed",x-5,y-size/2-10,4,5);}
       }
       c.drawImage(dragon,63,0,41,32,Math.round(nose-123),Math.round(headY-57),123,96);
-      for(let i=0;i<13;i++){const x=source.x+26+(i*43+age*185)%Math.max(40,nose-source.x-10),y=166+Math.sin(i+age*8)*28;rect(c,"#94edf5",x,y,7+12*rush,3);}
-      if(age>=.5)for(let i=0;i<17;i++){const x=source.x+30+i*19;if(x>nose)break;const y=227+Math.sin(i*.7-age*10)*8;rect(c,"#188bc4aa",x,y,22,18);rect(c,"#82e7f1",x,y-2,15,4);}
+      for(let i=0;i<(economy?5:13);i++){const x=source.x+26+(i*43+age*185)%Math.max(40,nose-source.x-10),y=166+Math.sin(i+age*8)*28;rect(c,"#94edf5",x,y,7+12*rush,3);}
+      if(age>=.5)for(let i=0;i<(economy?7:17);i++){const x=source.x+30+i*(economy?45:19);if(x>nose)break;const y=227+Math.sin(i*.7-age*10)*8;rect(c,"#188bc4aa",x,y,22,18);rect(c,"#82e7f1",x,y-2,15,4);}
       if(age>=1){
-        for(const p of targets){waterBurst(c,p,impact,false,2);c.strokeStyle="#d3ffff";c.lineWidth=3;c.beginPath();c.ellipse(p.x,p.y-34,12+impact*65,10+impact*45,0,0,Math.PI*2);c.stroke();}
+        for(const p of targets){waterBurst(c,p,impact,false,2,economy);c.strokeStyle="#d3ffff";c.lineWidth=3;c.beginPath();c.ellipse(p.x,p.y-34,12+impact*65,10+impact*45,0,0,Math.PI*2);c.stroke();}
       }
     }
     c.restore();
   }
-  function waterEffects(c, effects, positions, time, reduced, pending, cinematic) {
+  function waterEffects(c, effects, positions, time, reduced, pending, cinematic, economy = false) {
     for (const e of effects) {
       if (e.from !== "osia") continue;
       if (e.kind === "skill-stage" && e.stage === 4 && cinematic?.castId === e.castId) continue;
@@ -720,13 +798,13 @@ window.SchoolArt = (() => {
         if(e.stage===1){
           for(const p of targets){
             if(age<.5){const progress=reduced?1:Math.min(1,age/.5),x=source.x+23+(p.x-source.x-23)*progress,y=source.y-41+(p.y-source.y+7)*progress-Math.sin(progress*Math.PI)*22;waterOrb(c,x,y,19);if(!reduced){rect(c,"#8eeaf3",x-40,y-3,16,5);rect(c,"#d1ffff",x-56,y-1,10,2);}}
-            else {waterOrb(c,p.x,p.y-34,Math.max(6,22-impactAge*24));waterBurst(c,p,impactAge,reduced,1.3);}
+            else {waterOrb(c,p.x,p.y-34,Math.max(6,22-impactAge*24));waterBurst(c,p,impactAge,reduced,1.3,economy);}
           }
         } else if(e.stage===2){
           c.globalAlpha=age<.5?.6+age*.8:Math.max(0,1-impactAge/.65);
           for(const p of targets){
-            for(let ring=0;ring<4;ring++){c.strokeStyle=["#176ba1","#229dce","#5bdaed","#cbffff"][ring];c.lineWidth=4-ring*.5;c.beginPath();c.ellipse(p.x,p.y-21-ring*13,34-ring*5,12,-motion*6,0,Math.PI*2);c.stroke();}
-            for(let i=0;i<12;i++){const a=i*Math.PI/6+motion*13;rect(c,"#92f0f9",p.x+Math.cos(a)*37,p.y-42+Math.sin(a)*31,4,6);}
+            for(let ring=0;ring<(economy?2:4);ring++){c.strokeStyle=["#176ba1","#229dce","#5bdaed","#cbffff"][ring];c.lineWidth=4-ring*.5;c.beginPath();c.ellipse(p.x,p.y-21-ring*13,34-ring*5,12,-motion*6,0,Math.PI*2);c.stroke();}
+            for(let i=0,n=economy?4:12;i<n;i++){const a=i*Math.PI*2/n+motion*13;rect(c,"#92f0f9",p.x+Math.cos(a)*37,p.y-42+Math.sin(a)*31,4,6);}
           }
         } else if(e.stage===3){
           for(const p of targets){
@@ -735,7 +813,7 @@ window.SchoolArt = (() => {
             rect(c,"#197aaccc",p.x-21,p.y-height,42,height);rect(c,"#2cbbdfcc",p.x-15,p.y-height-8,30,height+8);rect(c,"#a5f8ff",p.x-5,p.y-height-14,9,height+12);rect(c,"#efffff",p.x-2,p.y-height-14,3,height+10);
             for(let i=0;i<6;i++){const spread=(i-2.5)*13;rect(c,"#75e3f4",p.x+spread,p.y-height+Math.abs(spread)*.5-motion*22,5,9);}rect(c,"#c7ffff",p.x-27,p.y-2,54,4);
           }
-        } else waterDragon(c,source,targets,age,reduced);
+        } else waterDragon(c,source,targets,age,reduced,economy);
         c.restore();
         c.save();c.font="11px Galmuri, monospace";c.textAlign="center";
         const label=`스킬 ${e.stage}/4 · ${e.name}${e.stage===4?(age<.5?" 소환":age<1?" 돌진":" 명중!"):""}`,width=c.measureText(label).width+24;
@@ -744,18 +822,18 @@ window.SchoolArt = (() => {
       if(e.kind==="hit"&&!e.skill&&age<.65){
         const p=positions[e.to];if(!p)continue;
         if(age<.3){const progress=reduced?1:Math.min(1,age/.3),x=source.x+17+(p.x-source.x-17)*progress,y=source.y-38+(p.y-source.y+4)*progress-Math.sin(progress*Math.PI)*13;waterOrb(c,x,y,9);}
-        else waterBurst(c,p,age-.3,reduced,.7);
+        else waterBurst(c,p,age-.3,reduced,.7,economy);
       }
     }
   }
-  function windRing(c, x, y, age, reduced, size = 1) {
+  function windRing(c, x, y, age, reduced, size = 1, economy = false) {
     c.save(); c.globalAlpha *= Math.max(0, 1 - age / 1.15);
-    const turn = reduced ? 0 : age * 6;
-    for (let ring = 0; ring < 3; ring++) {
+    const turn = reduced ? 0 : age * 2.8;
+    for (let ring = 0; ring < (economy?1:3); ring++) {
       c.strokeStyle = ["#87bda8", "#c5e9ba", "#f0f7d5"][ring]; c.lineWidth = 2 - ring * .4;
       c.beginPath(); c.ellipse(x, y - 15 - ring * 15 * size, (24 - ring * 3) * size, 6 * size, -.16, turn + ring, turn + ring + 4.7); c.stroke();
     }
-    for (let i = 0; i < 7; i++) { const a = i * Math.PI / 3.5 + turn, px = x + Math.cos(a) * 24 * size, py = y - 26 + Math.sin(a) * 22 * size; rect(c, i % 2 ? "#eff3c4" : "#a7d3a9", px, py, 4, 1); detail(c, "#d7f5c8", px + 1, py - 1, 1, 3); }
+    for (let i = 0,n=economy?3:7; i < n; i++) { const a = i * Math.PI * 2/n + turn, px = x + Math.cos(a) * 24 * size, py = y - 26 + Math.sin(a) * 22 * size; rect(c, i % 2 ? "#eff3c4" : "#a7d3a9", px, py, 4, 1); detail(c, "#d7f5c8", px + 1, py - 1, 1, 3); }
     c.restore();
   }
   function windShield(c, x, y, color, alpha = 1, size = 1) {
@@ -764,14 +842,14 @@ window.SchoolArt = (() => {
     c.beginPath(); c.moveTo(-20,-22); c.lineTo(0,-29); c.lineTo(20,-22); c.lineTo(18,8); c.lineTo(9,21); c.lineTo(0,27); c.lineTo(-9,21); c.lineTo(-18,8); c.closePath(); c.fill(); c.stroke();
     detail(c, "#f7ffdf", -10, -15, 1, 14); detail(c, "#f7ffdf", -9, -16, 10, 1); c.restore();
   }
-  function windRibbon(c, source, target, age, reduced, power = 1) {
+  function windRibbon(c, source, target, age, reduced, power = 1, economy = false) {
     const progress = reduced ? 1 : clamp01(age / .55), sx = source.x + 17, sy = source.y - 38, tx = target.x, ty = target.y - 30;
     const bend = (target.x > source.x ? -1 : 1) * 30 * power;
     c.save(); c.globalAlpha *= Math.max(0, 1 - Math.max(0, age - .55) / .65);
-    for (let trail = 2; trail >= 0; trail--) {
+    for (let trail = economy?0:2; trail >= 0; trail--) {
       c.strokeStyle = ["#ecffd2", "#bde9b9", "#70b8a6"][trail]; c.lineWidth = (3 - trail * .6) * power; c.beginPath();
       const start = Math.max(0, progress - .5 - trail * .08);
-      for (let n = 0; n <= 18; n++) { const t = start + (progress - start) * n / 18, x = sx + (tx - sx) * t, y = sy + (ty - sy) * t + Math.sin(t * Math.PI) * bend + trail * 3; if (n) c.lineTo(x,y); else c.moveTo(x,y); }
+      for (let n = 0,segments=economy?8:18; n <= segments; n++) { const t = start + (progress - start) * n / segments, x = sx + (tx - sx) * t, y = sy + (ty - sy) * t + Math.sin(t * Math.PI) * bend + trail * 3; if (n) c.lineTo(x,y); else c.moveTo(x,y); }
       c.stroke();
     }
     const x = sx + (tx - sx) * progress, y = sy + (ty - sy) * progress + Math.sin(progress * Math.PI) * bend;
@@ -780,15 +858,14 @@ window.SchoolArt = (() => {
   function lavaCutin(c, event, age, reduced) {
     // This is a short visual accent on the existing skill event, not a new
     // cinematic game state. Enemy attacks and healing continue underneath it.
-    if (reduced || age < 0 || age >= .72) return false;
-    const enter = clamp01(age / .11), leave = clamp01((.72 - age) / .17), stage = event.stage;
+    if (reduced || age < 0 || age >= 1.15) return false;
+    const enter = clamp01(age / .23), leave = clamp01((1.15 - age) / .28), stage = event.stage;
     c.save(); c.globalAlpha *= Math.min(enter, leave);
     c.translate(268 + (1 - enter) * 25 - (1 - leave) * 12, 0);
     c.beginPath(); c.rect(10, 42, 194, 56); c.clip();
     rect(c, "#132c36ee", 10, 42, 194, 56); rect(c, stage === 1 ? "#416e64" : "#4d626e", 12, 44, 190, 52);
-    for (let i = 0; i < 7; i++) { const x = 12 + (i * 36 + age * 160) % 230; rect(c, i % 2 ? "#dbefbd27" : "#c1e8e53a", x, 46 + i * 7, 35 + i * 4, 1); }
-    if (lavaLoaded) c.drawImage(lavaImage, 245, 91, 631, 730, 12, 39, 61, 71);
-    else lava(c, 42, 108, 1.7, {casting:true});
+    for (let i = 0; i < 7; i++) { const x = 12 + (i * 36 + age * 70) % 230; rect(c, i % 2 ? "#dbefbd27" : "#c1e8e53a", x, 46 + i * 7, 35 + i * 4, 1); }
+    c.save();c.translate(40,121);c.scale(1.7,1.7);lavaFigure(c,age,{casting:true,motion:{age,reduced:false}},true);c.restore();
     c.save(); c.translate(70, 84); c.rotate(-.6 + enter * .6 + age * .8); c.scale(1.1, 1.1); fan(c, 0, 0); c.restore();
     c.textAlign = "left"; c.font = "7px Galmuri, monospace"; c.fillStyle = "#d0ebc1"; c.fillText("바람의 무당 · 라바", 86, 57);
     c.font = "11px Galmuri, monospace"; c.fillStyle = "#122d39"; c.fillText(event.name, 87, 75); c.fillStyle = "#fff5c8"; c.fillText(event.name, 86, 74);
@@ -796,24 +873,24 @@ window.SchoolArt = (() => {
     detail(c, "#bdecc9", 12, 43, 190, 1); detail(c, "#e7edba", 12, 96, 190, 1); c.restore();
     return true;
   }
-  function lavaEffects(c, effects, positions, time, reduced) {
+  function lavaEffects(c, effects, positions, time, reduced, economy = false) {
     for (const e of effects) {
       if (e.from !== "lava") continue;
-      const age = time - e.time; if (age < 0 || age > 1.35) continue;
+      const age = time - e.time; if (age < 0 || age > 1.8) continue;
       const source = positions.lava;
       if (e.kind === "lava-skill") {
         const targets = (e.targets || []).map(id => positions[id]).filter(Boolean);
         c.save();
         if (source) {
-          const swing = reduced ? -.35 : -2.1 + clamp01(age / .7) * 4.7, radius = e.stage === 1 ? 37 : 47;
-          c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.3);
-          for (let ring = 0; ring < 3; ring++) { c.strokeStyle = ["#6baea3", "#c5edd0", "#f4ffda"][ring]; c.lineWidth = 6 - ring * 1.8; c.beginPath(); c.ellipse(source.x + 5, source.y - 34, radius - ring * 4, radius * .7 - ring * 3, -.3, swing, swing + 2.4); c.stroke(); }
-          c.translate(source.x + Math.cos(swing + .7) * 21, source.y - 34 + Math.sin(swing + .7) * 18); c.rotate(swing + 1.7); c.scale(1.35,1.35); fan(c,0,0,true); c.restore();
-          if (e.stage === 2) { c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.15); for (let wing = -1; wing <= 1; wing += 2) for (let feather = 0; feather < 4; feather++) { c.strokeStyle = feather % 2 ? "#d0f4c7" : "#8ac6af"; c.lineWidth = 2; c.beginPath(); c.moveTo(source.x,source.y-27); c.quadraticCurveTo(source.x+wing*(32+feather*8),source.y-65-feather*5,source.x+wing*(44+feather*8),source.y-37-feather*6); c.stroke(); } c.restore(); }
+          const swing = reduced ? -.35 : -2.1 + clamp01(age / 1.45) * 3.4, radius = e.stage === 1 ? 37 : 47;
+          c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.8);
+          for (let ring = 0; ring < (economy?1:3); ring++) { c.strokeStyle = ["#6baea3", "#c5edd0", "#f4ffda"][ring]; c.lineWidth = 6 - ring * 1.8; c.beginPath(); c.ellipse(source.x + 5, source.y - 34, radius - ring * 4, radius * .7 - ring * 3, -.3, swing, swing + 2.4); c.stroke(); }
+          c.restore();
+          if (e.stage === 2) { c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.15); for (let wing = -1; wing <= 1; wing += 2) for (let feather = 0; feather < (economy?2:4); feather++) { c.strokeStyle = feather % 2 ? "#d0f4c7" : "#8ac6af"; c.lineWidth = 2; c.beginPath(); c.moveTo(source.x,source.y-27); c.quadraticCurveTo(source.x+wing*(32+feather*8),source.y-65-feather*5,source.x+wing*(44+feather*8),source.y-37-feather*6); c.stroke(); } c.restore(); }
         }
         for (const p of targets) {
-          if (source && p !== source) windRibbon(c, source, p, age, reduced, e.stage === 2 ? 1.2 : .8);
-          windRing(c, p.x, p.y, age, reduced, e.stage === 2 ? 1.3 : 1);
+          if (source && p !== source) windRibbon(c, source, p, age, reduced, e.stage === 2 ? 1.2 : .8,economy);
+          windRing(c, p.x, p.y, age, reduced, e.stage === 2 ? 1.3 : 1,economy);
           if (e.stage === 1 && age < 1.1) windShield(c, p.x, p.y, "#b8e8c5", Math.max(0, 1 - age / 1.1), 1);
           if (e.stage === 2) {
             const glow = Math.max(0, 1 - age / 1.15); c.globalAlpha = glow;
@@ -821,7 +898,7 @@ window.SchoolArt = (() => {
             rect(c, "#f8ffda", p.x - 3, p.y - 59, 6, 24); rect(c, "#f8ffda", p.x - 12, p.y - 50, 24, 6);
           }
         }
-        c.globalAlpha = Math.max(0, Math.min(1, (1.35 - age) * 3));
+        c.globalAlpha = Math.max(0, Math.min(1, (1.8 - age) * 3));
         if (!lavaCutin(c, e, age, reduced)) {
           c.font = "10px Galmuri, monospace"; c.textAlign = "center";
           const label = `라바 · ${e.name}`, width = c.measureText(label).width + 20;
@@ -834,12 +911,12 @@ window.SchoolArt = (() => {
         if (e.passive === "ten-hits") { c.save(); c.font = "9px Galmuri, monospace"; c.textAlign = "center"; rect(c,"#3b594be8",p.x-32,p.y-86,64,16); c.fillStyle="#e5f5c9"; c.fillText("바람의 가호",p.x,p.y-75); c.restore(); }
       } else if (e.kind === "rescue") {
         const p = positions[e.to]; if (!p) continue;
-        c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.3); windRing(c, p.x, p.y, Math.min(age, 1), reduced, 1.8);
+        c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.3); windRing(c, p.x, p.y, Math.min(age, 1), reduced, 1.8,economy);
         for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5, r = reduced ? 38 : 18 + age * 45; rect(c, "#fff1b2", p.x + Math.cos(a) * r, p.y - 35 + Math.sin(a) * r, 3, 3); }
         c.font = "10px Galmuri, monospace"; c.textAlign = "center"; rect(c, "#68563de8", p.x - 41, p.y - 98, 82, 19); c.fillStyle = "#fff1c2"; c.fillText("생명의 바람", p.x, p.y - 85); c.restore();
-      } else if (e.kind === "hit" && !e.skill && age < .48 && source) {
+      } else if (e.kind === "hit" && !e.skill && age < .85 && source) {
         const target = positions[e.to]; if (!target) continue;
-        windRibbon(c, source, target, Math.min(.55, age * 1.8), reduced, .45);
+        windRibbon(c, source, target, Math.min(.55, age * .9), reduced, .45,economy);
       }
     }
   }
@@ -853,12 +930,81 @@ window.SchoolArt = (() => {
     rect(c, "#123a55f5", -50, 62, 580, 141); rect(c, "#1a5671", 0, 69, 480, 126);
     for (let i = 0; i < 15; i++) { const x = reduced ? i * 41 : (i * 41 + age * 230) % 550 - 50; rect(c, i % 2 ? "#75d8e741" : "#b6f6f12e", x, 78 + i * 8, 65 + i % 4 * 21, 2); }
     c.globalAlpha = .42; c.drawImage(dragon, 278, 69, 195, 135); c.globalAlpha = 1;
-    if (osiaLoaded) { const tile = osiaImage.naturalWidth / 3; c.drawImage(osiaImage, tile * .18, 0, tile * .65, tile * .58, 2, 63, 164, 146); }
-    else osia(c, 76, 211, 3.8, { casting:true });
+    // This cut-in has its own articulated pose, not a crop of an idle sprite.
+    const charge=reduced?.65:clamp01(age/duration);
+    c.save();c.translate(80+(reduced?0:charge*10),234);c.scale(2.55,2.55);
+    osiaFigure(c,age,{charge,reduced,blink:false});c.restore();
+    const orbX=102+charge*40,orbY=153-Math.sin(charge*Math.PI)*19;
+    c.save();c.globalAlpha=.4+Math.sin(charge*Math.PI)*.5;waterOrb(c,orbX,orbY,9+charge*8);c.restore();
+    if(!reduced)for(let i=0;i<6;i++){const angle=i*Math.PI/3-age*2.5;rect(c,"#d2ffff",orbX+Math.cos(angle)*(23-charge*8),orbY+Math.sin(angle)*(18-charge*6),2,3);}
     c.textAlign = "left"; c.font = "11px Galmuri, monospace"; c.fillStyle = "#9ee8ed"; c.fillText("물의 용왕  OSIA", 174, 99);
     c.font = "17px Galmuri, monospace"; c.fillStyle = "#062b43"; c.fillText("용왕의 권능 · 거대 수룡", 175, 132); c.fillStyle = "#f4ffef"; c.fillText("용왕의 권능 · 거대 수룡", 174, 131);
     c.font = "9px Galmuri, monospace"; c.fillStyle = "#bee6e7"; c.fillText("시간 정지 · 궁극기 발동", 175, 155);
     c.restore(); detail(c, "#adf4ed", 0, 61, 480, 1.5); detail(c, "#87c7dc", 0, 202, 480, 1.5);
+  }
+  function criticalMark(c,x,y,size=1){
+    c.save();c.translate(Math.round(x),Math.round(y));c.scale(size,size);
+    // A pixel impact-star and diagonal split, readable without a CRIT label.
+    for(const [color,pad]of[["#59354a",1],["#ffc24a",0]]){
+      rect(c,color,-2-pad,-8-pad,4+pad*2,16+pad*2);rect(c,color,-8-pad,-2-pad,16+pad*2,4+pad*2);
+      rect(c,color,-5-pad,-5-pad,10+pad*2,10+pad*2);
+    }
+    for(let i=0;i<6;i++)rect(c,"#fff5bd",-5+i*2,5-i*2,3,2);
+    rect(c,"#f87546",2,3,3,3);c.restore();
+  }
+  function combatNumber(c,text,x,y,size,color,critical){
+    const resolution=c.canvas.width/480>4?6:c.canvas.width/480>2?4:2;
+    const key=`${text}:${size}:${color}:${+critical}:${fontRevision}:${resolution}`;
+    let label=combatLabels.get(key);
+    if(!label){
+      const measure=document.createElement("canvas"),mc=measure.getContext("2d");mc.font=`${size}px Galmuri, monospace`;
+      const textWidth=Math.ceil(mc.measureText(text).width),width=textWidth+(critical?30:8),height=size+14;
+      measure.width=width*resolution;measure.height=height*resolution;
+      mc.scale(resolution,resolution);mc.font=`${size}px Galmuri, monospace`;mc.textAlign="left";
+      const tx=critical?25:3,base=size+2;
+      mc.fillStyle="#26342e";mc.fillText(text,tx+1,base+1);mc.fillStyle=color;mc.fillText(text,tx,base);
+      if(critical)criticalMark(mc,11,base-6,.9);
+      label={canvas:measure,width,height,baseline:base,anchor:tx+textWidth/2};
+      while(combatLabels.size&&combatLabelPixels+measure.width*measure.height>2*1024*1024){const oldest=combatLabels.keys().next().value,old=combatLabels.get(oldest);combatLabelPixels-=old.canvas.width*old.canvas.height;combatLabels.delete(oldest);}
+      combatLabels.set(key,label);combatLabelPixels+=measure.width*measure.height;
+    }else{combatLabels.delete(key);combatLabels.set(key,label);}
+    c.drawImage(label.canvas,x-label.anchor,y-label.baseline,label.width,label.height);
+  }
+  function impactEffects(c,effects,positions,time,reduced,economy=false){
+    // Hard cap even when a whole party lands AoE in the same simulation tick.
+    let remaining=economy?5:12;
+    for(let i=effects.length-1;i>=0&&remaining>0;i--){const e=effects[i],age=time-e.time;
+      if(e.kind!=="hit"||e.amount<=0||age<0||age>.36)continue;
+      const p=positions[e.to];if(!p)continue;remaining--;
+      const critical=!!e.critical,power=critical?1.4:e.skill||e.bossSkill?1.15:.8;
+      const x=p.x,y=p.y-35,spread=(reduced?9:5+age*50)*power;
+      c.save();c.globalAlpha*=Math.max(0,1-age/.36);
+      if(!reduced&&age<.075){rect(c,critical?"#ffe8a177":"#fff6db55",x-9*power,y-15*power,18*power,30*power);}
+      const color=e.element==="water"?"#9deaf4":critical?"#ffc35f":"#f4ddbd";
+      for(let shard=0;shard<(reduced||economy?3:critical?8:5);shard++){
+        const a=shard*2.399+(e.seq||0)*.2,dx=Math.cos(a),dy=Math.sin(a),length=(critical?8:5)*(1-age/.5);
+        const px=x+dx*spread,py=y+dy*spread;
+        rect(c,"#66513e",px-1,py-1,Math.abs(dx)*length+3,Math.abs(dy)*length+3);
+        rect(c,color,px,py,Math.abs(dx)*length+1.5,Math.abs(dy)*length+1.5);
+        detail(c,"#fff9e4",px,py,2,1);
+      }
+      if(critical){c.strokeStyle="#ffd288";c.lineWidth=1.2;c.beginPath();c.ellipse(x,y,spread*.75,spread*.5,-.4,0,Math.PI*2);c.stroke();}
+      c.restore();
+    }
+  }
+  function monsterSkillEffects(c,effects,positions,time,reduced){
+    for(const e of effects){const age=time-e.time;if(e.kind!=="monster-skill"||age<0||age>1.1)continue;
+      const source=positions[e.from];if(!source)continue;
+      c.save();c.globalAlpha*=Math.max(0,1-age/1.1);
+      for(const id of e.targets||[]){const p=positions[id];if(!p)continue;
+        if(e.role==="healer"){rect(c,"#a1e2d75c",p.x-9,p.y-66,18,63);rect(c,"#b6f6db",p.x-2,p.y-50,4,17);rect(c,"#b6f6db",p.x-8,p.y-43,16,4);}
+        else if(e.role==="ranged"){
+          const t=reduced?1:clamp01(age/.4),x=source.x+(p.x-source.x)*t,y=source.y-34+(p.y-source.y)*t;
+          rect(c,"#9c7fb8",x-9,y-3,17,6);rect(c,"#ead0e7",x-6,y-2,11,4);rect(c,"#fff3e3",x-4,y-1,5,2);
+        }else{c.strokeStyle="#edba98";c.lineWidth=3;c.beginPath();c.arc(p.x,p.y-30,reduced?19:12+age*30,-2.2,.4);c.stroke();}
+      }
+      c.font="9px Galmuri, monospace";c.textAlign="center";c.fillStyle="#fff0d9";c.fillText(e.name||"적 스킬",source.x,source.y-92);c.restore();
+    }
   }
   function bossEffects(c, battle, positions, effects, time, reduced) {
     const warning = battle.phase === "fight" && battle.enemies.find(enemy => enemy.hp > 0 && enemy.ability && enemy.warnedFor === enemy.nextAbilityAt && enemy.nextAbilityAt - battle.elapsed <= 1000);
@@ -904,6 +1050,7 @@ window.SchoolArt = (() => {
   function draw(c, state, time, effects = [], reduced = false) {
     c.save();
     c.setTransform(c.canvas.width / 480, 0, 0, c.canvas.height / 280, 0, 0); c.imageSmoothingEnabled = false;
+    const economy=Number(c.canvas.dataset?.renderScale||1)<.8;
     const battle = state.battle, extendedParty = Math.max(battle.heroes.length, state.team?.length || 0) > 3, cinematicEvent = effects.findLast(e => e.kind === "cinematic" && e.castId === battle.cinematic?.castId);
     const sceneTime = battle.cinematic ? cinematicEvent?.time ?? time : time;
     // A slightly closer background camera brings the floor up behind both
@@ -919,8 +1066,13 @@ window.SchoolArt = (() => {
       if (event.kind === "hit") { actor(event.to).incoming = event; actor(event.from).outgoing = event; }
       if (event.kind === "skill" && age < .8) actor(event.from).casting = true;
       if (event.kind === "skill-stage" && event.from === "osia" && age < (event.stage === 4 ? 1.8 : 1.1) + (event.cinematicDuration || 0) / 1000) actor("osia").combo = event;
-      if (event.kind === "lava-skill" && age < 1.35) actor("lava").combo = event;
+      if (event.kind === "lava-skill" && age < 1.8) actor("lava").combo = event;
+      if ((event.kind === "guard" || event.kind === "rescue") && event.from === "lava" && age < 1.45) actor("lava").passive = event;
     }
+    // Only a critical impact nudges the combat layer (never the DOM or camera
+    // layout). Ordinary attack traffic cannot continuously shake the screen.
+    const strongHit=effects.findLast(e=>e.kind==="hit"&&e.critical&&e.amount>0&&time-e.time<.16);
+    if(strongHit&&!reduced&&!battle.cinematic){const age=time-strongHit.time,decay=1-age/.16;c.translate(Math.sin(age*75)*1.4*decay,Math.cos(age*65)*.7*decay);}
     const lifecycle = sceneLife(c.canvas, battle, time, effects);
     const positions = {};
     const partyPositions = extendedParty ? partyFront : partySmall;
@@ -936,15 +1088,19 @@ window.SchoolArt = (() => {
       const combo = item.side === "hero" && visual.combo;
       const castAge = combo ? time - combo.time - (combo.cinematicDuration || 0) / 1000 : 0;
       const motion = combo && item.hp > 0 ? castingMotion(item.id, combo.stage, castAge, reduced || !!battle.cinematic) : null;
-      const scale = extendedParty ? 1.3 : 1.8, moveX = motion ? motion.dx : nudge, moveY = motion ? motion.dy : bounce;
+      const recoilAge=visual.incoming?time-visual.incoming.time:1;
+      const recoil=reduced?0:Math.sin(clamp01(recoilAge/.24)*Math.PI)*(visual.incoming?.critical?5:2);
+      const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : item.id === "lava" ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
-      if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99 });
+      if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
+        time:sceneTime, reduced, passive:!!visual.passive,
+        attackAge:visual.passive ? time-visual.passive.time : visual.outgoing && !visual.outgoing.skill && time-visual.outgoing.time<.85 ? time-visual.outgoing.time : undefined });
       else {
         const impact = visual.incoming, strike = visual.outgoing;
         const life = lifecycle.enemies.get(item.id), deathAge = life.diedAt == null ? undefined : time-life.diedAt;
         monster(c, item, p.x, p.y, {hit, activity:battle.activity, time:sceneTime, reduced:reduced || !!battle.cinematic, stunned,
           stage:battle.stage, wave:battle.wave, index:battle.enemies.findIndex(e=>e.id===item.id),
-          attackAge:strike ? time-strike.time : undefined, hitAge:impact ? time-impact.time : undefined,
+          attackAge:strike ? time-strike.time : undefined, hitAge:impact ? impact.critical && time-impact.time < .065 ? .045 : time-impact.time : undefined,
           deathAge, spawnAge:time-lifecycle.bornAt});
       }
       if (item.side === "hero" && item.hp > 0 && item.shield > 0) windShield(c, p.x, p.y, "#bce8d3", .3, extendedParty ? .7 : .92);
@@ -956,18 +1112,23 @@ window.SchoolArt = (() => {
       if (item.side === "hero") { rect(c, "#536270", p.x - w / 2, by + 7, w, 2); rect(c, "#e2c679", p.x - w / 2, by + 7, w * item.energy / S.BY_ID[item.id].cooldown, 2); }
       c.restore();
     }
-    waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic);
-    lavaEffects(c, effects, visualPositions, time, reduced);
+    waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy);
+    lavaEffects(c, effects, visualPositions, time, reduced,economy);
+    monsterSkillEffects(c,effects,positions,time,reduced);
+    impactEffects(c,effects,positions,time,reduced,economy);
     bossEffects(c, battle, positions, effects, time, reduced);
     for (const e of effects) {
       const age = time - e.time; if (age > 1.1 || age < 0) continue;
       const p = positions[e.to] || positions[e.from]; if (!p) continue;
       c.save(); c.globalAlpha = Math.min(1, (1.1 - age) * 2);
       const y = p.y - 65 - age * 22;
-      if (e.kind === "hit" || e.kind === "heal" || e.kind === "shield") {
-        const text = e.kind === "heal" ? `+${e.amount}` : e.kind === "shield" ? "방어" : `${e.amount}`;
-        c.font = `${e.skill || e.bossSkill ? 14 : 11}px Galmuri, monospace`; c.textAlign = "center";
-        c.fillStyle = "#26342e"; c.fillText(text, p.x + 1, y + 1); c.fillStyle = e.kind === "heal" ? "#dbffac" : e.kind === "shield" ? "#bbdded" : e.bossSkill ? "#ffbd9a" : e.skill ? "#ffe5a1" : "#fff6dd"; c.fillText(text, p.x, y);
+      if (e.kind === "hit" || e.kind === "heal" || e.kind === "enemy-heal" || e.kind === "shield") {
+        const text = e.kind === "heal" || e.kind === "enemy-heal" ? `+${e.amount}` : e.kind === "shield" ? "방어" : `${e.amount}`;
+        const pop=reduced?1:1+Math.max(0,1-age/.18)*(e.critical?.38:.13);
+        c.translate(p.x,y);c.scale(pop,pop);c.translate(-p.x,-y);
+        const size=e.critical ? 16 : e.skill || e.bossSkill ? 14 : 11;
+        const color=e.kind === "heal" || e.kind === "enemy-heal" ? "#dbffac" : e.kind === "shield" ? "#bbdded" : e.critical ? "#ffd274" : e.bossSkill ? "#ffbd9a" : e.skill ? "#ffe5a1" : "#fff6dd";
+        combatNumber(c,text,p.x,y,size,color,!!e.critical);
       }
       if (e.kind === "skill" && e.from !== "osia") { c.font = "9px Galmuri, monospace"; c.textAlign = "center"; const width = c.measureText(e.name).width + 14; rect(c, "#2b3d37dc", p.x - width / 2, p.y - 89 - age * 9, width, 16); c.fillStyle = "#f6df9b"; c.fillText(e.name, p.x, p.y - 77 - age * 9); }
       if (e.kind === "hit" && (e.skill || e.bossSkill) && age < .3) { c.strokeStyle = e.element === "water" ? "#bafaff" : e.bossSkill ? "#ffc3a1" : "#fff3bb"; c.lineWidth = 3; c.beginPath(); c.moveTo(p.x - 18, p.y - 60); c.lineTo(p.x + 17, p.y - 19); c.stroke(); }
@@ -1011,12 +1172,12 @@ window.SchoolArt = (() => {
       c.save(); c.globalAlpha = reduced ? 1 : clamp01((time-lifecycle.resultAt)/.55);
       rect(c, "#243a3277", 0, 0, 480, 280); c.textAlign = "center"; c.font = "18px Galmuri, monospace"; c.fillStyle = "#fff1c8";
       const activity = battle.activity;
-      c.fillText(activity ? battle.phase === "victory" ? activity.kind === "tower" ? `${activity.floor}층 돌파!` : "던전 클리어!" : "도전 종료" : battle.phase === "victory" ? (battle.boss ? "지역 클리어!" : "WAVE CLEAR") : "다시 준비하는 시간", 240, 112);
+      c.fillText(activity ? battle.phase === "victory" ? activity.kind === "tower" ? `${activity.floor}층 돌파!` : "던전 클리어!" : "패배 · 다시 도전하세요" : battle.phase === "victory" ? (battle.boss ? "지역 클리어!" : "WAVE CLEAR") : "패배 · 다시 도전하세요", 240, 112);
       c.font = "10px Galmuri, monospace"; c.fillText(activity ? "결과에서 다음 행동을 선택하세요." : battle.phase === "victory" ? `다음 전투까지 ${Math.ceil(battle.wait)}초` : `${Math.ceil(battle.wait)}초 뒤 자동 재도전`, 240, 135); c.textAlign = "left";
       c.restore();
     }
     osiaCinematic(c, state, time, effects, reduced);
     c.restore();
   }
-  return { hero, portrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, ready, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : osiaLoaded };
+  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, ready, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : osiaLoaded };
 })();

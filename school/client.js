@@ -35,7 +35,39 @@
   const rankingCache = new Map();
   const Presentation = window.SchoolPresentation;
   Presentation?.configure({soundEnabled:()=>sound, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
-  try { token = JSON.parse(storage.get(SESSION, true) || 'null')?.token || null; } catch {}
+  try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
+  let social, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
+  function clearLogin() { token = null; verifiedToken = null; storage.remove(SESSION); storage.remove(SESSION, true); }
+  function stopTraining() { if (trainingHold) { trainingHold.stopped = true; clearTimeout(trainingHold.timer); } trainingHold = null; }
+  function beginTraining(event, id) {
+    if (event.type === 'pointerdown' && (event.button !== 0 || !event.isPrimary)) return;
+    if (busy || pending || $('train-hero')?.disabled) return;
+    event.preventDefault(); stopTraining(); trainClickUntil = performance.now() + 700;
+    const hold = trainingHold = {id,stopped:false,timer:null};
+    const next = async first => {
+      const u = state.units[id];
+      if (hold.stopped || modalKind !== 'hero' || selectedHero !== id || !u || u.level >= G.MAX_LEVEL || state.gold < G.trainingCost(u) || document.hidden) return stopTraining();
+      const before = u.level; await act({kind:'train',hero:id});
+      if (hold.stopped || state.units[id].level === before || !connected || pending) return stopTraining();
+      hold.timer = setTimeout(() => next(false), first ? 450 : 180);
+    }; next(true);
+  }
+  async function logoutAccount() {
+    if (busy || pending) return toast('진행 중인 저장을 먼저 확인해 주세요.');
+    stopTraining(); busy = true;
+    try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
+    clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; clearPending();
+    storage.remove(CLOUD_CACHE, true); storage.set(MODE, 'guest'); mode = 'guest'; connected = true; effects = [];
+    Presentation?.cancel(); rankingCache.clear(); social?.destroy(); social = createSocial(); closeModal();
+    try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
+    catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
+  }
+  function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openAccount:accountModal,openCaptain:captainModal}); }
+  function damageModal() {
+    const report = G.damageReport?.(state);
+    const rows = report?.rows || []; const maximum = Math.max(1,...rows.map(r=>r.damage));
+    openModal('전투 기여도', `<div class="damage-report"><p>현재 전투 · 실제 피해 / 회복 / 받은 피해</p>${rows.map(r=>`<div class="damage-row">${portrait(r.id)}<div><b>${esc(G.BY_ID[r.id].name)}</b><span class="damage-meter"><i style="width:${r.damage/maximum*100}%"></i></span><small>피해 ${fmt(r.damage)} · 회복 ${fmt(r.healing)} · 받은 피해 ${fmt(r.taken)}</small></div><strong>${fmt(r.dps)}<small>DPS</small></strong></div>`).join('') || '<p>전투가 시작되면 표시돼요.</p>'}</div>`, 'damage');
+  }
 
   const serverNow = () => Date.now() + (mode === 'cloud' ? offset : 0);
   const activityInfo = () => G.activityInfo ? G.activityInfo(state, serverNow()) : null;
@@ -62,6 +94,7 @@
     const fresh = (source.events || []).filter(e => e.seq > confirmedSeq);
     confirmedSeq = Math.max(confirmedSeq, source.seq || 0);
     for (const event of fresh) {
+      if (event.kind === 'defeat' && event.boss && !document.hidden && serverNow() - event.at < 6000) Presentation?.defeat({key:`${scope}:defeat:${event.seq}`,description:'보스에게 패배했어요. 딜량을 확인하고 편성을 바꿔 보세요.'});
       if (event.kind === 'captain') Presentation?.captain({level:event.level, reward:30, key:`${scope}:captain:${event.seq}`});
       if (event.kind === 'clear') { toast(`${G.stageName(event.stage)} 클리어! 보석 +60`); play('reward'); }
     }
@@ -69,7 +102,7 @@
   function applyPreferences(save = false) {
     document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.motion = reduced ? 'reduced' : 'full';
-    document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#222e2b' : '#f5f1e5';
+    document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#1b1f29' : '#f5f1e5';
     if (save) {
       if (!storage.set('school-settings', JSON.stringify({theme,motion:reduced?'reduced':'full',sound}))) toast('설정을 저장하지 못했어요. 이 화면에서만 적용됩니다.');
       storage.set('school-sound', sound ? 'on' : 'off');
@@ -77,7 +110,7 @@
     refreshSound(); Presentation?.refreshPreferences();
   }
   function settingsModal() {
-    openModal('설정', `<div class="settings-list"><label class="setting-row" for="setting-theme"><span><b>다크 모드</b><small>눈이 편한 짙은 초록 화면</small></span><input id="setting-theme" type="checkbox" role="switch" ${theme === 'dark' ? 'checked' : ''}></label><label class="setting-row" for="setting-sound"><span><b>효과음</b><small>전투·모집·성장 효과음</small></span><input id="setting-sound" type="checkbox" role="switch" ${sound ? 'checked' : ''}></label><label class="setting-row" for="setting-motion"><span><b>모션 줄이기</b><small>큰 움직임과 섬광을 간단하게</small></span><input id="setting-motion" type="checkbox" role="switch" ${reduced ? 'checked' : ''}></label></div><div class="settings-links"><button class="secondary" id="settings-help">${icon('book')} 게임 안내</button><button class="secondary" id="settings-rotate">${icon('rotate')} 가로 화면</button></div><div id="school-install-controls"></div><p class="settings-note">설정은 이 브라우저에 저장됩니다.</p>`, 'settings');
+    openModal('설정', `<div class="settings-list"><label class="setting-row" for="setting-theme"><span><b>다크 모드</b><small>눈이 편한 차분한 어두운 화면</small></span><input id="setting-theme" type="checkbox" role="switch" ${theme === 'dark' ? 'checked' : ''}></label><label class="setting-row" for="setting-sound"><span><b>효과음</b><small>전투·모집·성장 효과음</small></span><input id="setting-sound" type="checkbox" role="switch" ${sound ? 'checked' : ''}></label><label class="setting-row" for="setting-motion"><span><b>모션 줄이기</b><small>큰 움직임과 섬광을 간단하게</small></span><input id="setting-motion" type="checkbox" role="switch" ${reduced ? 'checked' : ''}></label></div><div class="settings-links"><button class="secondary" id="settings-help">${icon('book')} 게임 안내</button><button class="secondary" id="settings-rotate">${icon('rotate')} 가로 화면</button></div><div id="school-install-controls"></div><p class="settings-note">설정은 이 브라우저에 저장됩니다.</p>`, 'settings');
     window.SchoolInstall?.renderControls?.($('school-install-controls'));
     $('settings-help').onclick = help; $('settings-rotate').onclick = () => { closeModal(); attemptLandscape(); };
   }
@@ -189,6 +222,7 @@
     G.advance(state, Date.now() + offset);
     // Combat may be predicted, but unconfirmed currency must never look spendable.
     state.gold = cloudBalance.gold; state.gems = cloudBalance.gems;
+    if (cloudBalance.winter) state.winter = G.clone(cloudBalance.winter); else delete state.winter;
   }
   async function tokenFingerprint(value) {
     if (!value) return null;
@@ -208,7 +242,7 @@
   function applyCloud(body) {
     rememberActivityResult(body.state); confirmedEvents(body.state);
     state = body.state; revision = body.revision; offset = body.serverTime - Date.now(); connected = true; hasCloudState = true;
-    cloudBalance = { gold: state.gold, gems: state.gems };
+    cloudBalance = { gold: state.gold, gems: state.gems, winter: state.winter ? G.clone(state.winter) : null };
     storage.set(CLOUD_CACHE, JSON.stringify({profile, state, revision, serverTime:body.serverTime, sessionFingerprint}), true);
     document.querySelector('.workspace').style.visibility = '';
     advanceCloudPreview(); consumeEvents(); render(); note(''); saveStatus('saved', '계정 저장 완료');
@@ -239,7 +273,7 @@
       if (error.confirmedConflict) { if (checkingCoupon) couponMessage(error.message, 'error'); toast(error.message); return; }
       connected = false;
       saveStatus('error', '계정 연결 대기');
-      if (error.status === 401) { token = null; verifiedToken = null; storage.remove(SESSION, true); }
+      if (error.status === 401) { clearLogin(); }
       if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
       if (checkingCoupon) couponMessage(pending ? '보상 저장을 확인 중입니다. 연결되면 같은 요청을 이어 확인합니다.' : error.message, pending ? 'pending' : 'error');
       note(error.status === 426 ? error.message : error.status === 401 ? '로그인이 만료되었습니다. 계정 메뉴에서 다시 연결하세요.' : '계정 저장 연결을 기다리고 있어요. 재화 사용은 연결 후 계속됩니다.', error.status === 426 ? 'reload' : true);
@@ -279,8 +313,9 @@
       const message = `${result.code} · 보석 +${fmt(result.gems)} · 코인 +${fmt(result.gold)} 수령 완료!`;
       $('coupon-code').value = ''; couponMessage(message, 'success'); toast(message); play('reward');
     }
-    else if (result.kind === 'train') { toast(`${G.BY_ID[result.hero].name} Lv.${result.level}!`); heroDetail(result.hero); play('level'); }
+    else if (result.kind === 'train') { if (!trainingHold) toast(`${G.BY_ID[result.hero].name} Lv.${result.level}!`); renderButtons(); play('level'); }
     else if (result.kind === 'awaken') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.awaken({hero:result.hero,stars:result.stars,key:`${accountScope()}:awaken:${completedActionKey}`}); if (!shown?.cancelled) { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); } }
+    else if (result.kind === 'winter-exchange') { play('reward'); social?.refresh(); }
     else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); captainModal(); }
     else if (result.kind === 'team') { closeModal(); toast(`새 편성으로 출발합니다. ${formationHint()}`); }
     else if (result.kind === 'activity') { closeModal(); setTab('adventure'); toast('던전에 입장했어요. 전투가 끝나면 결과를 확인하세요.'); }
@@ -304,6 +339,7 @@
     for (const e of events) {
       const eventTime = e.simAt == null ? now : e.simAt / 1000, age = Math.max(0, now - eventTime);
       if (age < 3.1 && e.kind !== 'offline') effects.push({ ...e, time: eventTime });
+      if (e.kind === 'hit' && age < .5 && performance.now() - lastImpactSound > 90) { play(e.critical ? 'critical' : 'hit'); lastImpactSound = performance.now(); }
       if (e.kind === 'skill-impact' && age < .5 && e.battleId === state.battle.id) play('water', e.stage);
     }
     effects = effects.filter(e => now - e.time < 3.1 && (!e.battleId || e.battleId === state.battle.id)).slice(-90);
@@ -350,7 +386,10 @@
     setText('stage-name', activity ? activityTitle(activity.kind) : G.CHAPTERS[G.chapter(state.battle.stage)]);
     setText('wave-label', activity ? activity.kind === 'tower' ? `CORRIDOR · ${fmt(activity.floor)}F` : `BOSS · ${activityLevel(activity)}` : state.battle.boss ? 'BOSS · ' + G.BOSSES[G.chapter(state.battle.stage)] : `WAVE ${state.battle.wave} / 4`);
     toggleClass($('wave-label'), 'boss', !!state.battle.boss);
-    renderBossHUD();
+    renderBossHUD(); social?.refresh();
+    const synergy = G.partySynergies?.(state); const synergyText = synergy?.active.map(x=>x.name).join(' · ');
+    if ($('party-count')) $('party-count').title = synergyText || '같은 역할 3명 편성 시 파티 보너스';
+    if ($('party-synergies')) setText('party-synergies', synergyText || '수호·딜러·치유 3명 → 파티 보너스');
     const powerKey = state.team.map(id => `${id}:${state.units[id].level}:${state.units[id].stars}`).join('|');
     if (powerKey !== cachedPowerKey) { cachedPowerKey = powerKey; cachedPower = G.power(state); }
     setText('power', `전투력 ${fmt(cachedPower)}`);
@@ -432,7 +471,7 @@
         setText($('train-cost'), u.level === G.MAX_LEVEL ? '최대 레벨' : `골드 ${fmt(cost)}`);
         setText($('awaken-cost'), u.stars === 5 ? '최대 각성' : `조각 ${fmt(shards)} / 보유 ${fmt(u.shards)}`);
         setText($('hero-stars'), `각성 ${u.stars} / 5성`); setText($('hero-shards'), `조각 ${fmt(u.shards)}개`);
-        setText($('training-status'), pending ? '이전 요청의 저장을 확인하고 있어요.' : busy ? '저장 확인 중…' : mode === 'cloud' && !connected ? '서버에 다시 연결하면 육성할 수 있어요.' : u.level === G.MAX_LEVEL ? '최대 레벨에 도달했어요.' : state.gold < cost ? `훈련에 골드 ${fmt(cost - state.gold)}가 더 필요해요.` : `훈련하면 Lv.${u.level + 1} · 골드 ${fmt(cost)} 사용`);
+        setText($('training-status'), pending ? '이전 요청의 저장을 확인하고 있어요.' : busy ? '저장 확인 중…' : mode === 'cloud' && !connected ? '서버에 다시 연결하면 육성할 수 있어요.' : u.level === G.MAX_LEVEL ? '최대 레벨에 도달했어요.' : state.gold < cost ? `훈련에 골드 ${fmt(cost - state.gold)}가 더 필요해요.` : `꾹 누르면 연속 훈련 · Lv.${u.level + 1} · 골드 ${fmt(cost)}`);
       }
     }
   }
@@ -466,7 +505,7 @@
   }
   function captainModal() {
     const captain = state.captain, maxed = captain.level >= G.CAPTAIN_MAX_LEVEL, need = G.captainNeed(captain.level);
-    openModal('내 단장', `<section class="captain-profile"><span class="crest" aria-hidden="true">校</span><div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3><p>단장 <strong>Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">저장</button></div><p id="name-message" role="status">한글·영문·숫자·공백·_·- 사용 가능. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><p class="detail-note">전투와 방치 보상으로 단장 경험치를 얻어요. 레벨업마다 보석 30개!</p>`, 'captain');
+    openModal('내 단장', `<section class="captain-profile"><span class="crest" aria-hidden="true">校</span><div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3><p>단장 <strong>Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">${G.commanderNameInfo?.(state).cost ? '3,000 보석으로 변경' : '이름 확정'}</button></div><p id="name-message" role="status">첫 이름은 무료 · 변경은 보석 3,000개. 계정 이름은 중복될 수 없어요. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><p class="detail-note">전투와 방치 보상으로 단장 경험치를 얻어요. 레벨업마다 보석 30개!</p>`, 'captain');
     $('captain-name-form').onsubmit = event => {
       event.preventDefault(); const name = G.normalizeCommanderName($('commander-name').value);
       if (!name) { $('name-message').textContent = '이름은 2~12글자로 입력해 주세요. 특수문자는 _와 -만 사용할 수 있어요.'; return; }
@@ -506,7 +545,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-installfix1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-winter1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -590,15 +629,20 @@
   }
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
-    delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
+    stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
   }
   function heroDetail(id) {
     const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
     const st = G.stats(id, u || {level:1, stars:0});
     const skills = `<details class="hero-skills" ${u ? '' : 'open'}><summary>스킬 · 패시브</summary><div class="skill-box"><b>${h.skill} <span>· ${h.cooldown}초 충전</span></b>${h.desc}</div>${h.passive ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive}</b>${h.passiveDesc}</div>` : ''}${h.passive2 ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive2}</b>${h.passive2Desc}</div>` : ''}</details>`;
-    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div>${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">1레벨 훈련<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${Array.from({length:maxTeam()}, (_, i) => { const member = state.team[i]; return `<button data-slot="${i}" class="${member === id ? 'selected' : ''} ${member ? '' : 'empty'}">${member ? portrait(member) : '<span class="empty-slot-mark" aria-hidden="true">+</span>'}${slotName(i)}<br>${member ? G.BY_ID[member].name : '빈자리에 추가'}</button>`; }).join('')}</div>${state.team.includes(id) ? `<button class="text-button remove-hero-action" id="remove-hero">출전에서 빼기</button>` : ''}<p class="detail-note" id="formation-status">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">모집에서 만나기 →</button>`}</div>`, 'hero');
+    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div><p class="detail-note">치명타 ${Math.round((st.critChance || .12)*100)}% · 피해 ${(st.critMultiplier || 1.5)}배</p>${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">레벨업 · 꾹 누르기<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${Array.from({length:maxTeam()}, (_, i) => { const member = state.team[i]; return `<button data-slot="${i}" class="${member === id ? 'selected' : ''} ${member ? '' : 'empty'}">${member ? portrait(member) : '<span class="empty-slot-mark" aria-hidden="true">+</span>'}${slotName(i)}<br>${member ? G.BY_ID[member].name : '빈자리에 추가'}</button>`; }).join('')}</div>${state.team.includes(id) ? `<button class="text-button remove-hero-action" id="remove-hero">출전에서 빼기</button>` : ''}<p class="detail-note" id="formation-status">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">모집에서 만나기 →</button>`}</div>`, 'hero');
     if (u) {
-      $('train-hero').onclick = () => act({kind:'train', hero:id}); $('awaken-hero').onclick = () => act({kind:'awaken', hero:id});
+      $('train-hero').style.touchAction = 'none'; $('train-hero').style.userSelect = 'none';
+      $('train-hero').onpointerdown = event => beginTraining(event,id);
+      $('train-hero').oncontextmenu = event => event.preventDefault();
+      $('train-hero').onclick = event => { if (performance.now() < trainClickUntil || event.detail > 0) return; act({kind:'train',hero:id}); };
+      $('train-hero').onkeydown = event => { if (['Enter',' '].includes(event.key) && !event.repeat) beginTraining(event,id); };
+      $('train-hero').onkeyup = event => { if (['Enter',' '].includes(event.key)) { event.preventDefault(); stopTraining(); } }; $('awaken-hero').onclick = () => act({kind:'awaken', hero:id});
       $('change-hero').onclick = () => { closeModal(); filter = 'owned'; setTab('roster'); };
       document.querySelectorAll('[data-slot]').forEach(b => { b.onclick = () => {
         const index = Math.min(Number(b.dataset.slot), state.team.length), team = [...state.team], old = team.indexOf(id);
@@ -618,7 +662,7 @@
     $('next-stage').onclick = () => act({kind:'stage', stage:Math.min(G.MAX_STAGE, state.best + 1), mode:'progress'});
   }
   function reveal(results) {
-    openModal('새로운 만남', `<p class="reveal-caption">${results.some(r => r.fresh) ? '용병단에 새로운 친구가 찾아왔어요.' : '동료의 조각을 모아 더 강하게 각성하세요.'}</p><div class="result-grid ${results.length === 1 ? 'single' : ''}">${results.map((r, i) => `<div class="result-card ${G.BY_ID[r.id].rarity}" style="animation-delay:${reduced ? 0 : i * .085}s">${rarity(r.id)}${portrait(r.id)}<b>${G.BY_ID[r.id].name}</b><small>${r.fresh ? 'NEW · 첫 만남' : `조각 +${r.shards}`}</small></div>`).join('')}</div><button class="primary full result-close" id="reveal-done">용병 확인하기 →</button><p class="detail-note" style="text-align:center">결과는 이미 저장되었어요. 창을 닫아도 사라지지 않아요.</p>`, 'reveal');
+    openModal('새로운 만남', `<p class="reveal-caption">${results.some(r => r.fresh) ? '용병단에 새로운 친구가 찾아왔어요.' : '동료의 조각을 모아 더 강하게 각성하세요.'}</p><div class="result-grid ${results.length === 1 ? 'single' : ''}">${results.map((r, i) => `<div class="result-card ${G.BY_ID[r.id].rarity}" style="animation-delay:${reduced ? 0 : i * .085}s">${rarity(r.id)}<img src="${Art.frontPortrait ? Art.frontPortrait(r.id) : Art.portrait(r.id)}" alt="${esc(G.BY_ID[r.id].name)}"><b>${G.BY_ID[r.id].name}</b><small>${r.fresh ? 'NEW · 첫 만남' : `조각 +${r.shards}`}</small></div>`).join('')}</div><button class="primary full result-close" id="reveal-done">용병 확인하기 →</button><p class="detail-note" style="text-align:center">결과는 이미 저장되었어요. 창을 닫아도 사라지지 않아요.</p>`, 'reveal');
     $('reveal-done').onclick = () => { closeModal(); setTab('roster'); };
     $('modal-content').querySelector('.result-grid').onclick = e => e.currentTarget.classList.add('skip');
   }
@@ -657,7 +701,7 @@
       try { const saved = JSON.parse(storage.get(PENDING, true) || 'null'); pending = saved?.accountId === profile.id ? saved : null; if (!pending) storage.remove(PENDING, true); } catch { clearPending(); }
       applyCloud(body); closeModal(); toast('계정의 학교용병단을 불러왔어요.'); lastSync = Date.now(); loaded = true;
     } catch (error) {
-      if (error.status === 401) { token = null; verifiedToken = null; storage.remove(SESSION, true); }
+      if (error.status === 401) { clearLogin(); }
       connected = false; saveStatus('error', '계정 연결 대기'); lastSync = Date.now();
       note('계정 기록을 불러오지 못했습니다. 계정 메뉴에서 다시 연결해 주세요.', true);
       toast(error.message); const status = $('login-message'); if (status) status.textContent = error.message;
@@ -668,8 +712,9 @@
   async function accountModal() {
     openModal('내 용병단 저장', `<div class="modal-copy"><p>${mode === 'cloud' ? '<strong>Google 계정에 저장 중입니다.</strong><br>다른 기기에서도 같은 계정으로 이어 할 수 있어요.' : '<strong>지금은 이 브라우저에 저장 중입니다.</strong><br>Google 계정을 연결하면 기기를 바꿔도 이어 할 수 있어요.'}</p><div class="account-box"><span>${mode === 'cloud' ? '계정 용병단' : '게스트 용병단'}<br>단장 Lv.${state.captain.level}</span><b>${Object.keys(state.units).length}명 보유</b></div><p>게스트와 계정 기록은 따로 유지됩니다. 로그인 시 계정 기록을 불러오며 게스트 기록은 이 기기에 남습니다.</p><p>카드게임과 로그인은 공유하고, 성장 기록은 각각 저장합니다.</p></div><div id="account-controls"></div><div id="login-message" class="login-message" role="status"></div><p class="detail-note"><a href="privacy.html" target="_blank" rel="noopener">개인정보 및 계정 삭제 안내</a></p>`, 'account');
     if (mode === 'cloud') {
-      $('account-controls').innerHTML = `<div class="account-actions"><button class="secondary" id="cloud-refresh">저장 확인</button><button class="secondary" id="guest-return">게스트로 전환</button>${!connected || !token ? '<button class="primary" id="cloud-login-again">다시 로그인</button>' : ''}</div>`;
+      $('account-controls').innerHTML = `<div class="account-actions"><button class="secondary" id="cloud-refresh">저장 확인</button><button class="secondary" id="guest-return">게스트로 전환</button><button class="secondary" id="logout-account">로그아웃</button>${!connected || !token ? '<button class="primary" id="cloud-login-again">다시 로그인</button>' : ''}</div>`;
       if ($('cloud-login-again')) $('cloud-login-again').onclick = prepareGoogle;
+      $('logout-account').onclick = logoutAccount;
       $('cloud-refresh').onclick = async () => { await sync(true); if (connected) toast('계정 저장을 확인했습니다.'); };
       $('guest-return').onclick = async () => {
         if (busy || pending) { toast('진행 중인 요청을 먼저 확인해 주세요.'); return; }
@@ -683,7 +728,7 @@
       };
       return;
     }
-    if (token) { $('account-controls').innerHTML = '<button class="primary full" id="existing-account">로그인된 계정으로 이어하기 →</button><button class="text-button history-button" id="different-account">다른 Google 계정으로 연결</button>'; $('existing-account').onclick = useCloud; $('different-account').onclick = () => prepareGoogle(); }
+    if (token) { $('account-controls').innerHTML = '<button class="primary full" id="existing-account">로그인된 계정으로 이어하기 →</button><button class="text-button history-button" id="different-account">다른 Google 계정으로 연결</button>'; const logout = document.createElement('button'); logout.id='logout-account'; logout.className='secondary full'; logout.textContent='로그아웃'; logout.onclick=logoutAccount; $('account-controls').append(logout); $('existing-account').onclick = useCloud; $('different-account').onclick = () => prepareGoogle(); }
     else prepareGoogle();
   }
   async function prepareGoogle() {
@@ -701,7 +746,8 @@
           token = result.token; verifiedToken = null; profile = null; pending = null; connected = false;
           // Keep the pending storage receipt untouched until the new identity is verified.
           if (mode === 'cloud') { hasCloudState = false; cloudBalance = null; document.querySelector('.workspace').style.visibility = 'hidden'; $('gold').textContent = $('gems').textContent = '—'; }
-          if (!storage.set(SESSION, JSON.stringify({token}), true)) throw Error('계정 세션을 저장할 수 없습니다. 브라우저의 저장 허용을 확인하세요.');
+          storage.set(SESSION, JSON.stringify({token}), true);
+          if (!storage.set(SESSION, JSON.stringify({token}))) throw Error('계정 세션을 저장할 수 없습니다. 브라우저의 저장 허용을 확인하세요.');
           busy = false; await useCloud();
         } catch (error) { if ($('login-message')) $('login-message').textContent = error.message; toast(error.message); busy = false; await prepareGoogle(); }
         finally { busy = false; renderButtons(); }
@@ -711,6 +757,13 @@
     } catch (error) { if (version === loginGeneration && $('login-message')) $('login-message').textContent = error.message; }
   }
   function bind() {
+    social = createSocial();
+    if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
+    if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();
+    if ($('winter-button')) $('winter-button').onclick = () => social?.openWinter();
+    if ($('fullscreen-button')) $('fullscreen-button').onclick = () => document.fullscreenElement ? document.exitFullscreen() : attemptLandscape();
+    for (const name of ['pointerup','pointercancel','blur']) window.addEventListener(name, () => { if (trainingHold) trainClickUntil = performance.now()+700; stopTraining(); });
+    document.addEventListener('pointermove', event => { if (!trainingHold) return; const rect = $('train-hero')?.getBoundingClientRect(); if (!rect || event.clientX<rect.left || event.clientX>rect.right || event.clientY<rect.top || event.clientY>rect.bottom) stopTraining(); });
     document.addEventListener('click', e => {
       const target = e.target.closest('button'); if (!target || target.disabled) return;
       if (target.dataset.tab) { setTab(target.dataset.tab); if (target.dataset.tab !== 'adventure') boardJump('party'); }
@@ -750,6 +803,7 @@
     $('modal-close').onclick = () => closeModal(true);
     $('modal').addEventListener('cancel', event => { event.preventDefault(); closeModal(true); });
     $('modal').addEventListener('close', () => {
+      stopTraining();
       if ($('modal').open) return;
       if (modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
       delete $('modal').dataset.activityResult; modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
@@ -772,9 +826,10 @@
       $('coupon-code').value = code; couponMessage('코드와 보상을 확인 중…');
       await act({kind:'redeem', code});
     });
-    $('log-button').onclick = () => openModal('모험 기록', `<ul class="log-list">${state.logs.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`, 'logs');
+    $('log-button').onclick = damageModal; $('log-button').setAttribute('aria-label','전투 딜량 확인'); $('log-button').title = '전투 기여도';
     $('history-button').onclick = () => openModal('최근 모집 기록', state.history.length ? state.history.map(r => `<div class="history-row">${portrait(r.id)}${rarity(r.id)}<b>${G.BY_ID[r.id].name}</b><small>${r.fresh ? '첫 만남' : `조각 +${r.shards}`}</small></div>`).join('') : '<p class="modal-copy">아직 모집한 용병이 없어요.</p>', 'history');
     document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopTraining();
       if (mode === 'guest') guestUpdate().catch(() => {});
       else if (!document.hidden) sync(true);
     });
@@ -784,7 +839,7 @@
     window.addEventListener('pageshow', () => { if (mode === 'guest') guestUpdate().catch(() => {}); else sync(true); });
     window.addEventListener('online', () => sync(true));
     window.addEventListener('school-art-ready', () => { renderKey = partyKey = ''; $('feature-osia').src = Art.portrait('osia'); $('feature-lava').src = Art.portrait('lava'); render(); if (modalKind === 'hero' && ['osia','lava'].includes(selectedHero)) heroDetail(selectedHero); });
-    window.addEventListener('storage', e => { if (e.key === SAVE && mode === 'guest' && !busy) guestUpdate().catch(() => {}); });
+    window.addEventListener('storage', e => { if (e.key === SESSION && !e.newValue) { clearLogin(); connected = mode !== 'cloud'; if (mode === 'cloud') { note('다른 창에서 로그아웃했어요. 계정 메뉴에서 다시 로그인할 수 있어요.'); renderButtons(); } } if (e.key === SAVE && mode === 'guest' && !busy) guestUpdate().catch(() => {}); });
   }
   async function boot() {
     applyPreferences();
@@ -798,7 +853,7 @@
         // Server views deliberately omit private action receipts.
         if (sessionFingerprint && cache?.sessionFingerprint === sessionFingerprint && cache?.profile?.id && cache.state && G.validate({ ...cache.state, receipts: [] })) {
           rememberActivityResult(cache.state); profile = cache.profile; state = cache.state; revision = cache.revision; hasCloudState = true;
-          cloudBalance = { gold: state.gold, gems: state.gems }; lastSeq = state.seq;
+          cloudBalance = { gold: state.gold, gems: state.gems, winter: state.winter ? G.clone(state.winter) : null }; lastSeq = state.seq;
         }
       } catch {}
       if (!state) { state = freshGuest(); document.querySelector('.workspace').style.visibility = 'hidden'; $('gold').textContent = $('gems').textContent = '—'; }
@@ -823,14 +878,15 @@
     finishBoot();
     setInterval(() => {
       if (document.hidden || !state) return;
-      if (mode === 'guest' && !busy && !guestTickPending && (!guestSaveFailed || Date.now() - lastSave > 2000)) {
-        guestTickPending = true; guestUpdate().then(() => { document.querySelector('.workspace').style.visibility = ''; }).catch(() => {}).finally(() => { guestTickPending = false; });
+      if (mode === 'guest' && Date.now() - lastGuestTick >= 250 && !busy && !guestTickPending && (!guestSaveFailed || Date.now() - lastSave > 2000)) {
+        lastGuestTick = Date.now(); guestTickPending = true; guestUpdate().then(() => { document.querySelector('.workspace').style.visibility = ''; }).catch(() => {}).finally(() => { guestTickPending = false; });
       }
       if (mode === 'cloud' && !busy && hasCloudState && connected) { advanceCloudPreview(); consumeEvents(); render(); }
       if (mode === 'cloud' && token && Date.now() - lastSync > 3000) { lastSync = Date.now(); sync(); }
     }, 250);
-    const canvas = $('battle'), ctx = canvas.getContext('2d');
+    const canvas = $('battle'), ctx = canvas.getContext('2d', {alpha:false, desynchronized:true});
     let nextDrawAt = 0, drawInterval = 0, canvasSizeDirty = true, canvasDpr = 0;
+    let rasterScale = 1, previousRaf = 0, sampleStarted = 0, sampleFrames = 0, slowFrames = 0, drawCost = 0, drawSamples = 0, lastScaleChange = 0;
     function fitBattleCanvas() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       if (!canvasSizeDirty && canvasDpr === dpr) return true;
@@ -839,7 +895,7 @@
       // Match the actual painted area, including object-fit's letterboxing.
       // Render details/text at screen resolution instead of enlarging 480px.
       const fitWidth = Math.min(box.width, box.height * 12 / 7);
-      const width = Math.max(1, Math.round(Math.min(fitWidth * dpr, 2880)));
+      const width = Math.max(1, Math.round(Math.min(fitWidth * dpr * rasterScale, 2880)));
       const height = Math.max(1, Math.round(width * 7 / 12));
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width; canvas.height = height; ctx.imageSmoothingEnabled = false;
@@ -851,13 +907,21 @@
     window.visualViewport?.addEventListener('resize', () => { canvasSizeDirty = true; });
     function animate(time) {
       requestAnimationFrame(animate);
-      if (document.hidden || resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden) { nextDrawAt = 0; return; }
+      if (document.hidden || resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden) { nextDrawAt = 0; previousRaf = 0; sampleStarted = 0; sampleFrames = slowFrames = drawCost = drawSamples = 0; return; }
+      if (previousRaf && time - previousRaf < 300) { sampleFrames++; if (time - previousRaf > 25) slowFrames++; }
+      previousRaf = time; sampleStarted ||= time;
+      if (time - sampleStarted >= 2000 && sampleFrames > 12) {
+        const burden = slowFrames / sampleFrames, meanDraw = drawCost / Math.max(1,drawSamples);
+        const nextScale = burden > .22 || meanDraw > 9 ? Math.max(.6,rasterScale*.85) : burden < .04 && meanDraw < 5 && time-lastScaleChange > 12000 ? Math.min(1,rasterScale+.05) : rasterScale;
+        if (nextScale !== rasterScale) { rasterScale = nextScale; canvasSizeDirty = true; lastScaleChange = time; canvas.dataset.renderScale = rasterScale.toFixed(2); }
+        sampleStarted = time; sampleFrames = slowFrames = drawCost = drawSamples = 0;
+      }
       const interval = reduced ? 120 : 1000 / 60;
       if (interval !== drawInterval) { drawInterval = interval; nextDrawAt = 0; }
       if (time + .25 < nextDrawAt) return;
       // Carry the cadence across 90/144Hz refreshes, but never replay missed frames.
       nextDrawAt = !nextDrawAt || time - nextDrawAt > interval * 4 ? time + interval : nextDrawAt + Math.max(1, Math.floor((time - nextDrawAt) / interval) + 1) * interval;
-      if (fitBattleCanvas()) Art.draw(ctx, state, animationTime(), effects, reduced);
+      if (fitBattleCanvas()) { const began = performance.now(); Art.draw(ctx, state, animationTime(), effects, reduced); drawCost += performance.now()-began; drawSamples++; }
     }
     requestAnimationFrame(animate);
   }

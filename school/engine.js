@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 9;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 10;
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
   const OSIA_SKILLS = [
@@ -28,6 +28,7 @@
   });
   // The deadline is exclusive: codes work throughout November 20 in Korea.
   const COUPONS = Object.freeze({
+    MAJORUPDATE: Object.freeze({ gold: 0, gems: 3000, expiresAt: null }),
     OSIA_DEBUT: Object.freeze({ gold: 1000, gems: 1000, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
     BUG_FIX: Object.freeze({ gold: 1500, gems: 1500, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
     LAVA_DEBUT: Object.freeze({ gold: 1000, gems: 1000, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
@@ -40,6 +41,14 @@
   });
   const BOSS_RULES = Object.freeze({ storyHp: 2.6, storyAttack: 1, aoeEvery: 6000, aoeMultiplier: 1.6, rageEvery: 15000, rageStep: .12 });
   const PROGRESSION = Object.freeze({ unitRequirement: 3, battleXp: .2, dungeonXp: .35, offlineXp: .2, captainBattleXp: .25, captainOfflineDivisor: 8 });
+  const CRITICAL = Object.freeze({ chance: .12, multiplier: 1.5 });
+  const PARTY_SYNERGIES = Object.freeze([
+    Object.freeze({ id: "tank", name: "철벽 전열", required: 3, description: "수호 3명 · 아군 전체 받는 피해 15% 감소" }),
+    Object.freeze({ id: "damage", name: "집중 공세", required: 3, description: "전사·사수·마법 3명 · 아군 전체 공격 피해 15% 증가" }),
+    Object.freeze({ id: "healer", name: "생명의 합주", required: 3, description: "치유 3명 · 아군 전체 회복량 20% 증가" }),
+  ]);
+  const WINTER_EVENT = Object.freeze({ id: "first-snow-2026", name: "겨울의 첫눈", startsAt: Date.parse("2026-11-18T00:00:00+09:00"), endsAt: null, dropChance: .2,
+    shop: Object.freeze({ gold: Object.freeze({ cost: 10, limit: 30, gold: 1000, gems: 0 }), gems: Object.freeze({ cost: 20, limit: 15, gold: 0, gems: 100 }) }) });
   // Use integer percentages so 1400 × 35% is exactly 490, not 489.999… .
   const scaledXp = (amount, multiplier) => amount > 0 ? Math.max(1, Math.floor(amount * Math.round(multiplier * 100) / 100)) : 0;
   function recruitRates(misses) {
@@ -83,6 +92,7 @@
     { id: "siu", name: "시우", club: "천문부", role: "마법", rarity: "SR", hp: 103, atk: 16, skill: "별빛 낙하", cooldown: 5, color: "#7990bf", hair: "#a0a5c6", outfit: "#4d6292", weapon: "staff", desc: "적 전체에게 공격력 170%의 별빛 피해." },
     { id: "nari", name: "나리", club: "음악부", role: "치유", rarity: "SR", hp: 115, atk: 11, skill: "작은 치유곡", cooldown: 4, color: "#b68fab", hair: "#aa7977", outfit: "#8c7088", weapon: "heal", desc: "살아 있는 아군 전원에게 공격력 220%의 회복." },
     { id: "geonu", name: "건우", club: "럭비부", role: "수호", rarity: "SR", hp: 192, atk: 11, skill: "철벽 스크럼", cooldown: 4, color: "#7e9a74", hair: "#776348", outfit: "#68774c", weapon: "shield", desc: "최대 체력 25%의 보호막. 받는 피해 28% 감소." },
+    { id: "doyoon", name: "도윤", club: "안전부", role: "수호", rarity: "SR", hp: 180, atk: 10, skill: "안전한 귀갓길", cooldown: 4, color: "#6e9dbc", hair: "#574035", outfit: "#476b8b", weapon: "shield", desc: "최대 체력 25%의 보호막. 받는 피해 28% 감소. 수호 3인 편성으로 철벽 전열을 완성할 수 있습니다." },
     { id: "ian", name: "이안", club: "풍기위원", role: "전사", rarity: "SSR", hp: 155, atk: 19, skill: "황혼의 발도", cooldown: 4, color: "#dfb354", hair: "#d8d1b7", outfit: "#344a51", weapon: "sword", desc: "한 명에게 공격력 300%의 발도. 높은 체력과 공격력." },
     { id: "lumi", name: "루미", club: "오컬트부", role: "마법", rarity: "SSR", hp: 128, atk: 21, skill: "달빛 소환", cooldown: 4, color: "#c89ed4", hair: "#b9b2db", outfit: "#5c527d", weapon: "staff", desc: "적 전체에게 공격력 170%의 달빛. 빠른 광역 공격." },
     { id: "osia", name: "오시아", latin: "Osia", club: "물의 용왕", species: "물고기", element: "water", role: "마법", rarity: "SSR", hp: 136, atk: 20, skill: "용왕의 해일", skillMultiplier: 2.2, cooldown: 5, passive: "용왕의 권능", passiveDesc: "물폭탄 평타로 싸우며 스킬을 충전합니다. 충전할 때마다 대형 물탄 → 소용돌이 → 물기둥 → 거대 수룡 순서로 하나씩 사용하고 반복합니다. 마지막 수룡은 명중한 적을 1.5초 기절시킵니다.", color: "#59bdd7", hair: "#6587bb", outfit: "#f6f3eb", weapon: "water", desc: "5초 충전마다 다음 단계 스킬 하나로 적 전체에게 공격력 220%의 물 피해. 스킬 사이에는 물폭탄 평타를 사용합니다." },
@@ -120,6 +130,53 @@
     const name = raw.normalize("NFC").trim().replace(/\p{Zs}+/gu, " ");
     const length = Array.from(name).length;
     return length >= 2 && length <= 12 && /^[\p{L}\p{N} _-]+$/u.test(name) ? name : null;
+  }
+  function commanderNameInfo(s) {
+    const changes = s.nameChanges ?? (s.commanderName && s.commanderName !== "새내기 단장" ? 1 : 0);
+    return { changes, cost: changes > 0 ? 3000 : 0 };
+  }
+  function partySynergies(s) {
+    const counts = { tank: 0, damage: 0, healer: 0 };
+    for (const id of new Set(s.team || [])) {
+      const role = BY_ID[id]?.role;
+      if (role === "수호") counts.tank++;
+      if (["전사", "사수", "마법"].includes(role)) counts.damage++;
+      if (role === "치유") counts.healer++;
+    }
+    return { counts, active: PARTY_SYNERGIES.filter(def => counts[def.id] >= def.required).map(def => ({ ...def, count: counts[def.id] })),
+      damageMultiplier: counts.damage >= 3 ? 1.15 : 1, healMultiplier: counts.healer >= 3 ? 1.2 : 1, incomingMultiplier: counts.tank >= 3 ? .85 : 1 };
+  }
+  function newWinter() { return { id: WINTER_EVENT.id, snowflakes: 0, earned: 0, exchanges: { gold: 0, gems: 0 } }; }
+  function validWinter(w) {
+    return w === undefined || !!(w && w.id === WINTER_EVENT.id && Number.isSafeInteger(w.snowflakes) && w.snowflakes >= 0 && Number.isSafeInteger(w.earned) && w.earned >= w.snowflakes &&
+      w.exchanges && Object.keys(WINTER_EVENT.shop).every(id => Number.isInteger(w.exchanges[id]) && w.exchanges[id] >= 0 && w.exchanges[id] <= WINTER_EVENT.shop[id].limit));
+  }
+  function winterInfo(s, now = Date.now()) {
+    const w = s.winter || newWinter(), active = Number.isFinite(now) && now >= WINTER_EVENT.startsAt && (WINTER_EVENT.endsAt === null || now < WINTER_EVENT.endsAt);
+    return { id: WINTER_EVENT.id, name: WINTER_EVENT.name, active, snowflakes: w.snowflakes, earned: w.earned,
+      items: Object.entries(WINTER_EVENT.shop).map(([id, item]) => ({ id, ...item, bought: w.exchanges[id], remaining: item.limit - w.exchanges[id], canBuy: active && w.exchanges[id] < item.limit && w.snowflakes >= item.cost })) };
+  }
+  function winterDrop(s) {
+    if (!winterInfo(s, s.at).active || random(s) >= WINTER_EVENT.dropChance) return 0;
+    const w = s.winter ||= newWinter(), amount = s.battle.boss ? 2 : 1;
+    if (w.earned > Number.MAX_SAFE_INTEGER - amount) return 0;
+    w.snowflakes += amount; w.earned += amount;
+    event(s, "snowflake", { amount, total: w.snowflakes });
+    return amount;
+  }
+  function damageReport(s) {
+    const b = s.battle, elapsedMs = b.elapsed || 0;
+    const rows = b.heroes.map(hero => {
+      const record = b.damage?.[hero.id] || {};
+      const row = { id: hero.id, damage: record.damage || 0, healing: record.healing || 0, taken: record.taken || 0, criticals: record.criticals || 0 };
+      return { ...row, dps: Math.round(row.damage / Math.max(1, elapsedMs / 1000)) };
+    });
+    return { battleId: b.id, elapsedMs, rows, totals: rows.reduce((sum, row) => { for (const key of ["damage", "healing", "taken", "criticals"]) sum[key] += row[key]; return sum; }, { damage: 0, healing: 0, taken: 0, criticals: 0 }) };
+  }
+  function meter(s, id, key, amount) {
+    if (!Object.hasOwn(BY_ID, id) || !Number.isFinite(amount) || amount <= 0) return;
+    const records = s.battle.damage ||= {}, record = records[id] ||= { damage: 0, healing: 0, taken: 0, criticals: 0 };
+    record[key] = (record[key] || 0) + amount;
   }
   function activityReward(kind, value) {
     if (kind === "tower") return { gold: 100 + 5 * value, gems: 10 + Math.floor(value / 5), xp: 0 };
@@ -172,7 +229,7 @@
   const awakeningCost = unit => 10 + unit.stars * 10;
   function stats(id, unit) {
     const h = BY_ID[id], factor = 1 + unit.stars * .15;
-    return { hp: Math.round((h.hp + (unit.level - 1) * 14) * factor), atk: Math.round((h.atk + (unit.level - 1) * 3) * factor), defense: h.role === "수호" ? .28 : .05 };
+    return { hp: Math.round((h.hp + (unit.level - 1) * 14) * factor), atk: Math.round((h.atk + (unit.level - 1) * 3) * factor), defense: h.role === "수호" ? .28 : .05, critChance: CRITICAL.chance, critMultiplier: CRITICAL.multiplier };
   }
   function stageName(stage) { return `${Math.floor((stage - 1) / 5) + 1}-${(stage - 1) % 5 + 1}`; }
   function chapter(stage) { return clamp(Math.floor((stage - 1) / 5), 0, CHAPTERS.length - 1); }
@@ -205,7 +262,20 @@
       atk: Math.pow(1.14, Math.min(29, stage - 1)) * Math.pow(1.015, Math.max(0, stage - 30)) * (1 + late * (BOSS_RULES.storyAttack - 1)) };
   }
   function freshHeroes(s, previousOsia) {
-    return s.team.map(id => { const st = stats(id, s.units[id]); return { id, hp: st.hp, max: st.hp, atk: st.atk, defense: st.defense, energy: id === "osia" && previousOsia ? previousOsia.energy : 0, shield: 0 }; });
+    const synergy = partySynergies(s);
+    return s.team.map(id => { const st = stats(id, s.units[id]); return { id, hp: st.hp, max: st.hp, atk: st.atk, defense: 1 - (1 - st.defense) * synergy.incomingMultiplier, damageMultiplier: synergy.damageMultiplier, healMultiplier: synergy.healMultiplier, critChance: st.critChance, critMultiplier: st.critMultiplier, energy: id === "osia" && previousOsia ? previousOsia.energy : 0, shield: 0 }; });
+  }
+  function monsterAbility(enemy, stage) {
+    if (enemy.boss || stage < 11) return enemy;
+    const roles = ["melee", "ranged", "healer"], role = roles[enemy.variant || 0];
+    enemy.combatRole = role;
+    enemy.monsterSkill = role === "melee" ? "결계 돌진" : role === "ranged" ? "마력 탄환" : "회복의 종";
+    // Introduce charge and ranged skills in chapter 3; support casters join in 4.
+    if (role === "healer" && stage < 16) return enemy;
+    enemy.skillEvery = role === "healer" ? 8000 : 6000;
+    enemy.nextSkillAt = enemy.skillEvery + (enemy.variant || 0) * 1000;
+    enemy.skillPower = 1 + Math.min(1, Math.max(0, stage - 11) / 49) * .3;
+    return enemy;
   }
   function bossAbility(enemy, strength = 1, name = "결계 붕괴") {
     Object.assign(enemy, { ability: name, aoeEvery: BOSS_RULES.aoeEvery, aoeMultiplier: BOSS_RULES.aoeMultiplier * strength,
@@ -218,12 +288,12 @@
     // accommodate six units, while the first ten areas retain their old curve.
     const scale = campaignScale(s.stage);
     const previousOsia = carry && s.battle?.phase === "victory" && s.battle.heroes.find(h => h.id === "osia" && h.hp > 0);
-    s.battle = { id: s.seq + 1, stage: s.stage, wave: s.wave, boss, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false,
+    s.battle = { id: s.seq + 1, stage: s.stage, wave: s.wave, boss, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false, damage: {}, synergies: partySynergies(s),
       heroes: freshHeroes(s, previousOsia),
       enemies: Array.from({ length: boss ? 1 : 3 }, (_, i) => {
         const variant = (s.stage + s.wave - 2 + i) % 3;
         const e = { id: `e${i}`, kind: zone, name: boss ? BOSSES[zone] : ENEMY_VARIANTS[zone][variant], ...(boss ? {} : { variant }), hp: Math.round((boss ? 155 : 30) * scale.hp), max: Math.round((boss ? 155 : 30) * scale.hp), atk: Math.round((boss ? 10 : 3) * scale.atk), boss };
-        return boss && s.stage > 30 ? bossAbility(e, .65 + (s.stage - 30) / 30 * .35) : e;
+        return boss && s.stage > 30 ? bossAbility(e, .65 + (s.stage - 30) / 30 * .35) : monsterAbility(e, s.stage);
       }),
     };
     event(s, "wave", { stage: s.stage, wave: s.wave, boss });
@@ -234,10 +304,10 @@
     const difficulty = weekly ? 1.25 : 1.05, hp = tower ? (80 + 20 * run.floor + 2 * run.floor * run.floor) * (boss ? 3.2 : 1) : 155 * scale.hp * difficulty;
     const atk = tower ? (5 + .9 * run.floor + .012 * run.floor * run.floor) * (boss ? 1.1 : 1) : 10 * scale.atk;
     const activity = { kind: run.kind, ...(tower ? { floor: run.floor } : { tier: run.tier }) };
-    s.battle = { id: run.id, runId: run.id, stage, wave: 4, boss, activity, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false,
+    s.battle = { id: run.id, runId: run.id, stage, wave: 4, boss, activity, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false, damage: {}, synergies: partySynergies(s),
       heroes: freshHeroes(s), enemies: Array.from({ length: boss ? 1 : 3 }, (_, i) => {
         const e = { id: `e${i}`, kind: chapter(stage), name: tower ? boss ? "뫼비우스의 감시자" : "복도의 잔영" : weekly ? "봉인의 이사장" : "보급고의 수호자", ...(boss ? {} : { variant: (stage + 2 + i) % 3 }), hp: Math.round(hp), max: Math.round(hp), atk: Math.round(atk), boss };
-        return boss && (tower || run.tier >= 3) ? bossAbility(e, 1, tower ? "뒤틀린 종소리" : weekly ? "봉인 해방" : "보급고 대격돌") : e;
+        return boss && (tower || run.tier >= 3) ? bossAbility(e, 1, tower ? "뒤틀린 종소리" : weekly ? "봉인 해방" : "보급고 대격돌") : monsterAbility(e, stage);
       }) };
   }
   function settleActivity(s, won, reason) {
@@ -250,6 +320,7 @@
     if (firstClear) a.towerBest = run.floor;
     if (!won && run.kind !== "tower" && a[run.kind].period === run.period && a[run.kind].used > 0) { a[run.kind].used--; refunded = true; }
     s.gold += reward.gold; s.gems += reward.gems;
+    if (won && (run.kind !== "tower" || firstClear)) winterDrop(s);
     if (reward.xp) for (const id of s.team) addUnitXp(s, id, reward.xp);
     a.lastResult = { runId: run.id, kind: run.kind, ...(run.kind === "tower" ? { floor: run.floor } : { tier: run.tier }), won, reason, firstClear, reward, refunded };
     s.battle.phase = won ? "victory" : "defeat"; s.battle.wait = 0; delete s.battle.osiaCast; delete s.battle.cinematic;
@@ -259,7 +330,7 @@
   function create(now = Date.now(), seed = 123456789) {
     fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
-      gold: 700, gems: 1800, commanderName: "새내기 단장", captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
+      gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
       banners: { osia: { pity: 0, guaranteed: false }, lava: { pity: 0, guaranteed: false } },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], activities: newActivities(now) };
@@ -270,6 +341,7 @@
     return !!(s && s.version === 1 && Number.isFinite(s.at) && s.at >= 0 && Number.isInteger(s.seed) &&
       Number.isFinite(s.gold) && s.gold >= 0 && Number.isFinite(s.gems) && s.gems >= 0 &&
       (s.commanderName === undefined || typeof s.commanderName === "string" && normalizeCommanderName(s.commanderName) === s.commanderName) &&
+      (s.nameChanges === undefined || Number.isSafeInteger(s.nameChanges) && s.nameChanges >= 0) && validWinter(s.winter) &&
       (s.speed === undefined || s.speed === 1 || s.speed === 1.5) &&
       (s.simCredit === undefined || Number.isFinite(s.simCredit) && s.simCredit >= 0 && s.simCredit < STEP_MS) &&
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
@@ -308,7 +380,9 @@
       if (b.elapsed < (target.indomitableUntil || 0)) amount = Math.min(amount, target.hp - 1);
     }
     amount = Math.min(target.hp, amount); target.hp -= amount;
-    event(s, "hit", { from, to: target.id, side, amount, skill, ...(BY_ID[from]?.element ? { element: BY_ID[from].element } : {}), ...detail });
+    if (side === "enemy") { meter(s, from, "damage", amount); if (detail.critical && amount > 0) meter(s, from, "criticals", 1); }
+    else meter(s, target.id, "taken", amount);
+    event(s, "hit", { from, to: target.id, side, amount, skill, critical: !!detail.critical, impact: detail.critical ? "critical" : skill ? "heavy" : "normal", ...(BY_ID[from]?.element ? { element: BY_ID[from].element } : {}), ...detail });
     if (target.hp <= 0 && side === "enemy") s.kills++;
     return amount;
   }
@@ -321,7 +395,8 @@
     if (amount) event(s, "guard", { from: hero.id, to: target.id, amount, shield: target.shield, passive, element: "wind" });
   }
   function lavaHeal(s, hero, target, raw, stage) {
-    const amount = Math.min(target.max - target.hp, Math.round(raw)); target.hp += amount;
+    const amount = Math.min(target.max - target.hp, Math.round(raw * (hero.healMultiplier || 1))); target.hp += amount;
+    meter(s, hero.id, "healing", amount);
     if (amount) event(s, "heal", { from: hero.id, to: target.id, amount, stage, element: "wind" });
   }
   function victory(s) {
@@ -330,6 +405,7 @@
     s.gold += gold; for (const id of s.team) addUnitXp(s, id, xp);
     captainXp(s, scaledXp(4 + Math.floor(s.stage / 2), PROGRESSION.captainBattleXp));
     event(s, "reward", { gold, xp, boss: b.boss });
+    winterDrop(s);
     if (b.boss) {
       s.losses = 0;
       if (s.stage > s.best) { s.best = s.stage; s.gems += 60; event(s, "clear", { stage: s.stage, gems: 60 }); log(s, `${stageName(s.stage)} 클리어! 보석 +60`); }
@@ -348,8 +424,8 @@
     const targets = b.enemies.filter(e => e.hp > 0 && cast.targets.some(t => t.id === e.id));
     event(s, "skill-impact", { from: "osia", castId: cast.id, stage: step.stage, name: step.name, element: "water", targets: targets.map(e => e.id) });
     for (const enemy of targets) {
-      const amount = cast.targets.find(t => t.id === enemy.id).amount;
-      hurt(s, "osia", enemy, amount, "enemy", true, { castId: cast.id, stage: step.stage });
+      const hit = cast.targets.find(t => t.id === enemy.id);
+      hurt(s, "osia", enemy, hit.amount, "enemy", true, { castId: cast.id, stage: step.stage, critical: !!hit.critical });
       if (step.stunMs && enemy.hp > 0) {
         enemy.stunUntil = Math.max(enemy.stunUntil || 0, b.elapsed + step.stunMs);
         event(s, "stun", { from: "osia", to: enemy.id, duration: step.stunMs, until: enemy.stunUntil });
@@ -403,8 +479,8 @@
         const step = osiaSkill(s);
         const cinematicDuration = step.stage === 4 ? OSIA_CINEMATIC_MS : 0;
         b.osiaCast = { id: s.seq, began: b.elapsed, simBegan: s.simTime, stage: step.stage, cinematicDuration, targets: enemies.map(e => {
-          const critical = random(s) < .12;
-          return { id: e.id, amount: Math.round(hero.atk * def.skillMultiplier * (b.buff ? 1.3 : 1) * (.9 + random(s) * .2) * (critical ? 1.5 : 1)) };
+          const critical = random(s) < (hero.critChance ?? CRITICAL.chance);
+          return { id: e.id, critical, amount: Math.round(hero.atk * def.skillMultiplier * (hero.damageMultiplier || 1) * (b.buff ? 1.3 : 1) * (.9 + random(s) * .2) * (critical ? hero.critMultiplier || CRITICAL.multiplier : 1)) };
         }) };
         s.units.osia.nextSkill = step.stage % 4 + 1;
         event(s, "skill-stage", { from: "osia", castId: b.osiaCast.id, stage: step.stage, name: step.name, impactDelay: step.impactDelay, cinematicDuration, element: "water", targets: enemies.map(e => e.id) });
@@ -428,7 +504,8 @@
       let target = enemies[0], multiplier = skill ? 3 : 1;
       if (skill && def.role === "치유") {
         for (const friend of b.heroes.filter(h => h.hp > 0)) {
-          const heal = Math.min(friend.max - friend.hp, Math.round(hero.atk * 2.2)); friend.hp += heal;
+          const heal = Math.min(friend.max - friend.hp, Math.round(hero.atk * 2.2 * (hero.healMultiplier || 1))); friend.hp += heal;
+          meter(s, hero.id, "healing", heal);
           if (heal) event(s, "heal", { from: hero.id, to: friend.id, amount: heal });
         }
         continue;
@@ -439,8 +516,8 @@
       const victims = skill && def.role === "마법" ? enemies : [target];
       if (skill && def.role === "마법") multiplier = def.skillMultiplier || 1.7;
       for (const enemy of victims) {
-        const critical = random(s) < .12;
-        const dealt = hurt(s, hero.id, enemy, hero.atk * multiplier * (b.buff ? 1.3 : 1) * (.9 + random(s) * .2) * (critical ? 1.5 : 1), "enemy", skill);
+        const critical = random(s) < (hero.critChance ?? CRITICAL.chance);
+        const dealt = hurt(s, hero.id, enemy, hero.atk * multiplier * (hero.damageMultiplier || 1) * (b.buff ? 1.3 : 1) * (.9 + random(s) * .2) * (critical ? hero.critMultiplier || CRITICAL.multiplier : 1), "enemy", skill, { critical });
         if (hero.id === "lava" && !skill && dealt > 0) {
           const unit = s.units.lava; unit.basicHits = (unit.basicHits || 0) + 1;
           if (unit.basicHits >= 10) { unit.basicHits = 0; const friend = lowestAlive(b); if (friend) lavaGuard(s, hero, friend, hero.atk * 2 + friend.max * .08, "ten-hits"); }
@@ -456,6 +533,21 @@
         event(s, "boss-skill", { from: enemy.id, name: enemy.ability, targets: alive.map(h => h.id), rage, atElapsed: b.elapsed });
         for (const target of alive) hurt(s, enemy.id, target, enemy.atk * enemy.aoeMultiplier * rage * (.9 + random(s) * .2), "hero", true, { bossSkill: true });
         enemy.nextAbilityAt = b.elapsed + enemy.aoeEvery;
+      } else if (enemy.monsterSkill && Number.isFinite(enemy.nextSkillAt) && b.elapsed >= enemy.nextSkillAt) {
+        const role = enemy.combatRole;
+        if (role === "healer") {
+          const friend = b.enemies.filter(e => e.hp > 0).reduce((a, e) => !a || e.hp / e.max < a.hp / a.max ? e : a, null);
+          const amount = Math.max(0, Math.min(friend.max - friend.hp, Math.round((enemy.atk * 2 + friend.max * .025) * enemy.skillPower)));
+          event(s, "monster-skill", { from: enemy.id, name: enemy.monsterSkill, role, targets: [friend.id], element: "healing" });
+          friend.hp += amount;
+          if (amount) event(s, "enemy-heal", { from: enemy.id, to: friend.id, side: "enemy", amount });
+        } else {
+          const back = b.heroes.slice(3).filter(h => h.hp > 0), pool = role === "ranged" && back.length ? back : alive;
+          const target = role === "ranged" ? pool.reduce((a, h) => h.hp / h.max < a.hp / a.max ? h : a) : alive[0];
+          event(s, "monster-skill", { from: enemy.id, name: enemy.monsterSkill, role, targets: [target.id], element: role === "ranged" ? "arcane" : "physical" });
+          hurt(s, enemy.id, target, enemy.atk * (role === "melee" ? 1.8 : 1.45) * enemy.skillPower, "hero", true, { monsterSkill: true });
+        }
+        enemy.nextSkillAt = b.elapsed + enemy.skillEvery;
       } else {
         let target;
         if (b.heroes.length <= 3) target = random(s) < .75 ? alive[0] : alive[Math.floor(random(s) * alive.length)];
@@ -471,7 +563,7 @@
     if (b.heroes.every(h => h.hp <= 0) || b.tick >= 120) {
       if (b.activity) { settleActivity(s, false, b.tick >= 120 ? "timeout" : "defeat"); return; }
       b.phase = "defeat"; b.wait = 5; s.wave = 1; s.losses++; delete b.osiaCast; delete b.cinematic;
-      event(s, "defeat"); log(s, "잠시 쉬어 갑니다. 용병을 훈련하거나 편성을 바꿔보세요.");
+      event(s, "defeat", { boss: b.boss, stage: b.stage, reason: b.tick >= 120 ? "timeout" : "defeat", report: damageReport(s) }); log(s, "잠시 쉬어 갑니다. 용병을 훈련하거나 편성을 바꿔보세요.");
       if (s.losses >= 3 && s.best >= 1) { s.mode = "farm"; s.stage = s.best; s.losses = 0; log(s, "클리어한 지역에서 자동으로 성장합니다. 도전 버튼으로 다시 출발하세요."); }
     }
   }
@@ -554,8 +646,24 @@
     if (kind === "rename") {
       const name = normalizeCommanderName(input.name);
       fail(name !== null, "단장 이름은 문자·숫자·공백·_·-를 사용해 2~12자로 입력하세요.");
-      s.commanderName = name;
-      return { kind, name };
+      const info = commanderNameInfo(s);
+      fail(name !== s.commanderName, "이미 사용 중인 이름입니다.");
+      fail(s.gems >= info.cost, "이름 변경에는 보석 3,000개가 필요합니다.");
+      s.gems -= info.cost; s.commanderName = name; s.nameChanges = info.changes + 1;
+      return { kind, name, cost: info.cost };
+    }
+    if (kind === "winter-exchange") {
+      const info = winterInfo(s, now);
+      fail(info.active, "겨울 이벤트 기간이 아닙니다.");
+      fail(typeof input.item === "string" && Object.hasOwn(WINTER_EVENT.shop, input.item), "교환할 보상을 선택하세요.");
+      const item = info.items.find(item => item.id === input.item);
+      fail(item.remaining > 0, "이 보상은 모두 교환했어요.");
+      fail(info.snowflakes >= item.cost, "눈송이가 부족합니다.");
+      const w = s.winter ||= newWinter();
+      w.snowflakes -= item.cost; w.exchanges[item.id]++;
+      s.gold += item.gold; s.gems += item.gems;
+      event(s, "winter-exchange", { item: item.id, cost: item.cost, gold: item.gold, gems: item.gems });
+      return { kind, item: item.id, cost: item.cost, gold: item.gold, gems: item.gems, remaining: item.remaining - 1 };
     }
     if (kind === "activity") {
       fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
@@ -601,7 +709,7 @@
       fail(/^[A-Z0-9_]{1,40}$/.test(code) && Object.hasOwn(COUPONS, code), "사용할 수 없는 코드입니다.");
       const coupon = COUPONS[code], redeemed = s.redeemedCodes || [];
       fail(!redeemed.includes(code), "이미 사용한 코드입니다.");
-      fail(Number.isFinite(now) && now >= 0 && now < coupon.expiresAt, "사용 기간이 지난 코드입니다.");
+      fail(Number.isFinite(now) && now >= 0 && (coupon.expiresAt === null || now < coupon.expiresAt), "사용 기간이 지난 코드입니다.");
       // Client-supplied rewards and timestamps never participate in redemption.
       s.redeemedCodes = [...redeemed, code]; s.gold += coupon.gold; s.gems += coupon.gems;
       log(s, `CODE ${code} · 보석 +${coupon.gems} · 골드 +${coupon.gold}`);
@@ -653,5 +761,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { HEROES, BY_ID, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

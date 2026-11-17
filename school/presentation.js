@@ -1,7 +1,7 @@
 /* Confirmed-result presentation only. This module never reads or writes rewards. */
 (function (root) {
   'use strict';
-  let config = {}, overrides = {}, audio, master, dialog, current, sequence = 0, scheduled = false;
+  let config = {}, overrides = {}, audio, master, dialog, current, sequence = 0, scheduled = false, impactNoise, lastImpact = -1;
   const queue = [], known = new Map(), voices = new Set(), springs = new WeakMap();
   const motionQuery = root.matchMedia?.('(prefers-reduced-motion: reduce)');
   const soundEnabled = () => overrides.sound ?? Boolean(config.soundEnabled?.());
@@ -34,6 +34,8 @@
   function play(kind, stage = 4, owner) {
     if (!soundEnabled()) return;
     unlockAudio();
+    if (kind === 'hit' || kind === 'critical') { impactSound(kind === 'critical', owner); return; }
+    if (kind === 'defeat') { [220, 196, 146.83].forEach((hz, i) => tone(hz, i * .15, .32, .034, 'triangle', owner)); return; }
     if (kind === 'tap') { tone(520, 0, .055, .025, 'sine', owner); tone(780, .025, .055, .012, 'triangle', owner); return; }
     if (kind === 'captain') {
       [392, 523.25, 659.25, 783.99, 1046.5].forEach((hz, i) => tone(hz, i * .105, .23, .045, 'triangle', owner));
@@ -52,6 +54,28 @@
     const frequencies = kind === 'water' ? [[392], [440, 587], [523, 659, 784], [196, 392, 587, 784, 1175]][Math.max(0, Math.min(3, stage - 1))] : kind === 'level' ? [392, 523, 659] : kind === 'reward' ? [523, 659, 784] : [440, 659];
     frequencies.forEach((hz, i) => tone(hz, i * .085, .2, .035, 'triangle', owner));
   }
+  function impactSound(critical, owner) {
+    if (!audio || audio.state !== 'running' || voices.size > 28) return;
+    const now = audio.currentTime;
+    if (now - lastImpact < (critical ? .055 : .09)) return;
+    lastImpact = now;
+    tone(critical ? 76 : 115, 0, critical ? .14 : .075, critical ? .075 : .04, 'triangle', owner);
+    if (critical) tone(380, .018, .065, .024, 'square', owner);
+    try {
+      if (!impactNoise) {
+        impactNoise = audio.createBuffer(1, Math.ceil(audio.sampleRate * .1), audio.sampleRate);
+        const data = impactNoise.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      }
+      const source = audio.createBufferSource(), gain = audio.createGain(), filter = audio.createBiquadFilter();
+      source.buffer = impactNoise; filter.type = 'lowpass'; filter.frequency.value = critical ? 3400 : 1900;
+      gain.gain.setValueAtTime(critical ? .075 : .035, now); gain.gain.exponentialRampToValueAtTime(.0001, now + (critical ? .1 : .055));
+      source.connect(filter); filter.connect(gain); gain.connect(master);
+      const cleanup = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); voices.delete(voice); };
+      const voice = {owner, stop() { try { source.stop(); } catch {} cleanup(); }};
+      source.onended = cleanup; voices.add(voice); source.start(now); source.stop(now + .11);
+    } catch {}
+  }
   function stopVoices(owner) { for (const voice of [...voices]) if (owner === undefined || voice.owner === owner) voice.stop(); }
   function ensureDialog() {
     if (dialog) return dialog;
@@ -65,6 +89,7 @@
   function finish(job, result = {}) {
     if (job.finished) return;
     job.finished = true;
+    if (job.portraitFrame) cancelAnimationFrame(job.portraitFrame);
     for (const animation of [...job.animations]) animation.cancel();
     job.animations.clear();
     for (const timer of [...job.timers]) { clearTimeout(timer.id); timer.resolve(false); }
@@ -108,12 +133,24 @@
     try { await animation.finished; } catch {}
     return alive(job);
   }
-  function portraitCard(id, stars = 0, extra = '') {
+  function portraitCard(id, stars = 0, extra = '', job) {
     const hero = info(id), card = node('div', `presentation-hero-card ${extra}`);
     card.dataset.hero = id; card.dataset.rarity = hero.rarity;
     card.append(node('span', 'presentation-rarity', hero.rarity));
     const art = node('div', 'presentation-portrait');
-    if (config.portrait) art.innerHTML = config.portrait(id);
+    if (job && root.SchoolArt?.recruitPortrait) {
+      const canvas = node('canvas', 'recruit-live-portrait'); canvas.width = 248; canvas.height = 344; canvas.dataset.hero = id;
+      const context = canvas.getContext('2d'); art.append(canvas);
+      let nextDraw = 0;
+      const draw = time => {
+        if (!alive(job) || !canvas.isConnected) return;
+        if (!document.hidden && time >= nextDraw) { root.SchoolArt.recruitPortrait(context, id, time / 1000, reduced()); nextDraw = time + 1000 / 24; }
+        if (!reduced()) job.portraitFrame = requestAnimationFrame(draw);
+      };
+      root.SchoolArt.recruitPortrait(context, id, 0, reduced());
+      if (!reduced()) job.portraitFrame = requestAnimationFrame(draw);
+    } else if (root.SchoolArt?.frontPortrait) { const image = node('img', ''); image.src = root.SchoolArt.frontPortrait(id); image.alt = ''; art.append(image); }
+    else if (config.portrait) art.innerHTML = config.portrait(id);
     else art.append(node('span', 'presentation-fallback', '✦'));
     card.append(art, node('strong', 'presentation-hero-name', hero.name));
     const starRow = node('div', 'presentation-stars');
@@ -129,7 +166,7 @@
     const h = node('h2', '', title); h.id = 'presentation-title'; head.append(h);
     const p = node('p', '', description); p.id = 'presentation-description'; head.append(p);
     const scene = node('div', 'presentation-scene'); scene.setAttribute('aria-hidden', 'true');
-    const foot = node('div', 'presentation-footer'), saved = node('small', '', '결과는 이미 저장되었어요');
+    const foot = node('div', 'presentation-footer'), saved = node('small', '', job.kind === 'defeat' ? '육성과 편성으로 다시 도전해 보세요' : '결과는 이미 저장되었어요');
     const skipButton = node('button', 'presentation-skip', '연출 건너뛰기'); skipButton.dataset.presentationSkip = ''; skipButton.type = 'button';
     foot.append(saved, skipButton); panel.append(head, scene, foot); d.append(rays, panel); d.showModal();
     skipButton.focus({ preventScroll: true }); return { dialog: d, scene, rays, title: h, description: p };
@@ -179,7 +216,7 @@
     const hero = info(lead.id), grade = ['SSR', 'SR'].includes(hero.rarity) ? hero.rarity : 'R';
     const ui = shell(job, grade === 'SSR' ? '눈부신 운명의 만남' : grade === 'SR' ? '특별한 동료의 등장' : '새로운 만남', `${grade} · ${hero.name}`, grade);
     const gate = node('div', 'presentation-gate'); gate.append(node('span', 'gate-seal', grade === 'SSR' ? '✦' : grade === 'SR' ? '◇' : '✧'));
-    const heroCard = portraitCard(lead.id, 0, 'recruit-featured'); heroCard.hidden = true;
+    const heroCard = portraitCard(lead.id, 0, 'recruit-featured', job); heroCard.hidden = true;
     const gradeBadge = node('div', 'presentation-grade', grade); gradeBadge.hidden = true; ui.scene.append(gate, heroCard, gradeBadge);
     play('pull', 4, job.id);
     const intro = grade === 'SSR' ? 720 : grade === 'SR' ? 480 : 220;
@@ -190,11 +227,21 @@
     if (grade !== 'R') particles(job, ui.scene, grade === 'SSR' ? '#ffdf83' : '#c8afff', grade === 'SSR' ? 28 : 18);
     await Promise.all([move(job, heroCard, [{ opacity: 0, transform: 'translate(-50%,-50%) perspective(600px) rotateY(-90deg) scale(.4)' }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(600px) rotateY(8deg) scale(1.1)', offset: .65 }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(600px) rotateY(0deg) scale(1)' }], grade === 'SSR' ? 620 : 440), move(job, gradeBadge, [{ opacity: 0, transform: 'translate(-50%,0) scale(2.2)' }, { opacity: 1, transform: 'translate(-50%,0) scale(1)' }], 480)]);
     if (!alive(job)) return;
-    await delay(job, grade === 'SSR' ? 820 : grade === 'SR' ? 600 : 240);
+    await delay(job, grade === 'SSR' ? 1300 : grade === 'SR' ? 850 : 320);
+  }
+  async function defeatSequence(job) {
+    const ui = shell(job, '패배', String(job.data.description || '이번 전투는 여기까지'), 'defeat');
+    ui.dialog.querySelector('.presentation-kicker').textContent = 'BATTLE ENDED';
+    const crest = node('div', 'defeat-crest'); crest.setAttribute('aria-hidden', 'true');
+    crest.innerHTML = '<svg viewBox="0 0 64 64"><path fill="currentColor" d="M12 4h12v8h8v8h8v8h8v8h8v12H44v-8h-8v-8h-8v-8h-8v-8h-8zM40 4h12v12h-8v8h-8v-8h4zM20 36h8v8h-8v8H8V40h12zM4 52h12v8H4zM48 52h12v8H48z"/></svg>';
+    ui.scene.append(crest); play('defeat', 0, job.id);
+    await move(job, crest, [{opacity:0,transform:'translate(-50%,-50%) scale(1.45)'},{opacity:1,transform:'translate(-50%,-50%) scale(.95)',offset:.65},{opacity:1,transform:'translate(-50%,-50%) scale(1)'}], 400);
+    if (!alive(job)) return;
+    ui.dialog.dataset.phase = 'revealed'; await delay(job, 1200);
   }
   async function start(job) {
     current = job;
-    try { if (job.kind === 'captain') await captainSequence(job); else if (job.kind === 'awaken') await awakenSequence(job); else await recruitSequence(job); }
+    try { if (job.kind === 'captain') await captainSequence(job); else if (job.kind === 'awaken') await awakenSequence(job); else if (job.kind === 'defeat') await defeatSequence(job); else await recruitSequence(job); }
     catch (error) { console.warn('Presentation could not play:', error.message); }
     finally { if (alive(job)) finish(job, { skipped: false, cancelled: false }); }
   }
@@ -234,6 +281,7 @@
   document.addEventListener('keydown', event => { if (!event.repeat && ['Enter', ' '].includes(event.key)) press(event.target); });
   document.addEventListener('keyup', event => { if (['Enter', ' '].includes(event.key)) release(); });
   root.addEventListener('blur', () => release(false));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoices(); });
   motionQuery?.addEventListener?.('change', refreshPreferences);
-  root.SchoolPresentation = Object.freeze({ configure(options = {}) { config = { ...config, ...options }; refreshPreferences(); }, setPreferences, refreshPreferences, play, captain: data => request('captain', data), awaken: data => request('awaken', data), recruit: data => request('recruit', data), skip, cancel, get busy() { return Boolean(current || queue.length); } });
+  root.SchoolPresentation = Object.freeze({ configure(options = {}) { config = { ...config, ...options }; refreshPreferences(); }, setPreferences, refreshPreferences, play, captain: data => request('captain', data), awaken: data => request('awaken', data), recruit: data => request('recruit', data), defeat: data => request('defeat', data), skip, cancel, get busy() { return Boolean(current || queue.length); } });
 })(globalThis);

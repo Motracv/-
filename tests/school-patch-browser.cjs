@@ -54,7 +54,7 @@ async function runArtCacheChecks(p){
 }
 async function runInstallChecks({page,saved,t,login,origin}){
  const p=await page('patch-install',844,390,1,{serviceWorkers:'allow',persistent:true}),manifest=await p.evaluate(async()=>{const link=document.querySelector('link[rel=manifest]');if(!link)throw Error('Missing install manifest');return await (await fetch(link.href)).json();});
- assert.equal(manifest.name,'학교용병단');assert.equal(manifest.display,'standalone');assert.equal(manifest.orientation,'landscape');assert.equal(manifest.scope,'./school.html');assert.ok(manifest.start_url.includes('school.html'));
+ assert.equal(manifest.name,'학교용병단');assert.equal(manifest.display,'fullscreen');assert.equal(manifest.orientation,'landscape');assert.equal(manifest.scope,'./school.html');assert.ok(manifest.start_url.includes('school.html'));
  for(const icon of manifest.icons){const size=Number(icon.sizes.split('x')[0]);const actual=await p.evaluate(async src=>{const img=new Image();img.src=src;await img.decode();return[img.naturalWidth,img.naturalHeight];},icon.src);assert.deepEqual(actual,[size,size]);}
  await p.waitForFunction(async()=>Boolean((await navigator.serviceWorker.getRegistration())?.active),{},{timeout:20000});await p.reload();await p.waitForFunction(()=>Boolean(navigator.serviceWorker.controller)&&document.getElementById('boot-screen').hidden);
  const installability=await (await p.context().newCDPSession(p)).send('Page.getInstallabilityErrors');assert.deepEqual(installability.installabilityErrors,[],'Chromium installability checks must accept the file-scoped app');

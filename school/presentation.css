@@ -19,7 +19,7 @@
   box-shadow: 0 0 0 4px #fff5, 0 0 70px color-mix(in srgb, var(--present-glow) 32%, transparent), 0 24px 100px #18281d66;
   isolation: isolate;
 }
-.school-presentation::backdrop { background: #13271fe0; backdrop-filter: blur(6px); }
+.school-presentation::backdrop { background: #11151de8; }
 .school-presentation[data-grade="SR"] { --present-accent: #9070ce; --present-glow: #b69bea; --present-line: #b9a0da; }
 .school-presentation[data-grade="SSR"] { --present-accent: #bc7b1b; --present-glow: #ffd66f; --present-line: #d8a542; box-shadow: 0 0 0 4px #ffe7a644, 0 0 100px #ffca5759, 0 24px 100px #18281d88; }
 .school-presentation[data-grade="R"] { --present-accent: #508b75; --present-glow: #91c6ac; --present-line: #94b79b; }
@@ -120,3 +120,31 @@ html[data-motion="reduced"] button.school-press-active { scale: 1; filter: brigh
 @media (prefers-reduced-motion: reduce) { html:not([data-motion=full]) .school-presentation .presentation-rays { animation: none; } html:not([data-motion=full]) button.school-press-active { scale: 1; transition: none; filter: brightness(.9); } }
 .school-presentation[data-motion="reduced"] .presentation-rays { animation: none; }
 button.school-press-active.school-press-reduced, [role="button"].school-press-active.school-press-reduced { scale: 1; transition: none; filter: brightness(.9); }
+
+/* Front-facing animated portraits are drawn only while this short reveal is open. */
+.school-presentation[data-kind=recruit] .recruit-featured{width:180px;height:248px;border-radius:9px;background:radial-gradient(ellipse at 50% 24%,color-mix(in srgb,var(--present-glow) 23%,transparent),transparent 70%),var(--present-paper)}
+.recruit-featured .presentation-portrait{width:136px;height:172px}
+.recruit-featured .presentation-stars{display:none}
+.school-presentation[data-kind=recruit] .presentation-grade{left:calc(50% + 145px);top:45%;bottom:auto;font-size:30px;padding:2px 10px}
+.recruit-featured .presentation-hero-name{font:800 18px/1.35 var(--body);letter-spacing:-.5px;z-index:1}
+.recruit-featured:before{content:'';position:absolute;inset:12px;border-top:1px solid var(--present-line);border-bottom:1px solid var(--present-line);opacity:.6;pointer-events:none}
+.school-presentation .presentation-heading h2{font-family:var(--body);font-weight:850;letter-spacing:-.8px}
+.school-presentation[data-grade=defeat],html[data-theme=dark] .school-presentation[data-grade=defeat]{--present-paper:#27232b;--present-ink:#ffe5e6;--present-muted:#c8a8b1;--present-line:#a26170;--present-accent:#f1a1a5;--present-glow:#ad4f60;box-shadow:0 15px 65px #0008}
+.school-presentation[data-kind=defeat]{width:min(92vw,450px)}
+.school-presentation[data-kind=defeat] .presentation-scene{height:150px}
+.school-presentation[data-kind=defeat] .presentation-heading h2{font-size:42px;letter-spacing:4px;text-shadow:0 3px #6b3449}
+.school-presentation[data-kind=defeat] .presentation-rays{display:none}
+.defeat-crest{position:absolute;left:50%;top:50%;width:100px;height:100px;color:#c97e89;transform:translate(-50%,-50%)}
+.defeat-crest svg{width:100%;height:100%;stroke:none;shape-rendering:crispEdges}
+@media(max-height:500px) and (orientation:landscape){
+ .school-presentation[data-kind=recruit] .recruit-featured{width:112px;height:161px;padding:8px;gap:4px}
+ .recruit-featured .presentation-portrait{width:88px;height:111px}.recruit-featured .presentation-hero-name{font-size:13px}.recruit-featured .presentation-rarity{top:5px;left:7px;font-size:10px}
+ .school-presentation[data-kind=recruit] .presentation-grade{left:calc(50% + 105px);font-size:26px}
+ .school-presentation[data-kind=defeat] .presentation-scene{height:76px}.defeat-crest{width:67px;height:67px}.school-presentation[data-kind=defeat] .presentation-heading h2{font-size:30px}
+}
+@media(max-height:310px) and (orientation:landscape){
+ .school-presentation[data-kind=recruit] .recruit-featured{width:88px;height:115px;padding:6px;gap:2px}.recruit-featured .presentation-portrait{width:63px;height:74px}.recruit-featured .presentation-hero-name{font-size:11px}
+ .school-presentation[data-kind=recruit] .presentation-grade{left:calc(50% + 88px);font-size:21px}
+ .school-presentation[data-kind=defeat] .presentation-scene{height:46px}.defeat-crest{width:44px;height:44px}
+}
+@media(max-width:480px) and (orientation:portrait){.school-presentation[data-kind=recruit] .presentation-grade{left:50%;top:auto;bottom:-28px;font-size:23px}.school-presentation[data-kind=recruit] .presentation-footer{margin-top:25px}}

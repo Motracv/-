@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-installfix1';
+const RELEASE = 'school-winter1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -8,7 +8,7 @@ const url = path => new URL(path, base).href;
 const shell = url('school.html');
 const required = [
   'school.html', 'school.webmanifest',
-  ...['engine.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css'].map(p => `school/${p}?v=${RELEASE}`),
+  ...['engine.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css'].map(p => `school/${p}?v=${RELEASE}`),
   'assets/fonts/Galmuri11.woff2', 'assets/fonts/PretendardVariable.woff2',
   'school/assets/osia-sprites.png?v=osia1', 'school/assets/lava.png?v=lava1',
   'school/assets/app-192.png', 'school/assets/app-512.png'
@@ -23,7 +23,7 @@ self.addEventListener('install', event => {
     const html = await (await cache.match(shell)).text();
     const engine = await (await cache.match(url(`school/engine.js?v=${RELEASE}`))).text();
     // A CDN rollout must not activate an old HTML with a new offline engine.
-    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*9\b/.test(engine)) {
+    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*10\b/.test(engine)) {
       await caches.delete(CACHE); throw Error('School release is not ready');
     }
   })());

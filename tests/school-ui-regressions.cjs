@@ -28,7 +28,7 @@ const freeze = (gold = 700) => {
 async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, setStateDelay, setActionBlock, failStateOnce, schoolActionLog }) {
   const p = await pageFor('save-regressions');
   assert.equal(await p.locator('.bottom-nav [data-tab="roster"]').count(), 0);
-  assert.equal(await p.locator('.bottom-nav > button').count(), 4);
+  assert.equal(await p.locator('.bottom-nav > button').count(), 7);
 
   // Wait for a real automatic reward, then reload immediately rather than
   // waiting for an arbitrary autosave interval.

@@ -1,6 +1,6 @@
 // Google credentials are verified here, never by trusting browser-decoded claims.
 // Only opaque, hashed application sessions and a Google subject hash are stored.
-const ACCOUNT_SESSION_MS = 7 * 86400000;
+const ACCOUNT_SESSION_MS = 30 * 86400000;
 const CHALLENGE_MS = 10 * 60000;
 const GOOGLE_KEYS = "https://www.googleapis.com/oauth2/v3/certs";
 const ACCOUNT_RULES = Object.freeze({ finishXp: 30, winBonus: 50, drawBonus: 10,
@@ -121,9 +121,15 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
   async function session(db, token, now) {
     if (!/^[a-f0-9]{64}$/.test(token || "")) throw accountError("다시 로그인하세요.", 401);
     const hash = await accountHash(token);
-    const row = await db.prepare("SELECT account_id FROM account_sessions WHERE hash = ? AND expires > ?").bind(hash, now).first();
+    const row = await db.prepare("SELECT account_id, expires FROM account_sessions WHERE hash = ? AND expires > ?").bind(hash, now).first();
     if (!row) throw accountError("로그인이 만료되었습니다. 다시 로그인하세요.", 401);
-    return { id: row.account_id, hash };
+    let expires = row.expires;
+    // Renew at most once per week; ordinary state polls remain read-only.
+    if (expires < now + 23 * 86400000) {
+      expires = now + ACCOUNT_SESSION_MS;
+      await db.prepare('UPDATE account_sessions SET expires = MAX(expires, ?) WHERE hash = ? AND expires > ?').bind(expires, hash, now).run();
+    }
+    return { id: row.account_id, hash, expires };
   }
   async function member(request, env, now) {
     const s = await identity(request, env, now);
@@ -166,7 +172,7 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
     }
     const token = request.headers.get("Authorization")?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
     const signed = await session(env.DB, token, now);
-    if (path === "/api/account/me") return { profile: await profile(env.DB, signed.id) };
+    if (path === "/api/account/me") return { profile: await profile(env.DB, signed.id), expires: signed.expires };
     if (path === "/api/account/logout") {
       await env.DB.prepare("DELETE FROM account_sessions WHERE hash = ?").bind(signed.hash).run();
       return { loggedOut: true };

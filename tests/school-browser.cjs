@@ -29,7 +29,7 @@ const {runFrameCadence}=require('./school-frame-cadence.cjs');
        if(url.pathname==='/api/school/action'){actionRequests++;if(dropNext){dropNext=false;res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'검증용: 저장 후 응답이 끊겼습니다.'}));return;}}
        res.writeHead(r.status,Object.fromEntries(r.headers));res.end(Buffer.from(await r.arrayBuffer()));return;
      }
-     const file=url.pathname.slice(1);if(!/^(school\.html|privacy\.html|index\.html|game\.html|school\.webmanifest|school-sw\.js|school\/(engine\.js|art\.js|client\.js|presentation\.js|presentation\.css|style\.css|install\.js|install\.css|assets\/(osia-sprites|lava|dungeon-daily|dungeon-weekly|dungeon-tower|app-192|app-512)\.png)|assets\/fonts\/(Galmuri11|PretendardVariable)\.woff2)$/.test(file)){res.writeHead(404);res.end();return;}
+     const file=url.pathname.slice(1);if(!/^(school\.html|privacy\.html|index\.html|game\.html|school\.webmanifest|school-sw\.js|school\/(engine\.js|art\.js|client\.js|social\.js|social\.css|presentation\.js|presentation\.css|style\.css|install\.js|install\.css|assets\/(osia-sprites|lava|dungeon-daily|dungeon-weekly|dungeon-tower|app-192|app-512)\.png)|assets\/fonts\/(Galmuri11|PretendardVariable)\.woff2)$/.test(file)){res.writeHead(404);res.end();return;}
      let body=fs.readFileSync(path.join(__dirname,'..',file));if(file==='school/client.js')body=Buffer.from(body.toString().replace('https://motracv-card-room.densedormouse4.chatgpt.site',origin));
      const types={'.js':'text/javascript','.html':'text/html','.css':'text/css','.woff2':'font/woff2','.png':'image/png','.webmanifest':'application/manifest+json'};res.writeHead(200,{'Content-Type':types[path.extname(file)]});res.end(body);
    }catch(e){res.writeHead(500);res.end(e.message);}
@@ -62,10 +62,12 @@ const {runFrameCadence}=require('./school-frame-cadence.cjs');
    if(process.env.SCHOOL_COUPON_ONLY==='1'){await runCouponRegressions({pageFor,saved,tab,t,login,dropNextAction:()=>{dropNext=true;}});assert.deepEqual(errors,[]);return;}
    if(process.env.SCHOOL_DISPLAY_ONLY==='1'){await runDisplayRegressions({pageFor,tab});assert.deepEqual(errors,[]);return;}
    if(process.env.SCHOOL_LEGACY_ONLY!=='1'){
+   if(process.env.SCHOOL_AFTER_DUNGEON_ONLY!=='1'){
    await runFrameCadence({pageFor});
    if(process.env.SCHOOL_REMAINING_ONLY!=='1')await runPatchRegressions({pageFor,saved,tab,t,login,origin});
    if(process.env.SCHOOL_REMAINING_ONLY!=='1')await runPolishRegressions({pageFor,saved,tab,t,login,origin,setStateDelay:ms=>{stateDelay=ms;}});
    await runDungeonRegressions({pageFor,saved,tab,t,login,dropNextAction:()=>{dropNext=true;}});
+   }
    await runExpansionRegressions({pageFor,saved,tab,t,login});
    await runCouponRegressions({pageFor,saved,tab,t,login,dropNextAction:()=>{dropNext=true;}});
    await runSchoolRegressions({pageFor,saved,origin,errors,t,login,setStateDelay:ms=>{stateDelay=ms;},setActionBlock:value=>{blockedActionToken=value;},failStateOnce:()=>{failNextState=true;},schoolActionLog});
@@ -79,7 +81,7 @@ const {runFrameCadence}=require('./school-frame-cadence.cjs');
      await p.click('#battle-stage');await p.waitForSelector('#next-stage');await p.click('#modal-close');
      for(const name of ['recruit','supplies']){await tab(p,name);const bottoms=await p.locator('.bottom-nav button').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().bottom));assert.ok(bottoms.every(bottom=>bottom<=height+1));}
    }
-   console.log('PASS eight mobile/landscape/desktop viewports: canvas, four-item navigation, map, recruitment and supplies');
+   console.log('PASS eight mobile/landscape/desktop viewports: canvas, seven-item navigation, map, recruitment and supplies');
    await runDisplayRegressions({pageFor,tab});
    await tab(p,'recruit');await p.click('#feature-osia-button');assert.match(await p.locator('#modal-content').innerText(),/Osia · 물고기 종족 · 물 속성/);await p.click('#modal-close');
    await tab(p,'recruit');await p.click('#rates-button');assert.match(await p.locator('#modal-content').innerText(),/오시아/);assert.match(await p.locator('#modal-content').innerText(),/50%/);await p.click('#modal-close');

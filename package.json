@@ -13,8 +13,9 @@
     "test:server": "node tests/server.cjs",
     "test:worker": "node tests/worker.cjs",
     "test:online": "node tests/deployed-online.cjs",
-    "test:school": "node tests/school.cjs && node tests/school-server.cjs",
-    "test:school-browser": "node tests/school-browser.cjs"
+    "test:school": "node tests/school.cjs && node tests/school-server.cjs && node tests/school-winter.cjs && node tests/school-social.cjs",
+    "test:school-browser": "node tests/school-browser.cjs",
+    "test:school-winter-browser": "node tests/school-winter-browser.cjs"
   },
   "engines": {
     "node": ">=20"

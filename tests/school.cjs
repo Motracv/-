@@ -53,8 +53,8 @@ test('Boundary rolls use the documented 1/26/73 probabilities and every hero is 
     const pool = G.HEROES.filter(h => h.rarity === rarity && h.id!=='lava');
     for (let j = 0; j < pool.length; j++) { const s = G.create(1000), values = [roll,rarity==='SSR'?[.25,.625,.875][j]:(j+.5)/pool.length]; const r = G.action(s,{kind:'recruit',count:1},1000,()=>values.shift()); assert.equal(G.BY_ID[r.results[0].id].rarity,rarity); obtained.add(r.results[0].id); }
   }
-  assert.equal(obtained.size,13); assert.ok(obtained.has('osia')); assert.ok(!obtained.has('lava'));
-  const s=G.create(UPDATE_TIME);const featured=G.action(s,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>.001);obtained.add(featured.results[0].id);assert.equal(obtained.size,14);
+  assert.equal(obtained.size,14); assert.ok(obtained.has('osia')); assert.ok(obtained.has('doyoon')); assert.ok(!obtained.has('lava'));
+  const s=G.create(UPDATE_TIME);const featured=G.action(s,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>.001);obtained.add(featured.results[0].id);assert.equal(obtained.size,15);
 });
 test('Duplicates award shards and awakening spends exact shards without consuming the hero', () => {
   const s = G.create(1000); s.gems = 1000; G.action(s,{kind:'recruit',count:1},1000,()=>.9); G.action(s,{kind:'recruit',count:1},1000,()=>.9); G.action(s,{kind:'recruit',count:1},1000,()=>.9);
@@ -100,7 +100,7 @@ test('Coupon validation preserves old progress and rejects malformed code record
   G.action(s,{kind:'redeem',code:'OSIA_DEBUT'},now);assert.equal(s.gold,6860);assert.equal(s.gems,1290);assert.equal(s.pity,59);assert.deepEqual(s.battle,battle);assert.deepEqual(s.units,units);
   for(const record of [null,'OSIA_DEBUT',{},[null],['osia_debut'],['OSIA_DEBUT','OSIA_DEBUT']]){const invalid=G.clone(s);invalid.redeemedCodes=record;assert.equal(G.validate(invalid),false);}
 });
-test('Each of fourteen heroes performs their automatic skill; damage and healing stay bounded',()=>{
+test('Each of fifteen heroes performs their automatic skill; damage and healing stay bounded',()=>{
   for(const hero of G.HEROES){
     const s=G.create(1000,21);s.units[hero.id]={level:1,xp:0,stars:0,shards:0};s.team=[hero.id,...['taeo','harin','sua'].filter(id=>id!==hero.id)].slice(0,3);
     G.action(s,{kind:'stage',stage:1,mode:'farm'});
@@ -336,9 +336,9 @@ test('Twenty-four hours of automatic combat cannot reach commander level 50 or u
     assert.ok(s.captain.level>=10&&s.captain.level<50,`commander reached ${s.captain.level}`);assert.ok(s.team.every(id=>s.units[id].level>1&&s.units[id].level<100));assert.equal(s.offline.seconds,0);assert.ok(G.validate(s));
   }
 });
-test('Commander names normalize Unicode and spaces, enforce a character limit, and never consume game resources',()=>{
-  const s=G.create(UPDATE_TIME),before=G.clone(s);for(const[raw,want]of [['  새  단장  ','새 단장'],['오시아','오시아'],['반장_24-별','반장_24-별'],['𠮷'.repeat(12),'𠮷'.repeat(12)]]){assert.equal(G.normalizeCommanderName(raw),want);G.action(s,{kind:'rename',name:raw},s.at);assert.equal(s.commanderName,want);assert.ok(G.validate(s));}
-  assert.equal(s.gold,before.gold);assert.equal(s.gems,before.gems);assert.deepEqual(s.units,before.units);assert.deepEqual(s.captain,before.captain);assert.deepEqual(s.battle,before.battle);
+test('Commander names normalize Unicode and spaces; first name is free, later names cost exactly 3000 gems',()=>{
+  const s=G.create(UPDATE_TIME);s.gems=10000;const before=G.clone(s);for(const[raw,want]of [['  새  단장  ','새 단장'],['오시아','오시아'],['반장_24-별','반장_24-별'],['𠮷'.repeat(12),'𠮷'.repeat(12)]]){assert.equal(G.normalizeCommanderName(raw),want);G.action(s,{kind:'rename',name:raw},s.at);assert.equal(s.commanderName,want);assert.ok(G.validate(s));}
+  assert.equal(s.gold,before.gold);assert.equal(s.gems,before.gems-9000);assert.equal(s.nameChanges,4);assert.deepEqual(s.units,before.units);assert.deepEqual(s.captain,before.captain);assert.deepEqual(s.battle,before.battle);
   for(const name of [null,12,{},'',' ','가','가'.repeat(13),'<script>','이름\n변경','이름\u0000','이름\u202E','이름😀']){const old=G.clone(s);assert.equal(G.normalizeCommanderName(name),null);assert.throws(()=>G.action(s,{kind:'rename',name},s.at));assert.deepEqual(s,old);}
 });
 test('Enemy variants cover all school regions while existing saved battles keep their appearance',()=>{

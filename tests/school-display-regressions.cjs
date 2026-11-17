@@ -39,7 +39,7 @@ async function runDisplayRegressions({pageFor,tab}){
     try{
       const initial=await inspectDisplay(page);assertDisplay(initial,width,height,dpr);
       await page.screenshot({path:`/tmp/school-display-${width}x${height}-dpr${dpr}.png`});
-      assert.equal(await page.locator('.bottom-nav button').count(),4);
+      assert.equal(await page.locator('.bottom-nav button').count(),7);
       await page.click('#party [data-hero="harin"]');
       assert.ok(await page.locator('#train-hero').isVisible());
       assert.ok(await page.locator('#change-hero').isVisible());
