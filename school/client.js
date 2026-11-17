@@ -39,6 +39,30 @@
   let social, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
   const graphics = {frames:0, lastFrame:0, lastDraw:0, failures:0, lastError:'', losses:0, recoveries:0, lost:false};
+  // A fixed ring keeps frame diagnostics cheap and excludes time in menus.
+  const frameTimings = new Float64Array(300 * 4);
+  let timingCount = 0, previousPaint = 0, previousAnimation = null;
+  function recordFrameTiming(at, cost, animation) {
+    const offset = (timingCount++ % 300) * 4;
+    frameTimings[offset] = at;
+    frameTimings[offset + 1] = previousPaint ? at - previousPaint : 0;
+    frameTimings[offset + 2] = cost;
+    frameTimings[offset + 3] = previousAnimation === null ? -1 : (animation - previousAnimation) * 1000;
+    previousPaint = at; previousAnimation = animation;
+  }
+  function frameTimingReport() {
+    const count = Math.min(300,timingCount), latest = count ? frameTimings[((timingCount-1)%300)*4] : 0;
+    const gaps = [], costs = []; let stalled = 0, jumps = 0;
+    for (let i=0;i<count;i++) {
+      const offset=i*4; if (latest-frameTimings[offset]>5000) continue;
+      const gap=frameTimings[offset+1], delta=frameTimings[offset+3];
+      if (gap>0) { gaps.push(gap); if (delta>=0 && delta<.01) stalled++; if (delta>gap*(state?.speed||1)+50) jumps++; }
+      costs.push(frameTimings[offset+2]);
+    }
+    const round=n=>Math.round(n*10)/10, sum=a=>a.reduce((n,v)=>n+v,0);
+    const p95=a=>a.length ? [...a].sort((a,b)=>a-b)[Math.min(a.length-1,Math.floor(a.length*.95))] : 0;
+    return {samples:costs.length,fps:round(gaps.length?1000*gaps.length/sum(gaps):0),frameGapP95:round(p95(gaps)),maxFrameGap:round(gaps.length?Math.max(...gaps):0),drawMean:round(costs.length?sum(costs)/costs.length:0),drawP95:round(p95(costs)),stalledAnimationFrames:stalled,animationJumps:jumps,motionReduced:reduced};
+  }
   function clearLogin() { token = null; verifiedToken = null; storage.remove(SESSION); storage.remove(SESSION, true); }
   function stopTraining() { if (trainingHold) { trainingHold.stopped = true; clearTimeout(trainingHold.timer); } trainingHold = null; }
   function beginTraining(event, id) {
@@ -132,6 +156,7 @@
       app:matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches, hidden:document.hidden,
       account:{mode,connected,busy,pending:!!pending}, battle:state ? {stage:state.stage,wave:state.wave,phase:state.battle.phase,elapsed:state.battle.elapsed,simTime:state.simTime,cutin:state.battle.cinematic?.remaining || 0} : null,
       graphics:{...graphics,lastFrame:age(graphics.lastFrame),lastDraw:age(graphics.lastDraw),modal:modalKind,covered:resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden},
+      timing:frameTimingReport(),
       support:{findLast:typeof Array.prototype.findLast==='function',abortTimeout:typeof window.AbortSignal?.timeout==='function',contextLost:typeof canvas?.getContext('2d')?.isContextLost==='function'}
     };
     openModal('문제 정보', `<p class="modal-copy">멈춤이 반복되면 아래 정보를 복사해서 알려주세요. 로그인 토큰과 계정 이름은 포함하지 않아요.</p><textarea id="diagnostic-report" class="diagnostic-report" readonly aria-label="게임 문제 정보">${esc(JSON.stringify(report,null,2))}</textarea><button class="primary" id="copy-diagnostics">문제 정보 복사</button>`, 'diagnostics');
@@ -693,7 +718,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-renderfix1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-smoothfix1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -1052,6 +1077,7 @@
     function resetDrawing() {
       try { Art.resetRenderCache?.(); } catch (error) { recordDrawingError(error); }
       canvasSizeDirty = true; nextDrawAt = 0; retryDrawAt = 0; previousRaf = 0;
+      previousPaint = 0; previousAnimation = null;
       if (ctx) ctx.imageSmoothingEnabled = false;
     }
     function trackCanvas(target) {
@@ -1105,6 +1131,7 @@
     function resumeDrawing() {
       if (document.hidden) return;
       canvasSizeDirty = true; nextDrawAt = 0; previousRaf = 0;
+      previousPaint = 0; previousAnimation = null;
       if (graphics.lost || ctx?.isContextLost?.()) repairBattle();
       cancelAnimationFrame(frameId); frameId = requestAnimationFrame(animate);
     }
@@ -1113,7 +1140,7 @@
     document.addEventListener('fullscreenchange', () => { canvasSizeDirty = true; });
     function animate(time) {
       frameId = requestAnimationFrame(animate); graphics.lastFrame = performance.now();
-      if (document.hidden || resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden) { nextDrawAt = 0; previousRaf = 0; sampleStarted = 0; sampleFrames = slowFrames = drawCost = drawSamples = 0; return; }
+      if (document.hidden || resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden) { nextDrawAt = 0; previousRaf = 0; previousPaint = 0; previousAnimation = null; sampleStarted = 0; sampleFrames = slowFrames = drawCost = drawSamples = 0; return; }
       if (graphics.lost || time < retryDrawAt) return;
       if (previousRaf && time - previousRaf < 300) { sampleFrames++; if (time - previousRaf > 25) slowFrames++; }
       previousRaf = time; sampleStarted ||= time;
@@ -1123,7 +1150,8 @@
         if (nextScale !== rasterScale) { rasterScale = nextScale; canvasSizeDirty = true; lastScaleChange = time; canvas.dataset.renderScale = rasterScale.toFixed(2); }
         sampleStarted = time; sampleFrames = slowFrames = drawCost = drawSamples = 0;
       }
-      const interval = reduced ? 120 : 1000 / 60;
+      // Reduced motion removes flashes and large movements, not smooth timing.
+      const interval = 1000 / 60;
       if (interval !== drawInterval) { drawInterval = interval; nextDrawAt = 0; }
       if (time + .25 < nextDrawAt) return;
       // Carry the cadence across 90/144Hz refreshes, but never replay missed frames.
@@ -1132,8 +1160,15 @@
         const began = performance.now();
         try {
           if (!ctx || ctx.isContextLost?.()) throw Error('전투 화면의 그래픽 연결이 끊겼어요.');
-          Art.draw(ctx, state, animationTime(), effects, reduced);
+          // The 250ms UI timer can run just before a 500ms combat step. Waiting
+          // for its next tick then pins animationTime at the step boundary for
+          // up to 250ms. Catch up only due steps before painting, without DOM
+          // work or network requests; confirmed balances stay clamped as usual.
+          if (mode === 'cloud' && hasCloudState && connected && serverNow()-state.at >= 500) { advanceCloudPreview(); consumeEvents(); }
+          const visualTime = animationTime();
+          Art.draw(ctx, state, visualTime, effects, reduced);
           graphics.frames++; graphics.lastDraw = performance.now(); failedDraws = 0; recoveryTried = false;
+          recordFrameTiming(graphics.lastDraw, graphics.lastDraw-began, visualTime);
           recoveryNotice(''); drawCost += performance.now()-began; drawSamples++;
         } catch (error) {
           recordDrawingError(error); failedDraws++;

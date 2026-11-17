@@ -1132,7 +1132,10 @@ window.SchoolArt = (() => {
       const p = positions[item.id], visual = actors.get(item.id) || {}, hit = !!visual.incoming && time - visual.incoming.time < .15, attacking = !!visual.outgoing && time - visual.outgoing.time < .25;
       const stunned = item.hp > 0 && (item.stunUntil || 0) > battle.elapsed;
       const bounce = reduced || item.hp <= 0 || stunned || battle.cinematic ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
-      const nudge = attacking && !reduced && !stunned && !battle.cinematic ? (item.side === "hero" ? 8 : -6) : 0;
+      const attackAge = visual.outgoing ? time - visual.outgoing.time : -1;
+      // Ease the same attack distance out and back instead of snapping eight
+      // pixels in one frame. Combat timing, attack poses and casts stay intact.
+      const nudge = attackAge >= 0 && attackAge < .43 && !reduced && !stunned && !battle.cinematic ? Math.sin(attackAge / .43 * Math.PI) * (item.side === "hero" ? 8 : -6) : 0;
       const combo = item.side === "hero" && visual.combo;
       const castAge = combo ? time - combo.time - (combo.cinematicDuration || 0) / 1000 : 0;
       const motion = combo && item.hp > 0 ? castingMotion(item.id, combo.stage, castAge, reduced || !!battle.cinematic) : null;

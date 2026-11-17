@@ -66,6 +66,31 @@ const SAVE = 'school-mercenaries-v8';
         }, SAVE);
         const before = await saved();
 
+        // Headless visibility is deliberately simulated. A suspended rAF must
+        // not make foreground frame statistics include time in the background.
+        await page.evaluate(() => {
+          window.runtimeHidden = true;
+          Object.defineProperty(document, 'hidden', { configurable: true, get: () => window.runtimeHidden });
+          document.dispatchEvent(new Event('visibilitychange'));
+        });
+        const backgroundDraws = await page.evaluate(() => runtimeQA.draws);
+        await page.waitForTimeout(1200);
+        assert.equal(await page.evaluate(() => runtimeQA.draws), backgroundDraws);
+        await page.evaluate(() => {
+          window.runtimeHidden = false;
+          document.dispatchEvent(new Event('visibilitychange'));
+          window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+          delete document.hidden;
+        });
+        await page.waitForFunction(draws => runtimeQA.draws >= draws + 5, backgroundDraws);
+        await page.click('#settings-button');
+        await page.click('#settings-diagnostics');
+        const resumedTiming = JSON.parse(await page.locator('#diagnostic-report').inputValue()).timing;
+        assert(resumedTiming.samples > 0 && resumedTiming.samples <= 300);
+        assert(Number.isFinite(resumedTiming.fps));
+        assert(resumedTiming.maxFrameGap < 1000, `Foreground diagnostics must exclude the 1200ms simulated background gap: ${resumedTiming.maxFrameGap}`);
+        await page.click('#modal-close');
+
         await page.click('#settings-button');
         const manualDraws = await page.evaluate(() => runtimeQA.draws);
         await page.click('#settings-recover');
@@ -165,8 +190,8 @@ const SAVE = 'school-mercenaries-v8';
         assert(await page.locator('#battle-recovery').evaluate(x => x.hidden));
         assert.deepEqual(await saved(), before, 'Exception handling and diagnostic UI preserve guest save');
         assert.deepEqual(errors, [], 'No uncaught browser errors');
-        results.push({ viewport, attempts: attempts.length, minimumRetryMs: Math.min(...attempts.slice(2).map((time, i) => time - attempts[i + 1])), cacheResetError: resetReport.graphics.lastError, graphics: report.graphics });
-        console.log(`PASS ${viewport.width}×${viewport.height}: stopped-loop restart, cache-reset/one-draw recovery, throttled persistent errors, usable menu, private diagnostics and clipboard fallback; guest save preserved`);
+        results.push({ viewport, resumedTiming, attempts: attempts.length, minimumRetryMs: Math.min(...attempts.slice(2).map((time, i) => time - attempts[i + 1])), cacheResetError: resetReport.graphics.lastError, graphics: report.graphics });
+        console.log(`PASS ${viewport.width}×${viewport.height}: background timing exclusion, stopped-loop restart, cache-reset/one-draw recovery, throttled persistent errors, usable menu, private diagnostics and clipboard fallback; guest save preserved`);
       } finally { await context.close(); }
     }
     fs.writeFileSync('/tmp/school-runtime-controls.json', JSON.stringify({ environment: 'Headless Chromium mobile viewport emulation; explicitly injected renderer failures, not physical phone testing', results }, null, 2));
