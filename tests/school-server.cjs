@@ -21,7 +21,7 @@ const G=require('../school/engine.js');
  });
  await test('Old browser catalogs are rejected before spending or exposing unfamiliar heroes',async()=>{
    const row=save(a);const old=await t.call('/api/school/action',action(row.revision,'outdated-browser-0001',{kind:'recruit',count:10}),null,{'X-Account-Session':a.token});assert.equal(old.status,426);assert.equal(save(a).payload,row.payload);assert.ok(!old.data.state);
-   for(const catalogVersion of [1,2])assert.equal((await call(a,'state',{catalogVersion})).status,426);assert.equal(save(a).payload,row.payload);
+   for(const catalogVersion of [1,2,3])assert.equal((await call(a,'state',{catalogVersion})).status,426);assert.equal(save(a).payload,row.payload);
  });
  await test('Simultaneous same-ID requests and lost-response retries charge once',async()=>{
    const current=await call(a,'state');const input=action(current.data.revision,'same-action-0000000002',{kind:'recruit',count:10});
@@ -85,6 +85,18 @@ const G=require('../school/engine.js');
      setMisses(79);crypto.getRandomValues=function(a){if(a instanceof Uint32Array&&a.length===1){a[0]=4294967294;return a;}return random.call(crypto,a);};
      current=await call(who,'state');r=await call(who,'action',action(current.data.revision,'hard-pity-server-001',{kind:'recruit',count:1}));assert.equal(r.status,200);assert.equal(r.data.result.results[0].ssrChance,1);assert.equal(r.data.result.results[0].pity,true);assert.equal(r.data.state.pity,0);
    }finally{crypto.getRandomValues=random;}
+ });
+ await test('Server persists a half-finished cast and exact stun across sessions; browser stun fields are ignored',async()=>{
+   const who=(await t.login('school-combo')).data;await call(who,'state');
+   const realNow=Date.now;let now=realNow();
+   const state=G.create(now-5500,26);state.units.osia={level:1,xp:0,stars:0,shards:0};G.action(state,{kind:'team',team:['taeo','osia','sua']});for(const e of state.battle.enemies){e.hp=e.max=10000;e.atk=1;}G.advance(state,now);
+   assert.equal(state.battle.osiaCast.next,2);t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);
+   try{
+     Date.now=()=>now;let r=await call(who,'state',{stunUntil:0,state:{battle:{osiaCast:null}}});assert.equal(r.status,200);assert.deepEqual(r.data.state.battle.osiaCast,state.battle.osiaCast);
+     now+=1000;r=await call(who,'state');assert.equal(r.status,200);assert.equal(r.data.state.battle.osiaCast,undefined);assert.ok(r.data.state.battle.enemies.every(e=>e.stunUntil===8000));
+     const again=(await t.login('school-combo')).data;now+=1000;r=await call(again,'state');assert.equal(r.data.state.battle.elapsed,7500);assert.ok(!r.data.state.events.some(e=>e.kind==='hit'&&e.side==='hero'&&e.at>now-1000));
+     now+=500;r=await call(again,'state');assert.equal(r.data.state.battle.elapsed,8000);assert.equal(r.data.state.events.filter(e=>e.kind==='hit'&&e.side==='hero'&&e.at===now).length,3);assert.ok(G.validate(JSON.parse(save(who).payload)));
+   }finally{Date.now=realNow;}
  });
  t.sqlite.close();console.log(`${passed} school server checks passed (SQLite + signed test Google credentials)`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

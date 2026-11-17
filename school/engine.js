@@ -4,7 +4,14 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 30, MAX_LEVEL = 60, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 3;
+  const MAX_STAGE = 30, MAX_LEVEL = 60, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 4;
+  const STEP_MS = 500;
+  const OSIA_COMBO = [
+    { stage: 1, delay: 0, name: "물탄", weight: 20 },
+    { stage: 2, delay: 500, name: "소용돌이", weight: 40 },
+    { stage: 3, delay: 1000, name: "물기둥", weight: 60 },
+    { stage: 4, delay: 1500, name: "거대 수룡", weight: 100, stunMs: 1500 },
+  ];
   const RECRUIT_RATES = { SSR: .04, SR: .26, R: .70 };
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
   function recruitRates(misses) {
@@ -27,7 +34,7 @@
     { id: "geonu", name: "건우", club: "럭비부", role: "수호", rarity: "SR", hp: 192, atk: 11, skill: "철벽 스크럼", cooldown: 4, color: "#7e9a74", hair: "#776348", outfit: "#68774c", weapon: "shield", desc: "최대 체력 25%의 보호막. 받는 피해 28% 감소." },
     { id: "ian", name: "이안", club: "풍기위원", role: "전사", rarity: "SSR", hp: 155, atk: 19, skill: "황혼의 발도", cooldown: 4, color: "#dfb354", hair: "#d8d1b7", outfit: "#344a51", weapon: "sword", desc: "한 명에게 공격력 300%의 발도. 높은 체력과 공격력." },
     { id: "lumi", name: "루미", club: "오컬트부", role: "마법", rarity: "SSR", hp: 128, atk: 21, skill: "달빛 소환", cooldown: 4, color: "#c89ed4", hair: "#b9b2db", outfit: "#5c527d", weapon: "staff", desc: "적 전체에게 공격력 170%의 달빛. 빠른 광역 공격." },
-    { id: "osia", name: "오시아", latin: "Osia", club: "물의 용왕", species: "물고기", element: "water", role: "마법", rarity: "SSR", hp: 136, atk: 20, skill: "용왕의 해일", skillMultiplier: 2.2, cooldown: 5, color: "#59bdd7", hair: "#6587bb", outfit: "#f6f3eb", weapon: "water", desc: "물의 용을 불러 적 전체에게 공격력 220%의 물 피해." },
+    { id: "osia", name: "오시아", latin: "Osia", club: "물의 용왕", species: "물고기", element: "water", role: "마법", rarity: "SSR", hp: 136, atk: 20, skill: "용왕의 해일", skillMultiplier: 2.2, cooldown: 5, passive: "용왕의 권능", passiveDesc: "스킬 한 번에 물탄 → 소용돌이 → 물기둥 → 거대 수룡이 이어집니다. 마지막 수룡에 맞은 적은 1.5초 기절합니다.", color: "#59bdd7", hair: "#6587bb", outfit: "#f6f3eb", weapon: "water", desc: "적 전체에게 점점 강해지는 4연타 · 총 공격력 220%의 물 피해. 마지막 수룡은 1.5초 기절." },
   ];
   const BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
   const CHAPTERS = ["오래된 교실", "방과 후 복도", "비밀의 도서관", "뒤뜰의 정원", "체육관 결계", "별이 내리는 옥상"];
@@ -58,7 +65,7 @@
   function stageName(stage) { return `${Math.floor((stage - 1) / 5) + 1}-${(stage - 1) % 5 + 1}`; }
   function chapter(stage) { return clamp(Math.floor((stage - 1) / 5), 0, 5); }
   function event(s, kind, data = {}) {
-    const e = { seq: ++s.seq, kind, ...data };
+    const e = { seq: ++s.seq, kind, at: s.at, battleId: s.battle?.id, ...data };
     s.events.push(e); if (s.events.length > 50) s.events.splice(0, s.events.length - 50);
     return e;
   }
@@ -82,7 +89,7 @@
   function rates(s) { return { gold: 20 + s.best * 7, xp: 8 + s.best * 2 }; }
   function spawn(s) {
     const boss = s.wave === 4, scale = Math.pow(1.18, s.stage - 1), zone = chapter(s.stage);
-    s.battle = { stage: s.stage, wave: s.wave, boss, phase: "fight", wait: 0, tick: 0, buff: 0,
+    s.battle = { id: s.seq + 1, stage: s.stage, wave: s.wave, boss, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0,
       heroes: s.team.map(id => { const st = stats(id, s.units[id]); return { id, hp: st.hp, max: st.hp, atk: st.atk, defense: st.defense, energy: 0, shield: 0 }; }),
       enemies: Array.from({ length: boss ? 1 : 3 }, (_, i) => ({ id: `e${i}`, kind: zone, name: boss ? BOSSES[zone] : ENEMIES[zone], hp: Math.round((boss ? 155 : 30) * scale), max: Math.round((boss ? 155 : 30) * scale), atk: Math.round((boss ? 10 : 3) * Math.pow(1.14, s.stage - 1)), boss })),
     };
@@ -108,7 +115,7 @@
       Array.isArray(s.events) && Array.isArray(s.logs) && Array.isArray(s.claimed) && Array.isArray(s.receipts) && Array.isArray(s.history) &&
       s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) && s.captain && Number.isInteger(s.captain.level));
   }
-  function hurt(s, from, target, raw, side, skill = false) {
+  function hurt(s, from, target, raw, side, skill = false, detail = {}) {
     let amount = Math.max(1, Math.round(raw));
     if (side === "hero") {
       amount = Math.max(1, Math.round(amount * (1 - target.defense)));
@@ -116,7 +123,7 @@
       if (shield) event(s, "shield", { to: target.id, amount: shield });
     }
     amount = Math.min(target.hp, amount); target.hp -= amount;
-    event(s, "hit", { from, to: target.id, side, amount, skill, ...(BY_ID[from]?.element ? { element: BY_ID[from].element } : {}) });
+    event(s, "hit", { from, to: target.id, side, amount, skill, ...(BY_ID[from]?.element ? { element: BY_ID[from].element } : {}), ...detail });
     if (target.hp <= 0 && side === "enemy") s.kills++;
   }
   function victory(s) {
@@ -131,18 +138,54 @@
       if (s.stage === MAX_STAGE && s.best === MAX_STAGE) s.mode = "farm";
       s.wave = 1;
     } else s.wave++;
-    b.phase = "victory"; b.wait = b.boss ? 4 : 2;
+    b.phase = "victory"; b.wait = b.boss ? 4 : 2; delete b.osiaCast;
+  }
+  function osiaStep(s) {
+    const b = s.battle, cast = b.osiaCast;
+    if (!cast) return;
+    if (!b.heroes.some(h => h.id === "osia" && h.hp > 0)) { delete b.osiaCast; return; }
+    const step = OSIA_COMBO[cast.next];
+    if (b.elapsed < cast.began + step.delay) return;
+    const targets = b.enemies.filter(e => e.hp > 0 && cast.targets.some(t => t.id === e.id));
+    event(s, "skill-stage", { from: "osia", castId: cast.id, stage: step.stage, name: step.name, element: "water", targets: targets.map(e => e.id) });
+    const before = OSIA_COMBO.slice(0, cast.next).reduce((sum, part) => sum + part.weight, 0);
+    for (const enemy of targets) {
+      const total = cast.targets.find(t => t.id === enemy.id).total;
+      // Split one damage roll across four hits, preserving the original 220% total.
+      const amount = Math.round(total * (before + step.weight) / 220) - Math.round(total * before / 220);
+      hurt(s, "osia", enemy, amount, "enemy", true, { castId: cast.id, stage: step.stage });
+      if (step.stunMs && enemy.hp > 0) {
+        enemy.stunUntil = Math.max(enemy.stunUntil || 0, b.elapsed + step.stunMs);
+        event(s, "stun", { from: "osia", to: enemy.id, duration: step.stunMs, until: enemy.stunUntil });
+      }
+    }
+    cast.next++;
+    if (cast.next === OSIA_COMBO.length) delete b.osiaCast;
   }
   function tick(s) {
     const b = s.battle;
-    if (b.phase !== "fight") { if (--b.wait <= 0) spawn(s); return; }
-    b.tick++;
+    // Old saves have no half-second clock. Keep their existing attack cadence.
+    b.elapsed ??= b.tick * 1000; b.id ??= s.seq;
+    if (b.phase !== "fight") { if ((b.wait -= STEP_MS / 1000) <= 0) spawn(s); return; }
+    b.elapsed += STEP_MS;
+    osiaStep(s);
+    if (b.enemies.every(e => e.hp <= 0)) { victory(s); return; }
+    if (b.elapsed % 1000) return;
+    b.tick = b.elapsed / 1000;
     if (b.buff > 0) b.buff--;
     for (const hero of b.heroes.filter(h => h.hp > 0)) {
       const enemies = b.enemies.filter(e => e.hp > 0); if (!enemies.length) break;
       const def = BY_ID[hero.id]; hero.energy++;
+      if (hero.id === "osia" && b.osiaCast) continue;
       const skill = hero.energy >= def.cooldown;
       if (skill) { hero.energy = 0; event(s, "skill", { from: hero.id, name: def.skill, role: def.role, ...(def.element ? { element: def.element } : {}) }); }
+      if (skill && hero.id === "osia") {
+        b.osiaCast = { id: s.seq, began: b.elapsed, next: 0, targets: enemies.map(e => {
+          const critical = random(s) < .12;
+          return { id: e.id, total: Math.round(hero.atk * def.skillMultiplier * (b.buff ? 1.3 : 1) * (.9 + random(s) * .2) * (critical ? 1.5 : 1)) };
+        }) };
+        osiaStep(s); continue;
+      }
       let target = enemies[0], multiplier = skill ? 3 : 1;
       if (skill && def.role === "치유") {
         for (const friend of b.heroes.filter(h => h.hp > 0)) {
@@ -163,12 +206,13 @@
     }
     if (b.enemies.every(e => e.hp <= 0)) { victory(s); return; }
     for (const enemy of b.enemies.filter(e => e.hp > 0)) {
+      if (b.elapsed < (enemy.stunUntil || 0)) continue;
       const alive = b.heroes.filter(h => h.hp > 0); if (!alive.length) break;
       const target = random(s) < .75 ? alive[0] : alive[Math.floor(random(s) * alive.length)];
       hurt(s, enemy.id, target, enemy.atk * (.85 + random(s) * .3), "hero");
     }
     if (b.heroes.every(h => h.hp <= 0) || b.tick >= 120) {
-      b.phase = "defeat"; b.wait = 5; s.wave = 1; s.losses++;
+      b.phase = "defeat"; b.wait = 5; s.wave = 1; s.losses++; delete b.osiaCast;
       event(s, "defeat"); log(s, "잠시 쉬어 갑니다. 용병을 훈련하거나 편성을 바꿔보세요.");
       if (s.losses >= 3 && s.best >= 1) { s.mode = "farm"; s.stage = s.best; s.losses = 0; log(s, "클리어한 지역에서 자동으로 성장합니다. 도전 버튼으로 다시 출발하세요."); }
     }
@@ -176,7 +220,8 @@
   function advance(s, now) {
     if (!Number.isFinite(now) || now <= s.at) return { seconds: 0, offline: false };
     const seconds = Math.floor((now - s.at) / 1000);
-    if (!seconds) return { seconds: 0, offline: false };
+    const steps = Math.floor((now - s.at) / STEP_MS);
+    if (!steps) return { seconds: 0, offline: false };
     if (seconds > 90) {
       const add = Math.min(seconds, Math.max(0, OFFLINE_CAP - s.offline.seconds)), rate = rates(s);
       s.offline.seconds += add; s.offline.gold += Math.floor(rate.gold * add / 60); s.offline.xp += Math.floor(rate.xp * add / 60);
@@ -184,9 +229,8 @@
       if (add) event(s, "offline", { seconds: add });
       return { seconds: add, offline: true };
     }
-    for (let i = 0; i < seconds; i++) tick(s);
-    s.at += seconds * 1000;
-    return { seconds, offline: false };
+    for (let i = 0; i < steps; i++) { s.at += STEP_MS; tick(s); }
+    return { seconds: steps * STEP_MS / 1000, offline: false };
   }
   function questValue(s, quest) { return quest.metric === "collection" ? Object.keys(s.units).length : quest.metric === "captain" ? s.captain.level : s[quest.metric]; }
   function recruit(s, count, rng) {
@@ -253,5 +297,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, OFFLINE_CAP, CATALOG_VERSION, RECRUIT_RATES, RECRUIT_PITY, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, clone, view };
+  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, OFFLINE_CAP, CATALOG_VERSION, OSIA_COMBO, RECRUIT_RATES, RECRUIT_PITY, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, clone, view };
 });

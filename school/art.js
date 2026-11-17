@@ -16,7 +16,7 @@ window.SchoolArt = (() => {
     if (frame.hit) c.filter = "brightness(1.8)";
     rect(c, "#26333b35", -8, 1, 17, 2);
     if (osiaLoaded) {
-      const tile = osiaImage.naturalWidth / 3, pose = frame.attack || frame.casting ? 2 : frame.ready ? 1 : 0;
+      const tile = osiaImage.naturalWidth / 3, pose = frame.pose ?? (frame.attack || frame.casting ? 2 : frame.ready ? 1 : 0);
       // The atlas is three equal right-facing cells, with identical foot anchors.
       c.drawImage(osiaImage, pose * tile, 0, tile, osiaImage.naturalHeight, -21, -40, 44, 44);
     } else {
@@ -146,19 +146,45 @@ window.SchoolArt = (() => {
     for (const e of effects) {
       if (e.from !== "osia") continue;
       const age = time - e.time, source = positions.osia; if (!source || age < 0) continue;
-      if (e.kind === "skill" && age < 1.5) {
-        c.save(); c.globalAlpha = Math.min(1, (1.5 - age) * 2.5);
-        if (reduced) {
-          // Readable water-color impact without travel, shaking or flashing.
-          for (const [id,p] of Object.entries(positions)) if (id.startsWith("e")) { rect(c,"#66d8ed99",p.x-22,p.y-18,44,8); rect(c,"#c4faff",p.x-15,p.y-21,30,3); }
+      if (e.kind === "skill-stage" && age < (e.stage === 4 ? 1.15 : .5)) {
+        const targets = e.targets.map(id => positions[id]).filter(Boolean), motion = reduced ? .22 : age;
+        c.save();
+        if (e.stage === 1) {
+          for (const p of targets) {
+            const progress = reduced ? 1 : Math.min(1, age / .18), x = source.x + 20 + (p.x - source.x - 20) * progress, y = source.y - 39 + (p.y - source.y) * progress;
+            rect(c,"#2087be",x-9,y-7,18,14); rect(c,"#66ddf2",x-6,y-5,13,10); rect(c,"#efffff",x-4,y-4,5,3);
+            rect(c,"#6edaf0",x-22,y-3,10,5); rect(c,"#baf6ff",x-32,y-1,7,2);
+          }
+        } else if (e.stage === 2) {
+          for (const p of targets) {
+            for (let ring = 0; ring < 3; ring++) {
+              c.strokeStyle = ["#1b7aa9", "#38bcd9", "#b9faff"][ring]; c.lineWidth = 4 - ring;
+              c.beginPath(); c.ellipse(p.x, p.y - 27 - ring * 9, 30 - ring * 5, 12, -motion * 4, 0, Math.PI * 2); c.stroke();
+            }
+            for (let i=0;i<8;i++) { const a=i*Math.PI/4+motion*13; rect(c,"#87ecf9",p.x+Math.cos(a)*33,p.y-37+Math.sin(a)*24,4,5); }
+          }
+        } else if (e.stage === 3) {
+          for (const p of targets) {
+            const height = reduced ? 95 : 76 + Math.sin(Math.min(1, age / .4) * Math.PI) * 32;
+            rect(c,"#197aaccc",p.x-21,p.y-height,42,height); rect(c,"#2cbbdfcc",p.x-15,p.y-height-8,30,height+8);
+            rect(c,"#a5f8ff",p.x-5,p.y-height-14,9,height+12); rect(c,"#efffff",p.x-2,p.y-height-14,3,height+10);
+            for(let i=0;i<6;i++){const spread=(i-2.5)*13;rect(c,"#75e3f4",p.x+spread,p.y-height+Math.abs(spread)*.5-motion*22,5,9);}
+            rect(c,"#c7ffff",p.x-27,p.y-2,54,4);
+          }
         } else {
-          const progress = Math.min(1, age / .65), x = source.x + 15 + (180 - source.x) * progress;
-          for (let i = 0; i < 17; i++) { const wx = source.x + 12 + i * 17, wy = 214 + Math.sin(i * .8 - age * 10) * 9; if (wx > 469) break; rect(c,"#229dcd99",wx,wy,19,8); rect(c,"#a4f3fa",wx+2,wy-3,12,3); }
-          c.drawImage(dragon, Math.round(x + age * 24), 35 + Math.round(Math.sin(age * 4) * 5), 218, 151);
-          for (let i = 0; i < 12; i++) { const dx = source.x + 45 + i * 23 + age * 30, dy = 184 - Math.sin(age * 3 + i) * 25 - age * 20; if (dx < 476) { rect(c,"#77e2f2",dx,dy,4,7); rect(c,"#d5ffff",dx,dy,2,3); } }
-          rect(c,"#62cee9",source.x-17,source.y+3,35,3); rect(c,"#beffff",source.x-10,source.y,22,2);
+          c.globalAlpha = Math.min(1, (1.15 - age) * 3);
+          rect(c,"#154e7926",0,0,480,280);
+          for(let i=0;i<18;i++){const x=174+i*17,y=224+Math.sin(i*.75-motion*10)*11;rect(c,"#168ec8cc",x,y,20,23);rect(c,"#62dbf0",x,y-5,17,9);rect(c,"#d5ffff",x+2,y-7,11,3);}
+          // The final dragon fills the battlefield; its head reaches the enemy line at impact.
+          c.drawImage(dragon, Math.round(150 + (reduced ? 0 : Math.min(age, .5) * 24)), 25, 300, 208);
+          for(let i=0;i<18;i++){const x=195+i*15+motion*23,y=176-Math.sin(i+motion*6)*37; if(x<476){rect(c,"#5fd7ee",x,y,5,8);rect(c,"#dfffff",x,y,2,3);}}
         }
+        rect(c,"#52c7e4",source.x-18,source.y+3,37,3); rect(c,"#cbffff",source.x-11,source.y,23,2);
         c.restore();
+        c.save(); c.font = "11px Galmuri, monospace"; c.textAlign = "center";
+        const label = e.stage === 4 ? "용왕의 해일 · 거대 수룡!" : `용왕의 권능 · ${e.stage}타 ${e.name}`, width = c.measureText(label).width + 24;
+        rect(c,"#153c55ed",240-width/2,13,width,23); rect(c,"#8beaff",240-width/2,35,width,2);
+        c.fillStyle = "#d4fbff"; c.fillText(label,240,29); c.restore();
       }
       if (e.kind === "hit" && !e.skill && age < .5 && !reduced) {
         const target = positions[e.to]; if (!target) continue;
@@ -170,15 +196,18 @@ window.SchoolArt = (() => {
   function draw(c, state, time, effects = [], reduced = false) {
     c.imageSmoothingEnabled = false; c.clearRect(0, 0, 480, 280);
     const battle = state.battle; background(c, battle.stage, reduced ? 0 : time);
+    effects = effects.filter(e => (!e.battleId || e.battleId === battle.id) && time >= e.time);
     const positions = {};
     battle.heroes.forEach((h, i) => { positions[h.id] = [{ x: 173, y: 208 }, { x: 115, y: 181 }, { x: 68, y: 221 }][i]; });
     battle.enemies.forEach((e, i) => { positions[e.id] = battle.boss ? { x: 375, y: 210 } : [{ x: 325, y: 207 }, { x: 384, y: 180 }, { x: 425, y: 225 }][i]; });
     const items = battle.heroes.map(h => ({ ...h, side: "hero" })).concat(battle.enemies.map(e => ({ ...e, side: "enemy" }))).sort((a, b) => positions[a.id].y - positions[b.id].y);
     for (const item of items) {
       const p = positions[item.id], hit = effects.some(e => e.to === item.id && e.kind === "hit" && time - e.time < .15), attacking = effects.some(e => e.from === item.id && e.kind === "hit" && time - e.time < .25);
-      const bounce = reduced || item.hp <= 0 ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
-      const nudge = attacking && !reduced ? (item.side === "hero" ? 8 : -6) : 0;
-      if (item.side === "hero") hero(c, item.id, p.x + nudge, p.y + bounce, 1.8, { hit, dead: item.hp <= 0, attack: attacking, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: effects.some(e => e.kind === "skill" && e.from === item.id && time - e.time < .8), blink: Math.sin(time * .7 + p.x) > .99 });
+      const stunned = item.hp > 0 && (item.stunUntil || 0) > battle.elapsed;
+      const bounce = reduced || item.hp <= 0 || stunned ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
+      const nudge = attacking && !reduced && !stunned ? (item.side === "hero" ? 8 : -6) : 0;
+      const combo = item.id === "osia" && effects.findLast(e => e.kind === "skill-stage" && time - e.time < .5);
+      if (item.side === "hero") hero(c, item.id, p.x + nudge, p.y + bounce, 1.8, { hit, dead: item.hp <= 0, attack: attacking, pose: combo ? (combo.stage === 2 || combo.stage === 3 ? 1 : 2) : undefined, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: effects.some(e => e.kind === "skill" && e.from === item.id && time - e.time < .8), blink: Math.sin(time * .7 + p.x) > .99 });
       else monster(c, item, p.x + nudge, p.y + bounce, { hit });
       const w = item.boss ? 62 : 37, by = p.y + 9;
       rect(c, "#28362f", p.x - w / 2 - 1, by - 1, w + 2, 6); rect(c, "#4d5146", p.x - w / 2, by, w, 4);
@@ -196,14 +225,24 @@ window.SchoolArt = (() => {
         c.font = `${e.skill ? 14 : 11}px Galmuri, monospace`; c.textAlign = "center";
         c.fillStyle = "#26342e"; c.fillText(text, p.x + 1, y + 1); c.fillStyle = e.kind === "heal" ? "#dbffac" : e.kind === "shield" ? "#bbdded" : e.skill ? "#ffe5a1" : "#fff6dd"; c.fillText(text, p.x, y);
       }
-      if (e.kind === "skill") { c.font = "9px Galmuri, monospace"; c.textAlign = "center"; const width = c.measureText(e.name).width + 14; rect(c, "#2b3d37dc", p.x - width / 2, p.y - 89 - age * 9, width, 16); c.fillStyle = "#f6df9b"; c.fillText(e.name, p.x, p.y - 77 - age * 9); }
+      if (e.kind === "skill" && e.from !== "osia") { c.font = "9px Galmuri, monospace"; c.textAlign = "center"; const width = c.measureText(e.name).width + 14; rect(c, "#2b3d37dc", p.x - width / 2, p.y - 89 - age * 9, width, 16); c.fillStyle = "#f6df9b"; c.fillText(e.name, p.x, p.y - 77 - age * 9); }
       if (e.kind === "hit" && e.skill && age < .3) { c.strokeStyle = e.element === "water" ? "#bafaff" : "#fff3bb"; c.lineWidth = 3; c.beginPath(); c.moveTo(p.x - 18, p.y - 60); c.lineTo(p.x + 17, p.y - 19); c.stroke(); }
+      c.restore();
+    }
+    // Draw control status last so the large water effect cannot hide it.
+    if (battle.phase === "fight") for (const enemy of battle.enemies) {
+      const remaining = ((enemy.stunUntil || 0) - battle.elapsed) / 1000;
+      if (enemy.hp <= 0 || remaining <= 0) continue;
+      const p = positions[enemy.id], y = p.y - (enemy.boss ? 115 : 79);
+      c.save(); c.textAlign = "center"; c.font = "10px Galmuri, monospace";
+      rect(c,"#26324bea",p.x-32,y,64,17); c.fillStyle="#fff0a8"; c.fillText(`기절 ${remaining.toFixed(1)}초`,p.x,y+12);
+      for(let i=0;i<3;i++){const x=p.x+(i-1)*15,sy=y-9+(reduced?0:Math.sin(time*7+i*2)*2);rect(c,"#ffdd73",x-4,sy-1,9,3);rect(c,"#ffdd73",x-1,sy-4,3,9);rect(c,"#fff4bc",x-1,sy-1,3,3);}
       c.restore();
     }
     if (battle.phase !== "fight") {
       rect(c, "#243a3277", 0, 0, 480, 280); c.textAlign = "center"; c.font = "18px Galmuri, monospace"; c.fillStyle = "#fff1c8";
       c.fillText(battle.phase === "victory" ? (battle.boss ? "지역 클리어!" : "WAVE CLEAR") : "다시 준비하는 시간", 240, 112);
-      c.font = "10px Galmuri, monospace"; c.fillText(battle.phase === "victory" ? `다음 전투까지 ${battle.wait}초` : `${battle.wait}초 뒤 자동 재도전`, 240, 135); c.textAlign = "left";
+      c.font = "10px Galmuri, monospace"; c.fillText(battle.phase === "victory" ? `다음 전투까지 ${Math.ceil(battle.wait)}초` : `${Math.ceil(battle.wait)}초 뒤 자동 재도전`, 240, 135); c.textAlign = "left";
     }
   }
   return { hero, portrait, draw, ready, assetsReady: () => osiaLoaded };
