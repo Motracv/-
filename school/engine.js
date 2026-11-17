@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 8;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 9;
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
   const OSIA_SKILLS = [
@@ -168,7 +168,7 @@
   }
   const needXp = level => (20 + level * 12 + Math.floor(level * level * 1.5)) * PROGRESSION.unitRequirement;
   const captainNeed = level => 20 + level * 10 + level * level * 5;
-  const trainingCost = unit => 50 + unit.level * 20 + unit.level * unit.level * 8;
+  const trainingCost = unit => 50 + unit.level * 16 + unit.level * unit.level * 2;
   const awakeningCost = unit => 10 + unit.stars * 10;
   function stats(id, unit) {
     const h = BY_ID[id], factor = 1 + unit.stars * .15;

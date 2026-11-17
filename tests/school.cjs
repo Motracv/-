@@ -69,6 +69,11 @@ test('Training costs and level caps; team swaps start a fresh battle and never d
   const s=G.create(1000); const cost=G.trainingCost(s.units.harin); G.action(s,{kind:'train',hero:'harin'});assert.equal(s.gold,700-cost);assert.equal(s.units.harin.level,2);
   G.action(s,{kind:'team',team:['harin','taeo','sua']});assert.equal(s.battle.heroes[0].max,G.stats('harin',s.units.harin).hp);
   s.units.harin.level=G.MAX_LEVEL; assert.throws(()=>G.action(s,{kind:'train',hero:'harin'}));
+  for(const [level,cost]of [[1,68],[40,3890],[60,8210],[99,21236]]){
+    const trained=G.create(UPDATE_TIME);Object.assign(trained.units.harin,{level,xp:G.needXp(level)-1,stars:3,shards:17});trained.gold=cost-1;const old=G.clone(trained);
+    assert.equal(G.trainingCost(trained.units.harin),cost);assert.throws(()=>G.action(trained,{kind:'train',hero:'harin',cost:0,gold:1e12},trained.at));assert.deepEqual(trained,old);
+    trained.gold=cost;G.action(trained,{kind:'train',hero:'harin',cost:0},trained.at);assert.equal(trained.gold,0);assert.equal(trained.units.harin.level,level+1);assert.equal(trained.units.harin.xp,0);assert.equal(trained.units.harin.stars,3);assert.equal(trained.units.harin.shards,17);assert.equal(trained.gems,old.gems);assert.deepEqual(trained.captain,old.captain);assert.deepEqual(trained.units.taeo,old.units.taeo);assert.ok(G.validate(trained));
+  }
 });
 test('Reward codes normalize case and spacing, grant exact rewards once, and survive a save reload',()=>{
   const now=Date.parse('2026-11-17T12:00:00+09:00'),s=G.create(now);

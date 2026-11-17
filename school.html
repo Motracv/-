@@ -4,6 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f5f1e5">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="학교용병단">
+  <link rel="manifest" href="school.webmanifest">
+  <link rel="apple-touch-icon" href="school/assets/app-192.png">
   <meta name="description" content="방과 후, 우리의 모험이 시작된다. 도트 용병을 모으고 자동으로 성장하는 방치형 수집 RPG 학교용병단.">
   <title>학교용병단 · 방과 후의 모험</title>
   <script>try{const p=JSON.parse(localStorage.getItem('school-settings')||'{}');document.documentElement.dataset.theme=p.theme==='dark'?'dark':'light';document.documentElement.dataset.motion=p.motion==='reduced'?'reduced':'full'}catch{}</script>
@@ -11,12 +17,14 @@
   <link rel="preload" href="assets/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="school/assets/osia-sprites.png?v=osia1" as="image">
   <link rel="preload" href="school/assets/lava.png?v=lava1" as="image">
-  <link rel="stylesheet" href="school/style.css?v=school-polish1">
-  <script defer src="school/engine.js?v=school-polish1"></script>
-  <script defer src="school/art.js?v=school-polish1"></script>
-  <link rel="stylesheet" href="school/presentation.css?v=school-polish1">
-  <script defer src="school/presentation.js?v=school-polish1"></script>
-  <script defer src="school/client.js?v=school-polish1"></script>
+  <link rel="stylesheet" href="school/style.css?v=school-patch1">
+  <script defer src="school/engine.js?v=school-patch1"></script>
+  <script defer src="school/art.js?v=school-patch1"></script>
+  <link rel="stylesheet" href="school/presentation.css?v=school-patch1">
+  <script defer src="school/presentation.js?v=school-patch1"></script>
+  <link rel="stylesheet" href="school/install.css?v=school-patch1">
+  <script defer src="school/install.js?v=school-patch1"></script>
+  <script defer src="school/client.js?v=school-patch1"></script>
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true"><defs>

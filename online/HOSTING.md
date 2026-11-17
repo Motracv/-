@@ -11,13 +11,13 @@
 
 카드게임 공개 API는 닉네임 기반 친선 게임용입니다. 방 코드로 입장하고 개인 복귀 토큰으로 행동 권한을 검증합니다. 방 목록과 타인 토큰/손패를 공개하는 API는 없습니다.
 
-## 학교용병단 카탈로그 8 운영
+## 학교용병단 카탈로그 9 운영
 
-학교용병단은 같은 계정과 D1을 사용하되 카드게임과 별도 저장·규칙으로 동작합니다. 정적 `school.html`, `school/engine.js`, `school/art.js`, `school/client.js`, `school/style.css`, `school/presentation.js`, `school/presentation.css`, 던전 이미지 3개를 서버의 RPG 엔진·모듈과 함께 갱신합니다. 클라이언트와 서버는 `catalogVersion: 8`로 맞춥니다. 구버전 계정 화면의 저장·재화 사용은 426으로 거부하고 새로고침을 안내합니다.
+학교용병단은 같은 계정과 D1을 사용하되 카드게임과 별도 저장·규칙으로 동작합니다. 정적 `school.html`, `school/engine.js`, `school/art.js`, `school/client.js`, `school/style.css`, `school/presentation.js`, `school/presentation.css`, 던전 이미지 3개를 서버의 RPG 엔진·모듈과 함께 갱신합니다. 설치형 웹앱은 `school.webmanifest`, `school-sw.js`, `school/install.js`, `school/install.css`, 앱 아이콘을 함께 배포합니다. SW는 `school.html`만 제어하며 정적 학교 파일 외 API·Google·카드게임은 캐시하지 않습니다. 클라이언트와 서버는 `catalogVersion: 9`로 맞춥니다. 구버전 계정 화면의 저장·재화 사용은 426으로 거부하고 새로고침을 안내합니다.
 
 기존 `school_saves` 행과 마이그레이션을 보존합니다. 저장 JSON의 `version: 1`은 유지하며 기존 레벨·재화·진행·미수령 방치 보상·모집 누적과 픽업 보장을 초기화하지 않습니다. [`migrations/0004_school_rankings.sql`](migrations/0004_school_rankings.sql)의 표현식 인덱스를 Sites의 다음 Drizzle 마이그레이션에 추가합니다. 별도 랭킹 테이블이나 점수 업로드 API는 없습니다.
 
-학교 저장·행동은 Google 인증을 완료한 게임 세션이 필요합니다. `POST /api/school/rankings`는 공개 읽기 경로이며 `{catalogVersion: 8, mode: "level" | "tower"}`로 상위 50명을 조회합니다. 유효한 `X-Account-Session`이 있으면 본인 전체 순위를 추가합니다. 공개 항목은 순위·게임 단장 이름·레벨·복도 최고 층이며 Google 신원·계정 ID·토큰·전체 저장은 반환하지 않습니다. 서버의 저장된 기록만 순위에 반영하고 게스트 기록은 받지 않습니다. 응답은 `no-store`이며 계정 삭제 시 저장과 순위도 함께 제거합니다.
+학교 저장·행동은 Google 인증을 완료한 게임 세션이 필요합니다. `POST /api/school/rankings`는 공개 읽기 경로이며 `{catalogVersion: 9, mode: "level" | "tower"}`로 상위 50명을 조회합니다. 유효한 `X-Account-Session`이 있으면 본인 전체 순위를 추가합니다. 공개 항목은 순위·게임 단장 이름·레벨·복도 최고 층이며 Google 신원·계정 ID·토큰·전체 저장은 반환하지 않습니다. 서버의 저장된 기록만 순위에 반영하고 게스트 기록은 받지 않습니다. 응답은 `no-store`이며 계정 삭제 시 저장과 순위도 함께 제거합니다.
 
 `GOOGLE_CLIENT_ID`는 기존 운영 값을 보존합니다. 새 OAuth 동의 범위나 클라이언트 비밀번호는 필요하지 않습니다. 배포 시 정적 화면·API의 카탈로그 일치, 무인증 저장 거부와 공개 랭킹 조회, 잘못된 버전 거부, 기존 계정 진행 보존, 계정별 순위·이름과 삭제 반영을 확인합니다. 실제 Google 계정 로그인의 검증과 테스트 서명 fixture 검증은 구분합니다. 공개 범위는 [개인정보 안내](../privacy.html)와 일치시킵니다.
 
@@ -36,3 +36,6 @@
 배포 v6 (2026-11-17): 소스 `6e7a0ac27a3d9127bc1d0a7242121fd8b3b72319`. Google 공개 키 요청의 `redirect:"error"` 옵션이 Workers에서 TypeError를 발생시키는 문제를 `manual`로 수정했습니다. 리디렉션을 따라가지 않고 비정상 HTTP 응답은 계속 거부합니다. 배포 `appgdep_6afbea96985881918dcf85645f42de4e` 성공. 환경 변수 revision1과 기존 스키마·접속 범위를 유지합니다.
 
 학교용병단 서버 v15: 소스 `f9398d38708e5a5a0bcf2804262818b8c658fa30`, 배포 `appgdep_6afc70b35bfc8191b191cafeda12b862` 성공. 카탈로그 8, SSR 기본 1%, 느려진 성장·기존 보상 보존, 단장 이름과 레벨·복도 랭킹을 반영했습니다. `drizzle/0003_school_rankings.sql`은 기존 저장을 변경하지 않고 랭킹 조회 인덱스 두 개만 추가합니다. 기존 공개 접속 범위와 환경 변수 revision1을 유지했습니다. 실제 Chromium에서 GitHub Pages 출처의 두 공개 랭킹 API가 HTTP 200으로 응답하고 공개 필드만 반환하는 것을 확인했습니다. 엔진·던전·SQLite 서버 87개 및 공용 계정·Worker 29개 검사가 통과했습니다.
+
+
+학교용병단 서버 v16 (2026-11-18): 소스 `277dd6012c298fdb3eab32291677a16bff8204a5`, 배포 `appgdep_6afc7ab30a1881918827a41be32846fc` 성공. 훈련비를 `50+16L+2L²`로 완화하고 카탈로그를 9로 올렸습니다. 기존 경험치·SSR 확률·스킬·저장 구조·공개 범위와 환경 변수 revision1은 유지했습니다. 추가 데이터베이스 마이그레이션은 없습니다. 엔진·던전·SQLite 서버 88개 검증 통과. 정적 화면 패치는 전투 렌더링·복도 결과 창·오시아/라바 모션·설치형 웹앱을 포함합니다.

@@ -22,6 +22,7 @@ const G=require('../school/engine.js');
  await test('Old browser catalogs are rejected before spending or exposing unfamiliar heroes',async()=>{
    const row=save(a);const old=await t.call('/api/school/action',action(row.revision,'outdated-browser-0001',{kind:'recruit',count:10}),null,{'X-Account-Session':a.token});assert.equal(old.status,426);assert.equal(save(a).payload,row.payload);assert.ok(!old.data.state);
    for(let catalogVersion=1;catalogVersion<G.CATALOG_VERSION;catalogVersion++)assert.equal((await call(a,'state',{catalogVersion})).status,426);assert.equal(save(a).payload,row.payload);
+   const staleCost=await call(a,'action',{...action(row.revision,'outdated-training-cost1',{kind:'train',hero:'harin',cost:0}),catalogVersion:G.CATALOG_VERSION-1});assert.equal(staleCost.status,426);assert.equal(save(a).payload,row.payload);
  });
  await test('Simultaneous same-ID requests and lost-response retries charge once',async()=>{
    const current=await call(a,'state');const input=action(current.data.revision,'same-action-0000000002',{kind:'recruit',count:10});
@@ -30,7 +31,7 @@ const G=require('../school/engine.js');
  });
  await test('Distinct simultaneous spending actions conflict instead of overwriting',async()=>{
    const current=await call(a,'state');const rs=await Promise.all(['A','B'].map(id=>call(a,'action',action(current.data.revision,'parallel-action-000'+id,{kind:'train',hero:'harin'}))));
-   assert.deepEqual(rs.map(r=>r.status).sort(),[200,409]);assert.equal(JSON.parse(save(a).payload).units.harin.level,2);
+   assert.deepEqual(rs.map(r=>r.status).sort(),[200,409]);assert.equal(JSON.parse(save(a).payload).units.harin.level,2);assert.equal(JSON.parse(save(a).payload).gold,current.data.state.gold-68);
  });
  await test('Unaffordable or invalid requests do not commit costs or an invented outcome',async()=>{
    const row=save(a),state=JSON.parse(row.payload);
@@ -266,6 +267,16 @@ const G=require('../school/engine.js');
      const who=(await t.login('school-growth-preserved')).data;await call(who,'state');const old=JSON.parse(save(who).payload);delete old.commanderName;old.captain={level:50,xp:1234};old.gold=123456;old.gems=5432;for(const u of Object.values(old.units))Object.assign(u,{level:60,xp:999,stars:3,shards:17});old.offline={seconds:600,gold:400,xp:1003};old.banners.osia={pity:79,guaranteed:true};old.pity=79;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(old),who.profile.id);
      let current=await call(who,'state',{captain:{level:200},units:{},gems:0});assert.equal(current.status,200);assert.deepEqual(current.data.state.captain,old.captain);assert.deepEqual(current.data.state.units,old.units);assert.equal(current.data.state.gold,123456);assert.equal(current.data.state.gems,5432);assert.equal(current.data.state.commanderName,'새내기 단장');assert.deepEqual(current.data.state.offline,{...old.offline,captainXp:250});assert.deepEqual(current.data.state.banners,old.banners);
      current=await call(who,'action',action(current.data.revision,'growth-old-bank-claim',{kind:'offline',captainXp:1e12,xp:1e12}));assert.equal(current.status,200);assert.equal(current.data.state.captain.level,50);assert.equal(current.data.state.captain.xp,1484);assert.equal(current.data.state.gold,123856);for(const u of Object.values(current.data.state.units))assert.equal(u.xp,2002);assert.equal(current.data.state.offline.captainXp,0);
+   }finally{Date.now=realNow;}
+ });
+ await test('The reduced training price is charged exactly once at the balance boundary and survives reconnects',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
+   try{
+     const who=(await t.login('school-training-price')).data;await call(who,'state');const saved=JSON.parse(save(who).payload);Object.assign(saved.units.harin,{level:40,xp:321,stars:3,shards:17});saved.gold=3889;saved.gems=5432;saved.captain={level:50,xp:1234};t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(saved),who.profile.id);
+     let current=await call(who,'state');assert.equal(current.status,200);assert.equal(current.data.state.gold,3889);assert.deepEqual(current.data.state.units.harin,saved.units.harin);const before=save(who);const denied=await call(who,'action',action(before.revision,'training-short-one-coin',{kind:'train',hero:'harin',cost:0,gold:1e12}));assert.equal(denied.status,400);assert.equal(save(who).payload,before.payload);
+     saved.gold=3890;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(saved),who.profile.id);current=await call(who,'state');const intent=action(current.data.revision,'training-price-once-01',{kind:'train',hero:'harin',cost:1,level:99});const copies=await Promise.all([call(who,'action',intent),call(who,'action',intent)]);
+     for(const r of copies){assert.equal(r.status,200);assert.equal(r.data.state.gold,0);assert.equal(r.data.state.gems,5432);assert.deepEqual(r.data.state.captain,{level:50,xp:1234});assert.deepEqual(r.data.state.units.harin,{level:41,xp:0,stars:3,shards:17});assert.deepEqual(r.data.state.units.taeo,saved.units.taeo);}
+     const again=(await t.login('school-training-price')).data;const loaded=await call(again,'state');assert.equal(loaded.status,200);assert.equal(loaded.data.state.gold,0);assert.equal(loaded.data.state.units.harin.level,41);const repeated=await call(again,'action',intent);assert.equal(repeated.status,200);assert.equal(repeated.data.repeated,true);assert.equal(repeated.data.state.gold,0);
    }finally{Date.now=realNow;}
  });
  let rankViewer,rankSubjects=[];

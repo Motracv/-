@@ -1,0 +1,17 @@
+{
+  "id": "./school.html",
+  "name": "학교용병단",
+  "short_name": "학교용병단",
+  "description": "방과 후의 도트 모험, 방치형 수집 RPG",
+  "lang": "ko-KR",
+  "start_url": "./school.html?app=1",
+  "scope": "./school.html",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#f5f1e5",
+  "theme_color": "#304e40",
+  "icons": [
+    { "src": "school/assets/app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "school/assets/app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

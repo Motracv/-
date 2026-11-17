@@ -260,6 +260,12 @@ const server = http.createServer(async (req, res) => {
         "/account.js": "account.js",
         "/privacy.html": "privacy.html",
         "/school.html": "school.html",
+        "/school.webmanifest": "school.webmanifest",
+        "/school-sw.js": "school-sw.js",
+        "/school/install.js": "school/install.js",
+        "/school/install.css": "school/install.css",
+        "/school/assets/app-192.png": "school/assets/app-192.png",
+        "/school/assets/app-512.png": "school/assets/app-512.png",
         "/school/engine.js": "school/engine.js",
         "/school/art.js": "school/art.js",
         "/school/client.js": "school/client.js",
@@ -293,7 +299,9 @@ const server = http.createServer(async (req, res) => {
       }
       res.setHeader(
         "Content-Type",
-        file.endsWith(".woff2")
+        file.endsWith(".webmanifest")
+          ? "application/manifest+json"
+          : file.endsWith(".woff2")
           ? "font/woff2"
           : file.endsWith(".txt")
             ? "text/plain; charset=utf-8"
