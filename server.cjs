@@ -259,11 +259,18 @@ const server = http.createServer(async (req, res) => {
         "/sound.js": "sound.js",
         "/account.js": "account.js",
         "/privacy.html": "privacy.html",
+        "/school.html": "school.html",
+        "/school/engine.js": "school/engine.js",
+        "/school/art.js": "school/art.js",
+        "/school/client.js": "school/client.js",
+        "/school/style.css": "school/style.css",
         "/effects.css": "effects.css",
         "/assets/cards/manifest.json": "assets/cards/manifest.json",
         "/assets/fonts/PretendardVariable.woff2":
           "assets/fonts/PretendardVariable.woff2",
         "/assets/fonts/OFL.txt": "assets/fonts/OFL.txt",
+        "/assets/fonts/Galmuri11.woff2": "assets/fonts/Galmuri11.woff2",
+        "/assets/fonts/Galmuri-OFL.txt": "assets/fonts/Galmuri-OFL.txt",
       };
       let file = files[u.pathname];
       if (/^\/assets\/cards\/\d{2}\.webp$/.test(u.pathname))

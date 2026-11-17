@@ -144,7 +144,7 @@ window.DuelAccount = (() => {
   }
   async function logout(deleting = false) {
     if (signing || isPlaying() || !token) return;
-    if (deleting && !window.confirm("레벨·경험치·전적을 영구 삭제할까요? 이 작업은 되돌릴 수 없습니다.")) return;
+    if (deleting && !window.confirm("카드게임의 레벨·경험치·전적과 학교용병단의 계정 진행(용병·재화·모험)을 모두 영구 삭제할까요? 이 작업은 되돌릴 수 없습니다.")) return;
     signing = true; render();
     try {
       await request(deleting ? "delete" : "logout", deleting ? { confirm: "DELETE" } : {}, true);

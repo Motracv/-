@@ -126,10 +126,14 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
     return { id: row.account_id, hash };
   }
   async function member(request, env, now) {
+    const s = await identity(request, env, now);
+    if (!s) return null;
+    return profile(env.DB, s.id);
+  }
+  async function identity(request, env, now) {
     const token = request.headers.get("X-Account-Session");
     if (!token) return null;
-    const s = await session(env.DB, token, now);
-    return profile(env.DB, s.id);
+    return session(env.DB, token, now);
   }
   async function route(path, request, data, env, now) {
     if (path === "/api/account/config") return config(env);
@@ -195,5 +199,5 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
     // ledger. Room access still expires normally after six hours.
     await db.prepare("DELETE FROM rooms WHERE expires <= ? AND NOT (json_extract(payload, '$.game.s.phase') = 'over' AND json_extract(payload, '$.matchId') IS NOT NULL AND COALESCE(json_extract(payload, '$.rewardsReady'), 0) = 0 AND EXISTS (SELECT 1 FROM json_each(payload, '$.members') AS member WHERE json_extract(member.value, '$.accountId') IS NOT NULL))").bind(now).run();
   }
-  return { config, route, member, settle, cleanExpired };
+  return { config, route, member, identity, settle, cleanExpired };
 }

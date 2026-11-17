@@ -12,7 +12,9 @@
     "test:account-browser": "node tests/account-browser.cjs",
     "test:server": "node tests/server.cjs",
     "test:worker": "node tests/worker.cjs",
-    "test:online": "node tests/deployed-online.cjs"
+    "test:online": "node tests/deployed-online.cjs",
+    "test:school": "node tests/school.cjs && node tests/school-server.cjs",
+    "test:school-browser": "node tests/school-browser.cjs"
   },
   "engines": {
     "node": ">=20"

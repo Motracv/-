@@ -1,0 +1,6 @@
+CREATE TABLE school_saves (
+  account_id TEXT PRIMARY KEY NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  payload TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);

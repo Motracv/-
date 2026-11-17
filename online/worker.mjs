@@ -1,6 +1,7 @@
 // Cloudflare Worker + D1. Every room change uses optimistic compare-and-swap.
 // Only Game.view(actor), never a persisted game or member token, reaches a client.
 import { createAccounts, accountReward } from "./accounts.mjs";
+import { createSchool } from "./school.mjs";
 const TTL = 6 * 60 * 60 * 1000;
 const GRACE = 90000;
 const MAX_BODY = 8192;
@@ -141,6 +142,7 @@ function snapshot(room, game, member, now) {
   };
 }
 export function createWorker(Battle, { accounts = createAccounts() } = {}) {
+  const school = createSchool();
   const { Game } = Battle;
   // Best-effort abuse brake per live isolate, supplemented by hard body/room TTL limits.
   const entryRates = new Map();
@@ -252,6 +254,10 @@ export function createWorker(Battle, { accounts = createAccounts() } = {}) {
         requireValue(env.DB, "게임 저장소가 설정되지 않았습니다.", 503);
         if (url.pathname.startsWith("/api/account/"))
           return reply(await accounts.route(url.pathname, request, await readBody(request), env, Date.now()));
+        if (url.pathname.startsWith("/api/school/")) {
+          const result = await school.request(url.pathname, request, env, await readBody(request), accounts);
+          return reply(result, result.conflict ? 409 : 200);
+        }
         const routes = [
           "/api/create",
           "/api/join",
