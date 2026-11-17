@@ -16,6 +16,7 @@ const statusNames = {
   curse: "팬티 · 2턴마다 −10", baseball: "야구공 · 반격 5", regen: "음식 · +5 회복",
 };
 let artFiles = new Set();
+const shownResults = new Set();
 let local,
   view,
   online = null,
@@ -143,6 +144,7 @@ function refresh(next) {
   const was = view;
   view = next;
   if (view.online && !was?.online) {
+    resetPresentation();
     // A snapshot on join/reload is current state, not 80 past animations.
     epoch++;
     for (const animation of activeAnimations) animation.cancel();
@@ -173,6 +175,7 @@ function refresh(next) {
 }
 function localStart() {
   clearTimeout(aiTimer);
+  resetPresentation();
   epoch++;
   for (const animation of activeAnimations) animation.cancel();
   activeAnimations.clear();
@@ -197,6 +200,85 @@ function localStart() {
   closeChoice();
   $("lobby-dialog").close();
   refresh(local.view(0));
+}
+function resetPresentation() {
+  shownResults.clear();
+  $("result-dialog").close();
+  $("result-reopen").hidden = true;
+  document.body.dataset.danger = "normal";
+  $("danger-label").hidden = true;
+}
+// Selection always remains available for reading; this describes playing it.
+function cardAvailability(card) {
+  const p = self(), definition = CARDS[card.id - 1];
+  if (view.phase === "over") return "게임 종료";
+  if (p.hp <= 0) return "탈락 · 관전";
+  if (busy) return "처리 중";
+  const ownTurn = view.phase === "turn" && view.turn === view.me;
+  if (exchange) return !ownTurn ? "내 차례 대기" : p.status.touch ? "획득 금지" : "";
+  if (view.phase === "react") {
+    const attack = view.pending;
+    if (attack.to !== view.me) return "상대 방어 중";
+    if (!defense.has(card.id)) return "방어만 가능";
+    if ((attack.card === 9 || attack.noCounter) && [2, 20].includes(card.id)) return "반격 불가";
+    if (card.id === 13 && (attack.multi || targets().length === 0)) return "전가 불가";
+    return "";
+  }
+  if (!ownTurn) return view.phase === "turn" ? "내 차례 대기" : "선택 처리 중";
+  if ([2, 10, 13, 20, 23, 26, 29, 30].includes(card.id)) return "피격 시 사용";
+  if (p.status.xerath && !["회복", "방어"].includes(definition.type)) return "행동 제한";
+  if (p.status.touch && [5, 6, 18].includes(card.id)) return "획득 금지";
+  if (card.id === 17) {
+    if (!targets().some((target) => !target.status.touch)) return "대상 없음";
+    if (selectedTarget !== null && view.players[selectedTarget]?.status.touch) return "대상 변경";
+  }
+  return "";
+}
+function outcome() {
+  if (!view) return null;
+  if (view.phase === "over") return view.winner === -1 ? "draw" : view.winner === view.me ? "win" : "loss";
+  return self().hp <= 0 ? "eliminated" : null;
+}
+function showResult() {
+  const result = outcome();
+  if (!result) return;
+  const dialog = $("result-dialog"), winner = view.players[view.winner];
+  const content = {
+    win: ["♛", "VICTORY", "승리!", "마지막까지 살아남았습니다."],
+    loss: ["✕", "DEFEAT", "패배", `${winner?.name || "상대"}님이 마지막 생존자가 되었습니다.`],
+    draw: ["＝", "DRAW", "무승부", "마지막 생존자 없이 모두 탈락했습니다."],
+    eliminated: ["☠", "ELIMINATED", "탈락", "HP가 0이 되었습니다. 남은 대전은 관전할 수 있습니다."],
+  }[result];
+  dialog.dataset.outcome = result;
+  dialog.querySelector(".result-emblem").textContent = content[0];
+  dialog.querySelector(".result-kicker").textContent = content[1];
+  $("result-title").textContent = content[2];
+  $("result-detail").textContent = content[3];
+  const players = [...view.players].sort((a, b) => Number(b.id === view.winner) - Number(a.id === view.winner) || b.hp - a.hp || a.id - b.id);
+  $("result-standings").replaceChildren(...players.map((p) => {
+    const row = el("div", undefined, "result-row" + (p.id === view.me ? " is-me" : "") + (p.id === view.winner ? " is-winner" : ""));
+    row.append(el("span", p.id === view.winner ? "★" : p.hp <= 0 ? "×" : "●", "result-place"), el("b", p.name + (p.id === view.me && p.name !== "나" ? " · 나" : "")), el("span", p.hp <= 0 ? "탈락" : `HP ${p.hp}`));
+    return row;
+  }));
+  $("result-watch").hidden = result !== "eliminated";
+  $("result-close").hidden = result === "eliminated";
+  $("result-rematch").hidden = result === "eliminated";
+  $("result-rematch").textContent = online ? "새 온라인 방" : "다시 플레이";
+  for (const other of document.querySelectorAll("dialog[open]")) if (other !== dialog) other.close();
+  if (!dialog.open) dialog.showModal();
+}
+function updatePresentation() {
+  const p = self(), alive = p.hp > 0 && view.phase !== "over";
+  const danger = alive && p.hp <= 10 ? "last" : alive && p.hp <= 25 ? "critical" : "normal";
+  document.body.dataset.danger = danger;
+  $("danger-label").hidden = danger === "normal";
+  $("danger-label").textContent = danger === "last" ? `치명적 · HP ${p.hp}` : `위험 · HP ${p.hp}`;
+  const result = outcome();
+  $("result-reopen").hidden = !result;
+  if (result && !shownResults.has(result)) {
+    shownResults.add(result);
+    showResult();
+  }
 }
 async function command(input) {
   if (busy) return;
@@ -364,6 +446,13 @@ function render() {
     b.dataset.rarity = card.rarity;
     b.dataset.card = card.id;
     b.dataset.role = role.label;
+    const unavailable = cardAvailability(c);
+    b.classList.toggle("unavailable", !!unavailable);
+    b.dataset.playable = String(!unavailable);
+    if (unavailable) {
+      b.setAttribute("aria-label", `${card.name}. 지금 사용 불가: ${unavailable}. 눌러서 설명 보기. ${card.desc}`);
+      b.title = `${unavailable} · 눌러서 설명 보기`;
+    }
     b.append(
       el("span", String(card.id).padStart(2, "0"), "rank"),
       el("span", typeIcons[card.type], "icon"),
@@ -372,6 +461,7 @@ function render() {
       el("span", card.rarityLabel, "rarity"),
       el("span", cardSummary(c), "card-summary"),
     );
+    if (unavailable) b.append(el("span", unavailable, "card-unavailable"));
     if (artFiles.has(card.id)) {
       const img = el("img");
       img.className = "art";
@@ -426,31 +516,9 @@ function render() {
   $("target-hint").hidden = selectedTarget === null && !forcedTarget;
   $("target-hint").textContent =
     forcedTarget ? `현비 → ${forcedTarget.name}에게 집중` : selectedTarget === null ? "" : `대상: ${view.players[selectedTarget].name}`;
-  let playable =
-    ownTurn &&
-    data &&
-    ![2, 10, 13, 20, 23, 26, 29, 30].includes(data.id) &&
-    (!p.status.xerath || ["회복", "방어"].includes(data.type));
-  if (react)
-    playable =
-      data &&
-      defense.has(data.id) &&
-      !((pending.card === 9 || pending.noCounter) && [2, 20].includes(data.id)) &&
-      !(data.id === 13 && (pending.multi || targets().length === 0));
-  let blocked = "";
-  if (ownTurn && data && p.status.touch && [5, 6, 18].includes(data.id))
-    blocked = "카드 획득 금지 중에는 사용할 수 없습니다.";
-  if (
-    ownTurn &&
-    data?.id === 17 &&
-    selectedTarget !== null &&
-    view.players[selectedTarget].status.touch
-  )
-    blocked = "대상이 카드 획득 금지 상태입니다.";
-  if (blocked) {
-    playable = false;
-    $("selection-desc").textContent += " " + blocked;
-  }
+  const unavailable = chosen ? cardAvailability(chosen) : "";
+  const playable = !!chosen && !unavailable;
+  if (unavailable) $("selection-desc").textContent = `${unavailable}${unavailable === "대상 변경" ? " · 획득 금지가 아닌 상대를 선택하세요" : " · 지금 사용할 수 없습니다"}. ${$("selection-desc").textContent}`;
   if (react && data && [2, 20].includes(data.id) && (pending.card === 9 || pending.noCounter))
     $("selection-desc").textContent += " 이번 공격은 반격을 관통합니다. 일반 방어를 고르세요.";
   $("play").disabled =
@@ -480,6 +548,7 @@ function render() {
   $("new-game").textContent = online ? "나가기" : "새 게임";
   $("log").replaceChildren(...view.logs.map((x) => el("li", x)));
   updateClock();
+  updatePresentation();
 }
 function play(target) {
   if (busy || !view || $("play").disabled) return;
@@ -882,6 +951,19 @@ $("choice-dialog").addEventListener("cancel", (e) => {
   if (["gift", "steal", "discard"].includes(view?.phase)) e.preventDefault();
 });
 $("lobby-dialog").addEventListener("cancel", (e) => e.preventDefault());
+$("result-close").onclick = $("result-watch").onclick = () => $("result-dialog").close();
+$("result-reopen").onclick = showResult;
+$("result-rematch").onclick = async () => {
+  const button = $("result-rematch");
+  button.disabled = true;
+  try {
+    if (online) {
+      if (await leave()) $("online-dialog").showModal();
+    } else localStart();
+  } finally {
+    button.disabled = false;
+  }
+};
 $("new-game").onclick = () => {
   $("menu-dialog").close();
   if (online) {
@@ -915,13 +997,14 @@ async function leave() {
     await api("/api/leave");
   } catch (e) {
     toast(e.message);
-    return;
+    return false;
   }
   streamAbort?.abort();
   online = null;
   sessionStorage.removeItem(sessionKey);
   closeChoice();
   localStart();
+  return true;
 }
 $("leave-room").onclick = leave;
 $("create-room").onclick = () => enter("create");
@@ -1008,10 +1091,13 @@ function element(kind, at, color) {
     el.style.color = color;
     el.style.setProperty("--fx-color", color);
   }
-  $("effects").append(el);
+  // Keep simultaneous five-player effects bounded; labels and main props win.
+  const decorative = /particle|heal-cross|shard|spark|trail/.test(kind);
+  if (!decorative || $("effects").childElementCount < 120) $("effects").append(el);
   return el;
 }
 async function animate(el, frames, duration = 600, remove = true) {
+  if (!el?.isConnected) return;
   if (reducedMotion.matches) {
     const transform = frames[frames.length - 1].transform;
     frames = frames.map((frame) => ({
@@ -1108,7 +1194,10 @@ async function cast(who, card) {
   const owner = document.createElement("span");
   owner.className = "cast-owner";
   owner.textContent = view.players[who].name + " · " + CARDS[card.id - 1].type + " 사용!";
-  el.append(icon, title, owner);
+  const cue = document.createElement("span");
+  cue.className = "cast-cue";
+  cue.textContent = cardSummary(card);
+  el.append(icon, title, cue, owner);
   const wash = element("fx-wash", null, color);
   void animate(
     wash,
@@ -1366,10 +1455,14 @@ function showPlayedCard(event) {
   );
   $("played-slot").title = "길게 누르면 카드 설명";
 }
+function effectContext(version) {
+  return { element, animate, point, ring, burst, number, getView: () => view, reduced: () => reducedMotion.matches, isCurrent: () => epoch === version };
+}
 function animateEvents() {
   const fresh = view.events.filter((e) => e.seq > lastEvent);
   if (!fresh.length) return;
   const version = epoch;
+  const ctx = effectContext(version);
   for (const e of fresh) {
     lastEvent = e.seq;
     if (e.kind === "card") showPlayedCard(e);
@@ -1409,7 +1502,11 @@ function animateEvents() {
               마법: "magic",
               특수: "focus",
             }[d.type];
-          await cast(e.actor, { ...d, type, icon: typeIcons[d.type] });
+          await Promise.all([
+            cast(e.actor, { ...d, type, armor: e.armor, icon: typeIcons[d.type] }),
+            window.DuelFX?.card(e, ctx),
+          ]);
+          if (epoch !== version) return;
           if (d.type === "필드") {
             const zone = $("field-zone");
             void animate(zone, [{ boxShadow: "0 0 0 transparent" }, { boxShadow: "0 0 40px #ffcf6a, inset 0 0 20px #ffcf6a66", offset: 0.25 }, { boxShadow: "0 0 0 transparent" }], 1300, false);
@@ -1417,7 +1514,8 @@ function animateEvents() {
         }
         if (e.kind === "attack") {
           const d = CARDS[e.card - 1];
-          await Promise.all(
+          if (window.DuelFX) await DuelFX.attack(e, ctx);
+          else await Promise.all(
             e.targets.map((id) =>
               projectile(e.from, id, {
                 ...d,
@@ -1426,6 +1524,7 @@ function animateEvents() {
               }),
             ),
           );
+          if (epoch !== version) return;
         }
         if (e.kind === "damage" && e.amount > 0 && !e.forfeit)
           void impact(e.target, e.amount, 0);
@@ -1438,6 +1537,10 @@ function animateEvents() {
         if (e.kind === "status-tick" && e.status === "curse") void statusEffect(e.target, "팬티 · 지속 피해", "#d6a6ff");
         if (e.kind === "status-tick" && e.status === "regen" && !e.amount) void statusEffect(e.target, "음식 · 회복 0", "#90baa5");
         if (e.kind === "attack" && e.noCounter) void statusEffect(e.targets[0], "반격 관통", "#ffa36b");
+        if (["status", "cleanse", "status-tick", "roulette", "miss", "phone-roll", "class-president"].includes(e.kind))
+          void window.DuelFX?.status(e, ctx);
+        if (["damage", "block", "heal"].includes(e.kind) && !e.forfeit)
+          void window.DuelFX?.impact(e, ctx);
       }
     });
 }

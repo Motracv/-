@@ -1,0 +1,128 @@
+/* CSS 3D props drawn from public events: no external assets or GPU canvas. */
+.duel-fx { pointer-events: none; contain: layout style; backface-visibility: hidden; }
+.duel-prop {
+  width: 70px;
+  height: 70px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 0 16px var(--fx-color));
+  z-index: 4;
+}
+.prop-core { position: relative; display: grid; place-items: center; transform-style: preserve-3d; }
+.prop-glyph {
+  font: 900 65px/1 system-ui, sans-serif;
+  color: var(--fx-color);
+  text-shadow: 2px 3px #17223c, 4px 5px #17223c, 0 0 18px var(--fx-color), 0 0 42px var(--fx-color);
+}
+.duel-prop.motif-power-fist .prop-glyph { font-size: 72px; transform: rotate(-18deg); }
+.duel-prop.motif-giant-fist .prop-glyph { font-size: 87px; transform: rotate(-14deg); }
+.duel-prop.motif-car-crash .prop-glyph { font-size: 78px; }
+.duel-prop.motif-devil-flame .prop-glyph { font-size: 76px; color: #dabaee; text-shadow: 0 -9px 15px #ba53ff, 0 0 28px #851dff, 5px 5px #412177; }
+.duel-prop.motif-devil-flame .prop-core::before,
+.duel-prop.motif-devil-flame .prop-core::after { content: ""; position: absolute; width: 12px; height: 28px; top: -4px; background: #f8c8ff; border-radius: 100% 0 0 0; box-shadow: 0 0 20px #cd6fff; }
+.duel-prop.motif-devil-flame .prop-core::before { left: 4px; transform: rotate(-32deg); }
+.duel-prop.motif-devil-flame .prop-core::after { right: 4px; transform: rotate(32deg) scaleX(-1); }
+.duel-prop.motif-taunt-magnet .prop-glyph { font-size: 100px; color: #ff8cb5; transform: rotate(-90deg); text-shadow: 3px 2px #a93766, 6px 4px #912953, 0 0 30px #ff749e; }
+.duel-prop.motif-lightning-cage .prop-core { border: 3px solid currentColor; padding: 6px; background: repeating-linear-gradient(90deg, transparent 0 10px, #b8aaff99 11px 13px); border-radius: 12px; }
+.duel-prop.motif-siphon-heart .prop-glyph { color: #ff6bac; }
+.duel-prop.motif-sealed-heart .prop-glyph { color: #b4a1bd; }
+.duel-prop.motif-sealed-heart .prop-core::after { content: "×"; position: absolute; color: #ff6689; font: 900 90px/1 system-ui; text-shadow: 0 0 12px #f45; }
+.duel-prop.motif-domain-clock .prop-glyph { font-size: 90px; text-shadow: 0 0 8px #bda2ff, 0 0 25px #975bff; }
+.duel-prop.motif-domain-clock .prop-core::after { content: "Ⅱ"; position: absolute; top: 17px; right: -8px; padding: 4px; font: 900 24px/1 system-ui; background: #281849; border-radius: 4px; box-shadow: 0 0 10px #ce99ff; }
+.duel-prop.motif-judge-shield .prop-glyph,
+.duel-prop.motif-president-crown .prop-glyph { color: #ffdc7a; text-shadow: 3px 4px #815321, 0 0 25px #ffc974; }
+.duel-prop.motif-fusion-eye .prop-glyph { background: radial-gradient(ellipse, #ecddff55, transparent 70%); border: 3px solid #eec5ff; border-radius: 65% 8%; width: 78px; height: 52px; font-size: 42px; }
+.duel-prop.motif-status-break .prop-glyph { border: 2px solid currentColor; border-radius: 5px; width: 68px; height: 55px; background: repeating-linear-gradient(0deg, transparent 0 10px, #a1ffdf22 10px 12px); }
+.duel-prop.motif-curse-chain .prop-glyph { font-size: 80px; transform: rotate(-22deg); }
+.duel-prop.motif-brush-cleanse .prop-glyph { transform: rotate(-35deg); font-size: 85px; }
+.prop-phone { width: 35px; height: 65px; border: 4px solid #c8e7ff; border-radius: 8px; background: #162d52; box-shadow: 5px 4px 0 #698caf, 8px 6px 0 #223e5b, inset 0 0 0 1px #152c44; }
+.phone-screen { position: absolute; display: grid; place-items: center; inset: 7px 1px 8px; border-radius: 2px; background: linear-gradient(145deg, #8af0ff, #7081ed 55%, #cd82fd); font: 900 31px/1 system-ui; color: white; text-shadow: 0 0 12px #fff; }
+.phone-camera { position: absolute; width: 4px; height: 4px; top: 1px; left: calc(50% - 2px); border-radius: 50%; background: #c1e6ff; }
+.phone-home { position: absolute; width: 8px; height: 3px; bottom: 2px; border-radius: 2px; background: #bce8fc; }
+.prop-burger { width: 70px; height: 65px; display: flex; flex-direction: column; justify-content: center; filter: drop-shadow(4px 5px 0 #69361b); }
+.prop-burger > span { display: block; width: 100%; border: 1px solid #44281a99; }
+.burger-top { height: 25px; border-radius: 45px 45px 7px 7px; background: radial-gradient(ellipse at 30% 40%, #ffeac4 0 2px, transparent 3px), radial-gradient(ellipse at 65% 25%, #ffeac4 0 2px, transparent 3px), radial-gradient(ellipse at 55% 65%, #ffeac4 0 2px, transparent 3px), linear-gradient(#f6bd63, #cb7628); }
+.burger-lettuce { height: 7px; background: #8ed24b; border-radius: 45%; transform: scaleX(1.1); }
+.burger-cheese { height: 8px; background: #ffde4a; clip-path: polygon(0 0, 100% 0, 100% 75%, 70% 65%, 60% 100%, 40% 70%, 0 90%); }
+.burger-patty { height: 12px; border-radius: 5px; background: linear-gradient(#623719, #3d2217); }
+.burger-bottom { height: 13px; border-radius: 3px 3px 20px 20px; background: linear-gradient(#efb45c, #bb6f29); }
+.prop-baseball { width: 58px; height: 58px; border-radius: 50%; background: radial-gradient(circle at 30% 22%, #fff, #f0f4fb 48%, #a4b8d3 90%); box-shadow: 4px 5px 0 #28405a, inset -5px -5px 10px #5d7c9f55; overflow: hidden; }
+.ball-seam { position: absolute; top: 3px; bottom: 3px; width: 28px; border: 3px dashed #e86472; border-radius: 50%; }
+.seam-left { left: -13px; }
+.seam-right { right: -13px; }
+.prop-dice { width: 53px; height: 53px; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); padding: 7px; gap: 4px 11px; border-radius: 8px; border: 2px solid #e8f9ff; background: linear-gradient(140deg, #fff, #b4d4f0); box-shadow: 7px 5px #4a779d, 9px 7px #244968; transform: rotate(-12deg); }
+.dice-dot { width: 9px; height: 9px; border-radius: 50%; background: #204360; box-shadow: inset 1px 1px 2px #07172b; }
+.prop-shield { width: 69px; height: 77px; clip-path: polygon(50% 0, 95% 15%, 90% 63%, 72% 83%, 50% 100%, 28% 83%, 10% 63%, 5% 15%); background: linear-gradient(130deg, #fff 0%, var(--fx-color) 28%, #286f95 50%, var(--fx-color) 73%, #daf6ff 100%); box-shadow: inset 0 0 0 7px #d9f8ff; }
+.prop-shield::before { content: ""; position: absolute; inset: 9px 10px 12px; clip-path: inherit; background: linear-gradient(145deg, #224c72, #0d1a38); }
+.shield-glyph { position: relative; color: #effcff; font: 900 42px/1 system-ui; text-shadow: 0 0 15px currentColor; }
+.motif-taxi-barrier .shield-glyph { font-size: 26px; }
+.motif-absolute-dome .prop-shield { width: 83px; height: 83px; border-radius: 50%; clip-path: none; background: radial-gradient(circle at 35% 30%, #fff8, #94dfff33 55%, #d1faffd9 70%, #84c3ff44); border: 3px solid #c4f9ff; box-shadow: inset 0 0 20px #78bbff; }
+.motif-absolute-dome .prop-shield::before { display: none; }
+.prop-book { width: 48px; height: 64px; border-radius: 2px 6px 6px 2px; border-left: 6px solid #702235; background: linear-gradient(135deg, #fb6f87, #b52f50); box-shadow: 4px 2px 0 #ffe9dc, 6px 4px 0 #a2304c; }
+.book-mark { font-size: 35px; color: #fff6e6; }
+.book-cross { position: absolute; inset: 0; display: grid; place-items: center; font: 900 62px/1 system-ui; color: #451629; text-shadow: 1px 1px #ffbcc9; }
+.prop-gift { width: 58px; height: 52px; background: linear-gradient(135deg, #fdc0e1, #d56ca8); border: 2px solid #ffe0ef; box-shadow: 8px 5px 0 #8a3f7c; }
+.prop-gift::before { content: ""; position: absolute; left: -5px; right: -5px; height: 12px; top: -7px; background: #f5a1d0; border: 2px solid #ffdbee; box-shadow: 7px 4px 0 #8a3f7c; }
+.gift-ribbon { position: absolute; width: 12px; top: -7px; bottom: -2px; background: #fff1a7; border-inline: 1px solid #dfb864; }
+.gift-bow { position: absolute; top: -36px; color: #fff3b6; font: 900 51px/1 system-ui; }
+.prop-food { width: 75px; height: 68px; }
+.food-steam { position: absolute; top: -20px; font: 700 40px/1 system-ui; color: #e5ffed; }
+.food-bowl { position: absolute; bottom: 2px; width: 72px; height: 38px; display: grid; place-items: center; border-radius: 5px 5px 40px 40px; border-top: 8px solid #ffb578; background: linear-gradient(145deg, #c8fff0, #448e78); box-shadow: 4px 5px 0 #245e57; color: white; font: 900 25px/1 system-ui; }
+.prop-claw { display: flex; gap: 9px; transform: rotate(30deg); }
+.claw-mark { width: 7px; height: 70px; border-radius: 90% 0; background: linear-gradient(#fff, #ffacd0); box-shadow: 0 0 13px #ff99cb; }
+.claw-mark:nth-child(2) { height: 88px; margin-top: -9px; }
+.prop-ruler { width: 13px; height: 83px; background: repeating-linear-gradient(0deg, transparent 0 8px, #fff7e9 8px 10px), linear-gradient(90deg, #99562c, #ffe0ac); border: 1px solid #ffd2a0; box-shadow: 4px 2px 0 #834f35; transform: rotate(35deg); }
+.ruler-mark { position: absolute; font: 900 8px/1 system-ui; color: #704320; writing-mode: vertical-lr; letter-spacing: 3px; }
+.duel-ground { width: 145px; height: 145px; border: 3px solid var(--fx-color); border-radius: 50%; transform: translate(-50%,-50%) perspective(500px) rotateX(64deg); box-shadow: 0 0 18px var(--fx-color), inset 0 0 18px color-mix(in srgb, var(--fx-color) 40%, transparent); z-index: 1; }
+.ground-inner { position: absolute; inset: 13px; border: 2px dashed currentColor; border-radius: 50%; }
+.ground-inner::before, .ground-inner::after { content: ""; position: absolute; inset: 14px; border: 1px solid currentColor; transform: rotate(45deg); }
+.ground-inner::after { transform: rotate(0); }
+.ground-field { width: 190px; height: 190px; border-width: 4px; }
+.ground-charge { width: 110px; height: 110px; border-style: dashed; }
+.ground-shield { border-style: double; border-width: 6px; }
+.duel-beam { height: 7px; margin-top: -3px; border-radius: 50%; transform-origin: left center; background: linear-gradient(90deg, transparent, var(--fx-color), #fff); box-shadow: 0 0 15px currentColor; z-index: 1; }
+.beam-magic { height: 12px; box-shadow: 0 0 20px currentColor, 0 0 36px currentColor; }
+.beam-seal { height: 4px; background: repeating-linear-gradient(90deg, currentColor 0 8px, transparent 8px 13px); }
+.beam-taunt::after { content: ""; position: absolute; right: -2px; top: -6px; width: 16px; height: 16px; border-top: 5px solid currentColor; border-right: 5px solid currentColor; transform: rotate(45deg); }
+.duel-orbit { font: 900 27px/1 system-ui; width: 30px; height: 30px; display: grid; place-items: center; text-shadow: 0 0 15px currentColor; z-index: 2; }
+.duel-card-back { width: 36px; height: 52px; display: grid; place-items: center; border: 2px solid #d9b7ff; border-radius: 4px; background: repeating-linear-gradient(45deg, #4c347a 0 5px, #3a285e 5px 10px); box-shadow: 4px 4px 0 #1a1435, 0 0 20px var(--fx-color); transform: translate(-50%,-50%); z-index: 4; }
+.card-back-seal { font-size: 28px; color: #eac6ff; text-shadow: 0 0 12px currentColor; }
+.duel-speed-line { width: 44px; height: 3px; border-radius: 50%; background: linear-gradient(90deg, transparent, currentColor); transform-origin: center; box-shadow: 0 0 9px currentColor; }
+.duel-missile { filter: drop-shadow(0 0 19px var(--fx-color)); z-index: 5; }
+.duel-reflection { filter: drop-shadow(0 0 25px #9beaff); }
+.duel-impact-crack { width: 2px; height: 2px; transform: translate(-50%,-50%); z-index: 4; }
+.impact-ray { position: absolute; top: -5px; left: -3px; width: 6px; transform-origin: 50% 5px; background: linear-gradient(#fff, var(--fx-color)); clip-path: polygon(50% 0, 100% 38%, 60% 53%, 90% 80%, 20% 100%, 35% 60%, 0 32%); box-shadow: 0 0 16px var(--fx-color); }
+.duel-shard { width: 11px; height: 8px; background: currentColor; clip-path: polygon(0 0, 100% 20%, 50% 100%); box-shadow: 0 0 10px currentColor; z-index: 3; }
+.duel-heal-wings { width: 100px; height: 65px; display: grid; place-items: center; transform: translate(-50%,-50%); z-index: 4; }
+.heal-wing { position: absolute; width: 48px; height: 27px; top: 13px; background: linear-gradient(0deg, #87ffb9aa, #f1fff5); clip-path: polygon(0 0, 100% 40%, 90% 72%, 60% 58%, 82% 100%, 33% 73%); filter: drop-shadow(0 0 12px #82ffc3); }
+.heal-wing.left { left: 0; transform: rotate(-22deg); }
+.heal-wing.right { right: 0; transform: rotate(22deg) scaleX(-1); }
+.heal-center { position: relative; font: 900 46px/1 system-ui; color: #d5ffe6; text-shadow: 0 0 20px #67ffaf; }
+.duel-seal { width: 94px; height: 94px; display: grid; place-items: center; border: 4px solid currentColor; border-radius: 50%; background: #31113d33; font: 900 87px/1 system-ui; text-shadow: 0 0 18px currentColor; transform: translate(-50%,-50%); z-index: 5; }
+.duel-status-prop { width: 60px; height: 60px; z-index: 3; }
+.duel-block-confirmed { filter: drop-shadow(0 0 25px #9befff); }
+.duel-missed { filter: grayscale(.7) drop-shadow(0 0 8px #abb8d0); }
+@media (max-height: 500px) and (orientation: landscape) {
+  .duel-prop .prop-core { scale: .82; }
+  .duel-ground { width: 115px; height: 115px; }
+  .ground-field { width: 145px; height: 145px; }
+  .duel-seal { width: 75px; height: 75px; font-size: 70px; }
+  .duel-heal-wings { width: 90px; }
+}
+@media (max-height: 310px) and (orientation: landscape) {
+  .duel-prop .prop-core { scale: .7; }
+  .duel-ground { width: 95px; height: 95px; }
+  .ground-field { width: 115px; height: 115px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .duel-fx { filter: none; text-shadow: none; }
+  .duel-prop { transform: translate(-50%,-50%); }
+  .duel-ground, .duel-card-back { transform: translate(-50%,-50%); }
+  .duel-ground { box-shadow: none; opacity: .7; }
+}
+
+.duel-empty-card { width: 43px; height: 61px; display: grid; place-items: center; border: 2px dashed #9ba4b9; border-radius: 5px; background: #394055cc; transform: translate(-50%,-50%); z-index: 3; }
+.empty-card-seal { color: #b8c1d1; font: 900 48px/1 system-ui; }

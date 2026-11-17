@@ -251,6 +251,8 @@ const server = http.createServer(async (req, res) => {
         "/engine.js": "engine.js",
         "/client.js": "client.js",
         "/game.css": "game.css",
+        "/effects.js": "effects.js",
+        "/effects.css": "effects.css",
         "/assets/cards/manifest.json": "assets/cards/manifest.json",
         "/assets/fonts/PretendardVariable.woff2":
           "assets/fonts/PretendardVariable.woff2",

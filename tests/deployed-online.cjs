@@ -35,7 +35,7 @@ const frontend = localFrontend
             relative = u.pathname.replace(/^\/-\//, "");
           if (
             route.request().method() !== "GET" ||
-            !/^(game\.html|engine\.js|client\.js|game\.css|assets\/cards\/manifest\.json|assets\/fonts\/(PretendardVariable\.woff2|OFL\.txt))$/.test(
+            !/^(game\.html|engine\.js|client\.js|game\.css|effects\.js|effects\.css|assets\/cards\/manifest\.json|assets\/fonts\/(PretendardVariable\.woff2|OFL\.txt))$/.test(
               relative,
             )
           ) {
@@ -69,6 +69,7 @@ const frontend = localFrontend
       await page.waitForFunction(
         () => typeof view !== "undefined" && view?.players.length === 5,
       );
+      assert.equal(await page.evaluate(() => Object.keys(window.DuelFX?.profiles || {}).length), 40);
       pages.push(page);
     }
     console.log(
@@ -180,11 +181,14 @@ const frontend = localFrontend
     for (const page of pages)
       await page.evaluate(() => {
         window.publicCardCasts = [];
+        window.publicDuelCards = [];
         new MutationObserver((records) => {
           for (const record of records)
             for (const node of record.addedNodes)
-              if (node.nodeType === 1 && node.classList.contains("fx-cast"))
-                window.publicCardCasts.push(node.textContent);
+              if (node.nodeType === 1) {
+                if (node.classList.contains("fx-cast")) window.publicCardCasts.push(node.textContent);
+                if (node.matches(".duel-fx[data-card]")) window.publicDuelCards.push(Number(node.dataset.card));
+              }
         }).observe(document.querySelector("#effects"), { childList: true });
       });
     const playedNewCards = new Map();
@@ -239,9 +243,10 @@ const frontend = localFrontend
         for (const page of pages) {
           assert(await page.evaluate((id) => view.events.some((e) => e.kind === "card" && e.card === id), chosen.id));
           await page.waitForFunction((name) => window.publicCardCasts.some((text) => text.includes(name)), chosen.name);
+          await page.waitForFunction((id) => window.publicDuelCards.includes(id), chosen.id);
         }
         playedNewCards.set(chosen.id, chosen.name);
-        console.log(`PASS public card ${chosen.id} played through UI: synchronized state, private hands and five visible cast effects`);
+        console.log(`PASS public card ${chosen.id} played through UI: synchronized state, private hands and five visible cast and card-specific effects`);
       }
     }
     assert(playedNewCards.size >= 2, "Two distinct new cards must be acquired and used through normal public-server play");
@@ -260,7 +265,7 @@ const frontend = localFrontend
         new MutationObserver((records) => {
           for (const record of records)
             for (const node of record.addedNodes)
-              if (node.nodeType === 1 && node.classList.contains("fx-cast"))
+              if (node.nodeType === 1 && (node.classList.contains("fx-cast") || node.classList.contains("duel-fx")))
                 window.replayedCasts.push(node.textContent);
         }).observe(document.querySelector("#effects"), { childList: true });
       }, { once: true });
@@ -290,6 +295,10 @@ const frontend = localFrontend
       "PASS reload restores identity, revision and latest-card description without replaying historical effects",
     );
     for (let i = 1; i < 5; i++) {
+      if (await pages[i].locator("#result-dialog").evaluate((x) => x.open)) {
+        const watch = pages[i].locator("#result-watch");
+        await (await watch.isVisible() ? watch : pages[i].locator("#result-close")).click();
+      }
       await pages[i].click("#menu-open");
       await pages[i].click("#new-game");
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -319,8 +328,19 @@ const frontend = localFrontend
       timeout: 30000,
     });
     assert.equal(await host.evaluate(() => view.winner), 0);
+    await host.waitForFunction(() => {
+      const dialog = document.querySelector("#result-dialog");
+      return dialog.open && dialog.dataset.outcome === "win";
+    });
+    assert((await host.locator("#result-title").innerText()).trim());
+    await host.screenshot({ path: "/tmp/deployed-result.png", animations: "disabled" });
+    await host.click("#result-close");
+    await host.waitForTimeout(1500);
+    assert.equal(await host.locator("#result-dialog").evaluate((x) => x.open), false);
+    await host.click("#result-reopen");
+    assert.equal(await host.locator("#result-dialog").getAttribute("data-outcome"), "win");
     console.log(
-      "PASS four UI resignations produce last-survivor victory on public server",
+      "PASS four UI resignations produce public-server victory, a winner dialog and intentional result reopen without polling reopen",
     );
     assert.deepEqual(errors, []);
     console.log("PASS no browser JavaScript errors");
