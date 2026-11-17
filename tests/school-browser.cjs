@@ -4,6 +4,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {fixture}=require('./account-fixture.cjs');
 const {installGuestSeed,seedGuest,runSchoolRegressions}=require('./school-ui-regressions.cjs');
+const {runDisplayRegressions}=require('./school-display-regressions.cjs');
 (async()=>{
  const t=await fixture(),origin='http://127.0.0.1:8801';t.env.ALLOWED_ORIGIN=origin;
  let dropNext=false,actionRequests=0,stateDelay=0,blockedActionToken=null,failNextState=false;const schoolActionLog=[];
@@ -29,9 +30,9 @@ const {installGuestSeed,seedGuest,runSchoolRegressions}=require('./school-ui-reg
  });
  await new Promise(r=>server.listen(8801,'127.0.0.1',r));
  const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const errors=[];let sdkLoads=0,fixtureBrowser=0;
- async function pageFor(person,width=390,height=844){
+ async function pageFor(person,width=390,height=844,deviceScaleFactor=1){
    // Each test browser represents a separate client; account rate limits are tested in accounts.cjs.
-   const context=await browser.newContext({viewport:{width,height},reducedMotion:'reduce',extraHTTPHeaders:{'CF-Connecting-IP':`198.51.100.${++fixtureBrowser}`}});
+   const context=await browser.newContext({viewport:{width,height},deviceScaleFactor,reducedMotion:'reduce',extraHTTPHeaders:{'CF-Connecting-IP':`198.51.100.${++fixtureBrowser}`}});
    await installGuestSeed(context);
    await context.exposeBinding('fixtureCredential',(_,nonce,subject)=>t.credential(nonce,subject||person));
    await context.route('https://accounts.google.com/gsi/client',async route=>{sdkLoads++;await route.fulfill({contentType:'text/javascript',body:`window.google={accounts:{id:{initialize(o){this.o=o},renderButton(host){const b=document.createElement('button');b.id='fixture-login';b.textContent='Google로 로그인 (검증용)';b.onclick=async()=>this.o.callback({credential:await window.fixtureCredential(this.o.nonce,window.fixturePerson)});host.append(b)},disableAutoSelect(){}}}}`});});
@@ -41,6 +42,7 @@ const {installGuestSeed,seedGuest,runSchoolRegressions}=require('./school-ui-reg
  const tab=(p,name)=>p.click(`.bottom-nav [data-tab="${name}"]`);
  async function login(p){await p.click('#account-button');await p.click('#fixture-login');await p.waitForFunction(()=>document.getElementById('account-label').textContent==='계정 저장');}
  try{
+   if(process.env.SCHOOL_DISPLAY_ONLY==='1'){await runDisplayRegressions({pageFor,tab});assert.deepEqual(errors,[]);return;}
    await runSchoolRegressions({pageFor,saved,origin,errors,t,login,setStateDelay:ms=>{stateDelay=ms;},setActionBlock:value=>{blockedActionToken=value;},failStateOnce:()=>{failNextState=true;},schoolActionLog});
    if(process.env.SCHOOL_SAVE_ONLY==='1')return;
    const sdkBefore=sdkLoads,p=await pageFor('same-person');assert.equal(sdkLoads,sdkBefore);assert.equal(await p.evaluate(()=>SchoolArt.assetsReady()),true);
@@ -52,6 +54,7 @@ const {installGuestSeed,seedGuest,runSchoolRegressions}=require('./school-ui-reg
      for(const name of ['recruit','supplies']){await tab(p,name);const nav=await p.locator('.bottom-nav').boundingBox();assert.ok(nav.y+nav.height<=height+1);}
    }
    console.log('PASS eight mobile/landscape/desktop viewports: canvas, three-item navigation, map, recruitment and supplies');
+   await runDisplayRegressions({pageFor,tab});
    await tab(p,'recruit');await p.click('#feature-osia-button');assert.match(await p.locator('#modal-content').innerText(),/Osia · 물고기 종족 · 물 속성/);await p.click('#modal-close');
    await tab(p,'recruit');await p.click('#rates-button');assert.match(await p.locator('#modal-content').innerText(),/SSR · 3명/);assert.match(await p.locator('#modal-content').innerText(),/1\.3333%/);await p.click('#modal-close');
    assert.equal(await p.locator('#pity-count').textContent(),'0 / 80');assert.equal(await p.locator('#next-ssr-chance').textContent(),'다음 SSR 4%');
@@ -82,15 +85,18 @@ const {installGuestSeed,seedGuest,runSchoolRegressions}=require('./school-ui-reg
        for(const e of s.events.filter(e=>e.seq>last&&e.from==='osia'))window.osiaTimeline.push(e);last=s.seq;
        const status=document.getElementById('battle-status').textContent;if(!window.osiaLabels.includes(status))window.osiaLabels.push(status);
        const phase=events.findLast(e=>e.kind==='skill-stage'&&e.from==='osia'),age=phase?t-phase.time:-1;
-       const picture=()=>({png:c.canvas.toDataURL(),labels,at:phase.at,stunned:s.battle.enemies.filter(e=>e.stunUntil>s.battle.elapsed).length,skillHits:s.events.filter(e=>e.kind==='hit'&&e.castId===phase.castId).length});
+       // Compare effects at a fixed logical resolution; the live canvas now
+       // matches each display's physical pixels and can be much larger.
+       const snapshot=(shownEvents=events)=>{const canvas=document.createElement('canvas');canvas.width=480;canvas.height=280;const ctx=canvas.getContext('2d');draw(ctx,s,t,shownEvents,reduced);return ctx;};
+       const picture=()=>({png:snapshot().canvas.toDataURL(),labels,at:phase.at,stunned:s.battle.enemies.filter(e=>e.stunUntil>s.battle.elapsed).length,skillHits:s.events.filter(e=>e.kind==='hit'&&e.castId===phase.castId).length});
        if(phase&&age>.16&&age<.4&&!window.osiaFrames[phase.stage])window.osiaFrames[phase.stage]=picture();
        if(phase?.stage===4){
          const part=age>.16&&age<.4?'summon':age>.65&&age<.9?'rush':age>1.06&&age<1.45&&!s.battle.osiaCast?'impact':null;
          if(part&&!window.dragonFrames[part]){window.dragonFrames[part]=picture();if(part==='impact'){window.osiaStunUntil=s.battle.enemies[0].stunUntil;window.osiaFinalSnapshot=JSON.parse(JSON.stringify({s,t,events}));}}
        }
        if(!window.osiaBasicPNG&&events.some(e=>e.kind==='hit'&&e.from==='osia'&&!e.skill&&t-e.time>.1&&t-e.time<.25)){
-         window.osiaBasicPNG=c.canvas.toDataURL();const base=document.createElement('canvas');base.width=480;base.height=280;const bc=base.getContext('2d');draw(bc,s,t,events.filter(e=>e.from!=='osia'),reduced);
-         const blue=ctx=>{const a=ctx.getImageData(0,0,480,280).data;let n=0;for(let i=0;i<a.length;i+=4)if(a[i+2]>a[i]+40&&a[i+1]>a[i]+30)n++;return n;};window.osiaBombPixels=blue(c)-blue(bc);
+         const actual=snapshot(),base=snapshot(events.filter(e=>e.from!=='osia'));window.osiaBasicPNG=actual.canvas.toDataURL();
+         const blue=ctx=>{const a=ctx.getImageData(0,0,480,280).data;let n=0;for(let i=0;i<a.length;i+=4)if(a[i+2]>a[i]+40&&a[i+1]>a[i]+30)n++;return n;};window.osiaBombPixels=blue(actual)-blue(base);
        }
        if(window.osiaStunUntil&&!window.osiaSteps.some(e=>e.elapsed===s.battle.elapsed))window.osiaSteps.push({elapsed:s.battle.elapsed,remaining:window.osiaStunUntil-s.battle.elapsed,attacks:s.events.filter(e=>e.kind==='hit'&&e.side==='hero'&&e.at===s.at).length});
      };

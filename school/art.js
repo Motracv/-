@@ -10,6 +10,15 @@ window.SchoolArt = (() => {
   });
   osiaImage.src = "school/assets/osia-sprites.png?v=osia1";
   function rect(c, color, x, y, w, h) { c.fillStyle = color; c.fillRect(Math.round(x), Math.round(y), w, h); }
+  // Fine details use a half-pixel art grid. They are drawn directly into the
+  // display-sized canvas, rather than enlarging a 480px raster afterwards.
+  function detail(c, color, x, y, w, h) { c.fillStyle = color; c.fillRect(Math.round(x * 2) / 2, Math.round(y * 2) / 2, w, h); }
+  const shades = new Map();
+  function shade(color, amount) {
+    const key = color + amount;
+    if (!shades.has(key)) { const n = parseInt(color.slice(1), 16); shades.set(key, '#' + [n >> 16, n >> 8 & 255, n & 255].map(v => Math.max(0, Math.min(255, v + amount)).toString(16).padStart(2, '0')).join('')); }
+    return shades.get(key);
+  }
   function osia(c, x, y, scale, frame) {
     c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale, scale);
     if (frame.dead) { c.globalAlpha = .4; c.rotate(-Math.PI / 2); }
@@ -47,6 +56,11 @@ window.SchoolArt = (() => {
     rect(c, skin, -7, -9, 3, 3); rect(c, dark, 5, -18, 4, 11); rect(c, h.outfit, 5, -17, 3, 8); rect(c, skin, 6, -9, 3, 4);
     rect(c, "#444e5a", -5, -5, 4, 6); rect(c, "#394451", 2, -5, 4, 6);
     rect(c, boot, -6, 0, 6, 3); rect(c, boot, 2, 0, 6, 3);
+    detail(c, shade(h.outfit, 23), -6, -17.5, 1, 10); detail(c, shade(h.outfit, -22), 4.5, -14, 1.5, 9);
+    detail(c, "#fff3d8", -3.5, -17.5, 2.5, 1); detail(c, "#fff3d8", 1.5, -17.5, 2, 1);
+    detail(c, "#e6c77e", 1, -12.5, 1, 1); detail(c, "#e6c77e", 1, -9.5, 1, 1);
+    detail(c, "#1b273b66", -4, -6.5, 8, 1); detail(c, "#657381", -4.5, -4, 1, 4);
+    detail(c, "#74777c", -5.5, .5, 4, .5); detail(c, "#74777c", 2.5, .5, 3.5, .5);
     rect(c, dark, -7, -31, 14, 15); rect(c, skin, -6, -29, 12, 11); rect(c, "#d9a47e", -5, -20, 10, 3);
     rect(c, h.hair, -7, -32, 14, 6); rect(c, h.hair, -7, -28, 3, 7); rect(c, h.hair, 4, -28, 3, 4);
     rect(c, h.hair, -5, -34, 10, 3); rect(c, h.hair, -1, -29, 3, 4);
@@ -56,6 +70,10 @@ window.SchoolArt = (() => {
     if (id === "sua") { rect(c, "#f4edda", -8, -33, 16, 5); rect(c, "#c87b86", -1, -34, 3, 6); rect(c, "#c87b86", -3, -32, 7, 2); }
     if (id === "minjae") { rect(c, dark, -6, -26, 5, 4); rect(c, dark, 2, -26, 5, 4); rect(c, "#9ed9d7", -5, -25, 3, 2); rect(c, "#9ed9d7", 3, -25, 3, 2); rect(c, dark, -1, -25, 3, 1); }
     else { rect(c, dark, -4, -25, 2, frame.blink ? 1 : 3); rect(c, dark, 3, -25, 2, frame.blink ? 1 : 3); rect(c, "#e4ac91", -5, -22, 2, 1); }
+    detail(c, shade(h.hair, 26), -5, -32, 7, 1); detail(c, shade(h.hair, 12), -5.5, -30.5, 2, 1);
+    detail(c, shade(h.hair, -23), -7, -26, 1, 4); detail(c, "#fff0d9", -.5, -25, 1, 3);
+    detail(c, "#b67d69", -.5, -20.5, 2.5, .5);
+    if (!frame.blink && id !== "minjae") { detail(c, "#fff9ec", -3.5, -25, .5, 1); detail(c, "#fff9ec", 3.5, -25, .5, 1); }
     if (id === "jiho") { rect(c, "#313b47", -10, -28, 4, 8); rect(c, h.color, -9, -27, 2, 6); rect(c, "#313b47", -7, -35, 15, 3); }
     if (id === "geonu") { rect(c, "#3f4b43", -8, -34, 17, 7); rect(c, "#d5c8a4", -1, -34, 3, 7); }
     if (id === "siu" || id === "lumi") { rect(c, h.outfit, -11, -33, 24, 3); rect(c, h.outfit, -7, -37, 15, 5); rect(c, h.outfit, -4, -42, 9, 6); rect(c, "#f2d18d", -5, -35, 12, 2); rect(c, h.color, 0, -42, 3, 3); }
@@ -67,11 +85,14 @@ window.SchoolArt = (() => {
     if (h.weapon === "staff") { rect(c, "#775946", 12, -31, 3, 33); rect(c, h.color, 9, -35, 9, 7); rect(c, "#fff0c9", 11, -34, 4, 3); }
     if (h.weapon === "heal") { rect(c, "#614c4c", 6, -15, 12, 11); rect(c, "#f0dfb9", 7, -14, 10, 9); rect(c, h.color, 11, -13, 2, 7); rect(c, h.color, 9, -11, 6, 2); }
     if (h.weapon === "flag") { rect(c, "#6f5140", 12, -34, 2, 35); rect(c, h.color, 14, -34, 12, 10); rect(c, "#ead9a9", 17, -31, 5, 3); }
+    if (h.weapon === "shield") { detail(c, "#ecedcd", 6.5, -19, .5, 12); detail(c, "#6c846f", 17, -19, .5, 12); for (const [bx, by] of [[7,-19],[16,-19],[7,-7],[16,-7]]) detail(c, "#f6d78e", bx, by, .5, .5); }
+    if (h.weapon === "staff") { detail(c, "#d4a679", 12, -29, .5, 27); detail(c, "#fffce6", 10, -34, 1, 1); detail(c, "#28334077", 16, -33, 1, 3); }
+    if (h.weapon === "sword") { detail(c, "#fff9df", 11 + reach, -25, .5, 14); detail(c, "#b48c53", 10 + reach, -4, 3, .5); }
     c.restore();
   }
   function portrait(id) {
-    if (!portraits.has(id)) { const canvas = document.createElement("canvas"); canvas.width = 80; canvas.height = 96;
-      const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; hero(c, id, 36, 86, 2); portraits.set(id, canvas.toDataURL()); }
+    if (!portraits.has(id)) { const canvas = document.createElement("canvas"); canvas.width = 160; canvas.height = 192;
+      const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; c.scale(2, 2); hero(c, id, 36, 86, 2); portraits.set(id, canvas.toDataURL()); }
     return portraits.get(id);
   }
   function monster(c, enemy, x, y, frame = {}) {
@@ -83,11 +104,14 @@ window.SchoolArt = (() => {
     if (enemy.kind === 2) { rect(c, edge, -23, -23, 14, 8); rect(c, body, -21, -22, 11, 5); rect(c, edge, 10, -23, 14, 8); rect(c, body, 11, -22, 11, 5); }
     rect(c, edge, -13, -18, 27, 15); rect(c, edge, -10, -25, 21, 22); rect(c, edge, -6, -29, 13, 5);
     rect(c, body, -11, -17, 23, 12); rect(c, body, -8, -24, 17, 19); rect(c, body, -5, -27, 11, 5);
+    detail(c, shade(body, 24), -7.5, -23, 1, 5); detail(c, shade(body, 18), -10, -16, 1, 8);
+    detail(c, shade(body, -17), -9, -5.5, 20, 1.5); detail(c, shade(body, -13), 9, -21, 1.5, 15);
+    detail(c, shade(body, 12), -4, -26, 7, .5); detail(c, "#ffffff55", -4.5, -22.5, 2, .5);
     rect(c, "#ffffff38", -6, -24, 5, 3); rect(c, "#292d3c", -6, -17, 4, 5); rect(c, "#292d3c", 4, -17, 4, 5);
     rect(c, "#fff7ce", -5, -17, 1, 2); rect(c, "#fff7ce", 5, -17, 1, 2); rect(c, edge, -1, -8, 4, 2);
     if (enemy.kind === 1 || enemy.kind === 5) { rect(c, body, -11, -4, 5, 5); rect(c, body, 0, -5, 5, 6); rect(c, body, 9, -4, 3, 5); }
     if (enemy.kind === 3) { rect(c, "#b99a5b", -17, -22, 6, 3); rect(c, "#b99a5b", 12, -23, 7, 3); rect(c, body, -18, -26, 5, 4); }
-    if (enemy.kind === 4) { rect(c, edge, -18, -18, 7, 17); rect(c, edge, 12, -18, 7, 17); rect(c, "#b9d9d4", -5, -23, 12, 4); }
+    if (enemy.kind === 4) { rect(c, edge, -18, -18, 7, 17); rect(c, edge, 12, -18, 7, 17); rect(c, "#b9d9d4", -5, -23, 12, 4); detail(c, "#e1f1e0", -4, -22.5, 9, .5); for (const bx of [-15, 15]) { detail(c, "#cbd1ca", bx, -15, 1, 1); detail(c, "#303d4d", bx, -5, 1, 1); } for (let i = 0; i < 3; i++) detail(c, edge, -3 + i * 3, -5, 1.5, .5); }
     if (enemy.boss) { rect(c, "#86663c", -12, -32, 26, 6); rect(c, "#ebc86e", -10, -33, 22, 5); for (const px of [-10, 0, 9]) rect(c, "#ebc86e", px, -38, 3, 8); rect(c, "#f7e3a0", 0, -32, 3, 3); }
     c.restore();
   }
@@ -95,14 +119,28 @@ window.SchoolArt = (() => {
     const zone = S.chapter(stage), outdoor = zone === 3 || zone === 5;
     const wall = ["#d9c6a1", "#c5c6ab", "#bdab92", "#8cab83", "#b6b6a1", "#626e8d"][zone];
     rect(c, wall, 0, 0, 480, 280);
+    // Layered colour bands and small masonry details keep the scenery readable
+    // at QHD without introducing a blur filter or stretching a low-res bitmap.
+    if (!outdoor) {
+      rect(c, shade(wall, 10), 0, 0, 480, 15); rect(c, shade(wall, -8), 0, 129, 480, 8);
+      for (let y = 31; y < 132; y += 18) for (let x = 7 + y % 11; x < 480; x += 47) detail(c, "#fff8dc20", x, y, 7, .5);
+    }
     if (outdoor) {
       const sky = zone === 5 ? ["#3d456b", "#61698e", "#9897ad"] : ["#9fc6bd", "#c3d5b4", "#e5dcaf"];
       for (let i = 0; i < 3; i++) rect(c, sky[i], 0, i * 47, 480, 48);
       if (zone === 5) { for (let i = 0; i < 24; i++) rect(c, "#e8dfb8", (i * 73 + 27) % 480, (i * 31 + 11) % 117, 2, 2); rect(c, "#e9dfbc", 360, 26, 29, 29); rect(c, sky[0], 353, 20, 24, 25); }
       else { rect(c, "#efe2a1", 390, 24, 31, 31); for (let i = 0; i < 4; i++) { const x = (i * 135 + time * 1.5) % 560 - 60; rect(c, "#e9e7c9", x, 26 + i * 20, 68, 11); rect(c, "#e9e7c9", x + 13, 17 + i * 20, 32, 12); } }
-      for (let i = 0; i < 13; i++) { const x = i * 40; rect(c, zone === 5 ? "#48516b" : "#658978", x, 108 - (i % 3) * 15, 35, 50); }
+      for (let i = 0; i < 13; i++) { const x = i * 40, by = 108 - (i % 3) * 15; rect(c, zone === 5 ? "#48516b" : "#658978", x, by, 35, 50);
+        if (zone === 5) for (let wy = by + 6; wy < 135; wy += 9) for (let wx = x + 5; wx < x + 30; wx += 8) detail(c, (wx + wy) % 3 ? "#a8b7b07d" : "#edda9f9c", wx, wy, 3, 4);
+        else { rect(c, "#749b78", x - 5, by - 4, 28, 16); rect(c, "#8cae86", x, by - 8, 16, 8); for (let leaf = 0; leaf < 4; leaf++) detail(c, "#bad09b", x + leaf * 5, by + (leaf % 2) * 3, 2, .5); }
+      }
       rect(c, zone === 5 ? "#555f75" : "#62775c", 0, 137, 480, 13); rect(c, "#b7b69b", 0, 136, 480, 4);
-      for (let i = 0; i < 10; i++) rect(c, "#8a947d", i * 55, 116, 5, 26);
+      for (let i = 0; i < 10; i++) { rect(c, "#8a947d", i * 55, 116, 5, 26); detail(c, "#cbd1b0", i * 55, 116, 1, 26); }
+      detail(c, zone === 5 ? "#c3c8d0" : "#cbd1b0", 0, 119, 480, 1); detail(c, "#d4d8b3", 0, 136, 480, .5);
+      if (zone === 3) {
+        rect(c, "#927750", 209, 119, 72, 5); rect(c, "#ae9365", 207, 113, 76, 5); rect(c, "#bba16c", 207, 107, 76, 4); rect(c, "#536453", 214, 124, 4, 14); rect(c, "#536453", 272, 124, 4, 14);
+        for (let i = 0; i < 14; i++) { const x = i * 34 + 4, y = 142 + (i % 3); detail(c, "#dcd9a9", x, y, 2, .5); detail(c, "#ebc2a3", x + 6, y - 3, 2, 2); detail(c, "#729567", x + 6.5, y, .5, 4); }
+      }
     } else {
       rect(c, "#6c6555", 0, 16, 480, 5); rect(c, "#a08f70", 0, 22, 480, 3);
       for (const wx of [24, 105]) {
@@ -110,22 +148,51 @@ window.SchoolArt = (() => {
         rect(c, zone === 2 ? "#94b0aa" : "#9dbfb1", wx + 3, 41, 60, 68);
         rect(c, "#b5cba9", wx + 3, 80, 60, 29); rect(c, "#e5d4a2", wx + 30, 38, 4, 77); rect(c, "#e5d4a2", wx, 71, 66, 4);
         rect(c, "#827359", wx - 6, 115, 78, 5);
+        detail(c, "#fff4cf", wx, 38, 66, 1); detail(c, "#f2e7bd", wx, 38, 1, 77); detail(c, "#546d6666", wx + 3, 42, 1, 67);
+        for (let i = 0; i < 4; i++) { const tx = wx + 5 + i * 14, ty = 88 + (i % 2) * 5; rect(c, "#9db69a", tx, ty, 11, 18); rect(c, "#abc5a5", tx + 2, ty - 4, 7, 9); }
+        // Glints stay inside each glass pane, with opaque pixel edges.
+        detail(c, "#eff4db66", wx + 7, 46, 3, 18); detail(c, "#eff4db44", wx + 11, 46, 1, 11);
+        detail(c, "#eff4db66", wx + 38, 46, 3, 18); detail(c, "#eff4db44", wx + 42, 46, 1, 11);
+        rect(c, "#e5d4a2", wx + 30, 38, 4, 77); rect(c, "#e5d4a2", wx, 71, 66, 4);
+        detail(c, "#fff4d0", wx + 30, 38, .5, 77); detail(c, "#fff4d0", wx, 71, 66, .5); detail(c, "#7f806b", wx + 28, 88, 1.5, 5);
+        detail(c, "#c1ad83", wx - 6, 115, 78, 1); detail(c, "#4e514531", wx - 3, 120, 72, 2);
       }
       if (zone === 2) {
-        for (const sx of [207, 300, 390]) { rect(c, "#745e47", sx, 38, 73, 105); rect(c, "#554d3f", sx + 5, 43, 63, 90); for (let row = 0; row < 3; row++) { for (let j = 0; j < 8; j++) rect(c, ["#8d6d5d", "#909c7b", "#c7b17a", "#7e92a0"][(j + row) % 4], sx + 8 + j * 7, 48 + row * 28, 5, 21 - (j % 3) * 2); rect(c, "#8e7351", sx + 3, 71 + row * 28, 67, 4); } }
+        for (const sx of [207, 300, 390]) { rect(c, "#745e47", sx, 38, 73, 105); rect(c, "#554d3f", sx + 5, 43, 63, 90); detail(c, "#c5a67c", sx + 1, 39, 1, 103); for (let row = 0; row < 3; row++) { for (let j = 0; j < 8; j++) { const bx = sx + 8 + j * 7, by = 48 + row * 28; rect(c, ["#8d6d5d", "#909c7b", "#c7b17a", "#7e92a0"][(j + row) % 4], bx, by, 5, 21 - (j % 3) * 2); detail(c, "#f0d9a6", bx + 1, by + 3, 3, .5); detail(c, "#f0d9a6", bx + 1, by + 14, 3, .5); detail(c, "#ffffff22", bx, by, .5, 18); } rect(c, "#8e7351", sx + 3, 71 + row * 28, 67, 4); detail(c, "#c7a87c", sx + 3, 71 + row * 28, 67, .5); } }
+      } else if (zone === 1) {
+        // A hallway has lockers and a notice board instead of a classroom board.
+        for (let i = 0; i < 6; i++) { const lx = 210 + i * 23; rect(c, "#687f75", lx, 52, 22, 84); rect(c, i % 2 ? "#9bab8e" : "#aab69a", lx + 1, 53, 20, 81); detail(c, "#d4dabb", lx + 2, 54, .5, 78); detail(c, "#657467", lx + 17, 89, 1, 5); for (let r = 0; r < 3; r++) detail(c, "#778e78", lx + 5, 60 + r * 3, 10, .5); detail(c, "#f2e3b8", lx + 8, 78, 6, 3); }
+        rect(c, "#96734d", 372, 49, 83, 65); rect(c, "#c6ad7c", 375, 52, 77, 59);
+        for (const [px,py,pw,ph,col] of [[380,58,27,28,"#f5e7be"],[412,58,31,18,"#d4e1bd"],[414,82,28,21,"#e2c8ab"]]) { rect(c,col,px,py,pw,ph); detail(c,"#8d8e7355",px+4,py+7,pw-8,.5); detail(c,"#8d8e7355",px+4,py+11,pw-11,.5); detail(c,"#9d624b",px+pw/2,py+1,1.5,1.5); }
+      } else if (zone === 4) {
+        // Gym wall panelling, a basketball hoop and a compact school scoreboard.
+        for (let wx = 198; wx < 480; wx += 15) { rect(c, "#b99b73", wx, 33, 14, 104); detail(c, "#d1b48a", wx, 33, .5, 103); detail(c, "#9f825f", wx + 13, 33, .5, 103); }
+        rect(c, "#5d6b66", 260, 29, 6, 17); rect(c, "#786d57", 232, 44, 68, 47); rect(c, "#efe4c6", 234, 46, 64, 43); rect(c, "#c06e4f", 250, 64, 32, 1); rect(c, "#c06e4f", 250, 64, 1, 21); rect(c, "#c06e4f", 281, 64, 1, 21); rect(c, "#c06e4f", 250, 84, 32, 1);
+        rect(c, "#80563e", 251, 87, 30, 3); rect(c, "#d9875d", 252, 87, 28, 1);
+        for (let net = 0; net < 6; net++) { detail(c, "#f0e8cc", 253 + net * 5, 91, .5, 12); detail(c, "#ded6ba", 255 + net * 4, 103, .5, 6); } detail(c, "#f0e8cc", 253, 96, 26, .5); detail(c, "#f0e8cc", 256, 104, 21, .5);
+        rect(c, "#4f5c4c", 358, 46, 92, 42); rect(c, "#293f3d", 360, 48, 88, 38); c.fillStyle = "#d7d9b5"; c.font = "6px Galmuri, monospace"; c.fillText("HOME    SCHOOL    AWAY", 365, 58); c.fillStyle = "#e8c16e"; c.font = "14px Galmuri, monospace"; c.fillText("24   :   16", 367, 77);
+        for (const bx of [387, 415]) { rect(c, "#6e7a6c", bx, 108, 20, 29); rect(c, "#9aa080", bx + 2, 111, 16, 24); detail(c, "#c7c6a0", bx + 3, 112, 1, 22); }
       } else {
         rect(c, "#6e614b", 207, 39, 182, 88); rect(c, "#3b6456", 213, 45, 170, 75); rect(c, "#b7bf97", 227, 57, 62, 2); rect(c, "#b7bf97", 227, 65, 105, 2); rect(c, "#b7bf97", 227, 73, 80, 2);
         c.fillStyle = "#d4d8b4"; c.font = "11px Galmuri, monospace"; c.fillText("방과 후 모험부", 227, 101);
         rect(c, "#9d8460", 202, 125, 193, 5); rect(c, "#c5bca0", 347, 122, 13, 3);
         rect(c, "#776a57", 419, 42, 34, 34); rect(c, "#ede2bf", 423, 46, 26, 26); rect(c, "#675d50", 435, 51, 2, 12); rect(c, "#675d50", 435, 60, 9, 2);
+        detail(c, "#b8a477", 208, 40, 180, .5); detail(c, "#829d7c", 214, 46, 168, .5); detail(c, "#244d433b", 214, 118, 168, 1.5);
+        for (let i = 0; i < 6; i++) detail(c, "#e1ddad", 226 + i * 4, 83, 2, .5);
+        rect(c, "#c6ab77", 418, 91, 36, 37); rect(c, "#f1e2bc", 420, 93, 32, 32); detail(c, "#ab7460", 425, 99, 22, 2);
+        for (let r = 0; r < 4; r++) for (let col = 0; col < 5; col++) detail(c, r === 2 && col === 2 ? "#b2785c" : "#b6b394", 425 + col * 4.5, 105 + r * 4, 2, 1.5);
       }
       rect(c, "#a49b7c", 0, 137, 480, 13); rect(c, "#796c53", 0, 148, 480, 6);
+      detail(c, "#d6c7a0", 0, 137, 480, 1); detail(c, "#514f412e", 0, 151, 480, 2);
     }
     const floor = outdoor ? (zone === 5 ? "#7e8490" : "#a5ae87") : "#b2946a";
     rect(c, floor, 0, 153, 480, 127);
     for (let y = 155; y < 280; y += 24) { rect(c, outdoor ? "#596b5b28" : "#705b4138", 0, y, 480, 2); for (let x = (y % 48 ? -20 : 20); x < 480; x += 80) rect(c, outdoor ? "#596b5b28" : "#705b4138", x, y, 2, 24); }
+    for (let y = 158; y < 279; y += 12) for (let x = (y % 24 ? 15 : 51); x < 480; x += 80) detail(c, outdoor ? "#edf0c31c" : "#f4d7a526", x, y, 13 + x % 7, .5);
+    if (zone === 4) { detail(c, "#f2e6b594", 11, 164, 458, 1); detail(c, "#f2e6b594", 240, 164, 1, 116); detail(c, "#f2e6b594", 12, 164, 1, 116); detail(c, "#f2e6b594", 468, 164, 1, 116); c.save(); c.strokeStyle = "#f2e6b594"; c.lineWidth = .8; c.beginPath(); c.ellipse(240, 227, 47, 26, 0, 0, Math.PI * 2); c.stroke(); c.restore(); }
+    if (!outdoor) { rect(c, "#f8e8b21a", 29, 155, 63, 20); rect(c, "#f8e8b218", 35, 175, 68, 20); rect(c, "#f8e8b214", 42, 195, 74, 20); rect(c, "#f8e8b21a", 111, 155, 60, 20); rect(c, "#f8e8b218", 118, 175, 66, 20); }
     rect(c, "#2b3d3420", 0, 260, 480, 20);
-    if (!outdoor) { rect(c, "#806b4d", 13, 238, 32, 27); rect(c, "#d1b578", 9, 230, 41, 10); rect(c, "#68795d", 22, 218, 22, 11); rect(c, "#a2ab7e", 29, 208, 13, 15); rect(c, "#697c60", 14, 213, 16, 9); }
+    if (!outdoor) { rect(c, "#806b4d", 13, 238, 32, 27); rect(c, "#d1b578", 9, 230, 41, 10); detail(c, "#f1d39a", 10, 231, 38, 1); detail(c, "#5a523b", 13, 241, 32, 1); detail(c, "#b89a68", 15, 242, 1, 21); rect(c, "#68795d", 22, 218, 22, 11); rect(c, "#a2ab7e", 29, 208, 13, 15); rect(c, "#697c60", 14, 213, 16, 9); detail(c, "#c3cb8c", 30, 210, 6, 1); detail(c, "#b5c185", 16, 214, 5, .5); detail(c, "#435b48", 27, 220, 2, 9); }
     for (let i = 0; i < 10; i++) { const x = (i * 59 + Math.sin(time * .15 + i) * 15 + 32) % 480, y = (i * 19 + time * 3) % 235; rect(c, "#fff1c745", x, y, 2, 2); }
   }
   const dragon = document.createElement("canvas"); dragon.width = 104; dragon.height = 72;
@@ -226,7 +293,8 @@ window.SchoolArt = (() => {
     }
   }
   function draw(c, state, time, effects = [], reduced = false) {
-    c.imageSmoothingEnabled = false; c.clearRect(0, 0, 480, 280);
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+    c.setTransform(c.canvas.width / 480, 0, 0, c.canvas.height / 280, 0, 0); c.imageSmoothingEnabled = false;
     const battle = state.battle; background(c, battle.stage, reduced ? 0 : time);
     effects = effects.filter(e => (!e.battleId || e.battleId === battle.id) && time >= e.time);
     effects = effects.filter(e => e.kind !== "skill-stage" || battle.osiaCast?.id === e.castId || effects.some(hit => hit.kind === "skill-impact" && hit.castId === e.castId));
@@ -286,6 +354,7 @@ window.SchoolArt = (() => {
       c.fillText(battle.phase === "victory" ? (battle.boss ? "지역 클리어!" : "WAVE CLEAR") : "다시 준비하는 시간", 240, 112);
       c.font = "10px Galmuri, monospace"; c.fillText(battle.phase === "victory" ? `다음 전투까지 ${Math.ceil(battle.wait)}초` : `${Math.ceil(battle.wait)}초 뒤 자동 재도전`, 240, 135); c.textAlign = "left";
     }
+    c.restore();
   }
   return { hero, portrait, draw, ready, assetsReady: () => osiaLoaded };
 })();

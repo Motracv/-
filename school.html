@@ -9,10 +9,10 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%233c6555' d='M4 2h24v20l-12 8L4 22z'/%3E%3Cpath fill='%23f5deb0' d='M14 6h4v14h5v4H9v-4h5z'/%3E%3C/svg%3E">
   <link rel="preload" href="assets/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="school/assets/osia-sprites.png?v=osia1" as="image">
-  <link rel="stylesheet" href="school/style.css?v=school-ui2">
-  <script defer src="school/engine.js?v=school-ui2"></script>
-  <script defer src="school/art.js?v=school-ui2"></script>
-  <script defer src="school/client.js?v=school-ui2"></script>
+  <link rel="stylesheet" href="school/style.css?v=school-hd1">
+  <script defer src="school/engine.js?v=school-hd1"></script>
+  <script defer src="school/art.js?v=school-hd1"></script>
+  <script defer src="school/client.js?v=school-hd1"></script>
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -20,8 +20,8 @@
   <symbol id="i-people" viewBox="0 0 24 24"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM1 21v-3a7 7 0 0 1 14 0v3M17 4a4 4 0 0 1 0 8M18 15a5 5 0 0 1 5 5"/></symbol>
   <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 2 3 6 7 1-5 5 1 8-6-4-6 4 1-8-5-5 7-1z"/></symbol>
   <symbol id="i-bag" viewBox="0 0 24 24"><path d="M4 8h16v14H4zM8 8V3h8v5M4 13h16M10 11v5h4v-5"/></symbol>
-  <symbol id="i-gem" viewBox="0 0 24 24"><path d="M6 3h12l5 7-11 12L1 10zM1 10h22M6 3l3 7 3 12 3-12 3-7"/></symbol>
-  <symbol id="i-coin" viewBox="0 0 24 24"><path d="M6 2h12l4 4v12l-4 4H6l-4-4V6zM10 7h6M8 12h8M8 17h6M12 5v14"/></symbol>
+  <symbol id="i-gem" viewBox="0 0 24 24"><g stroke="none" shape-rendering="crispEdges"><path fill="#235b76" d="M6 2h12v2h2v2h2v2h2v4h-2v2h-2v2h-2v2h-2v2h-2v2h-4v-2H8v-2H6v-2H4v-2H2v-2H0V8h2V6h2V4h2z"/><path fill="#59c7d4" d="M6 4h12v2h2v2h2v3H2V8h2V6h2z"/><path fill="#b1f2e3" d="M8 4h8v2h-2v3H6V7h2z"/><path fill="#ecfff0" d="M6 4h4v2H6v2H4V6h2z"/><path fill="#3096ba" d="M2 11h20v1h-2v2h-2v2h-2v2h-2v2h-4v-2H8v-2H6v-2H4v-2H2z"/><path fill="#78e0dc" d="M8 11h6v5h-2v4h-2v-4H8z"/><path fill="#1e779f" d="M17 11h5v1h-2v2h-2v2h-2v2h-2v2h-2v-3h2v-3h3z"/></g></symbol>
+  <symbol id="i-coin" viewBox="0 0 24 24"><g stroke="none" shape-rendering="crispEdges"><path fill="#895323" d="M7 1h10v2h3v3h2v12h-2v3h-3v2H7v-2H4v-3H2V6h2V3h3z"/><path fill="#e49b32" d="M7 3h10v2h3v13h-3v3H7v-3H4V6h3z"/><path fill="#ffdc70" d="M7 3h10v2h2v3h-2V6H7v2H5V6h2zM4 8h2v10H4z"/><path fill="#ffd65c" d="M8 6h8v2h2v8h-2v3H8v-2H6V8h2z"/><path fill="#fff1a0" d="M8 6h8v2H8zM6 8h2v7H6z"/><path fill="#b87529" d="M11 8h3v2h-2v2h3v4h-3v2h-2v-2H9v-2h4v-1h-3v-3h1z"/><path fill="#fff0a1" d="M10 8h1v2h-1zM16 17h2v2h-2z"/></g></symbol>
   <symbol id="i-sound" viewBox="0 0 24 24"><path d="M3 8h5l5-5v18l-5-5H3zM17 7a8 8 0 0 1 0 10M20 3a13 13 0 0 1 0 18"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><path d="M7 2h10l5 5v10l-5 5H7l-5-5V7zM12 6v7h5"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5C8 2 4 2 1 3v17c4-1 8 0 11 2 3-2 7-3 11-2V3c-3-1-7-1-11 2zM12 5v17"/></symbol>
@@ -31,8 +31,8 @@
     <div class="brand"><span class="crest" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M3 13h8V7h10v6h8v16H3zM11 7l5-4 5 4M13 29v-8h6v8M6 17h2M6 22h2M24 17h2M24 22h2M14 12h4M16 10v4"/></svg></span><span><strong>학교용병단</strong><small id="save-status" role="status" aria-live="polite">저장 확인 중</small></span></div>
     <section class="resources" aria-label="내 용병단">
       <button class="captain" id="captain-button" aria-label="단장 정보"><span class="captain-emblem">단장</span><span><b id="captain-level">Lv.1</b><span class="mini-track"><i id="captain-xp"></i></span></span></button>
-      <div class="currency"><svg class="coin" aria-hidden="true"><use href="#i-coin"/></svg><span><small>골드</small><b id="gold">—</b></span></div>
-      <div class="currency"><svg class="gem" aria-hidden="true"><use href="#i-gem"/></svg><span><small>보석</small><b id="gems">—</b></span></div>
+      <div class="currency currency-gold"><svg class="coin" aria-hidden="true"><use href="#i-coin"/></svg><span><small>골드</small><b id="gold">—</b></span></div>
+      <div class="currency currency-gems"><svg class="gem" aria-hidden="true"><use href="#i-gem"/></svg><span><small>보석</small><b id="gems">—</b></span></div>
     </section>
     <div class="header-actions"><button class="icon-button muted" id="sound-button" aria-label="효과음 켜기" aria-pressed="false"><svg><use href="#i-sound"/></svg></button><button id="help-button" class="icon-button help-button" aria-label="게임 안내"><svg><use href="#i-book"/></svg></button><button class="account-button" id="account-button"><span class="status-dot"></span><span id="account-label">게스트</span></button></div>
   </header>

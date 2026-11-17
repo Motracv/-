@@ -491,8 +491,31 @@
       if (mode === 'cloud' && !busy && hasCloudState && connected) { advanceCloudPreview(); consumeEvents(); render(); }
       if (mode === 'cloud' && token && Date.now() - lastSync > 3000) { lastSync = Date.now(); sync(); }
     }, 250);
-    const ctx = $('battle').getContext('2d'); ctx.imageSmoothingEnabled = false; let previous = 0;
-    function animate(time) { requestAnimationFrame(animate); if (document.hidden || tab !== 'adventure' && innerWidth <= 650 || time - previous < (reduced ? 120 : 32)) return; previous = time; Art.draw(ctx, state, time / 1000, effects, reduced); }
+    const canvas = $('battle'), ctx = canvas.getContext('2d');
+    let previous = 0, canvasSizeDirty = true, canvasDpr = 0;
+    function fitBattleCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (!canvasSizeDirty && canvasDpr === dpr) return true;
+      const box = canvas.getBoundingClientRect();
+      if (box.width < 1 || box.height < 1) return false;
+      // Match the actual painted area, including object-fit's letterboxing.
+      // Render details/text at screen resolution instead of enlarging 480px.
+      const fitWidth = Math.min(box.width, box.height * 12 / 7);
+      const width = Math.max(1, Math.round(Math.min(fitWidth * dpr, 2880)));
+      const height = Math.max(1, Math.round(width * 7 / 12));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width; canvas.height = height; ctx.imageSmoothingEnabled = false;
+      }
+      canvasDpr = dpr; canvasSizeDirty = false; return true;
+    }
+    if (window.ResizeObserver) new ResizeObserver(() => { canvasSizeDirty = true; }).observe(canvas);
+    window.addEventListener('resize', () => { canvasSizeDirty = true; });
+    window.visualViewport?.addEventListener('resize', () => { canvasSizeDirty = true; });
+    function animate(time) {
+      requestAnimationFrame(animate);
+      if (document.hidden || tab !== 'adventure' && innerWidth <= 650 || time - previous < (reduced ? 120 : 32)) return;
+      previous = time; if (fitBattleCanvas()) Art.draw(ctx, state, time / 1000, effects, reduced);
+    }
     requestAnimationFrame(animate);
   }
   boot().catch(error => { saveStatus('error', '저장 확인 필요'); note(error.message || '게임을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.'); console.error(error); });
