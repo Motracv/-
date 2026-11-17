@@ -176,13 +176,95 @@ const frontend = localFrontend
       await privacy();
     }
     console.log("PASS ten UI turn passes synchronized to all five browsers");
+    assert.equal(await host.evaluate(() => CARDS.length), 40);
+    for (const page of pages)
+      await page.evaluate(() => {
+        window.publicCardCasts = [];
+        new MutationObserver((records) => {
+          for (const record of records)
+            for (const node of record.addedNodes)
+              if (node.nodeType === 1 && node.classList.contains("fx-cast"))
+                window.publicCardCasts.push(node.textContent);
+        }).observe(document.querySelector("#effects"), { childList: true });
+      });
+    const playedNewCards = new Map();
+    for (let step = 0; step < 40; step++) {
+      const state = await host.evaluate(() => ({
+        turn: view.turn, revision: view.revision, phase: view.phase,
+        pending: view.pending,
+      }));
+      if (playedNewCards.size >= 2 && state.phase === "turn") break;
+      assert(["turn", "react"].includes(state.phase), `Unexpected phase ${state.phase}`);
+      const actingId = state.phase === "react" ? state.pending.to : state.turn;
+      const actor = pages[actingId];
+      await actor.waitForFunction((r) => view.revision === r, state.revision);
+      let chosen;
+      if (state.phase === "react") {
+        await actor.click("#take");
+      } else {
+        chosen = await actor.evaluate((used) => {
+          const hand = view.players[view.me].hand;
+          const priority = [37, 31, 35, 38, 33, 32, 34, 40, 39, 36];
+          const id = priority.find((id) => !used.includes(id) && hand.some((c) => c.id === id));
+          const card = hand.find((c) => c.id === id);
+          if (!card) return null;
+          const target = view.players.filter((p) => p.hp > 0 && p.id !== view.me && p.id !== 0)
+            .sort((a, b) => b.hp - a.hp)[0] || view.players.find((p) => p.hp > 0 && p.id !== view.me);
+          return { id: card.id, name: CARDS[card.id - 1].name, target: target.id };
+        }, [...playedNewCards.keys()]);
+        if (chosen) {
+          await actor.locator(`#hand .card[data-card="${chosen.id}"]`).first().click();
+          if (chosen.id <= 38)
+            await actor.locator(`#opponents [data-player="${chosen.target}"]`).click();
+          await actor.click("#play");
+        } else {
+          // All card acquisition remains a normal, server-validated exchange.
+          await actor.click("#exchange");
+          await actor.locator("#hand .card").nth(0).click();
+          await actor.locator("#hand .card").nth(1).click();
+          await actor.click("#play");
+        }
+      }
+      await Promise.all(pages.map((page) => page.waitForFunction(
+        (r) => view.revision > r, state.revision, { timeout: 30000 },
+      )));
+      await privacy();
+      const publicStates = await Promise.all(pages.map((page) => page.evaluate(() => ({
+        revision: view.revision, turn: view.turn, phase: view.phase,
+        hp: view.players.map((p) => p.hp), statuses: view.players.map((p) => p.status),
+        field: view.field,
+      }))));
+      for (const publicState of publicStates.slice(1)) assert.deepEqual(publicState, publicStates[0]);
+      if (chosen) {
+        for (const page of pages) {
+          assert(await page.evaluate((id) => view.events.some((e) => e.kind === "card" && e.card === id), chosen.id));
+          await page.waitForFunction((name) => window.publicCardCasts.some((text) => text.includes(name)), chosen.name);
+        }
+        playedNewCards.set(chosen.id, chosen.name);
+        console.log(`PASS public card ${chosen.id} played through UI: synchronized state, private hands and five visible cast effects`);
+      }
+    }
+    assert(playedNewCards.size >= 2, "Two distinct new cards must be acquired and used through normal public-server play");
+    assert.equal(await host.evaluate(() => view.phase), "turn");
     await host.screenshot({ path: "/tmp/deployed-landscape.png" });
     const identity = await pages[3].evaluate(() => ({
       me: view.me,
       revision: view.revision,
       code: online.code,
       token: online.token,
+      lastCard: view.events.findLast((event) => event.kind === "card")?.card,
     }));
+    await pages[3].addInitScript(() => {
+      window.replayedCasts = [];
+      document.addEventListener("DOMContentLoaded", () => {
+        new MutationObserver((records) => {
+          for (const record of records)
+            for (const node of record.addedNodes)
+              if (node.nodeType === 1 && node.classList.contains("fx-cast"))
+                window.replayedCasts.push(node.textContent);
+        }).observe(document.querySelector("#effects"), { childList: true });
+      }, { once: true });
+    });
     await pages[3].reload();
     await pages[3].waitForFunction(
       (me) => view?.online && view.me === me,
@@ -199,8 +281,13 @@ const frontend = localFrontend
     assert.equal(rejoined.code, identity.code);
     assert.equal(rejoined.revision, identity.revision);
     assert(rejoined.token === identity.token, "Resume token changed");
+    await pages[3].waitForTimeout(1500);
+    assert.deepEqual(await pages[3].evaluate(() => window.replayedCasts), []);
+    assert(await pages[3].evaluate((id) =>
+      document.querySelector("#played-slot").textContent.includes(CARDS[id - 1].name),
+    identity.lastCard));
     console.log(
-      "PASS reload restores the same public-server identity and revision",
+      "PASS reload restores identity, revision and latest-card description without replaying historical effects",
     );
     for (let i = 1; i < 5; i++) {
       await pages[i].click("#menu-open");

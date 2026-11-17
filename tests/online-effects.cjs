@@ -164,6 +164,86 @@ const { Game, MAX_HP } = require("../engine.js");
       });
     console.log("PASS judgment choices, confiscation, generated shield");
     g = await fixture((g) => {
+      [c] = give(g, 0, 32);
+      give(g, 1, 15);
+    });
+    await action(0, { kind: "play", card: c.uid, target: 2 });
+    await action(1, {
+      kind: "play",
+      card: g.player(1).hand.find((c) => c.id === 15).uid,
+    });
+    for (const page of pages) {
+      const snapshot = await page.evaluate(() => view);
+      assert.deepEqual(
+        snapshot.players.map((p) => p.hp),
+        [60, 60, 54, 60, 60],
+      );
+      assert.equal(snapshot.players.filter((p) => p.hand).length, 1);
+    }
+    console.log(
+      "PASS 32 taunt redirects a whole-table attack to its sole target",
+    );
+
+    g = await fixture((g) => {
+      give(g, 1, 2, 29);
+      g.attack(0, [1], 16, 33, { noCounter: true });
+    });
+    for (const page of pages)
+      assert.equal(await page.evaluate(() => view.pending.noCounter), true);
+    await pages[1].locator('#hand .card[aria-label^="2. "]').click();
+    assert(
+      await pages[1].locator("#play").isDisabled(),
+      "Counter button must reflect the server noCounter flag",
+    );
+    const beforeGuard = g.s.revision;
+    await pages[1].locator('#hand .card[aria-label^="29. "]').click();
+    await pages[1].click("#play");
+    await Promise.all(
+      pages.map((page) =>
+        page.waitForFunction((r) => view.revision > r, beforeGuard),
+      ),
+    );
+    for (const page of pages)
+      assert.equal(await page.evaluate(() => view.players[1].hp), 54);
+    console.log(
+      "PASS 33 no-counter flag synchronized, forbidden counter disabled, ordinary defense works through UI",
+    );
+
+    g = await fixture((g) => {
+      [c] = give(g, 0, 38);
+      give(g, 1, 37);
+    });
+    await action(0, { kind: "play", card: c.uid, target: 1 });
+    await action(1, {
+      kind: "play",
+      card: g.player(1).hand.find((c) => c.id === 37).uid,
+      target: 0,
+    });
+    for (const page of pages)
+      assert.deepEqual(
+        await page.evaluate(() => view.players.slice(0, 2).map((p) => p.hp)),
+        [40, 40],
+      );
+    console.log(
+      "PASS 38 baseball damage and passive reflection match in five sessions",
+    );
+
+    g = await fixture((g) => {
+      [c] = give(g, 0, 39);
+      g.player(0).hp = 90;
+      g.player(4).hp = 20;
+    });
+    await action(0, { kind: "play", card: c.uid });
+    for (const page of pages)
+      assert.deepEqual(
+        await page.evaluate(() => view.players.map((p) => p.hp)),
+        [65, 60, 60, 60, 45],
+      );
+    console.log(
+      "PASS 39 highest/lowest preselected results synchronized, including the caster",
+    );
+
+    g = await fixture((g) => {
       [c] = give(g, 0, 3);
       g.player(0).hp = 30;
     });

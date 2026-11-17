@@ -366,3 +366,239 @@ test("five active pollers avoid heartbeat write contention while actions commit"
     "stale heartbeat persists once",
   );
 });
+
+// Persist every step through the same Worker API; resetting only the request-rate
+// timestamp avoids sleeping in unit tests and never changes game rules/state.
+async function actionAt(t, code, members, actor, input) {
+  const room = t.read(code);
+  room.members[actor].lastAction = 0;
+  t.write(code, room);
+  return t.call(
+    "/api/action",
+    { ...input, revision: room.game.s.revision },
+    members[actor].token,
+  );
+}
+async function allPrivateViews(t, members) {
+  const result = [];
+  for (const member of members) {
+    const response = await t.call("/api/state", {}, member.token);
+    assert.equal(response.status, 200);
+    assert.equal(response.data.game.players.filter((p) => p.hand).length, 1);
+    assert(!("serial" in response.data.game));
+    assert(!JSON.stringify(response.data).includes(member.token));
+    result.push(response.data.game);
+  }
+  return result;
+}
+
+test("32 persisted taunt redirects to its target and only that defender may respond", async () => {
+  const t = setup(),
+    { code, members } = await t.room();
+  let taunt, attack, defend;
+  t.fixture(code, (g) => {
+    [taunt] = give(g, 0, 32);
+    [attack] = give(g, 1, 37);
+    [defend] = give(g, 2, 29);
+  });
+  let r = await actionAt(t, code, members, 0, {
+    kind: "play",
+    card: taunt.uid,
+    target: 2,
+  });
+  assert.equal(r.status, 200);
+  assert(r.data.game.players[2].status.taunt);
+  r = await actionAt(t, code, members, 1, {
+    kind: "play",
+    card: attack.uid,
+    target: 4,
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.game.phase, "react");
+  assert.equal(r.data.game.pending.to, 2);
+  const bad = await actionAt(t, code, members, 4, {
+    kind: "react",
+    card: defend.uid,
+  });
+  assert.equal(bad.status, 400);
+  r = await actionAt(t, code, members, 2, { kind: "react", card: defend.uid });
+  assert.equal(r.status, 200);
+  for (const view of await allPrivateViews(t, members)) {
+    assert.equal(view.players[2].hp, Battle.MAX_HP - 6);
+    assert.equal(view.players[4].hp, Battle.MAX_HP);
+  }
+});
+
+test("33 noCounter pending flag survives D1 restore and cannot be bypassed by a forged reaction", async () => {
+  const t = setup(),
+    { code, members } = await t.room();
+  let counter, guard;
+  t.fixture(code, (g) => {
+    [counter, guard] = give(g, 1, 2, 29);
+    g.attack(0, [1], 16, 33, { noCounter: true });
+  });
+  for (const view of await allPrivateViews(t, members)) {
+    assert.equal(view.phase, "react");
+    assert.equal(view.pending.noCounter, true);
+  }
+  const before = t.read(code).game.s.revision;
+  assert.equal(
+    (await actionAt(t, code, members, 1, { kind: "react", card: counter.uid }))
+      .status,
+    400,
+  );
+  assert.equal(t.read(code).game.s.revision, before);
+  assert(
+    t.read(code).game.s.players[1].hand.some((c) => c.uid === counter.uid),
+  );
+  const result = await actionAt(t, code, members, 1, {
+    kind: "react",
+    card: guard.uid,
+  });
+  assert.equal(result.status, 200);
+  for (const view of await allPrivateViews(t, members))
+    assert.equal(view.players[1].hp, Battle.MAX_HP - 6);
+});
+
+test("34 curse counts target turns across persisted requests and cleanses correctly", async () => {
+  const t = setup(),
+    { code, members } = await t.room();
+  let curse, cleanse;
+  t.fixture(code, (g) => {
+    [curse] = give(g, 0, 34);
+    [cleanse] = give(g, 1, 22);
+  });
+  assert.equal(
+    (
+      await actionAt(t, code, members, 0, {
+        kind: "play",
+        card: curse.uid,
+        target: 1,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await actionAt(t, code, members, 1, { kind: "pass" })).status,
+    200,
+  );
+  assert.equal(t.read(code).game.s.players[1].hp, Battle.MAX_HP);
+  for (const actor of [2, 3, 4, 0, 1])
+    assert.equal(
+      (await actionAt(t, code, members, actor, { kind: "pass" })).status,
+      200,
+    );
+  for (const view of await allPrivateViews(t, members)) {
+    assert.equal(view.players[1].hp, Battle.MAX_HP - 10);
+    assert(view.players[1].status.curse);
+  }
+  for (const actor of [2, 3, 4, 0])
+    assert.equal(
+      (await actionAt(t, code, members, actor, { kind: "pass" })).status,
+      200,
+    );
+  const result = await actionAt(t, code, members, 1, {
+    kind: "play",
+    card: cleanse.uid,
+  });
+  assert.equal(result.status, 200);
+  assert(!result.data.game.players[1].status.curse);
+});
+
+test("38 passive retaliation survives restore and uses one synchronized damage result", async () => {
+  const t = setup(),
+    { code, members } = await t.room();
+  let baseball, attack;
+  t.fixture(code, (g) => {
+    [baseball] = give(g, 0, 38);
+    [attack] = give(g, 1, 37);
+  });
+  let result = await actionAt(t, code, members, 0, {
+    kind: "play",
+    card: baseball.uid,
+    target: 1,
+  });
+  assert.equal(result.status, 200);
+  assert(result.data.game.players[0].status.baseball);
+  result = await actionAt(t, code, members, 1, {
+    kind: "play",
+    card: attack.uid,
+    target: 0,
+  });
+  assert.equal(result.status, 200);
+  for (const view of await allPrivateViews(t, members))
+    assert.deepEqual(
+      view.players.slice(0, 2).map((p) => p.hp),
+      [Battle.MAX_HP - 20, Battle.MAX_HP - 20],
+    );
+});
+
+test("40 regeneration survives polling and heals only the next two own starts", async () => {
+  const t = setup(),
+    { code, members } = await t.room();
+  let regen;
+  t.fixture(code, (g) => {
+    g.player(0).hp = 60;
+    [regen] = give(g, 0, 40);
+  });
+  assert.equal(
+    (await actionAt(t, code, members, 0, { kind: "play", card: regen.uid }))
+      .status,
+    200,
+  );
+  assert.equal(t.read(code).game.s.players[0].hp, 60);
+  for (const actor of [1, 2, 3, 4])
+    assert.equal(
+      (await actionAt(t, code, members, actor, { kind: "pass" })).status,
+      200,
+    );
+  assert.equal(t.read(code).game.s.players[0].hp, 65);
+  for (const actor of [0, 1, 2, 3, 4])
+    assert.equal(
+      (await actionAt(t, code, members, actor, { kind: "pass" })).status,
+      200,
+    );
+  for (const view of await allPrivateViews(t, members)) {
+    assert.equal(view.players[0].hp, 70);
+    assert(!view.players[0].status.regen);
+  }
+  for (const actor of [0, 1, 2, 3, 4])
+    assert.equal(
+      (await actionAt(t, code, members, actor, { kind: "pass" })).status,
+      200,
+    );
+  assert.equal(t.read(code).game.s.players[0].hp, 70);
+});
+
+test("36 concurrent lethal play applies both costs once and skips eliminated seats", async () => {
+  const t = setup(),
+    { code, members } = await t.room();
+  let attack;
+  const g = t.fixture(code, (g) => {
+    g.player(0).hp = 30;
+    g.player(1).hp = 30;
+    [attack] = give(g, 0, 36);
+  });
+  const input = {
+    kind: "play",
+    card: attack.uid,
+    target: 1,
+    revision: g.s.revision,
+  };
+  const results = await Promise.all([
+    t.call("/api/action", input, members[0].token),
+    t.call("/api/action", input, members[0].token),
+  ]);
+  assert.equal(results.filter((r) => r.status === 200).length, 1);
+  const saved = t.read(code).game.s;
+  assert.deepEqual(
+    saved.players.slice(0, 2).map((p) => p.hp),
+    [0, 0],
+  );
+  assert.equal(saved.turn, 2);
+  assert.equal(saved.revision, g.s.revision + 1);
+  for (const view of await allPrivateViews(t, members)) {
+    assert.equal(view.turn, 2);
+    assert.equal(view.phase, "turn");
+  }
+});

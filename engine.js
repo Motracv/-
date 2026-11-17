@@ -35,6 +35,16 @@
     "우진이의 공산주의",
     "오늘 주사위 6이다",
     "초심자의 행운",
+    "데빌초딩 혁진이",
+    "나는 현비만 바라봐",
+    "현승이의 휴대폰 던지기",
+    "찬이의 팬티",
+    "찬이의 자존심인 9cm",
+    "정민이의 음주운전",
+    "효림이의 햄버거 공격",
+    "혁진이의 야구공",
+    "우진이의 반장놀이",
+    "태영이의 명조 음식",
   ];
   const types = [
     "필드",
@@ -67,6 +77,16 @@
     "특수",
     "방어",
     "방어",
+    "공격",
+    "마법",
+    "공격",
+    "마법",
+    "공격",
+    "공격",
+    "공격",
+    "공격",
+    "특수",
+    "마법",
   ];
   const descriptions = [
     "내 다음 차례부터 차례 시작 시 다른 전원에게 피해 4. 3회 후 종료. 내 차례에 무료 중단 가능.",
@@ -99,6 +119,16 @@
     "생존자 HP 합계를 균등 분배. 나머지는 현재 차례부터 생존 순서로 1씩.",
     "이번 피해를 최대 6으로 제한. 원래 피해가 더 작으면 그대로.",
     "50% 확률로 이번 피해 완전 회피. 실패하면 원래 피해.",
+    "상대 한 명에게 피해 8.",
+    "상대 한 명을 현비로 지정. 대상의 다음 자기 차례 종료까지 다른 전원의 상대 지정 공격과 전체 공격은 현비 한 명에게만 적용(전체 공격도 1회 피해). 현비 자신의 공격은 정상. 새 현비는 이전 도발을 해제.",
+    "상대 한 명에게 확률 피해: 8(50%), 16(30%), 32(10%), 64(0.1%), 100(0.01%), 빗나감 0(9.89%). 피해 추첨과 별도로 50% 확률로 반격 불가. 일반 방어는 가능.",
+    "상대 한 명에게 저주. 대상의 자기 차례가 두 번 끝날 때마다 피해 10. 해제 카드로 없앨 때까지 지속. 같은 저주는 중첩하지 않고 주기를 갱신. 지속 피해에는 방어·반격 반응 없음.",
+    "상대 한 명에게 피해 1~9.",
+    "상대 한 명에게 피해 30, 자신도 피해 30. 자신에게 받는 피해는 일반 방어·반격 반응 없이 적용하며 무적은 적용.",
+    "상대 한 명에게 피해 20.",
+    "상대 한 명에게 피해 15. 사용 직후부터 다음 자기 차례 시작 전까지 야구 자세: 직접 공격으로 실제 HP 피해를 받으면 공격자에게 피해 5로 자동 반격. 원래 피해는 받으며 반격·전가·지속 피해에는 재발동하지 않음. 반격 불가 공격에는 발동하지 않음.",
+    "사용자 포함 사용 직전 생존자 중 최고 HP 한 명에게 피해 25, 최저 HP 한 명에게 HP 25 회복. 최고·최저 동률은 각각 무작위로 선정. 피해를 먼저 적용한 뒤 회복하며 탈락자는 부활하지 않음. 별도 방어 반응 없음, 무적 적용.",
+    "자신의 다음 두 차례 시작 시마다 HP 5 회복. 총 2회. 회복 금지 중에는 회복하지 못하며 해당 회차는 소모. 건너뛴 차례에도 발동.",
   ];
   const MAX_HP = 100;
   const RARITIES = {
@@ -108,8 +138,10 @@
     legendary: { label: "전설", weight: 1 },
     generated: { label: "생성 전용", weight: 0 },
   };
-  const rareCards = new Set([1, 2, 14, 15, 17, 27, 28]);
-  const uncommonCards = new Set([3, 4, 5, 9, 11, 13, 16, 20, 21, 23, 29]);
+  const rareCards = new Set([1, 2, 14, 15, 17, 27, 28, 32, 34, 37, 38, 39]);
+  const uncommonCards = new Set([
+    3, 4, 5, 9, 11, 13, 16, 20, 21, 23, 29, 33, 36,
+  ]);
   const legendaryCards = new Set([18, 24]);
   const shortDescriptions = [
     "다음 내 차례부터, 차례가 시작될 때 상대 전원에게 4 피해를 줍니다. 총 3회.",
@@ -142,7 +174,26 @@
     "살아 있는 모두의 HP를 합쳐 똑같이 나눕니다. 나머지는 차례 순서대로 1씩 받습니다.",
     "이번 피해를 최대 6으로 줄입니다. 원래 피해가 6보다 작으면 그대로 받습니다.",
     "50% 확률로 이번 피해를 전부 피합니다. 실패하면 원래 피해를 받습니다.",
+    "상대 한 명에게 8 피해를 줍니다.",
+    "다음 현비 차례가 끝날 때까지 모두가 현비만 공격합니다. 현비는 다른 상대를 공격할 수 있습니다.",
+    "휴대폰을 던져 8~100 피해 또는 빗나감. 별도로 50% 확률로 반격 불가가 붙습니다.",
+    "상대에게 저주를 걸어 자기 차례가 두 번 끝날 때마다 10 피해를 줍니다. 정화해야 끝납니다.",
+    "상대 한 명에게 1~9 피해를 줍니다.",
+    "상대에게 30 피해를 주고 나도 30 피해를 받습니다.",
+    "상대 한 명에게 20 피해를 줍니다.",
+    "상대에게 15 피해. 다음 내 차례까지 공격 피해를 받으면 5를 돌려줍니다(원래 피해는 받음).",
+    "지금 HP가 가장 높은 한 명에게 25 피해, 가장 낮은 한 명에게 25 회복. 동률이면 무작위.",
+    "다음 내 차례가 시작될 때 5 회복합니다. 총 두 번.",
   ];
+  const attackCards = new Set([1, 7, 9, 11, 15, 31, 33, 34, 35, 36, 37, 38]);
+  const defense = new Set([2, 10, 13, 20, 23, 26, 27, 29, 30]);
+  const roles = {
+    attack: "공격",
+    defense: "방어",
+    heal: "회복",
+    control: "견제",
+    utility: "특수",
+  };
   const CARDS = names.map((name, i) => {
     const id = i + 1,
       generated = [6, 25, 26].includes(id);
@@ -155,8 +206,19 @@
           : uncommonCards.has(id)
             ? "uncommon"
             : "common";
+    const role = attackCards.has(id)
+      ? "attack"
+      : defense.has(id)
+        ? "defense"
+        : [8, 14, 40].includes(id)
+          ? "heal"
+          : [4, 16, 17, 24, 32].includes(id)
+            ? "control"
+            : "utility";
     return {
       id,
+      role,
+      roleLabel: roles[role],
       name,
       type: types[i],
       desc: descriptions[i],
@@ -164,7 +226,7 @@
       generated,
       rarity,
       rarityLabel: RARITIES[rarity].label,
-      weight: RARITIES[rarity].weight,
+      weight: RARITIES[rarity].weight * (role === "attack" ? 2 : 1),
       image: `assets/cards/${String(id).padStart(2, "0")}.webp`,
     };
   });
@@ -174,9 +236,29 @@
   );
   for (const card of CARDS) card.chance = card.weight / DRAW_WEIGHT_TOTAL;
   const pool = CARDS.filter((c) => !c.generated).map((c) => c.id);
-  const defense = new Set([2, 10, 13, 20, 23, 26, 27, 29, 30]);
-  const harmful = ["red", "noheal", "touch", "xerath", "skip"];
-  const values = { 7: 16, 8: 16, 9: 12, 11: 21, 14: 25, 15: 6 };
+  const harmful = [
+    "red",
+    "noheal",
+    "touch",
+    "xerath",
+    "skip",
+    "taunt",
+    "curse",
+  ];
+  const values = {
+    7: 16,
+    8: 16,
+    9: 12,
+    11: 21,
+    14: 25,
+    15: 6,
+    31: 8,
+    33: 100,
+    35: 9,
+    36: 30,
+    37: 20,
+    38: 15,
+  };
   function check(ok, msg = "허용되지 않는 행동입니다.") {
     if (!ok) throw Error(msg);
   }
@@ -226,13 +308,76 @@
     card(id, extra = {}) {
       return { uid: ++this.serial, id, ...extra };
     }
-    draw() {
-      let ticket = this.rand(0, DRAW_WEIGHT_TOTAL - 1);
-      for (const definition of CARDS) {
+    drawOdds(actor) {
+      const p =
+        actor === undefined
+          ? null
+          : typeof actor === "number"
+            ? this.player(actor)
+            : actor;
+      const attacks = p
+        ? p.hand.filter((c) => CARDS[c.id - 1].role === "attack").length
+        : 0;
+      const defenses = p
+        ? p.hand.filter((c) => CARDS[c.id - 1].role === "defense").length
+        : 0;
+      const attackMultiplier = !p
+        ? 1
+        : attacks === 0 && defenses >= 3
+          ? 3
+          : attacks === 0 || defenses >= 3
+            ? 2
+            : 1;
+      const healMultiplier =
+        p && p.hp <= 30 && !p.status.red && !p.status.noheal ? 2 : 1;
+      const cards = CARDS.map((c) => ({
+        id: c.id,
+        weight:
+          c.weight *
+          (c.role === "attack"
+            ? attackMultiplier
+            : c.role === "heal"
+              ? healMultiplier
+              : 1),
+      }));
+      const total = cards.reduce((n, c) => n + c.weight, 0);
+      for (const c of cards) c.chance = c.weight / total;
+      return {
+        attackMultiplier,
+        healMultiplier,
+        attacks,
+        defenses,
+        total,
+        attackChance: cards
+          .filter((c) => CARDS[c.id - 1].role === "attack")
+          .reduce((n, c) => n + c.chance, 0),
+        cards,
+      };
+    }
+    draw(p) {
+      const odds = this.drawOdds(p);
+      let ticket = this.rand(0, odds.total - 1);
+      for (const definition of odds.cards) {
         if (ticket < definition.weight) return this.card(definition.id);
         ticket -= definition.weight;
       }
       throw Error("잘못된 카드 추첨 결과입니다.");
+    }
+    rollPhone() {
+      const roll = this.rand(0, 9999);
+      const amount =
+        roll < 5000
+          ? 8
+          : roll < 8000
+            ? 16
+            : roll < 9000
+              ? 32
+              : roll < 9010
+                ? 64
+                : roll === 9010
+                  ? 100
+                  : 0;
+      return { amount, noCounter: this.rng() < 0.5 };
     }
     player(id) {
       check(Number.isInteger(id), "잘못된 플레이어입니다.");
@@ -249,7 +394,9 @@
     }
     event(kind, data = {}) {
       this.s.events.push({ seq: ++this.serial, kind, ...data });
-      this.s.events = this.s.events.slice(-20);
+      // A five-player AoE can emit a damage event and four siphon heals per
+      // victim. Keep the initiating card/attack alongside the full resolution.
+      this.s.events = this.s.events.slice(-80);
     }
     acquire(p, card) {
       if (p.hp <= 0 || p.status.touch) return false;
@@ -258,7 +405,7 @@
     }
     refill(p) {
       if (p.hp <= 0 || p.status.touch) return;
-      while (p.hand.length < 5) this.acquire(p, this.draw());
+      while (p.hand.length < 5) this.acquire(p, this.draw(p));
     }
     heal(p, n) {
       if (p.hp <= 0 || p.status.red || p.status.noheal) return 0;
@@ -270,7 +417,18 @@
       }
       return amount;
     }
-    damage(p, n, { bypass = false, source, card } = {}) {
+    damage(
+      p,
+      n,
+      {
+        bypass = false,
+        source,
+        card,
+        directAttack = false,
+        noCounter = false,
+        persistent = false,
+      } = {},
+    ) {
       if (p.hp <= 0 || n <= 0) return 0;
       if (p.status.invincible && !bypass) {
         this.event("block", { target: p.id, amount: n, source, card });
@@ -279,9 +437,39 @@
       const hit = Math.min(p.hp, n);
       p.hp -= hit;
       this.log(`${p.name} 피해 ${hit}`);
-      this.event("damage", { target: p.id, amount: hit, source, card });
+      this.event("damage", {
+        target: p.id,
+        amount: hit,
+        source,
+        card,
+        persistent,
+      });
       for (const link of this.s.links.filter((x) => x.target === p.id))
         this.heal(this.player(link.owner), hit);
+      if (
+        hit > 0 &&
+        directAttack &&
+        !noCounter &&
+        !bypass &&
+        p.status.baseball &&
+        Number.isInteger(source) &&
+        source !== p.id &&
+        this.player(source).hp > 0
+      ) {
+        this.event("attack", {
+          from: p.id,
+          source: p.id,
+          targets: [source],
+          card: 38,
+          amount: 5,
+          reaction: true,
+          passive: true,
+        });
+        this.log(
+          `${p.name} 야구공 자세 · ${this.player(source).name}에게 반격 5`,
+        );
+        this.damage(this.player(source), 5, { source: p.id, card: 38 });
+      }
       return hit;
     }
     payHP(p, n) {
@@ -338,10 +526,13 @@
       this.s.field = field;
     }
     cleanse(p) {
+      const removed = harmful.filter((key) => p.status[key]);
       for (const key of harmful) delete p.status[key];
       this.s.links = this.s.links.filter((l) => l.target !== p.id);
       if (this.s.field?.id === 4 && this.s.field.target === p.id)
         this.replaceField(null);
+      if (removed.length)
+        this.event("cleanse", { target: p.id, statuses: removed });
     }
     begin() {
       if (this.endCheck()) return;
@@ -349,24 +540,40 @@
         p = this.player(s.turn);
       p.turns++;
       delete p.status.invincible;
+      delete p.status.baseball;
       s.phase = "turn";
       s.deadline = this.now() + this.turnMs;
       this.skipping = !!p.status.skip;
+      const regen = p.status.regen;
+      if (regen && p.turns > regen.after) {
+        const healed = this.heal(p, 5);
+        regen.left--;
+        this.event("status-tick", {
+          target: p.id,
+          status: "regen",
+          card: 40,
+          amount: healed,
+          remaining: regen.left,
+        });
+        if (regen.left <= 0) delete p.status.regen;
+      }
       if (
         s.field?.id === 1 &&
         s.field.owner === p.id &&
         p.turns > s.field.after
       ) {
         s.field.left--;
-        this.s.queue = this.alive()
+        const originalTargets = this.alive()
           .filter((x) => x.id !== p.id)
-          .map((x) => ({
-            from: p.id,
-            to: x.id,
-            amount: 4,
-            card: 1,
-            multi: true,
-          }));
+          .map((x) => x.id);
+        const fieldTargets = this.redirectAttack(p.id, originalTargets);
+        this.s.queue = fieldTargets.map((to) => ({
+          from: p.id,
+          to,
+          amount: 4,
+          card: 1,
+          multi: true,
+        }));
         if (s.field.left === 0) this.replaceField(null);
         this.event("attack", {
           from: p.id,
@@ -401,7 +608,26 @@
     }
     endTurn() {
       const p = this.player(this.s.turn);
-      for (const key of ["red", "noheal", "touch", "xerath", "skip"]) {
+      const curse = p.status.curse;
+      if (curse && p.turns > curse.after && p.hp > 0) {
+        curse.ticks = (curse.ticks || 0) + 1;
+        if (curse.ticks >= 2) {
+          curse.ticks = 0;
+          this.event("status-tick", {
+            target: p.id,
+            source: curse.source,
+            status: "curse",
+            card: 34,
+            amount: 10,
+          });
+          this.damage(p, 10, {
+            source: curse.source,
+            card: 34,
+            persistent: true,
+          });
+        }
+      }
+      for (const key of ["red", "noheal", "touch", "xerath", "skip", "taunt"]) {
         const st = p.status[key];
         if (st && p.turns > st.after) {
           st.left--;
@@ -429,6 +655,7 @@
     }
     status(p, key, left) {
       p.status[key] = { left, after: p.turns };
+      this.event("status", { target: p.id, status: key, left });
     }
     checkOverflow() {
       if (this.s.phase === "over") return;
@@ -464,8 +691,10 @@
       targets,
       amount,
       card,
-      { bypass = false, multi = false } = {},
+      { bypass = false, multi = false, noCounter = false } = {},
     ) {
+      targets = this.redirectAttack(from, targets);
+      noCounter = noCounter || card === 9;
       this.s.queue = targets.map((to) => ({
         from,
         to,
@@ -473,8 +702,9 @@
         card,
         bypass,
         multi,
+        noCounter,
       }));
-      this.event("attack", {
+      this.event(amount > 0 ? "attack" : "miss", {
         from,
         source: from,
         targets: [...targets],
@@ -482,6 +712,7 @@
         amount,
         multi,
         bypass,
+        noCounter,
       });
       this.afterQueue = "finish";
       this.advanceQueue();
@@ -491,12 +722,14 @@
       while (s.queue.length) {
         const attack = s.queue.shift(),
           p = this.player(attack.to);
-        if (p.hp <= 0) continue;
+        if (p.hp <= 0 || attack.amount <= 0) continue;
         if (attack.bypass || p.status.invincible) {
           this.damage(p, attack.amount, {
             bypass: attack.bypass,
             source: attack.from,
             card: attack.card,
+            directAttack: true,
+            noCounter: attack.noCounter,
           });
           continue;
         }
@@ -509,6 +742,8 @@
         this.damage(p, attack.amount, {
           source: attack.from,
           card: attack.card,
+          directAttack: true,
+          noCounter: attack.noCounter,
         });
       }
       s.pending = null;
@@ -519,7 +754,7 @@
     canReact(c, a) {
       return (
         defense.has(c.id) &&
-        !(a.card === 9 && [2, 20].includes(c.id)) &&
+        !((a.card === 9 || a.noCounter) && [2, 20].includes(c.id)) &&
         !(c.id === 13 && (a.multi || this.alive().length < 2))
       );
     }
@@ -527,6 +762,11 @@
       const i = p.hand.findIndex((c) => c.uid === uid);
       check(i >= 0, "손패에 없는 카드입니다.");
       return p.hand.splice(i, 1)[0];
+    }
+    redirectAttack(from, targets) {
+      const taunted = this.alive().find((p) => p.status.taunt);
+      if (taunted && taunted.id !== from) return [taunted.id];
+      return targets;
     }
     target(id, owner, allowSelf = false) {
       const p = this.player(id);
@@ -641,7 +881,12 @@
             amount: a.amount - amount,
             transferred: c?.id === 13,
           });
-        this.damage(p, amount, { source: a.from, card: a.card });
+        this.damage(p, amount, {
+          source: a.from,
+          card: a.card,
+          directAttack: true,
+          noCounter: a.noCounter || a.card === 9,
+        });
         s.pending = null;
         this.advanceQueue();
       } else if (s.phase === "gift") {
@@ -708,7 +953,7 @@
           check(input.cards.every((uid) => p.hand.some((c) => c.uid === uid)));
           for (const uid of input.cards) {
             this.consume(p, uid);
-            this.acquire(p, this.draw());
+            this.acquire(p, this.draw(p));
           }
           this.finish();
         } else if (input.kind === "fuse") {
@@ -745,8 +990,14 @@
             "이 카드는 공격받을 때 사용합니다.",
           );
           let target = null;
-          if ([3, 4, 5, 7, 9, 11, 12, 16, 17].includes(id))
+          if (
+            [
+              3, 4, 5, 7, 9, 11, 12, 16, 17, 31, 32, 33, 34, 35, 36, 37, 38,
+            ].includes(id)
+          )
             target = this.target(input.target, actor, id === 12);
+          if ([7, 9, 11, 31, 33, 35, 36, 37, 38].includes(id))
+            target = this.player(this.redirectAttack(actor, [target.id])[0]);
           let judgments = [];
           if (id === 18) {
             const n = Math.min(2, this.alive().length - 1);
@@ -947,10 +1198,96 @@
               }
               break;
             }
+            case 31:
+              this.attack(actor, [target.id], 8, id);
+              break;
+            case 32:
+              for (const other of s.players) delete other.status.taunt;
+              this.status(target, "taunt", 1);
+              target.status.taunt.source = actor;
+              this.log(`${target.name} 현비 지정 · 다른 전원의 공격 대상`);
+              break;
+            case 33: {
+              const { amount, noCounter } = this.rollPhone();
+              this.log(
+                `${p.name} 휴대폰 던지기 · ${amount ? `피해 ${amount}` : "빗나감"}${noCounter ? " · 반격 불가" : ""}`,
+              );
+              this.event("phone-roll", {
+                source: actor,
+                target: target.id,
+                card: 33,
+                amount,
+                noCounter,
+              });
+              this.attack(actor, [target.id], amount, id, { noCounter });
+              break;
+            }
+            case 34:
+              target.status.curse = {
+                source: actor,
+                after: target.turns,
+                ticks: 0,
+              };
+              this.event("status", {
+                source: actor,
+                target: target.id,
+                status: "curse",
+                card: 34,
+              });
+              break;
+            case 35:
+              this.attack(actor, [target.id], this.rand(1, 9), id);
+              break;
+            case 36:
+              this.damage(p, 30, { source: actor, card: 36 });
+              this.attack(actor, [target.id], 30, id);
+              break;
+            case 37:
+              this.attack(actor, [target.id], 20, id);
+              break;
+            case 38:
+              p.status.baseball = true;
+              this.event("status", {
+                source: actor,
+                target: actor,
+                status: "baseball",
+                card: 38,
+              });
+              this.attack(actor, [target.id], 15, id);
+              break;
+            case 39: {
+              const live = this.alive(),
+                highest = Math.max(...live.map((x) => x.hp)),
+                lowest = Math.min(...live.map((x) => x.hp));
+              const highs = live.filter((x) => x.hp === highest),
+                lows = live.filter((x) => x.hp === lowest);
+              const harmed = highs[this.rand(0, highs.length - 1)],
+                healed = lows[this.rand(0, lows.length - 1)];
+              this.event("class-president", {
+                source: actor,
+                card: 39,
+                damageTarget: harmed.id,
+                healTarget: healed.id,
+                amount: 25,
+              });
+              this.log(
+                `반장놀이 · ${harmed.name} 피해 25 / ${healed.name} 회복 25`,
+              );
+              this.damage(harmed, 25, { source: actor, card: 39 });
+              this.heal(healed, 25);
+              break;
+            }
+            case 40:
+              this.status(p, "regen", 2);
+              break;
             default:
               throw Error("지원하지 않는 카드");
           }
-          if (s.phase === "turn" && ![7, 9, 11, 15].includes(id)) this.finish();
+          if (
+            s.phase === "turn" &&
+            ![7, 9, 11, 15, 31, 33, 35, 36, 37, 38].includes(id)
+          )
+            this.finish();
         }
       }
       s.revision++;
@@ -1006,6 +1343,7 @@
         deadline: s.deadline,
         winner: s.winner,
         me: actor,
+        drawOdds: this.drawOdds(actor),
       };
     }
   }

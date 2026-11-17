@@ -33,10 +33,10 @@ function block(g, id, extra = {}) {
 function act(g, actor, input) {
   g.action(actor, input);
 }
-test("30 cards, generated only excluded from draws", () => {
-  assert.equal(CARDS.length, 30);
+test("40 cards, generated only excluded from draws", () => {
+  assert.equal(CARDS.length, 40);
   for (const id of [6, 25, 26]) assert(!pool.includes(id));
-  assert.equal(pool.length, 27);
+  assert.equal(pool.length, 37);
 });
 test("01: starts next owner turn, three pulses, stop is free", () => {
   const g = setup();
@@ -605,7 +605,7 @@ test("new games start at HP 100 and all healing is capped at 100", () => {
 });
 
 test("weighted draw has exact published odds and never generates synthesis-only cards", () => {
-  assert.equal(DRAW_WEIGHT_TOTAL, 173);
+  assert.equal(DRAW_WEIGHT_TOTAL, 311);
   const g = setup();
   const counts = new Map();
   for (let ticket = 0; ticket < DRAW_WEIGHT_TOTAL; ticket++) {
@@ -620,25 +620,31 @@ test("weighted draw has exact published odds and never generates synthesis-only 
     assert.equal(card.generated, card.weight === 0);
   }
   assert(CARDS[17].chance < CARDS[0].chance);
-  assert(CARDS[0].chance < CARDS[2].chance);
+  assert(CARDS[0].chance < CARDS[6].chance);
   assert(CARDS[2].chance < CARDS[6].chance);
 });
 
-test("initial hands, turn refill and card exchange share the weighted draw", () => {
-  let offset = 0;
-  for (const definition of CARDS.filter((c) => !c.generated)) {
-    const rng = () => (offset + 0.5) / DRAW_WEIGHT_TOTAL;
-    const g = new Game(["P0", "P1"], { rng });
-    assert(
-      g.s.players.every((p) => p.hand.every((c) => c.id === definition.id)),
-    );
+test("initial hands, turn refill and exchange all use private adaptive weighted draws", () => {
+  let calls = [];
+  const original = Game.prototype.draw;
+  Game.prototype.draw = function (p) {
+    calls.push(p?.id);
+    return original.call(this, p);
+  };
+  try {
+    const g = new Game(["P0", "P1"], { rng: () => 0 });
+    assert.deepEqual(calls, [0, 0, 0, 0, 0, 1, 1, 1, 1, 1]);
+    calls = [];
     g.player(0).hand = [];
     g.refill(g.player(0));
-    assert(g.player(0).hand.every((c) => c.id === definition.id));
+    assert.deepEqual(calls, [0, 0, 0, 0, 0]);
+    calls = [];
     const [old] = give(g, 0, 25);
     g.action(0, { kind: "exchange", cards: [old.uid] });
-    assert(g.player(0).hand.every((c) => c.id === definition.id));
-    offset += definition.weight;
+    assert.deepEqual(calls, [0]);
+    assert(g.player(0).hand.every((c) => !CARDS[c.id - 1].generated));
+  } finally {
+    Game.prototype.draw = original;
   }
 });
 
@@ -667,4 +673,331 @@ test("public effect events identify actual attack targets, reactions and generat
   );
   assert.equal(h.s.events.find((e) => e.kind === "block").amount, 19);
   assert.equal(h.player(1).hp, 58);
+});
+
+test("31/35/37 preserve fixed and ranged attack damage", () => {
+  for (const [id, rng, expected] of [
+    [31, 0, 8],
+    [35, 0, 1],
+    [35, 0.9999, 9],
+    [37, 0, 20],
+  ]) {
+    const g = setup(3, () => rng);
+    play(g, id);
+    assert.equal(g.player(1).hp, 60 - expected);
+  }
+});
+
+test("32 designates target as Hyunbi, redirects all other attacks once, expires at target end", () => {
+  const g = setup(4);
+  play(g, 32, 2);
+  assert(g.player(2).status.taunt);
+  assert(!g.player(0).status.taunt);
+  play(g, 31, 0);
+  assert.equal(g.player(0).hp, 60);
+  assert.equal(g.player(2).hp, 52);
+  assert.deepEqual(
+    g.s.events.filter((e) => e.kind === "attack").at(-1).targets,
+    [2],
+  );
+  play(g, 31, 0); // Hyunbi can freely attack another player.
+  assert.equal(g.player(0).hp, 52);
+  assert(!g.player(2).status.taunt);
+  const h = setup(4);
+  play(h, 32, 2);
+  play(h, 15);
+  assert.deepEqual(
+    h.s.players.map((p) => p.hp),
+    [60, 60, 54, 60],
+  );
+  const k = setup(4);
+  play(k, 32, 2);
+  play(k, 32, 3);
+  assert(!k.player(2).status.taunt);
+  assert(k.player(3).status.taunt);
+  play(k, 31, 0);
+  assert.equal(k.player(3).hp, 52);
+  assert.equal(k.player(0).hp, 60);
+});
+
+test("32 taunt cleanses and disappears from targeting on elimination", () => {
+  const g = setup(3);
+  play(g, 32, 1);
+  play(g, 22);
+  assert(!g.player(1).status.taunt);
+  const h = setup(4);
+  play(h, 32, 2);
+  h.forfeit(2);
+  play(h, 31, 0);
+  assert.equal(h.player(0).hp, 52);
+});
+
+test("33 exact ten-thousand-way damage distribution and independent half counter lock", () => {
+  const g = setup();
+  const counts = new Map();
+  let counterLocks = 0;
+  for (let roll = 0; roll < 10000; roll++) {
+    const numbers = [(roll + 0.5) / 10000, roll % 2 ? 0.75 : 0.25];
+    g.rng = () => numbers.shift();
+    const result = g.rollPhone();
+    counts.set(result.amount, (counts.get(result.amount) || 0) + 1);
+    counterLocks += Number(result.noCounter);
+  }
+  assert.deepEqual(Object.fromEntries(counts), {
+    0: 989,
+    8: 5000,
+    16: 3000,
+    32: 1000,
+    64: 10,
+    100: 1,
+  });
+  assert.equal(counterLocks, 5000);
+  for (const noCounter of [true, false]) {
+    const h = setup();
+    give(h, 1, 2, 29);
+    const nums = [0.8, noCounter ? 0.25 : 0.75];
+    h.rng = () => nums.shift() ?? 0;
+    play(h, 33);
+    assert.equal(h.s.pending.amount, 32);
+    assert.equal(h.s.pending.noCounter, noCounter);
+    const counter = h.player(1).hand.find((c) => c.id === 2);
+    assert.equal(h.canReact(counter, h.s.pending), !noCounter);
+    if (noCounter) {
+      const before = JSON.stringify(h.s);
+      assert.throws(() => act(h, 1, { kind: "react", card: counter.uid }));
+      assert.equal(JSON.stringify(h.s), before);
+    }
+    act(h, 1, {
+      kind: "react",
+      card: h.player(1).hand.find((c) => c.id === 29).uid,
+    });
+    assert.equal(h.player(1).hp, 54);
+  }
+  const miss = setup();
+  give(miss, 1, 2);
+  const nums = [0.99, 0.25];
+  miss.rng = () => nums.shift() ?? 0;
+  play(miss, 33);
+  assert.equal(miss.player(1).hp, 60);
+  assert.equal(miss.s.phase, "turn");
+  assert(miss.s.events.some((e) => e.kind === "miss" && e.amount === 0));
+});
+
+test("34 curse ticks each second target turn, refreshes without stacking, skips count and cleanse ends it", () => {
+  const g = setup();
+  play(g, 34, 1);
+  act(g, 1, { kind: "pass" });
+  assert.equal(g.player(1).hp, 60);
+  act(g, 2, { kind: "pass" });
+  act(g, 0, { kind: "pass" });
+  act(g, 1, { kind: "pass" });
+  assert.equal(g.player(1).hp, 50);
+  assert.equal(g.player(1).status.curse.ticks, 0);
+  act(g, 2, { kind: "pass" });
+  play(g, 34, 1);
+  assert.equal(g.player(1).status.curse.ticks, 0);
+  play(g, 22);
+  assert(!g.player(1).status.curse);
+  const h = setup();
+  h.player(1).status.curse = { source: 0, after: 0, ticks: 0 };
+  play(h, 24);
+  play(h, 24);
+  assert.equal(h.player(1).hp, 50);
+  assert(h.player(1).status.curse);
+  const k = setup();
+  k.player(1).hp = 10;
+  k.player(1).status.curse = { source: 0, after: 0, ticks: 1 };
+  play(k, 24);
+  assert.equal(k.player(1).hp, 0);
+  assert.equal(k.s.turn, 0);
+});
+
+test("36 mutual damage can cause final draw and own invincibility applies", () => {
+  const g = setup(2);
+  g.player(0).hp = 30;
+  g.player(1).hp = 30;
+  play(g, 36);
+  assert.equal(g.s.phase, "over");
+  assert.equal(g.s.winner, -1);
+  const h = setup();
+  h.player(0).status.invincible = true;
+  play(h, 36);
+  assert.equal(h.player(0).hp, 60);
+  assert.equal(h.player(1).hp, 30);
+});
+
+test("38 baseball retaliates only actual direct attack damage and expires at next owner start", () => {
+  const g = setup();
+  play(g, 38, 1);
+  assert.equal(g.player(1).hp, 45);
+  assert(g.player(0).status.baseball);
+  play(g, 31, 0);
+  assert.equal(g.player(0).hp, 52);
+  assert.equal(g.player(1).hp, 40);
+  const before = g.player(2).hp;
+  g.damage(g.player(0), 5, { source: 2, card: 34, persistent: true });
+  assert.equal(g.player(2).hp, before);
+  act(g, 2, { kind: "pass" });
+  assert(!g.player(0).status.baseball);
+  const h = setup();
+  h.player(1).status.baseball = true;
+  play(h, 9);
+  assert.equal(h.player(0).hp, 60);
+  const k = setup();
+  k.player(0).status.baseball = true;
+  give(k, 1, 2);
+  play(k, 31);
+  act(k, 1, { kind: "react", card: k.player(1).hand[0].uid });
+  assert.equal(k.player(0).hp, 49);
+  assert.equal(k.player(1).hp, 60);
+  const b = setup();
+  b.player(1).status.baseball = true;
+  give(b, 1, 10);
+  play(b, 31);
+  act(b, 1, { kind: "react", card: b.player(1).hand[0].uid });
+  assert.equal(b.player(0).hp, 60);
+  const fatal = setup(2);
+  fatal.player(0).hp = 5;
+  fatal.player(1).hp = 8;
+  fatal.player(1).status.baseball = true;
+  play(fatal, 31);
+  assert.equal(fatal.s.winner, -1);
+});
+
+test("39 uses pre-action HP extrema, independent random ties, damage before healing, no revival", () => {
+  const g = setup();
+  g.player(0).hp = 80;
+  g.player(1).hp = 20;
+  g.player(2).hp = 50;
+  play(g, 39);
+  assert.deepEqual(
+    g.s.players.map((p) => p.hp),
+    [55, 45, 50],
+  );
+  const h = setup();
+  const random = [0, 0.999];
+  h.rng = () => random.shift() ?? 0;
+  play(h, 39);
+  assert.deepEqual(
+    h.s.players.map((p) => p.hp),
+    [35, 60, 85],
+  );
+  const k = setup(2);
+  k.player(0).hp = 20;
+  k.player(1).hp = 20;
+  play(k, 39);
+  assert.equal(k.player(0).hp, 0);
+  assert.equal(k.s.winner, 1);
+});
+
+test("40 heals at next two starts, counts skipped turns and blocked healing, survives harmful cleanse", () => {
+  const g = setup();
+  play(g, 40);
+  assert.equal(g.player(0).hp, 60);
+  act(g, 1, { kind: "pass" });
+  act(g, 2, { kind: "pass" });
+  assert.equal(g.player(0).hp, 65);
+  assert.equal(g.player(0).status.regen.left, 1);
+  g.cleanse(g.player(0));
+  assert(g.player(0).status.regen);
+  act(g, 0, { kind: "pass" });
+  act(g, 1, { kind: "pass" });
+  act(g, 2, { kind: "pass" });
+  assert.equal(g.player(0).hp, 70);
+  assert(!g.player(0).status.regen);
+  const h = setup();
+  play(h, 40);
+  h.status(h.player(0), "noheal", 2);
+  play(h, 24);
+  assert.equal(h.player(0).hp, 60);
+  assert.equal(h.player(0).status.regen.left, 1);
+  act(h, 1, { kind: "pass" });
+  act(h, 2, { kind: "pass" });
+  assert.equal(h.player(0).hp, 60);
+  assert(!h.player(0).status.regen);
+  const k = setup();
+  play(k, 16, 1);
+  const [food] = give(k, 1, 40);
+  assert.throws(() => act(k, 1, { kind: "play", card: food.uid }));
+});
+
+test("18 confiscates new attack max values, preserving magic type distinctions", () => {
+  const g = setup();
+  give(g, 1, 31, 33, 35, 36, 37, 38, 34, 40);
+  play(g, 18, 1, {
+    targets: [
+      { id: 1, mode: "hell" },
+      { id: 2, mode: "heaven" },
+    ],
+  });
+  assert.equal(g.player(0).hand.find((c) => c.id === 26).armor, 182);
+  assert(g.player(1).hand.some((c) => c.id === 34));
+  assert(g.player(1).hand.some((c) => c.id === 40));
+});
+
+test("adaptive draw improves offense privately while preserving rare weights and generated exclusions", () => {
+  const g = setup();
+  const base = g.drawOdds();
+  assert(base.attackChance > 0.45 && base.attackChance < 0.5);
+  give(g, 0, 10, 23, 29);
+  const drought = g.drawOdds(0);
+  assert.equal(drought.attackMultiplier, 3);
+  assert(drought.attackChance > base.attackChance);
+  give(g, 0, 31);
+  assert.equal(g.drawOdds(0).attackMultiplier, 2);
+  g.player(0).hand = [g.card(31)];
+  assert.equal(g.drawOdds(0).attackMultiplier, 1);
+  g.player(0).hp = 30;
+  assert.equal(g.drawOdds(0).healMultiplier, 2);
+  g.status(g.player(0), "noheal", 2);
+  assert.equal(g.drawOdds(0).healMultiplier, 1);
+  assert(
+    drought.cards
+      .filter((c) => [6, 25, 26].includes(c.id))
+      .every((c) => c.weight === 0 && c.chance === 0),
+  );
+  assert(drought.cards[36].weight < drought.cards[30].weight);
+  assert(drought.cards[17].weight < drought.cards[36].weight);
+  assert.equal(g.view(1).drawOdds.defenses, 0);
+  assert.equal(g.view(1).players[0].hand, undefined);
+  const seen = new Map();
+  for (let ticket = 0; ticket < drought.total; ticket++) {
+    g.player(0).hand = [g.card(10), g.card(23), g.card(29)];
+    g.player(0).hp = 60;
+    delete g.player(0).status.noheal;
+    g.rng = () => (ticket + 0.5) / drought.total;
+    const id = g.draw(g.player(0)).id;
+    seen.set(id, (seen.get(id) || 0) + 1);
+  }
+  for (const c of drought.cards) assert.equal(seen.get(c.id) || 0, c.weight);
+});
+
+test("five-player AoE with four siphon owners keeps initiating card and complete effect events", () => {
+  const g = setup(5);
+  for (const player of g.s.players) player.hp = 20;
+  // Every victim has active 17 effects from each of the four other players.
+  // One JoY therefore produces 4 damage + 16 heal + card + attack events.
+  for (let target = 1; target < 5; target++) {
+    for (let owner = 0; owner < 5; owner++) {
+      if (owner !== target)
+        g.s.links.push({ owner, target, after: 0, left: 2 });
+    }
+  }
+  play(g, 15);
+  const events = g.view(0).events;
+  assert.equal(events.length, 22);
+  assert.equal(events[0].kind, "card");
+  assert.equal(events[0].card, 15);
+  assert.equal(events[1].kind, "attack");
+  assert.deepEqual(events[1].targets, [1, 2, 3, 4]);
+  assert.equal(events.filter((e) => e.kind === "damage").length, 4);
+  assert.equal(events.filter((e) => e.kind === "heal").length, 16);
+  assert.deepEqual(
+    g.s.players.map((p) => p.hp),
+    [44, 32, 32, 32, 32],
+  );
+  for (let i = 0; i < 90; i++)
+    g.event("status", { target: 0, status: "test", left: i });
+  assert.equal(g.s.events.length, 80);
+  assert.equal(g.s.events.at(-1).left, 89);
 });
