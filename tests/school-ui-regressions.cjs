@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const G = require('../school/engine.js');
-const SAVE = 'school-mercenaries-v5';
+const SAVE = 'school-mercenaries-v6';
 
 // Seed at the next document's first instruction: lifecycle saves from the old
 // document must finish before the test fixture replaces storage.
@@ -12,7 +12,7 @@ async function installGuestSeed(context) {
     const seed = JSON.parse(raw);
     for (const key of Object.keys(localStorage)) if (key.startsWith('school-mercenaries-')) localStorage.removeItem(key);
     localStorage.setItem(seed.key, typeof seed.state === 'string' ? seed.state : JSON.stringify(seed.state));
-    if (seed.backup) localStorage.setItem('school-mercenaries-v5-backup', JSON.stringify(seed.backup));
+    if (seed.backup) localStorage.setItem('school-mercenaries-v6-backup', JSON.stringify(seed.backup));
   });
 }
 async function seedGuest(page, state, key = SAVE, options = {}) {
@@ -58,7 +58,7 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   assert.equal(await p.locator('#gold').textContent(), '90');
   assert.equal(await p.locator('#train-hero').isDisabled(), false);
   await p.click('#train-hero');
-  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v5')).units.harin.level === 3);
+  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v6')).units.harin.level === 3);
   assert.equal((await saved(p)).gold, 0);
   await p.reload();
   assert.equal((await saved(p)).units.harin.level, 3);
@@ -70,7 +70,7 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   await seedGuest(p, awakened);
   await p.click('#party [data-hero="harin"]');
   await p.click('#awaken-hero');
-  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v5')).units.harin.stars === 1);
+  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v6')).units.harin.stars === 1);
   assert.equal((await saved(p)).units.harin.shards, 0);
   assert.equal((await saved(p)).gold, 500);
   await p.click('#change-hero');
@@ -91,7 +91,7 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
     await p.click('#party [data-hero="harin"]');
     await second.click('#party [data-hero="harin"]');
     await Promise.all([p.click('#train-hero'), second.click('#train-hero')]);
-    await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v5')).units.harin.level === 3);
+    await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v6')).units.harin.level === 3);
     const concurrent = await saved(p);
     assert.equal(concurrent.gold, 540);
     await Promise.all([p.reload(), second.reload()]);
@@ -106,7 +106,7 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   await p.evaluate(() => {
     window.restoreStorageSet = Storage.prototype.setItem;
     Storage.prototype.setItem = function(key, value) {
-      if (key.startsWith('school-mercenaries-v5')) throw new DOMException('Quota exceeded (test)', 'QuotaExceededError');
+      if (key.startsWith('school-mercenaries-v6')) throw new DOMException('Quota exceeded (test)', 'QuotaExceededError');
       return window.restoreStorageSet.call(this, key, value);
     };
   });
@@ -119,7 +119,7 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   await p.evaluate(() => { Storage.prototype.setItem = window.restoreStorageSet; });
   await p.waitForFunction(() => !document.getElementById('train-hero').disabled);
   await p.click('#train-hero');
-  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v5')).units.harin.level === 2);
+  await p.waitForFunction(() => JSON.parse(localStorage.getItem('school-mercenaries-v6')).units.harin.level === 2);
   assert.equal((await saved(p)).gold, 630);
   await p.reload();
   assert.equal((await saved(p)).units.harin.level, 2);
@@ -131,10 +131,10 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   await seedGuest(p, '{broken', SAVE, { backup: recovery });
   assert.equal((await saved(p)).gold, 4321);
   assert.equal((await saved(p)).gems, 987);
-  assert.equal(await p.evaluate(() => localStorage.getItem('school-mercenaries-v5-recovery')), '{broken');
+  assert.equal(await p.evaluate(() => localStorage.getItem('school-mercenaries-v6-recovery')), '{broken');
   await seedGuest(p, '{unrecoverable', SAVE, { corrupt: true });
   await p.waitForFunction(() => /복구|손상|읽지|저장/.test(document.getElementById('connection').textContent));
-  assert.equal(await p.evaluate(() => localStorage.getItem('school-mercenaries-v5')), '{unrecoverable');
+  assert.equal(await p.evaluate(() => localStorage.getItem('school-mercenaries-v6')), '{unrecoverable');
   assert.ok(await p.locator('#recruit-one').isDisabled());
   console.log('PASS valid backup restores corrupt progress; unrecoverable data is preserved instead of overwritten by a fresh game');
   await p.close();

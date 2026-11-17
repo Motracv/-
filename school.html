@@ -9,10 +9,11 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%233c6555' d='M4 2h24v20l-12 8L4 22z'/%3E%3Cpath fill='%23f5deb0' d='M14 6h4v14h5v4H9v-4h5z'/%3E%3C/svg%3E">
   <link rel="preload" href="assets/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="school/assets/osia-sprites.png?v=osia1" as="image">
-  <link rel="stylesheet" href="school/style.css?v=school-code1">
-  <script defer src="school/engine.js?v=school-code1"></script>
-  <script defer src="school/art.js?v=school-code1"></script>
-  <script defer src="school/client.js?v=school-code1"></script>
+  <link rel="preload" href="school/assets/lava.png?v=lava1" as="image">
+  <link rel="stylesheet" href="school/style.css?v=school-rava1">
+  <script defer src="school/engine.js?v=school-rava1"></script>
+  <script defer src="school/art.js?v=school-rava1"></script>
+  <script defer src="school/client.js?v=school-rava1"></script>
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -39,7 +40,7 @@
   <div class="connection" id="connection" hidden role="status"></div>
   <main class="workspace">
     <section class="battle-panel" aria-label="자동 전투">
-      <div class="battle-heading"><div><h1><button id="battle-stage" aria-label="현재 지역과 모험 지도"><span id="stage-number">1-1</span> <span id="stage-name">오래된 교실</span> <span class="map-arrow">⌄</span></button></h1></div><span class="auto-badge"><i></i> AUTO</span></div>
+      <div class="battle-heading"><div><h1><button id="battle-stage" aria-label="현재 지역과 모험 지도"><span id="stage-number">1-1</span> <span id="stage-name">오래된 교실</span> <span class="map-arrow">⌄</span></button></h1></div><div class="battle-tools"><span class="auto-badge"><i></i> AUTO</span><div class="speed-controls" role="group" aria-label="전투 속도"><button type="button" data-speed="1" aria-pressed="true" aria-label="전투 속도 1배">1.0×</button><button type="button" data-speed="1.5" aria-pressed="false" aria-label="전투 속도 1.5배">1.5×</button></div></div></div>
       <div class="battle-frame"><canvas id="battle" width="480" height="280" role="img" aria-label="용병 세 명이 자동으로 싸우는 도트 전투 장면"></canvas><div class="wave-label" id="wave-label">WAVE 1 / 4</div><button class="battle-log" id="log-button" aria-label="모험 기록"><svg><use href="#i-book"/></svg></button></div>
       <div class="battle-footer"><span id="battle-status">자동 전투 중</span><span id="power">전투력 —</span></div>
     </section>
@@ -54,7 +55,7 @@
     <section class="content-panel" aria-label="용병단 관리">
       <article class="tab-panel adventure-panel" id="tab-adventure" hidden><span class="chapter-stamp" hidden></span><div id="chapter-list" hidden></div></article>
       <article class="tab-panel" id="tab-roster" hidden>
-        <div class="section-heading"><div><button class="text-button back-button" id="back-adventure" data-tab="adventure">← 전투로</button><h2>편성</h2></div><span class="count-tag" id="roster-count">3 / 13</span></div>
+        <div class="section-heading"><div><button class="text-button back-button" id="back-adventure" data-tab="adventure">← 전투로</button><h2>편성</h2></div><span class="count-tag" id="roster-count">3 / 14</span></div>
         <p class="panel-description">교체할 용병을 고른 뒤 출전 위치를 선택하세요.</p>
         <div class="filter-row" aria-label="용병 보기"><button class="filter active" data-filter="owned">보유 용병</button><button class="filter" data-filter="all">전체 도감</button></div>
         <div class="roster-grid" id="roster"></div>
@@ -62,10 +63,27 @@
       <article class="tab-panel" id="tab-recruit" hidden>
         <div class="section-heading"><div><h2>동료 모집</h2></div><button class="text-button" id="rates-button">확률 안내 ↗</button></div>
 
-        <button class="recruit-banner osia-banner" id="feature-osia-button" aria-label="물의 용왕 오시아 상세 보기"><span class="banner-stars">✧ · ✦ · ✧</span><span class="recruit-tag" id="recruit-count">상시 모집 · 용병 13명</span><span class="featured-heroes"><img id="feature-osia" alt="오른쪽을 바라보는 SSR 오시아"></span><span class="banner-copy"><small>SSR · 물속성 마법사</small><strong>물의 용왕, 오시아</strong><span>Osia · 상시 모집 합류</span></span></button>
+        <p class="recruit-count" id="recruit-count">함께할 동료를 선택하세요</p>
+        <div class="pickup-grid" role="group" aria-label="픽업 모집 선택">
+          <article class="pickup-card osia-pickup">
+            <button class="pickup-preview" id="feature-osia-button" type="button" aria-label="물의 용왕 오시아 상세 보기">
+              <span class="pickup-tag">상시 픽업</span><img id="feature-osia" alt="오른쪽을 바라보는 물의 용왕 오시아">
+              <span class="pickup-copy"><small>물의 용왕</small><strong>오시아</strong><span>SSR · 물 · 마법</span></span>
+            </button>
+            <button class="pickup-select" type="button" data-banner="osia" aria-pressed="true">오시아 픽업</button>
+          </article>
+          <article class="pickup-card lava-pickup">
+            <button class="pickup-preview" id="feature-lava-button" type="button" aria-label="눈내리던 날의 무당 라바 상세 보기">
+              <span class="pickup-tag">NEW · 기간 한정</span><img id="feature-lava" alt="바람 속성 치유사, 남성 인간 라바">
+              <span class="pickup-copy"><small>눈내리던 날의 무당</small><strong>라바</strong><span>SSR · 바람 · 치유</span></span>
+            </button>
+            <button class="pickup-select" type="button" data-banner="lava" aria-pressed="false">라바 픽업</button>
+          </article>
+        </div>
+        <div class="banner-summary"><b id="banner-status" role="status">SSR 등장 시 픽업 50%</b><span id="banner-deadline">오시아 · 상시 모집</span></div>
         <div class="pity-line"><span>SSR 확정까지 <b id="pity-left">80</b>회</span><span id="pity-count">0 / 80</span></div><div class="pity-track"><i id="pity-bar"></i></div><div class="pity-chance"><span id="pity-phase">60회째부터 매회 +1%p</span><b id="next-ssr-chance">다음 SSR 4%</b></div>
         <div class="recruit-buttons"><button class="secondary" id="recruit-one"><b>1회 모집</b><span><svg><use href="#i-gem"/></svg>100</span></button><button class="primary" id="recruit-ten"><span class="button-ribbon">SR 이상 1명 확정</span><b>10회 모집</b><span><svg><use href="#i-gem"/></svg>900</span></button></div>
-        <p class="recruit-footnote">오시아·이안·루미는 같은 확률의 상시 SSR입니다.<br>중복은 각성 조각으로 · 플레이로 얻는 무료 보석만 사용</p>
+        <p class="recruit-footnote">선택한 픽업의 확률과 확정 상태를 확인하세요.<br>중복은 각성 조각으로 · 무료 보석만 사용</p>
         <button class="text-button history-button" id="history-button">최근 모집 기록 ↗</button>
       </article>
       <article class="tab-panel" id="tab-supplies" hidden>

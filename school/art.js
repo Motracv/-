@@ -1,14 +1,21 @@
 "use strict";
 window.SchoolArt = (() => {
   const portraits = new Map(), S = SchoolRPG;
-  const osiaImage = new Image();
-  let osiaLoaded = false;
-  const ready = new Promise(resolve => {
+  const osiaImage = new Image(), lavaImage = new Image();
+  let osiaLoaded = false, lavaLoaded = false;
+  const osiaReady = new Promise(resolve => {
     const timer = setTimeout(() => resolve(false), 5000);
     osiaImage.onload = () => { osiaLoaded = true; clearTimeout(timer); portraits.delete("osia"); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
     osiaImage.onerror = () => { clearTimeout(timer); resolve(false); };
   });
+  const lavaReady = new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), 5000);
+    lavaImage.onload = () => { lavaLoaded = true; clearTimeout(timer); portraits.delete("lava"); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
+    lavaImage.onerror = () => { clearTimeout(timer); resolve(false); };
+  });
+  const ready = Promise.all([osiaReady, lavaReady]).then(([osia, lava]) => osia && lava);
   osiaImage.src = "school/assets/osia-sprites.png?v=osia1";
+  lavaImage.src = "school/assets/lava.png?v=lava1";
   function rect(c, color, x, y, w, h) { c.fillStyle = color; c.fillRect(Math.round(x), Math.round(y), w, h); }
   // Fine details use a half-pixel art grid. They are drawn directly into the
   // display-sized canvas, rather than enlarging a 480px raster afterwards.
@@ -40,8 +47,50 @@ window.SchoolArt = (() => {
     }
     c.restore();
   }
+  function fan(c, x, y, open = true) {
+    c.save(); c.translate(x, y);
+    if (open) {
+      rect(c, "#6a4332", -9, -12, 18, 5); rect(c, "#6a4332", -11, -10, 22, 5);
+      rect(c, "#d8eaf0", -8, -11, 16, 9); rect(c, "#eff8f2", -10, -9, 20, 4);
+      for (let i = -2; i <= 2; i++) { c.strokeStyle = "#b98d58"; c.lineWidth = .5; c.beginPath(); c.moveTo(0, 1); c.lineTo(i * 4, -10 + Math.abs(i)); c.stroke(); }
+      rect(c, "#83adbb", -5, -7, 7, 1); rect(c, "#83adbb", -2, -5, 7, 1);
+    } else { rect(c, "#76503b", -1, -12, 3, 13); detail(c, "#f5db9c", 0, -11, 1, 11); }
+    rect(c, "#6b4834", -1, 0, 2, 5); rect(c, "#e6c16f", -1, 3, 2, 1); c.restore();
+  }
+  function lava(c, x, y, scale, frame) {
+    c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale, scale);
+    if (frame.dead) { c.globalAlpha = .4; c.rotate(-Math.PI / 2); }
+    if (frame.hit) c.filter = "brightness(1.8)";
+    rect(c, "#26333b35", -10, 1, 21, 2);
+    if (lavaLoaded) {
+      // The generated source is kept intact. Its known transparent padding is
+      // excluded while drawing so Lava shares the party's foot and height scale.
+      const crop = {x:245, y:91, width:631, height:1260}, width = 44 * crop.width / crop.height;
+      c.drawImage(lavaImage, crop.x, crop.y, crop.width, crop.height, -width / 2, -41, width, 44);
+      if (frame.attack || frame.casting) { c.strokeStyle = "#e1f1b9"; c.lineWidth = .8; c.beginPath(); c.arc(15, -22, 12, -1.5, .8); c.stroke(); }
+    } else {
+      // A human shaman in a hanbok: no fins, horns or animal ears.
+      c.scale(.88, .88); c.translate(0, -5);
+      rect(c, "#40576b", -8, -39, 16, 17); rect(c, "#8fc6dd", -7, -38, 14, 15);
+      rect(c, "#f4d0ae", -1, -34, 9, 12); rect(c, "#f4d0ae", 7, -30, 3, 3);
+      rect(c, "#bee6ec", -5, -38, 10, 3); rect(c, "#8fc6dd", -4, -35, 5, 6); rect(c, "#6ea8c5", -8, -32, 4, 12);
+      rect(c, "#293f4c", 5, -31, 1, frame.blink ? 1 : 2); detail(c, "#fff5d8", 5, -31, .5, .5); detail(c, "#bf8970", 5, -25, 2, .5);
+      rect(c, "#596638", -8, -23, 17, 13); rect(c, "#9eae56", -7, -22, 16, 12);
+      rect(c, "#c1cb72", -7, -22, 3, 10); rect(c, "#d58743", -1, -22, 6, 3); rect(c, "#e6b26a", 1, -21, 3, 2);
+      rect(c, "#536036", -11, -22, 5, 13); rect(c, "#b4c16a", -10, -21, 4, 11);
+      rect(c, "#586439", 7, -22, 7, 10); rect(c, "#bdca78", 8, -21, 5, 8); rect(c, "#f4d0ae", 12, -17, 4, 3);
+      rect(c, "#724137", -9, -11, 19, 14); rect(c, "#b35545", -8, -10, 17, 12); rect(c, "#d17b57", -7, -10, 2, 11);
+      rect(c, "#933f38", 2, -9, 2, 12); rect(c, "#8e3f39", 7, -8, 2, 10);
+      rect(c, "#e9dfc1", -7, 0, 7, 7); rect(c, "#f7eed3", -6, 0, 5, 6); rect(c, "#e9dfc1", 2, 0, 7, 7); rect(c, "#f7eed3", 3, 0, 5, 6);
+      rect(c, "#554539", -8, 6, 9, 3); rect(c, "#554539", 2, 6, 10, 3); detail(c, "#ac8761", -7, 6.5, 6, .5); detail(c, "#ac8761", 3, 6.5, 6, .5);
+      detail(c, "#e7be75", -2, -13, 10, 1); rect(c, "#d89553", 1, -13, 2, 6); rect(c, "#edc48a", 3, -13, 4, 2);
+      fan(c, frame.casting ? 20 : 17, frame.casting ? -28 : -17, true);
+    }
+    c.restore();
+  }
   function hero(c, id, x, y, scale = 2, frame = {}) {
     if (id === "osia") { osia(c, x, y, scale, frame); return; }
+    if (id === "lava") { lava(c, x, y, scale, frame); return; }
     const h = S.BY_ID[id], index = S.HEROES.indexOf(h), dead = frame.dead;
     c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale * (frame.flip ? -1 : 1), scale);
     if (dead) { c.globalAlpha = .4; c.rotate(-Math.PI / 2); }
@@ -92,15 +141,15 @@ window.SchoolArt = (() => {
   }
   function portrait(id) {
     if (!portraits.has(id)) { const canvas = document.createElement("canvas"); canvas.width = 160; canvas.height = 192;
-      const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; c.scale(2, 2); hero(c, id, 36, 86, 2); portraits.set(id, canvas.toDataURL()); }
+      const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; c.scale(2, 2); hero(c, id, id === "lava" ? (lavaLoaded ? 40 : 30) : 36, 86, 2); portraits.set(id, canvas.toDataURL()); }
     return portraits.get(id);
   }
   function monster(c, enemy, x, y, frame = {}) {
     c.save(); c.translate(Math.round(x), Math.round(y)); const z = enemy.boss ? 2.7 : 1.7; c.scale(z, z);
     if (enemy.hp <= 0) c.globalAlpha = .25;
     if (frame.hit) c.filter = "brightness(2)";
-    const palettes = [["#477d68", "#9dc497"], ["#6c627e", "#b9a6c7"], ["#796247", "#d1ba85"], ["#4d7651", "#91af64"], ["#666b79", "#a1a4ab"], ["#5c5379", "#ba9dd6"]];
-    const [edge, body] = palettes[enemy.kind]; rect(c, "#20302b35", -13, 0, 27, 3);
+    const palettes = [["#477d68", "#9dc497"], ["#6c627e", "#b9a6c7"], ["#796247", "#d1ba85"], ["#4d7651", "#91af64"], ["#666b79", "#a1a4ab"], ["#5c5379", "#ba9dd6"], ["#6c91ad", "#c0e0e7"], ["#48485f", "#8f86a4"], ["#557d80", "#a4d3c6"], ["#526e6c", "#92b89a"], ["#76895c", "#d4df9c"], ["#8d6572", "#e2ccd3"]];
+    const [edge, body] = palettes[enemy.kind] || palettes[0]; rect(c, "#20302b35", -13, 0, 27, 3);
     if (enemy.kind === 2) { rect(c, edge, -23, -23, 14, 8); rect(c, body, -21, -22, 11, 5); rect(c, edge, 10, -23, 14, 8); rect(c, body, 11, -22, 11, 5); }
     rect(c, edge, -13, -18, 27, 15); rect(c, edge, -10, -25, 21, 22); rect(c, edge, -6, -29, 13, 5);
     rect(c, body, -11, -17, 23, 12); rect(c, body, -8, -24, 17, 19); rect(c, body, -5, -27, 11, 5);
@@ -112,11 +161,71 @@ window.SchoolArt = (() => {
     if (enemy.kind === 1 || enemy.kind === 5) { rect(c, body, -11, -4, 5, 5); rect(c, body, 0, -5, 5, 6); rect(c, body, 9, -4, 3, 5); }
     if (enemy.kind === 3) { rect(c, "#b99a5b", -17, -22, 6, 3); rect(c, "#b99a5b", 12, -23, 7, 3); rect(c, body, -18, -26, 5, 4); }
     if (enemy.kind === 4) { rect(c, edge, -18, -18, 7, 17); rect(c, edge, 12, -18, 7, 17); rect(c, "#b9d9d4", -5, -23, 12, 4); detail(c, "#e1f1e0", -4, -22.5, 9, .5); for (const bx of [-15, 15]) { detail(c, "#cbd1ca", bx, -15, 1, 1); detail(c, "#303d4d", bx, -5, 1, 1); } for (let i = 0; i < 3; i++) detail(c, edge, -3 + i * 3, -5, 1.5, .5); }
+    if (enemy.kind === 6) { for (const [ix,iy] of [[-9,-27],[-2,-32],[6,-28]]) { rect(c,"#719fbd",ix,iy,5,8); rect(c,"#e5f7f4",ix+1,iy+1,1,5); } detail(c,"#effbff",-7,-10,16,.5); }
+    if (enemy.kind === 7) { rect(c,"#484457",-12,-3,25,4); for (let i=0;i<5;i++) rect(c,"#716779",-12+i*6,0,3,4-i%2); rect(c,"#e6c1a6",-5,-16,2,1); rect(c,"#e6c1a6",5,-16,2,1); }
+    if (enemy.kind === 8) { rect(c,"#68806f",-4,-33,9,8); rect(c,"#e1ca86",-3,-32,7,2); rect(c,"#dff4d7",-8,-23,2,7); detail(c,"#eaffed",-5,-23,7,.5); }
+    if (enemy.kind === 9) { rect(c,"#647c6c",-15,-16,4,12); rect(c,"#b5c5a0",-15,-15,2,2); rect(c,"#738b70",12,-13,5,10); detail(c,"#cce0ad",-7,-6,4,1); }
+    if (enemy.kind === 10) { rect(c,"#e8e7b8",-17,-19,6,2); rect(c,"#e8e7b8",12,-13,9,2); rect(c,"#9ebd8b",-19,-15,7,1); rect(c,"#edf3cf",9,-25,8,1); }
+    if (enemy.kind === 11) { rect(c,"#fff0da",-11,-29,6,11); rect(c,"#fff0da",7,-29,6,11); rect(c,"#bd6c6c",-9,-28,2,6); rect(c,"#bd6c6c",9,-28,2,6); detail(c,"#b76469",-7,-13,3,1); detail(c,"#b76469",6,-13,3,1); }
     if (enemy.boss) { rect(c, "#86663c", -12, -32, 26, 6); rect(c, "#ebc86e", -10, -33, 22, 5); for (const px of [-10, 0, 9]) rect(c, "#ebc86e", px, -38, 3, 8); rect(c, "#f7e3a0", 0, -32, 3, 3); }
     c.restore();
   }
+  function snow(c, time, strength = 1) {
+    for (let i = 0; i < 36 * strength; i++) {
+      const x = (i * 71 + Math.sin(time * .45 + i) * 8 + 490) % 480, y = (i * 37 + time * (7 + i % 4)) % 280;
+      rect(c, i % 3 ? "#edf8f0bb" : "#ffffff", x, y, i % 4 === 0 ? 2 : 1, 1);
+    }
+  }
+  function newBackground(c, zone, time) {
+    const snowy = zone === 6 || zone === 11, outdoor = snowy || zone === 10;
+    const walls = ["#9ab3c1", "#555963", "#6c8587", "#485f67", "#9eafa0", "#768da5"], color = walls[zone - 6] || walls[0];
+    rect(c, color, 0, 0, 480, 280);
+    if (outdoor) {
+      rect(c, zone === 10 ? "#bacdb4" : "#bfd4dc", 0, 40, 480, 50); rect(c, zone === 10 ? "#d8ddba" : "#d7e4e2", 0, 90, 480, 60);
+      for (let i = 0; i < 7; i++) { const x = i * 80 - 32; rect(c, snowy ? "#8fa6b5" : "#8fa38b", x, 94 - i % 3 * 12, 100, 57); rect(c, snowy ? "#c6d8dc" : "#afc1a1", x + 22, 87 - i % 3 * 12, 55, 12); }
+      if (zone === 6) {
+        rect(c, "#7d8f9b", 54, 56, 342, 92); rect(c, "#dbe6df", 49, 51, 352, 8); rect(c, "#9daeb2", 57, 61, 336, 84);
+        for (let row = 0; row < 2; row++) for (let col = 0; col < 12; col++) { const x = 67 + col * 27, y = 69 + row * 33; rect(c, "#637f90", x, y, 18, 24); rect(c, "#b4d4d7", x + 2, y + 2, 14, 19); detail(c, "#e0ede5", x + 8, y + 1, 1, 22); detail(c, "#e0ede5", x + 1, y + 11, 16, .5); }
+        rect(c, "#758697", 207, 116, 35, 32); rect(c, "#e1e9dc", 205, 113, 39, 4);
+      } else {
+        // The boundary and snow shrine share the school spirit gate motif.
+        const gate = zone === 11 ? "#ae6458" : "#70856a", light = zone === 11 ? "#df9e7e" : "#bec59a";
+        for (const x of [205, 338]) { rect(c, "#445758", x - 3, 69, 15, 84); rect(c, gate, x, 69, 10, 83); detail(c, light, x + 1, 71, 1, 79); }
+        rect(c, "#445758", 190, 62, 170, 12); rect(c, gate, 191, 62, 168, 8); rect(c, light, 197, 61, 156, 2); rect(c, gate, 200, 86, 151, 7);
+        if (zone === 11) { rect(c, "#eaf4ee", 188, 58, 174, 4); rect(c, "#d6e8e2", 201, 84, 150, 2); }
+        for (let ribbon = 0; ribbon < 5; ribbon++) { const x = 227 + ribbon * 24, offset = Math.round(Math.sin(time * 2 + ribbon) * 2); rect(c, "#e9e5bf", x, 94, 2, 17); rect(c, "#f7f2d3", x + offset, 110, 6, 4); rect(c, "#dedbbb", x + offset + 3, 114, 4, 5); }
+        for (const x of [77, 419]) { rect(c, "#78847e", x, 117, 8, 28); rect(c, "#596f70", x - 7, 112, 22, 6); rect(c, "#a6b4a5", x - 4, 96, 16, 16); rect(c, "#e8dcb1", x - 1, 100, 10, 9); rect(c, "#586c6e", x - 9, 92, 26, 5); if (snowy) rect(c, "#eaf4ed", x - 10, 90, 28, 3); }
+      }
+      for (const [x,h] of [[12,50],[144,35],[453,53]]) { rect(c, "#6c7776", x + 8, 147 - h, 5, h); for (let level = 0; level < 3; level++) { rect(c, "#6d8c85", x - 7 + level * 4, 106 - h / 3 + level * 13, 38 - level * 7, 12); if (snowy) rect(c, "#e3eeea", x - 5 + level * 4, 104 - h / 3 + level * 13, 32 - level * 7, 4); } }
+    } else {
+      for (let y = 26; y < 156; y += 24) { detail(c, "#263f4629", 0, y, 480, 1); for (let x = (y % 48 ? 0 : 28); x < 480; x += 56) detail(c, "#263f4629", x, y, 1, 24); }
+      rect(c, "#34464c", 0, 17, 480, 7); detail(c, "#a1b1aa", 0, 18, 480, 1); rect(c, "#3d4e50", 0, 143, 480, 12);
+      if (zone === 7) {
+        for (const x of [31, 118]) { rect(c, "#343c4a", x, 43, 59, 76); rect(c, "#82929b", x + 4, 47, 51, 68); rect(c, "#bec6ba", x + 8, 51, 19, 25); rect(c, "#abbcb9", x + 31, 51, 19, 25); rect(c, "#827152", x - 4, 82, 67, 8); rect(c, "#a48c64", x - 3, 84, 65, 1); rect(c, "#746249", x + 8, 62, 8, 52); }
+        rect(c, "#313e48", 275, 44, 81, 101); rect(c, "#6b766d", 280, 48, 71, 96); rect(c, "#a7ae90", 284, 54, 63, 24); rect(c, "#485c62", 289, 58, 53, 16); detail(c, "#c3b787", 337, 101, 2, 9);
+        rect(c, "#c1b07a", 282, 93, 67, 4); for (let i = 0; i < 6; i++) rect(c, "#5c5141", 287 + i * 11, 93, 3, 4);
+        for (const [x,y] of [[211,49],[393,79],[189,117]]) { detail(c, "#2d394255", x, y, 1, 10); detail(c, "#2d394255", x - 3, y + 10, 4, 1); detail(c, "#2d394255", x - 3, y + 11, 1, 9); }
+      } else if (zone === 8) {
+        for (const x of [28, 124, 220]) { rect(c, "#425b61", x, 55, 69, 72); rect(c, "#294b54", x + 4, 59, 61, 62); detail(c, "#adc7b7", x + 2, 57, 1, 66); for (let row = 0; row < 2; row++) { rect(c, "#9b9875", x + 4, 85 + row * 34, 61, 3); for (let j = 0; j < 4; j++) { const px = x + 10 + j * 13, py = 66 + row * 34; rect(c, "#bdd9c5", px + 2, py, 3, 5); rect(c, ["#8ab2c4","#b0c980","#b79bc7","#d3b087"][j], px, py + 5, 7, 11); detail(c, "#e4f5df", px + 1, py + 6, 1, 6); } } }
+        rect(c, "#3e5758", 352, 62, 66, 68); rect(c, "#82a8a5", 357, 67, 56, 58); rect(c, "#b4d6c5", 365, 76, 39, 39); rect(c, "#87b8ac", 369, 80, 31, 31); rect(c, "#cef1c6", 377, 85, 15, 21); detail(c, "#f0f8d9", 379, 87, 2, 11);
+        rect(c, "#858f73", 20, 132, 428, 8); rect(c, "#b1ad83", 18, 130, 432, 3); rect(c, "#4d665f", 42, 140, 8, 14); rect(c, "#4d665f", 417, 140, 8, 14);
+      } else {
+        for (const x of [28, 177, 326]) { rect(c, "#304a53", x, 51, 107, 99); rect(c, "#54757a", x + 7, 57, 93, 89); rect(c, "#253f4d", x + 15, 69, 77, 75); for (let r = 0; r < 6; r++) detail(c, "#687f7c", x + 18, 78 + r * 11, 71, 1); }
+        rect(c, "#506d67", 0, 35, 480, 9); detail(c, "#a2aea0", 0, 36, 480, 1); for (const x of [48, 214, 391]) { rect(c, "#354d4d", x, 31, 6, 18); detail(c, "#a3af9a", x + 1, 33, 1, 13); }
+        for (let i = 0; i < 7; i++) { const x = i * 67 + 21, drip = (time * 18 + i * 23) % 97; rect(c, "#9bd2c178", x, 53 + drip, 1, 4); }
+      }
+    }
+    const floor = snowy ? "#d6e3e2" : zone === 7 ? "#73756c" : zone === 8 ? "#82978d" : zone === 9 ? "#507d81" : "#a1b28b";
+    rect(c, floor, 0, 153, 480, 127); rect(c, snowy ? "#ecf3e9" : "#b2c0a466", 0, 151, 480, 3);
+    for (let y = 156; y < 280; y += 23) { detail(c, snowy ? "#a2bbc42e" : "#3f62513d", 0, y, 480, 1); for (let x = y % 2 ? 0 : 30; x < 480; x += 60) detail(c, snowy ? "#a2bbc42e" : "#3f62513d", x, y, 1, 23); }
+    if (zone === 9) for (let i = 0; i < 20; i++) { const x = (i * 53 + time * 8) % 480, y = 162 + i * 17 % 111; detail(c, "#bcdfce77", x, y, 13 + i % 4 * 5, .5); }
+    if (zone === 10) { for (let i = 0; i < 15; i++) { const x = (i * 49 + time * 32) % 510 - 20, y = 35 + i * 19 % 199; rect(c, "#edf1d65c", x, y, 11 + i % 4 * 7, 1); } for (let i=0;i<13;i++) { const x=i*41; rect(c,"#718d64",x,147,2,8); rect(c,"#afc585",x+2,149,2,6); } }
+    if (snowy) { for (let i = 0; i < 16; i++) { const x = i * 33 + 5, y = 166 + i * 29 % 107; detail(c, "#f4f9ef", x, y, 9, .5); } snow(c, time); }
+    rect(c, "#27424c18", 0, 263, 480, 17);
+  }
   function background(c, stage, time) {
     const zone = S.chapter(stage), outdoor = zone === 3 || zone === 5;
+    if (zone >= 6) { newBackground(c, zone, time); return; }
     const wall = ["#d9c6a1", "#c5c6ab", "#bdab92", "#8cab83", "#b6b6a1", "#626e8d"][zone];
     rect(c, wall, 0, 0, 480, 280);
     // Layered colour bands and small masonry details keep the scenery readable
@@ -252,10 +361,12 @@ window.SchoolArt = (() => {
     }
     c.restore();
   }
-  function waterEffects(c, effects, positions, time, reduced, pending) {
+  function waterEffects(c, effects, positions, time, reduced, pending, cinematic) {
     for (const e of effects) {
       if (e.from !== "osia") continue;
-      const age = pending && pending.id === e.castId ? Math.min(time - e.time, e.impactDelay / 1000 - .001) : time - e.time;
+      if (e.kind === "skill-stage" && e.stage === 4 && cinematic?.castId === e.castId) continue;
+      const rawAge = time - e.time - (e.kind === "skill-stage" ? (e.cinematicDuration || 0) / 1000 : 0);
+      const age = pending && pending.id === e.castId ? Math.min(rawAge, e.impactDelay / 1000 - .001) : rawAge;
       const source = positions.osia; if (!source || age < 0) continue;
       if (e.kind === "skill-stage" && age < (e.stage === 4 ? 1.8 : 1.1)) {
         const targets=e.targets.map(id=>positions[id]).filter(Boolean);if(!targets.length)continue;
@@ -292,10 +403,78 @@ window.SchoolArt = (() => {
       }
     }
   }
+  function windRing(c, x, y, age, reduced, size = 1) {
+    c.save(); c.globalAlpha *= Math.max(0, 1 - age / 1.15);
+    const turn = reduced ? 0 : age * 6;
+    for (let ring = 0; ring < 3; ring++) {
+      c.strokeStyle = ["#87bda8", "#c5e9ba", "#f0f7d5"][ring]; c.lineWidth = 2 - ring * .4;
+      c.beginPath(); c.ellipse(x, y - 15 - ring * 15 * size, (24 - ring * 3) * size, 6 * size, -.16, turn + ring, turn + ring + 4.7); c.stroke();
+    }
+    for (let i = 0; i < 7; i++) { const a = i * Math.PI / 3.5 + turn, px = x + Math.cos(a) * 24 * size, py = y - 26 + Math.sin(a) * 22 * size; rect(c, i % 2 ? "#eff3c4" : "#a7d3a9", px, py, 4, 1); detail(c, "#d7f5c8", px + 1, py - 1, 1, 3); }
+    c.restore();
+  }
+  function windShield(c, x, y, color, alpha = 1, size = 1) {
+    c.save(); c.globalAlpha *= alpha; c.translate(x, y - 29); c.scale(size, size);
+    c.fillStyle = color + "30"; c.strokeStyle = color; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(-20,-22); c.lineTo(0,-29); c.lineTo(20,-22); c.lineTo(18,8); c.lineTo(9,21); c.lineTo(0,27); c.lineTo(-9,21); c.lineTo(-18,8); c.closePath(); c.fill(); c.stroke();
+    detail(c, "#f7ffdf", -10, -15, 1, 14); detail(c, "#f7ffdf", -9, -16, 10, 1); c.restore();
+  }
+  function lavaEffects(c, effects, positions, time, reduced) {
+    for (const e of effects) {
+      if (e.from !== "lava") continue;
+      const age = time - e.time; if (age < 0 || age > 1.35) continue;
+      const source = positions.lava;
+      if (e.kind === "lava-skill") {
+        const targets = (e.targets || []).map(id => positions[id]).filter(Boolean);
+        c.save();
+        if (source) { c.save(); c.translate(source.x + 24, source.y - 46); if (!reduced) c.rotate(-.6 + Math.min(1, age * 3) * 1.1); c.scale(2, 2); fan(c, 0, 0); c.restore(); }
+        for (const p of targets) {
+          windRing(c, p.x, p.y, age, reduced, e.stage === 2 ? 1.3 : 1);
+          if (e.stage === 1 && age < 1.1) windShield(c, p.x, p.y, "#b8e8c5", Math.max(0, 1 - age / 1.1), 1);
+          if (e.stage === 2) {
+            const glow = Math.max(0, 1 - age / 1.15); c.globalAlpha = glow;
+            rect(c, "#d3eebe66", p.x - 14, p.y - 74, 28, 76); rect(c, "#f1f6cd88", p.x - 5, p.y - 74, 10, 76);
+            rect(c, "#f8ffda", p.x - 3, p.y - 59, 6, 24); rect(c, "#f8ffda", p.x - 12, p.y - 50, 24, 6);
+          }
+        }
+        c.globalAlpha = Math.max(0, Math.min(1, (1.35 - age) * 3)); c.font = "10px Galmuri, monospace"; c.textAlign = "center";
+        const label = `라바 · ${e.name}`, width = c.measureText(label).width + 20;
+        rect(c, "#375548ee", 240 - width / 2, 39, width, 21); detail(c, "#d9edb6", 240 - width / 2, 59, width, 1); c.fillStyle = "#eff8d5"; c.fillText(label, 240, 53); c.restore();
+      } else if (e.kind === "guard") {
+        const p = positions[e.to]; if (!p) continue;
+        windShield(c, p.x, p.y, "#b7e1ad", Math.max(0, 1 - age / 1.25));
+        if (e.passive === "ten-hits") { c.save(); c.font = "9px Galmuri, monospace"; c.textAlign = "center"; rect(c,"#3b594be8",p.x-32,p.y-86,64,16); c.fillStyle="#e5f5c9"; c.fillText("바람의 가호",p.x,p.y-75); c.restore(); }
+      } else if (e.kind === "rescue") {
+        const p = positions[e.to]; if (!p) continue;
+        c.save(); c.globalAlpha = Math.max(0, 1 - age / 1.3); windRing(c, p.x, p.y, Math.min(age, 1), reduced, 1.8);
+        for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5, r = reduced ? 38 : 18 + age * 45; rect(c, "#fff1b2", p.x + Math.cos(a) * r, p.y - 35 + Math.sin(a) * r, 3, 3); }
+        c.font = "10px Galmuri, monospace"; c.textAlign = "center"; rect(c, "#68563de8", p.x - 41, p.y - 98, 82, 19); c.fillStyle = "#fff1c2"; c.fillText("생명의 바람", p.x, p.y - 85); c.restore();
+      }
+    }
+  }
+  function osiaCinematic(c, state, time, effects, reduced) {
+    const active = state.battle.cinematic, event = effects.findLast(e => e.kind === "cinematic" && e.from === "osia" && (!active || e.castId === active.castId));
+    const duration = (event?.duration || active?.duration || S.OSIA_CINEMATIC_MS) / 1000, age = event ? time - event.time : active ? 0 : -1;
+    if (age < 0 || !active && age >= duration || !active && !event) return;
+    const enter = reduced ? 1 : Math.min(1, age / .12), offset = reduced ? 0 : (1 - enter) * -45;
+    c.save(); rect(c, "#081c32b8", 0, 0, 480, 280);
+    c.beginPath(); c.rect(0, 61, 480, 143); c.clip(); c.translate(offset, 0);
+    rect(c, "#123a55f5", -50, 62, 580, 141); rect(c, "#1a5671", 0, 69, 480, 126);
+    for (let i = 0; i < 15; i++) { const x = reduced ? i * 41 : (i * 41 + age * 230) % 550 - 50; rect(c, i % 2 ? "#75d8e741" : "#b6f6f12e", x, 78 + i * 8, 65 + i % 4 * 21, 2); }
+    c.globalAlpha = .42; c.drawImage(dragon, 278, 69, 195, 135); c.globalAlpha = 1;
+    if (osiaLoaded) { const tile = osiaImage.naturalWidth / 3; c.drawImage(osiaImage, tile * .18, 0, tile * .65, tile * .58, 2, 63, 164, 146); }
+    else osia(c, 76, 211, 3.8, { casting:true });
+    c.textAlign = "left"; c.font = "11px Galmuri, monospace"; c.fillStyle = "#9ee8ed"; c.fillText("물의 용왕  OSIA", 174, 99);
+    c.font = "17px Galmuri, monospace"; c.fillStyle = "#062b43"; c.fillText("용왕의 권능 · 거대 수룡", 175, 132); c.fillStyle = "#f4ffef"; c.fillText("용왕의 권능 · 거대 수룡", 174, 131);
+    c.font = "9px Galmuri, monospace"; c.fillStyle = "#bee6e7"; c.fillText("시간 정지 · 궁극기 발동", 175, 155);
+    c.restore(); detail(c, "#adf4ed", 0, 61, 480, 1.5); detail(c, "#87c7dc", 0, 202, 480, 1.5);
+  }
   function draw(c, state, time, effects = [], reduced = false) {
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height);
     c.setTransform(c.canvas.width / 480, 0, 0, c.canvas.height / 280, 0, 0); c.imageSmoothingEnabled = false;
-    const battle = state.battle; background(c, battle.stage, reduced ? 0 : time);
+    const battle = state.battle, cinematicEvent = effects.findLast(e => e.kind === "cinematic" && e.castId === battle.cinematic?.castId);
+    const sceneTime = battle.cinematic ? cinematicEvent?.time ?? time : time;
+    background(c, battle.stage, reduced ? 0 : sceneTime);
     effects = effects.filter(e => (!e.battleId || e.battleId === battle.id) && time >= e.time);
     effects = effects.filter(e => e.kind !== "skill-stage" || battle.osiaCast?.id === e.castId || effects.some(hit => hit.kind === "skill-impact" && hit.castId === e.castId));
     const positions = {};
@@ -305,17 +484,19 @@ window.SchoolArt = (() => {
     for (const item of items) {
       const p = positions[item.id], hit = effects.some(e => e.to === item.id && e.kind === "hit" && time - e.time < .15), attacking = effects.some(e => e.from === item.id && e.kind === "hit" && time - e.time < .25);
       const stunned = item.hp > 0 && (item.stunUntil || 0) > battle.elapsed;
-      const bounce = reduced || item.hp <= 0 || stunned ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
-      const nudge = attacking && !reduced && !stunned ? (item.side === "hero" ? 8 : -6) : 0;
-      const combo = item.id === "osia" && effects.findLast(e => e.kind === "skill-stage" && time - e.time < (e.stage === 4 ? 1.1 : .6));
+      const bounce = reduced || item.hp <= 0 || stunned || battle.cinematic ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
+      const nudge = attacking && !reduced && !stunned && !battle.cinematic ? (item.side === "hero" ? 8 : -6) : 0;
+      const combo = item.id === "osia" && effects.findLast(e => e.kind === "skill-stage" && time - e.time < (e.stage === 4 ? 1.1 : .6) + (e.cinematicDuration || 0) / 1000);
       if (item.side === "hero") hero(c, item.id, p.x + nudge, p.y + bounce, 1.8, { hit, dead: item.hp <= 0, attack: attacking, pose: combo ? (time - combo.time < combo.impactDelay / 1000 ? 1 : 2) : undefined, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: effects.some(e => e.kind === "skill" && e.from === item.id && time - e.time < .8), blink: Math.sin(time * .7 + p.x) > .99 });
       else monster(c, item, p.x + nudge, p.y + bounce, { hit });
+      if (item.side === "hero" && item.hp > 0 && item.shield > 0) windShield(c, p.x, p.y, "#bce8d3", .3, .92);
       const w = item.boss ? 62 : 37, by = p.y + 9;
       rect(c, "#28362f", p.x - w / 2 - 1, by - 1, w + 2, 6); rect(c, "#4d5146", p.x - w / 2, by, w, 4);
       rect(c, item.side === "hero" ? "#9dbd7b" : "#d99c73", p.x - w / 2, by, Math.max(0, w * item.hp / item.max), 4);
       if (item.side === "hero") { rect(c, "#536270", p.x - w / 2, by + 7, w, 2); rect(c, "#e2c679", p.x - w / 2, by + 7, w * item.energy / S.BY_ID[item.id].cooldown, 2); }
     }
-    waterEffects(c, effects, positions, time, reduced, battle.osiaCast);
+    waterEffects(c, effects, positions, time, reduced, battle.osiaCast, battle.cinematic);
+    lavaEffects(c, effects, positions, time, reduced);
     for (const e of effects) {
       const age = time - e.time; if (age > 1.1 || age < 0) continue;
       const p = positions[e.to] || positions[e.from]; if (!p) continue;
@@ -340,6 +521,12 @@ window.SchoolArt = (() => {
       for(let i=0;i<3;i++){const x=p.x+(i-1)*15,sy=y-9+(reduced?0:Math.sin(time*7+i*2)*2);rect(c,"#ffdd73",x-4,sy-1,9,3);rect(c,"#ffdd73",x-1,sy-4,3,9);rect(c,"#fff4bc",x-1,sy-1,3,3);}
       c.restore();
     }
+    if (battle.phase === "fight") for (const member of battle.heroes) {
+      const remaining = ((member.indomitableUntil || 0) - battle.elapsed) / 1000;
+      if (member.hp <= 0 || remaining <= 0) continue;
+      const p = positions[member.id]; windShield(c, p.x, p.y, "#f2df9f", .8, 1.07);
+      c.save(); c.textAlign = "center"; c.font = "9px Galmuri, monospace"; rect(c,"#66553de8",p.x-30,p.y-79,60,16); c.fillStyle="#fff2c4"; c.fillText(`불사 ${remaining.toFixed(1)}초`,p.x,p.y-68); c.restore();
+    }
     const osiaHero = battle.heroes.find(h => h.id === "osia" && h.hp > 0);
     if (osiaHero && battle.phase === "fight") {
       const current = battle.osiaCast, next = S.osiaSkill(state), stage = current?.stage || next.stage;
@@ -349,12 +536,22 @@ window.SchoolArt = (() => {
       for(let i=1;i<=4;i++)rect(c,i===stage?"#c5ffff":"#4e7288",480-width-2+(i-1)*10,263,7,6);
       c.fillStyle="#dbffff"; c.fillText(label,480-width+43,270); c.restore();
     }
+    const lavaHero = battle.heroes.find(h => h.id === "lava" && h.hp > 0);
+    if (lavaHero && battle.phase === "fight" && S.lavaSkill) {
+      const next = S.lavaSkill(state), count = state.units.lava.basicHits || 0, y = osiaHero ? 237 : 257;
+      const label = `라바 · 다음 ${next.stage}/2 · ${next.name} · ${Math.max(0, S.BY_ID.lava.cooldown - lavaHero.energy)}초`;
+      c.save(); c.font = "8px Galmuri, monospace"; c.textAlign = "left"; const width = c.measureText(label).width + 13;
+      rect(c, "#35554bed", 8, y, width, 18); c.fillStyle = "#e9f4c9"; c.fillText(label, 14, y + 11);
+      for (let i = 0; i < 10; i++) rect(c, i < count ? "#d1eaa7" : "#6d8a70", 14 + i * (width - 18) / 10, y + 14, (width - 28) / 10, 1);
+      c.restore();
+    }
     if (battle.phase !== "fight") {
       rect(c, "#243a3277", 0, 0, 480, 280); c.textAlign = "center"; c.font = "18px Galmuri, monospace"; c.fillStyle = "#fff1c8";
       c.fillText(battle.phase === "victory" ? (battle.boss ? "지역 클리어!" : "WAVE CLEAR") : "다시 준비하는 시간", 240, 112);
       c.font = "10px Galmuri, monospace"; c.fillText(battle.phase === "victory" ? `다음 전투까지 ${Math.ceil(battle.wait)}초` : `${Math.ceil(battle.wait)}초 뒤 자동 재도전`, 240, 135); c.textAlign = "left";
     }
+    osiaCinematic(c, state, time, effects, reduced);
     c.restore();
   }
-  return { hero, portrait, draw, ready, assetsReady: () => osiaLoaded };
+  return { hero, portrait, draw, ready, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : osiaLoaded };
 })();

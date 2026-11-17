@@ -3,6 +3,8 @@ const G = require('../school/engine.js');
 let passed = 0;
 function test(name, body) { body(); passed++; console.log('PASS', name); }
 function run(s, seconds) { for (let i = 0; i < seconds; i++) G.advance(s, s.at + 1000); }
+const UPDATE_TIME=Date.parse('2026-11-18T12:00:00+09:00');
+function setPity(s,pity,banner='osia') { s.banners[banner].pity=pity; if(banner==='osia')s.pity=pity; }
 test('Automatic combat wins, grants XP, unlocks stages and stays deterministic across reload', () => {
   const a = G.create(1000, 287), b = G.clone(a); run(a, 120); G.advance(b, 61000); const c = G.clone(b); G.advance(c, 121000);
   assert.deepEqual(a, c); assert.ok(a.best >= 1); assert.ok(a.units.harin.level > 1); assert.ok(a.gold > 700); assert.ok(a.gems > 1800);
@@ -31,27 +33,28 @@ test('Soft pity starts exactly at draw 60, rises one percentage point, and caps 
     const rates=G.recruitRates(misses);assert.equal(rates.SSR,expected);assert.ok(Math.abs(rates.SSR+rates.SR+rates.R-1)<1e-12);
     if(misses<79)assert.equal(rates.SR,.26);else assert.deepEqual(rates,{SSR:1,SR:0,R:0});
   }
-  const s=G.create(1000);s.pity=39;G.action(s,{kind:'recruit',count:1},1000,()=>.99);assert.equal(s.pity,40);assert.ok(G.validate(s));
+  const s=G.create(1000);setPity(s,39);G.action(s,{kind:'recruit',count:1},1000,()=>.99);assert.equal(s.pity,40);assert.ok(G.validate(s));
   for(const [misses,roll,grade] of [[58,.045,'SR'],[59,.045,'SSR'],[59,.05,'SR'],[78,.23999,'SSR'],[78,.24,'SR'],[79,.99999,'SSR']]){
-    const a=G.create(1000);a.pity=misses;let n=0;const r=G.action(a,{kind:'recruit',count:1},1000,()=>++n%2?roll:.99);
+    const a=G.create(1000);setPity(a,misses);let n=0;const r=G.action(a,{kind:'recruit',count:1},1000,()=>++n%2?roll:.99);
     assert.equal(G.BY_ID[r.results[0].id].rarity,grade);assert.equal(r.results[0].ssrChance,G.recruitRates(misses).SSR);
   }
 });
 test('Ten-pulls update soft pity per slot, reset immediately on SSR, and preserve guarantees',()=>{
-  const s=G.create(1000);s.pity=58;const r=G.action(s,{kind:'recruit',count:10},1000,()=>.99);
+  const s=G.create(1000);setPity(s,58);const r=G.action(s,{kind:'recruit',count:10},1000,()=>.99);
   assert.deepEqual(r.results.map(x=>x.ssrChance),[.04,.05,.06,.07,.08,.09,.10,.11,.12,.13]);assert.equal(s.pity,68);assert.ok(r.results.some(x=>G.BY_ID[x.id].rarity==='SR'));
-  const hard=G.create(1000);hard.pity=78;const h=G.action(hard,{kind:'recruit',count:10},1000,()=>.99);
+  const hard=G.create(1000);setPity(hard,78);const h=G.action(hard,{kind:'recruit',count:10},1000,()=>.99);
   assert.equal(h.results[0].ssrChance,.24);assert.equal(h.results[1].pity,true);assert.equal(h.results[1].ssrChance,1);assert.equal(h.results[2].ssrChance,.04);assert.equal(hard.pity,8);
-  const reset=G.create(1000);reset.pity=59;let i=0;const q=G.action(reset,{kind:'recruit',count:10},1000,()=>++i%2?.049:.99);
+  const reset=G.create(1000);setPity(reset,59);let i=0;const q=G.action(reset,{kind:'recruit',count:10},1000,()=>++i%2?.049:.99);
   assert.equal(G.BY_ID[q.results[0].id].rarity,'SSR');assert.equal(q.results[0].ssrChance,.05);assert.ok(q.results.slice(1).every(x=>x.ssrChance===.04&&G.BY_ID[x.id].rarity==='SR'));assert.equal(reset.pity,9);
 });
 test('Boundary rolls use the documented 4/26/70 probabilities and every hero is obtainable', () => {
   const obtained = new Set();
   for (const [roll, rarity] of [[0,'SSR'],[.039999,'SSR'],[.04,'SR'],[.299999,'SR'],[.3,'R'],[.999999,'R']]) {
-    const pool = G.HEROES.filter(h => h.rarity === rarity);
-    for (let j = 0; j < pool.length; j++) { const s = G.create(1000), values = [roll,(j+.5)/pool.length]; const r = G.action(s,{kind:'recruit',count:1},1000,()=>values.shift()); assert.equal(G.BY_ID[r.results[0].id].rarity,rarity); obtained.add(r.results[0].id); }
+    const pool = G.HEROES.filter(h => h.rarity === rarity && h.id!=='lava');
+    for (let j = 0; j < pool.length; j++) { const s = G.create(1000), values = [roll,rarity==='SSR'?[.25,.625,.875][j]:(j+.5)/pool.length]; const r = G.action(s,{kind:'recruit',count:1},1000,()=>values.shift()); assert.equal(G.BY_ID[r.results[0].id].rarity,rarity); obtained.add(r.results[0].id); }
   }
-  assert.equal(obtained.size,13); assert.ok(obtained.has('osia'));
+  assert.equal(obtained.size,13); assert.ok(obtained.has('osia')); assert.ok(!obtained.has('lava'));
+  const s=G.create(UPDATE_TIME);const featured=G.action(s,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>.01);obtained.add(featured.results[0].id);assert.equal(obtained.size,14);
 });
 test('Duplicates award shards and awakening spends exact shards without consuming the hero', () => {
   const s = G.create(1000); s.gems = 1000; G.action(s,{kind:'recruit',count:1},1000,()=>.9); G.action(s,{kind:'recruit',count:1},1000,()=>.9); G.action(s,{kind:'recruit',count:1},1000,()=>.9);
@@ -65,7 +68,7 @@ test('Illegal costs, locked stages, unknown heroes and duplicate teams do not mu
 test('Training costs and level caps; team swaps start a fresh battle and never duplicate a hero',()=>{
   const s=G.create(1000); const cost=G.trainingCost(s.units.harin); G.action(s,{kind:'train',hero:'harin'});assert.equal(s.gold,700-cost);assert.equal(s.units.harin.level,2);
   G.action(s,{kind:'team',team:['harin','taeo','sua']});assert.equal(s.battle.heroes[0].max,G.stats('harin',s.units.harin).hp);
-  s.units.harin.level=60; assert.throws(()=>G.action(s,{kind:'train',hero:'harin'}));
+  s.units.harin.level=G.MAX_LEVEL; assert.throws(()=>G.action(s,{kind:'train',hero:'harin'}));
 });
 test('Reward codes normalize case and spacing, grant exact rewards once, and survive a save reload',()=>{
   const now=Date.parse('2026-11-17T12:00:00+09:00'),s=G.create(now);
@@ -92,7 +95,7 @@ test('Coupon validation preserves old progress and rejects malformed code record
   G.action(s,{kind:'redeem',code:'OSIA_DEBUT'},now);assert.equal(s.gold,6860);assert.equal(s.gems,1290);assert.equal(s.pity,59);assert.deepEqual(s.battle,battle);assert.deepEqual(s.units,units);
   for(const record of [null,'OSIA_DEBUT',{},[null],['osia_debut'],['OSIA_DEBUT','OSIA_DEBUT']]){const invalid=G.clone(s);invalid.redeemedCodes=record;assert.equal(G.validate(invalid),false);}
 });
-test('Each of thirteen heroes performs their automatic skill; damage and healing stay bounded',()=>{
+test('Each of fourteen heroes performs their automatic skill; damage and healing stay bounded',()=>{
   for(const hero of G.HEROES){
     const s=G.create(1000,21);s.units[hero.id]={level:1,xp:0,stars:0,shards:0};s.team=[hero.id,...['taeo','harin','sua'].filter(id=>id!==hero.id)].slice(0,3);
     G.action(s,{kind:'stage',stage:1,mode:'farm'});
@@ -105,13 +108,50 @@ test('Each of thirteen heroes performs their automatic skill; damage and healing
 });
 test('Osia is a permanent SSR, can be drawn by natural roll or pity, and duplicates awaken normally',()=>{
   const s=G.create(1000); const old=G.clone(s); assert.ok(G.validate(old));
-  const values=[.01,.99,.01,.99];const roll=()=>values.shift();
+  const values=[.01,.01,.01,.01];const roll=()=>values.shift();
   const first=G.action(s,{kind:'recruit',count:1},1000,roll);assert.equal(first.results[0].id,'osia');assert.equal(first.results[0].fresh,true);
   const second=G.action(s,{kind:'recruit',count:1},1000,roll);assert.equal(second.results[0].id,'osia');assert.equal(second.results[0].shards,20);
   G.action(s,{kind:'awaken',hero:'osia'});assert.equal(s.units.osia.stars,1);assert.equal(s.units.osia.shards,10);
-  s.pity=79;const forced=G.action(s,{kind:'recruit',count:1},1000,()=>.99);assert.equal(forced.results[0].id,'osia');assert.equal(forced.results[0].pity,true);assert.equal(s.pity,0);
+  setPity(s,79);const valuesAtPity=[.99,.1];const forced=G.action(s,{kind:'recruit',count:1},1000,()=>valuesAtPity.shift());assert.equal(forced.results[0].id,'osia');assert.equal(forced.results[0].pity,true);assert.equal(s.pity,0);
   G.action(s,{kind:'team',team:['taeo','osia','sua']});G.action(s,{kind:'train',hero:'osia'});assert.equal(s.units.osia.level,2);assert.ok(G.validate(G.clone(s)));
-  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,3);assert.equal(G.RECRUIT_RATES.SSR,.04);
+  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,4);assert.equal(G.RECRUIT_RATES.SSR,.04);
+});
+test('Independent pickup banners preserve legacy pity and guarantee the featured SSR after a miss',()=>{
+  const legacy=G.create(UPDATE_TIME);delete legacy.banners;legacy.pity=59;const progress={gold:legacy.gold,gems:legacy.gems,units:G.clone(legacy.units)};
+  assert.ok(G.validate(legacy));G.advance(legacy,legacy.at);
+  assert.deepEqual(G.bannerState(legacy,'osia'),{pity:59,guaranteed:false});assert.deepEqual(G.bannerState(legacy,'lava'),{pity:0,guaranteed:false});
+  assert.equal(legacy.gold,progress.gold);assert.equal(legacy.gems,progress.gems);assert.deepEqual(legacy.units,progress.units);
+  const s=G.create(UPDATE_TIME);s.gems=20000;
+  const draw=(banner,grade,pick)=>{const rolls=[grade,pick];return G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME,()=>rolls.shift()).results[0];};
+  const miss=draw('osia',.01,.99);assert.ok(['ian','lumi'].includes(miss.id));assert.equal(s.banners.osia.guaranteed,true);
+  assert.equal(G.BY_ID[draw('osia',.99,.99).id].rarity,'R');assert.equal(s.banners.osia.guaranteed,true);
+  assert.equal(draw('lava',.01,.01).id,'lava');assert.equal(s.banners.osia.guaranteed,true);assert.equal(s.banners.lava.guaranteed,false);
+  assert.equal(draw('osia',.01,.99).id,'osia');assert.equal(s.banners.osia.guaranteed,false);assert.equal(s.pity,s.banners.osia.pity);
+  setPity(s,79,'lava');const hard=draw('lava',.99,.99);assert.equal(hard.pity,true);assert.ok(['osia','ian','lumi'].includes(hard.id));assert.equal(s.banners.lava.guaranteed,true);assert.equal(s.banners.lava.pity,0);
+  const loaded=G.clone(s);const rolls=[.01,.99];assert.equal(G.action(loaded,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>rolls.shift()).results[0].id,'lava');assert.equal(loaded.banners.lava.guaranteed,false);
+  assert.deepEqual(s.banners.osia,loaded.banners.osia);
+});
+test('Each banner uses exact SSR 50:50 boundaries, one ten-pull guarantee, and never leaks limited Lava into Osia',()=>{
+  for(const banner of ['osia','lava'])for(const [pick,featured]of [[0,true],[.499999,true],[.5,false],[.999999,false]]){
+    const s=G.create(UPDATE_TIME),values=[.01,pick],r=G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME,()=>values.shift());
+    assert.equal(r.results[0].id===banner,featured);assert.equal(s.banners[banner].guaranteed,!featured);
+    if(banner==='osia')assert.notEqual(r.results[0].id,'lava');
+  }
+  const s=G.create(UPDATE_TIME);setPity(s,78,'lava');const r=G.action(s,{kind:'recruit',banner:'lava',count:10},UPDATE_TIME,()=>.99);
+  assert.equal(r.results[0].ssrChance,.24);assert.equal(r.results[1].ssrChance,1);assert.equal(s.banners.lava.pity,8);assert.equal(s.banners.osia.pity,0);assert.equal(s.banners.lava.guaranteed,true);
+  assert.ok(r.results.some(x=>G.BY_ID[x.id].rarity!=='R'));
+  const s2=G.create(UPDATE_TIME);let n=0;const all=G.action(s2,{kind:'recruit',banner:'lava',count:10},UPDATE_TIME,()=>++n%2?.01:.99);
+  assert.deepEqual(all.results.map(x=>x.id==='lava'),[false,true,false,true,false,true,false,true,false,true]);assert.equal(s2.banners.lava.guaranteed,false);
+});
+test('Lava pickup ends exactly after November 20 KST and invalid banners do not spend or reset accumulated guarantees',()=>{
+  const end=Date.parse('2026-11-21T00:00:00+09:00');
+  const last=G.create(end-1);assert.equal(G.action(last,{kind:'recruit',banner:'lava',count:1},end-1,()=>.01).results[0].id,'lava');
+  for(const now of [end,end+1000]){
+    const s=G.create(now);s.banners.lava={pity:79,guaranteed:true};const before=G.clone(s);
+    assert.throws(()=>G.action(s,{kind:'recruit',banner:'lava',count:1,now:end-1},now,()=>.01));assert.deepEqual(s,before);
+    assert.equal(G.action(s,{kind:'recruit',banner:'osia',count:1},now,()=>.01).results[0].id,'osia');assert.deepEqual(s.banners.lava,before.banners.lava);
+  }
+  for(const banner of ['unknown','constructor','__proto__',{},null]){const s=G.create(UPDATE_TIME),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME));assert.deepEqual(s,old);}
 });
 function osiaBattle(boss = false) {
   const s=G.create(1000,26);s.units.osia={level:1,xp:0,stars:0,shards:0};G.action(s,{kind:'team',team:['taeo','osia','sua']});
@@ -119,14 +159,14 @@ function osiaBattle(boss = false) {
   if(boss){s.battle.boss=true;s.battle.enemies=s.battle.enemies.slice(0,1);s.battle.enemies[0].boss=true;}
   for(const e of s.battle.enemies){e.hp=e.max=100000;e.atk=1;}return s;
 }
-test('Osia casts one successive skill each five-second cooldown with water-bomb basics between casts, then repeats',()=>{
+test('Osia casts successive skills on the combat clock; the dragon cinematic adds its configured pause',()=>{
   const s=osiaBattle(),seen=[],hitStages=[];let seq=s.seq;
-  for(let ms=500;ms<=26000;ms+=500){
+  for(let ms=500;ms<=27000;ms+=500){
     G.advance(s,s.at+500);for(const e of s.events.filter(e=>e.seq>seq)){if(e.from==='osia')seen.push(e);if(e.kind==='hit'&&e.skill&&e.from==='osia')hitStages.push(e);}seq=s.seq;
   }
-  const casts=seen.filter(e=>e.kind==='skill-stage');assert.deepEqual(casts.map(e=>e.stage),[1,2,3,4,1]);assert.deepEqual(casts.map(e=>e.at),[6000,11000,16000,21000,26000]);
+  const casts=seen.filter(e=>e.kind==='skill-stage');assert.deepEqual(casts.map(e=>e.stage),[1,2,3,4,1]);assert.deepEqual(casts.map(e=>e.at),[6000,11000,16000,21000,26000+G.OSIA_CINEMATIC_MS]);
   for(let i=0;i<casts.length;i++){
-    const cast=casts[i],hits=hitStages.filter(e=>e.castId===cast.castId);assert.equal(hits.length,3);assert.ok(hits.every(e=>e.stage===cast.stage&&e.at===cast.at+(cast.stage===4?1000:500)&&e.amount>=40&&e.amount<=73));
+    const cast=casts[i],hits=hitStages.filter(e=>e.castId===cast.castId);assert.equal(hits.length,3);assert.ok(hits.every(e=>e.stage===cast.stage&&e.at===cast.at+(cast.stage===4?G.OSIA_CINEMATIC_MS+1000:500)&&e.amount>=40&&e.amount<=73));
     if(i<casts.length-1)assert.ok(seen.filter(e=>e.kind==='hit'&&!e.skill&&e.at>cast.at&&e.at<casts[i+1].at).length>=3);
   }
   assert.equal(s.units.osia.nextSkill,2);assert.equal(G.BY_ID.osia.passive,'용왕의 권능');
@@ -135,12 +175,30 @@ test('Water dragon deals no damage or stun while summoning; impact stuns all sur
   for(const boss of [false,true]){
     const s=osiaBattle(boss);s.units.osia.nextSkill=4;run(s,5);const id=s.battle.osiaCast.id;
     assert.ok(!s.events.some(e=>e.castId===id&&e.kind==='hit'));assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
-    G.advance(s,s.at+500);assert.ok(s.battle.osiaCast);assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
+    const frozen=G.clone(s.battle),at=s.at;G.advance(s,at+250);assert.deepEqual(s.battle,frozen);
+    for(let paused=500;paused<=G.OSIA_CINEMATIC_MS;paused+=500){
+      G.advance(s,at+paused);assert.equal(s.battle.elapsed,frozen.elapsed);assert.deepEqual(s.battle.enemies,frozen.enemies);assert.ok(!s.events.some(e=>e.castId===id&&e.kind==='hit'));assert.ok(s.battle.osiaCast);assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
+      if(paused<G.OSIA_CINEMATIC_MS){assert.deepEqual(s.battle.heroes,frozen.heroes);assert.equal(s.battle.cinematic.remaining,G.OSIA_CINEMATIC_MS-paused);}
+    }
+    G.advance(s,s.at+500);assert.equal(s.battle.elapsed,5500);assert.ok(s.battle.osiaCast);assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
     G.advance(s,s.at+500);assert.equal(s.battle.elapsed,6000);assert.equal(s.battle.osiaCast,undefined);assert.ok(s.battle.enemies.every(e=>e.stunUntil===7500));
     for(let i=0;i<2;i++){G.advance(s,s.at+500);assert.ok(s.battle.enemies.every(e=>e.stunUntil>s.battle.elapsed));assert.ok(!s.events.some(e=>e.kind==='hit'&&e.side==='hero'&&e.at===s.at));}
     G.advance(s,s.at+500);assert.equal(s.battle.elapsed,7500);assert.ok(s.battle.enemies.every(e=>e.stunUntil===s.battle.elapsed));
     G.advance(s,s.at+500);assert.equal(s.events.filter(e=>e.kind==='hit'&&e.side==='hero'&&e.at===s.at).length,boss?1:3);
   }
+});
+test('The dragon cut-in resumes the remaining ally turns instead of deleting a back-row heal',()=>{
+  const s=G.create(UPDATE_TIME,26);s.units.osia={level:1,xp:0,stars:0,shards:0};s.units.lava={level:1,xp:0,stars:0,shards:0};G.action(s,{kind:'team',team:['taeo','osia','lava']});
+  for(const e of s.battle.enemies){e.hp=e.max=1000000;e.atk=0;}for(const h of s.battle.heroes){h.max=10000;h.hp=5000;}
+  const seen=[];let seq=s.seq;for(let step=0;step<(20000+G.OSIA_CINEMATIC_MS)/500;step++){G.advance(s,s.at+500);seen.push(...s.events.filter(e=>e.seq>seq));seq=s.seq;}
+  assert.deepEqual(seen.filter(e=>e.kind==='lava-skill').map(e=>e.stage),[1,2,1,2]);
+  assert.equal(seen.filter(e=>e.from==='lava'&&e.kind==='hit'&&!e.skill).length,16);
+  assert.equal(seen.filter(e=>e.kind==='cinematic').length,1);
+});
+test('The dragon remains visible when 1.5× speed consumes two simulation ticks in one server step',()=>{
+  const s=osiaBattle();s.speed=1.5;s.simCredit=250;s.battle.elapsed=500;s.battle.heroes.find(h=>h.id==='osia').energy=4;s.units.osia.nextSkill=4;
+  G.advance(s,s.at+500);assert.equal(s.battle.osiaCast.stage,4);assert.ok(s.battle.cinematic);assert.equal(s.battle.cinematic.duration,G.OSIA_CINEMATIC_MS);assert.equal(s.battle.cinematic.remaining,G.OSIA_CINEMATIC_MS-500);assert.ok(s.battle.cinematic.remaining>0);assert.equal(s.battle.elapsed,1000);
+  const loaded=G.clone(s);G.advance(s,s.at+2000);for(let i=0;i<4;i++)G.advance(loaded,loaded.at+500);assert.deepEqual(loaded,s);assert.equal(s.battle.cinematic,undefined);assert.equal(s.battle.osiaCast,undefined);
 });
 test('Every pending skill, next stage and stun survives reload and produces identical fine/batched results',()=>{
   for(let stage=1;stage<=4;stage++){
@@ -164,6 +222,70 @@ test('Caster death, another hero ending the wave, and party changes cancel a pen
     if(mode==='victory')s.battle.enemies.forEach(e=>e.hp=0);
     if(mode==='party')G.action(s,{kind:'team',team:['osia','taeo','sua']});
     G.advance(s,s.at+1500);assert.equal(s.battle.osiaCast,undefined);assert.ok(!s.events.some(e=>e.kind==='hit'&&e.castId===id));assert.ok(s.battle.enemies.every(e=>!e.stunUntil));assert.equal(s.units.osia.nextSkill,1);
+  }
+});
+function lavaBattle(seed=26) {
+  const s=G.create(UPDATE_TIME,seed);s.units.lava={level:1,xp:0,stars:0,shards:0};G.action(s,{kind:'team',team:['taeo','lava','sua']});
+  for(const h of s.battle.heroes){h.max=10000;h.hp=10000;h.energy=0;}
+  for(const e of s.battle.enemies){e.hp=e.max=1000000;e.atk=0;}return s;
+}
+test('Lava alternates group wind healing/shields and a concentrated heal on the lowest living HP ratio',()=>{
+  assert.equal(G.BY_ID.lava.gender,'남성');assert.equal(G.BY_ID.lava.species,'인간');assert.equal(G.BY_ID.lava.element,'wind');assert.equal(G.BY_ID.lava.rarity,'SSR');
+  const s=lavaBattle();s.battle.heroes.forEach((h,i)=>h.hp=[5000,2000,8000][i]);
+  run(s,5);assert.equal(s.units.lava.nextSkill,2);assert.ok(s.events.some(e=>e.kind==='lava-skill'&&e.stage===1));
+  for(const h of s.battle.heroes){assert.ok(s.events.some(e=>e.kind==='heal'&&e.from==='lava'&&e.to===h.id));assert.ok(h.shield>0&&h.shield<=h.max*.6);}
+  const mark=s.seq,lowest=s.battle.heroes.reduce((a,b)=>a.hp/a.max<=b.hp/b.max?a:b);run(s,5);
+  assert.equal(s.units.lava.nextSkill,1);assert.ok(s.events.some(e=>e.seq>mark&&e.kind==='lava-skill'&&e.stage===2));
+  const heals=s.events.filter(e=>e.seq>mark&&e.kind==='heal'&&e.from==='lava');assert.equal(heals.length,1);assert.equal(heals[0].to,lowest.id);assert.equal(heals[0].amount,Math.round(s.battle.heroes.find(h=>h.id==='lava').atk*4.5));
+  const dead=lavaBattle();dead.units.lava.nextSkill=2;dead.battle.heroes[0].hp=0;dead.battle.heroes[2].hp=100;run(dead,5);assert.equal(dead.battle.heroes[0].hp,0);assert.ok(dead.events.some(e=>e.kind==='heal'&&e.from==='lava'&&e.to==='sua'));
+});
+test('Spirit Descent counts exactly ten Lava basic hits, persists through reload, and caps newly added shields',()=>{
+  const s=lavaBattle();s.battle.heroes.forEach((h,i)=>h.hp=[5000,2000,8000][i]);run(s,11);
+  assert.equal(s.units.lava.basicHits,9);assert.ok(!s.events.some(e=>e.kind==='guard'&&e.from==='lava'&&e.passive));
+  const loaded=G.clone(s);G.advance(loaded,loaded.at+1000);assert.equal(loaded.units.lava.basicHits,0);
+  const proc=loaded.events.findLast(e=>e.kind==='guard'&&e.from==='lava'&&e.passive);assert.ok(proc);assert.equal(proc.to,'lava');
+  const capped=lavaBattle();capped.units.lava.basicHits=9;capped.battle.heroes.forEach((h,i)=>{h.hp=[5000,2000,8000][i];h.shield=h.max*.59;});run(capped,1);
+  assert.equal(capped.battle.heroes[1].shield,capped.battle.heroes[1].max*.6);
+  const preexisting=lavaBattle();preexisting.battle.heroes.forEach(h=>h.shield=h.max*.7);run(preexisting,5);assert.ok(preexisting.battle.heroes.every(h=>h.shield>h.max*.6),'A shield from another effect must not be reduced by the cap');
+  const transition=lavaBattle();transition.units.lava.basicHits=9;transition.battle.enemies.forEach(e=>e.hp=0);G.advance(transition,transition.at+500);G.advance(transition,transition.at+2000);assert.equal(transition.units.lava.basicHits,9);
+  run(transition,1);assert.equal(transition.units.lava.basicHits,0);assert.ok(transition.events.some(e=>e.kind==='guard'&&e.from==='lava'&&e.passive));
+});
+test('Emergency Survival intercepts lethal damage once per wave, protects for exactly two combat seconds and never revives a corpse',()=>{
+  const s=lavaBattle();s.battle.heroes.forEach(h=>{h.hp=h.id==='lava'?1:0;h.energy=-20;});s.battle.enemies=s.battle.enemies.slice(0,1);s.battle.enemies[0].atk=100000;
+  run(s,1);const lava=s.battle.heroes.find(h=>h.id==='lava');assert.equal(lava.hp,1);assert.equal(s.battle.lavaRescueUsed,true);assert.equal(lava.indomitableUntil,s.battle.elapsed+2000);assert.equal(s.events.filter(e=>e.kind==='rescue').length,1);
+  const loaded=G.clone(s);G.advance(loaded,loaded.at+1000);assert.equal(loaded.battle.heroes[1].hp,1);G.advance(loaded,loaded.at+500);assert.equal(loaded.battle.heroes[1].hp,1);G.advance(loaded,loaded.at+500);assert.equal(loaded.battle.heroes[1].hp,0);assert.equal(loaded.events.filter(e=>e.kind==='rescue').length,1);
+  const absent=lavaBattle();absent.battle.heroes.forEach(h=>{h.hp=h.id==='taeo'?1:0;h.energy=-20;});absent.battle.enemies=absent.battle.enemies.slice(0,1);absent.battle.enemies[0].atk=100000;run(absent,1);assert.equal(absent.battle.heroes[0].hp,0);assert.ok(!absent.events.some(e=>e.kind==='rescue'));
+  const wave=lavaBattle();wave.battle.lavaRescueUsed=true;wave.battle.enemies.forEach(e=>e.hp=0);G.advance(wave,wave.at+500);G.advance(wave,wave.at+2000);assert.equal(wave.battle.lavaRescueUsed,false);
+});
+test('1.5× speed advances combat only, persists fractional credit and remains deterministic across batched reconnects',()=>{
+  const a=osiaBattle(),b=G.clone(a);G.action(a,{kind:'speed',speed:1.5},a.at);G.action(b,{kind:'speed',speed:1.5},b.at);
+  G.advance(a,a.at+15000);for(let i=0;i<30;i++)G.advance(b,b.at+500);assert.deepEqual(a,b);assert.equal(a.speed,1.5);assert.ok(a.battle.elapsed>20000);
+  const first=osiaBattle();G.action(first,{kind:'speed',speed:1.5},first.at);G.advance(first,first.at+500);assert.equal(first.battle.elapsed,500);assert.equal(first.simCredit,250);
+  const loaded=G.clone(first);G.advance(first,first.at+500);G.advance(loaded,loaded.at+500);assert.deepEqual(first,loaded);assert.equal(first.battle.elapsed,1500);assert.equal(first.simCredit,0);
+  const changing=osiaBattle();G.action(changing,{kind:'speed',speed:1.5},changing.at+250);assert.equal(changing.speed,1.5);assert.equal(changing.battle.elapsed,0);assert.equal(changing.simCredit,250);G.advance(changing,changing.at+1000);assert.equal(changing.battle.elapsed,1500);assert.equal(changing.simCredit,250);
+  for(const speed of [0,2,1.25,'1.5',null,NaN]){const s=G.create(1000),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'speed',speed},s.at));assert.deepEqual(s,old);}
+  const slow=G.create(1000),fast=G.create(1000);G.action(fast,{kind:'speed',speed:1.5},fast.at);G.advance(slow,slow.at+12*3600000);G.advance(fast,fast.at+12*3600000);assert.deepEqual(fast.offline,slow.offline);assert.equal(fast.offline.seconds,28800);
+});
+test('Expansion retains old zone difficulty and supports every new zone through stage 60 and level 100',()=>{
+  assert.equal(G.MAX_STAGE,60);assert.equal(G.MAX_LEVEL,100);assert.equal(G.CHAPTERS.length,12);assert.equal(G.ENEMIES.length,12);assert.equal(G.BOSSES.length,12);
+  for(const stage of [1,15,30,31,40,50,60]){
+    const s=G.create(1000);s.best=59;G.action(s,{kind:'stage',stage,mode:'farm'});
+    assert.equal(G.chapter(stage),Math.floor((stage-1)/5));assert.equal(s.battle.enemies[0].kind,G.chapter(stage));assert.ok(s.battle.enemies.every(e=>Number.isFinite(e.hp)&&e.hp>0&&Number.isFinite(e.atk)));
+    if(stage<=30){assert.equal(s.battle.enemies[0].max,Math.round(30*Math.pow(1.18,stage-1)));assert.equal(s.battle.enemies[0].atk,Math.round(3*Math.pow(1.14,stage-1)));}
+  }
+  const s=G.create(1000);s.gold=100000;s.units.harin.level=60;G.action(s,{kind:'train',hero:'harin'});assert.equal(s.units.harin.level,61);s.units.harin.level=100;assert.throws(()=>G.action(s,{kind:'train',hero:'harin'}));
+  assert.ok(G.validate(s));const old=G.create(1000);delete old.speed;delete old.simCredit;delete old.simTime;delete old.banners;old.best=30;old.stage=30;old.mode='farm';old.pity=79;assert.ok(G.validate(old));G.advance(old,old.at);assert.equal(old.best,30);assert.equal(old.stage,30);assert.equal(old.speed,1);assert.equal(G.bannerState(old,'osia').pity,79);G.action(old,{kind:'stage',stage:31,mode:'progress'});assert.equal(old.stage,31);
+});
+test('Maximum-level permanent teams can defeat the final boss without requiring the limited healer',()=>{
+  for(const team of [['geonu','osia','nari'],['geonu','lumi','nari'],['geonu','osia','lava']]){
+    let wins=0;
+    for(let seed=1;seed<=20;seed++){
+      const s=G.create(UPDATE_TIME,seed);for(const id of team)s.units[id]={level:100,xp:0,stars:5,shards:0};s.best=60;G.action(s,{kind:'team',team});G.action(s,{kind:'stage',stage:60,mode:'farm'});
+      s.wave=4;s.battle.phase='victory';s.battle.wait=0;G.advance(s,s.at+500);assert.equal(s.battle.boss,true);const start=s.at;
+      while(s.battle.phase==='fight'&&s.at-start<180000)G.advance(s,s.at+500);
+      assert.ok(G.validate(s));if(s.battle.phase==='victory')wins++;
+    }
+    assert.ok(wins>=18,`${team.join('/')} only won ${wins}/20 final bosses`);
   }
 });
 test('Korean midnight daily reset and one-time quests cannot pay twice',()=>{

@@ -2,7 +2,7 @@
   'use strict';
   const G = window.SchoolRPG, Art = window.SchoolArt, $ = id => document.getElementById(id);
   const BASE = 'https://motracv-card-room.densedormouse4.chatgpt.site';
-  const SAVE = 'school-mercenaries-v5', LEGACY_SAVES = ['school-mercenaries-v4', 'school-mercenaries-v3', 'school-mercenaries-v2', 'school-mercenaries-v1'], MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
+  const SAVE = 'school-mercenaries-v6', LEGACY_SAVES = ['school-mercenaries-v5', 'school-mercenaries-v4', 'school-mercenaries-v3', 'school-mercenaries-v2', 'school-mercenaries-v1'], MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
   const esc = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = n => Math.floor(n).toLocaleString('ko-KR');
   const duration = seconds => seconds >= 3600 ? `${Math.floor(seconds / 3600)}시간 ${Math.floor(seconds % 3600 / 60)}분` : `${Math.floor(seconds / 60)}분`;
@@ -12,6 +12,7 @@
   const storage = { get(key, session = false) { try { return (session ? sessionStorage : localStorage).getItem(key); } catch { return null; } }, set(key, value, session = false) { try { (session ? sessionStorage : localStorage).setItem(key, value); return true; } catch { return false; } }, remove(key, session = false) { try { (session ? sessionStorage : localStorage).removeItem(key); } catch {} } };
   let state, mode = 'guest', profile = null, token = null, revision = 0, offset = 0, busy = false, pending = null, connected = true;
   let tab = 'adventure', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
+  let selectedBanner = storage.get('school-pickup') === 'lava' ? 'lava' : 'osia';
   let sound = storage.get('school-sound') === 'on', audio, renderKey = '', partyKey = '', lastSave = 0, lastSync = 0;
   const CLOUD_CACHE = 'school-confirmed-cloud-view';
   let guestQueue = Promise.resolve(), guestTickPending = false, guestSaveFailed = false, mutexDatabase;
@@ -211,27 +212,38 @@
     else if (result.kind === 'train') { toast(`${G.BY_ID[result.hero].name} Lv.${result.level}!`); heroDetail(result.hero); play('level'); }
     else if (result.kind === 'awaken') { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); play('rare'); }
     else if (result.kind === 'team') { closeModal(); toast('새 편성으로 출발합니다. 맨 앞 용병이 주로 공격을 받아요.'); }
+    else if (result.kind === 'speed') { toast(`전투 속도 ${result.speed.toFixed(1)}×`); }
     else if (result.kind === 'stage') { closeModal(); setTab('adventure'); toast('선택한 지역으로 출발합니다.'); }
     else if (result.kind === 'offline') { toast(`골드 +${fmt(result.reward.gold)} · 용병마다 경험치 +${fmt(result.reward.xp)}`); play('reward'); if (modalKind === 'offline') closeModal(); }
     else { toast(`골드 +${fmt(result.gold)} · 보석 +${fmt(result.gems)}`); play('reward'); }
     render();
   }
+  function animationTime() {
+    const running = mode === 'cloud' ? hasCloudState && connected : hasGuestState && !guestSaveFailed;
+    const wall = Date.now() + (mode === 'cloud' ? offset : 0);
+    const fraction = running ? Math.min(500, Math.max(0, wall - state.at)) : 0;
+    return ((state.simTime || 0) + (state.simCredit || 0) + fraction * (state.speed || 1)) / 1000;
+  }
   function consumeEvents() {
-    const now = performance.now() / 1000;
+    const now = animationTime();
     const events = state.events.filter(e => e.seq > lastSeq); lastSeq = state.seq;
+    if (events.some(e => e.kind === 'offline')) effects = [];
     for (const e of events) {
-      const age = e.at == null ? 0 : Math.max(0, (Date.now() + (mode === 'cloud' ? offset : 0) - e.at) / 1000);
-      if (age < 2) effects.push({ ...e, time: now - age });
+      const eventTime = e.simAt == null ? now : e.simAt / 1000, age = Math.max(0, now - eventTime);
+      if (age < 3.1 && e.kind !== 'offline') effects.push({ ...e, time: eventTime });
       if (e.kind === 'clear') { toast(`${G.stageName(e.stage)} 클리어! 보석 +60`); play('reward'); }
       if (e.kind === 'captain') { toast(`단장 레벨 ${e.level}! 보석 +30`); play('level'); }
       if (e.kind === 'skill-impact' && age < .5 && e.battleId === state.battle.id) play('water', e.stage);
     }
-    effects = effects.filter(e => now - e.time < 2 && (!e.battleId || e.battleId === state.battle.id)).slice(-70);
+    effects = effects.filter(e => now - e.time < 3.1 && (!e.battleId || e.battleId === state.battle.id)).slice(-90);
     const cast = state.battle.osiaCast;
     if (cast && !effects.some(e => e.kind === 'skill-stage' && e.castId === cast.id)) {
-      const part = G.OSIA_SKILLS[cast.stage - 1], beganAt = state.at - (state.battle.elapsed - cast.began);
-      const age = Math.max(0, (Date.now() + (mode === 'cloud' ? offset : 0) - beganAt) / 1000);
-      effects.push({kind:'skill-stage',from:'osia',castId:cast.id,battleId:state.battle.id,...part,targets:cast.targets.map(t=>t.id),time:now-age});
+      const part = G.OSIA_SKILLS[cast.stage - 1];
+      const elapsed = state.battle.elapsed - cast.began + ((cast.cinematicDuration || 0) - (state.battle.cinematic?.remaining || 0));
+      const began = cast.simBegan ?? Math.max(0, (state.simTime || 0) - elapsed);
+      effects.push({kind:'skill-stage',from:'osia',castId:cast.id,battleId:state.battle.id,...part,cinematicDuration:cast.cinematicDuration || 0,targets:cast.targets.map(t=>t.id),time:began/1000});
+      if (state.battle.cinematic && !effects.some(e => e.kind === 'cinematic' && e.castId === cast.id))
+        effects.push({kind:'cinematic',from:'osia',castId:cast.id,battleId:state.battle.id,duration:cast.cinematicDuration || G.OSIA_CINEMATIC_MS,time:began/1000});
     }
   }
   function setTab(next) {
@@ -261,15 +273,19 @@
     if (pk !== partyKey) { partyKey = pk; $('party').innerHTML = state.team.map(id => `<button class="party-card" data-hero="${id}" aria-label="${G.BY_ID[id].name} 상세 정보">${portrait(id)}<span class="party-info"><b>${G.BY_ID[id].name}</b><small></small><span class="party-hp"><i></i></span></span></button>`).join(''); }
     document.querySelectorAll('.party-card').forEach(el => { const id = el.dataset.hero, h = state.battle.heroes.find(h => h.id === id), u = state.units[id]; el.querySelector('small').textContent = `Lv.${u.level} · ${G.BY_ID[id].role}`; el.querySelector('i').style.width = `${h ? Math.max(0, h.hp / h.max) * 100 : 100}%`; el.classList.toggle('fallen', !!h && h.hp <= 0); });
     $('offline-summary').textContent = state.offline.seconds ? `${duration(state.offline.seconds)} · 골드 ${fmt(state.offline.gold)} 수령 가능` : '자리를 비워도 최대 8시간까지';
-    const key = JSON.stringify([tab, filter, state.units, state.team, state.best, state.stage, state.mode, state.offline, state.claimed, state.daily, state.pulls, state.pity, state.captain.level]);
+    const key = JSON.stringify([tab, filter, state.units, state.team, state.best, state.stage, state.mode, state.offline, state.claimed, state.daily, state.pulls, state.banners, state.pity, selectedBanner, G.bannerAvailable(selectedBanner, Date.now() + (mode === 'cloud' ? offset : 0)), state.captain.level]);
     if (key !== renderKey) {
       renderKey = key;
       if (tab === 'adventure') renderChapters();
       if (tab === 'roster') renderRoster();
       if (tab === 'recruit') {
-        $('pity-left').textContent = G.RECRUIT_PITY.hard - state.pity; $('pity-count').textContent = `${state.pity} / ${G.RECRUIT_PITY.hard}`; $('pity-bar').style.width = `${state.pity / G.RECRUIT_PITY.hard * 100}%`;
-        $('next-ssr-chance').textContent = `다음 SSR ${Math.round(G.recruitRates(state.pity).SSR * 100)}%`;
-        $('pity-phase').textContent = state.pity >= G.RECRUIT_PITY.soft - 1 ? '확률 상승 적용 중' : '60회째부터 매회 +1%p';
+        const banner = G.BANNERS[selectedBanner], progress = G.bannerState(state, selectedBanner);
+        $('pity-left').textContent = G.RECRUIT_PITY.hard - progress.pity; $('pity-count').textContent = `${progress.pity} / ${G.RECRUIT_PITY.hard}`; $('pity-bar').style.width = `${progress.pity / G.RECRUIT_PITY.hard * 100}%`;
+        $('next-ssr-chance').textContent = `다음 SSR ${Math.round(G.recruitRates(progress.pity).SSR * 100)}%`;
+        $('pity-phase').textContent = progress.pity >= G.RECRUIT_PITY.soft - 1 ? '확률 상승 적용 중' : '60회째부터 매회 +1%p';
+        $('banner-status').textContent = progress.guaranteed ? `다음 SSR은 ${G.BY_ID[banner.featured].name} 확정` : `SSR 등장 시 ${G.BY_ID[banner.featured].name} 50% · 픽뚫 후 다음 SSR 확정`;
+        $('banner-deadline').textContent = banner.limited ? (G.bannerAvailable(selectedBanner, Date.now() + (mode === 'cloud' ? offset : 0)) ? '11월 20일 23:59까지 · 한국 시간' : '종료된 픽업입니다. 상시 오시아 픽업을 선택해 주세요.') : '상시 픽업 · 배너별 확정 누적 별도 보관';
+        document.querySelectorAll('[data-banner]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.banner === selectedBanner)));
       }
       if (tab === 'supplies') renderSupplies();
     }
@@ -279,7 +295,9 @@
   }
   function renderButtons() {
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
-    $('recruit-one').disabled = blocked || state.gems < 100; $('recruit-ten').disabled = blocked || state.gems < 900;
+    const bannerClosed = !G.bannerAvailable(selectedBanner, Date.now() + (mode === 'cloud' ? offset : 0));
+    $('recruit-one').disabled = blocked || bannerClosed || state.gems < 100; $('recruit-ten').disabled = blocked || bannerClosed || state.gems < 900;
+    document.querySelectorAll('[data-speed]').forEach(button => { button.disabled = blocked; button.setAttribute('aria-pressed', String(Number(button.dataset.speed) === (state.speed || 1))); });
     $('claim-offline').disabled = blocked || !state.offline.seconds;
     $('claim-daily').disabled = blocked || state.daily >= G.day(Date.now() + offset);
     $('redeem-code').disabled = blocked || !$('coupon-code').value.trim();
@@ -287,16 +305,16 @@
     document.querySelectorAll('[data-action]').forEach(b => { b.disabled = blocked || b.dataset.unavailable === 'true'; });
     if (modalKind === 'hero' && selectedHero && state.units[selectedHero]) {
       const u = state.units[selectedHero]; const train = $('train-hero'), awaken = $('awaken-hero');
-      if (train) train.disabled = blocked || u.level >= 60 || state.gold < G.trainingCost(u);
+      if (train) train.disabled = blocked || u.level >= G.MAX_LEVEL || state.gold < G.trainingCost(u);
       if (awaken) awaken.disabled = blocked || u.stars >= 5 || u.shards < G.awakeningCost(u);
       const st = G.stats(selectedHero, u), cost = G.trainingCost(u), shards = G.awakeningCost(u);
       if ($('hero-level')) {
         $('hero-level').textContent = u.level; $('hero-hp').textContent = fmt(st.hp); $('hero-atk').textContent = fmt(st.atk);
-        $('hero-gold').textContent = fmt(state.gold); $('hero-xp').textContent = u.level === 60 ? '최대 레벨' : `경험치 ${fmt(u.xp)} / ${fmt(G.needXp(u.level))}`;
-        $('train-cost').textContent = u.level === 60 ? '최대 레벨' : `골드 ${fmt(cost)}`;
+        $('hero-gold').textContent = fmt(state.gold); $('hero-xp').textContent = u.level === G.MAX_LEVEL ? '최대 레벨' : `경험치 ${fmt(u.xp)} / ${fmt(G.needXp(u.level))}`;
+        $('train-cost').textContent = u.level === G.MAX_LEVEL ? '최대 레벨' : `골드 ${fmt(cost)}`;
         $('awaken-cost').textContent = u.stars === 5 ? '최대 각성' : `조각 ${fmt(shards)} / 보유 ${fmt(u.shards)}`;
         $('hero-stars').textContent = `각성 ${u.stars} / 5성`; $('hero-shards').textContent = `조각 ${fmt(u.shards)}개`;
-        $('training-status').textContent = pending ? '이전 요청의 저장을 확인하고 있어요.' : busy ? '저장 확인 중…' : mode === 'cloud' && !connected ? '서버에 다시 연결하면 육성할 수 있어요.' : u.level === 60 ? '최대 레벨에 도달했어요.' : state.gold < cost ? `훈련에 골드 ${fmt(cost - state.gold)}가 더 필요해요.` : `훈련하면 Lv.${u.level + 1} · 골드 ${fmt(cost)} 사용`;
+        $('training-status').textContent = pending ? '이전 요청의 저장을 확인하고 있어요.' : busy ? '저장 확인 중…' : mode === 'cloud' && !connected ? '서버에 다시 연결하면 육성할 수 있어요.' : u.level === G.MAX_LEVEL ? '최대 레벨에 도달했어요.' : state.gold < cost ? `훈련에 골드 ${fmt(cost - state.gold)}가 더 필요해요.` : `훈련하면 Lv.${u.level + 1} · 골드 ${fmt(cost)} 사용`;
       }
     }
   }
@@ -330,19 +348,19 @@
   function heroDetail(id) {
     const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
     const st = G.stats(id, u || {level:1, stars:0});
-    const skills = `<details class="hero-skills" ${u ? '' : 'open'}><summary>스킬 · 패시브</summary><div class="skill-box"><b>${h.skill} <span>· ${h.cooldown}초 충전</span></b>${h.desc}</div>${h.passive ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive}</b>${h.passiveDesc}</div>` : ''}</details>`;
-    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ 60</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div>${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">1레벨 훈련<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${state.team.map((member, i) => `<button data-slot="${i}" class="${member === id ? 'selected' : ''}">${portrait(member)}${i === 0 ? '전열' : i === 1 ? '중열' : '후열'} · ${G.BY_ID[member].name}</button>`).join('')}</div><p class="detail-note">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">모집에서 만나기 →</button>`}</div>`, 'hero');
+    const skills = `<details class="hero-skills" ${u ? '' : 'open'}><summary>스킬 · 패시브</summary><div class="skill-box"><b>${h.skill} <span>· ${h.cooldown}초 충전</span></b>${h.desc}</div>${h.passive ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive}</b>${h.passiveDesc}</div>` : ''}${h.passive2 ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive2}</b>${h.passive2Desc}</div>` : ''}</details>`;
+    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div>${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">1레벨 훈련<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${state.team.map((member, i) => `<button data-slot="${i}" class="${member === id ? 'selected' : ''}">${portrait(member)}${i === 0 ? '전열' : i === 1 ? '중열' : '후열'} · ${G.BY_ID[member].name}</button>`).join('')}</div><p class="detail-note">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">모집에서 만나기 →</button>`}</div>`, 'hero');
     if (u) {
       $('train-hero').onclick = () => act({kind:'train', hero:id}); $('awaken-hero').onclick = () => act({kind:'awaken', hero:id});
       $('change-hero').onclick = () => { closeModal(); filter = 'owned'; setTab('roster'); };
       document.querySelectorAll('[data-slot]').forEach(b => { b.onclick = () => { const index = Number(b.dataset.slot), team = [...state.team], old = team.indexOf(id); if (old === index) { toast('이미 이 위치에 출전 중이에요.'); return; } if (old >= 0) team[old] = team[index]; team[index] = id; act({kind:'team', team}); }; });
-    } else $('to-recruit').onclick = () => { closeModal(); setTab('recruit'); };
+    } else $('to-recruit').onclick = () => { if (id === 'osia' || id === 'lava') { selectedBanner = id; storage.set('school-pickup', id); } closeModal(); setTab('recruit'); };
     renderButtons();
   }
   function stageMap() {
-    openModal('학교 모험 지도', `<p class="modal-copy">열린 지역을 골라 반복 사냥하거나, 다음 지역에 도전하세요.</p><br>${G.CHAPTERS.map((name, i) => `<h3 class="stage-title">${i + 1}. ${name}</h3><div class="stage-grid">${Array.from({length:5}, (_, j) => { const n = i * 5 + j + 1; return `<button class="stage-tile ${n <= state.best ? 'cleared' : ''} ${n === state.stage ? 'current' : ''}" data-stage="${n}" ${n > state.best + 1 ? 'disabled' : ''}>${G.stageName(n)}${n <= state.best ? ' ✓' : ''}</button>`; }).join('')}</div>`).join('')}<button class="primary full" id="next-stage">${state.best === 30 ? '최종 지역 반복하기' : `${G.stageName(state.best + 1)}부터 자동 도전`} →</button>`, 'map');
+    openModal('학교 모험 지도', `<p class="modal-copy">열린 지역을 골라 반복 사냥하거나, 다음 지역에 도전하세요.</p><br>${G.CHAPTERS.map((name, i) => `<h3 class="stage-title">${i + 1}. ${name}</h3><div class="stage-grid">${Array.from({length:5}, (_, j) => { const n = i * 5 + j + 1; return `<button class="stage-tile ${n <= state.best ? 'cleared' : ''} ${n === state.stage ? 'current' : ''}" data-stage="${n}" ${n > state.best + 1 ? 'disabled' : ''}>${G.stageName(n)}${n <= state.best ? ' ✓' : ''}</button>`; }).join('')}</div>`).join('')}<button class="primary full" id="next-stage">${state.best === G.MAX_STAGE ? '최종 지역 반복하기' : `${G.stageName(state.best + 1)}부터 자동 도전`} →</button>`, 'map');
     document.querySelectorAll('[data-stage]').forEach(b => b.onclick = () => act({kind:'stage', stage:Number(b.dataset.stage), mode:'farm'}));
-    $('next-stage').onclick = () => act({kind:'stage', stage:Math.min(30, state.best + 1), mode:'progress'});
+    $('next-stage').onclick = () => act({kind:'stage', stage:Math.min(G.MAX_STAGE, state.best + 1), mode:'progress'});
   }
   function reveal(results) {
     openModal('새로운 만남', `<p class="reveal-caption">${results.some(r => r.fresh) ? '용병단에 새로운 친구가 찾아왔어요.' : '동료의 조각을 모아 더 강하게 각성하세요.'}</p><div class="result-grid ${results.length === 1 ? 'single' : ''}">${results.map((r, i) => `<div class="result-card ${G.BY_ID[r.id].rarity}" style="animation-delay:${reduced ? 0 : i * .085}s">${rarity(r.id)}${portrait(r.id)}<b>${G.BY_ID[r.id].name}</b><small>${r.fresh ? 'NEW · 첫 만남' : `조각 +${r.shards}`}</small></div>`).join('')}</div><button class="primary full result-close" id="reveal-done">용병 확인하기 →</button><p class="detail-note" style="text-align:center">결과는 이미 저장되었어요. 창을 닫아도 사라지지 않아요.</p>`, 'reveal');
@@ -350,15 +368,17 @@
     $('modal-content').querySelector('.result-grid').onclick = e => e.currentTarget.classList.add('skip');
   }
   function ratesModal() {
-    const rows = Object.entries(G.recruitRates(state.pity)).map(([grade, chance]) => {
-      const count = G.HEROES.filter(h => h.rarity === grade).length, each = chance * 100 / count;
-      const rounded = Math.round(each * 10000) / 10000;
-      return `<tr><td>${grade} · ${count}명</td><td>${Math.round(chance * 1000000) / 10000}%</td><td>${Math.abs(rounded - each) > 1e-9 ? '약 ' : ''}${rounded}%</td></tr>`;
+    const banner = G.BANNERS[selectedBanner], progress = G.bannerState(state, selectedBanner);
+    const rates = G.recruitRates(progress.pity), heroRates = G.bannerHeroRates(state, selectedBanner);
+    const percent = n => `${Number((n * 100).toFixed(4))}%`;
+    const rows = ['SSR', 'SR', 'R'].map(grade => {
+      const pool = G.HEROES.filter(h => h.rarity === grade && (grade !== 'SSR' || h.id === banner.featured || ['osia','ian','lumi'].includes(h.id)));
+      return `<tr><td>${grade} · ${pool.length}명</td><td>${percent(rates[grade])}</td><td>${pool.map(h => `${h.name} ${percent(heroRates[h.id])}`).join('<br>')}</td></tr>`;
     }).join('');
-    openModal('모집 확률 안내', `<div class="modal-copy"><p>무료 보석으로 모집합니다. <strong>1회 100개 / 10회 900개.</strong></p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회 확률</th><th>해당 용병 1명당</th></tr></thead><tbody>${rows}</tbody></table><p>위 표는 현재 누적 ${state.pity}회를 반영한 <strong>다음 ${state.pity + 1}회째 확률</strong>입니다. 기본 확률은 SSR 4% · SR 26% · R 70%입니다.</p><p>SSR 미획득 기준 <strong>60회째 5%</strong>부터 매회 1%p씩 올라 61회째 6%, 79회째 24%가 됩니다. 증가한 확률은 R에서 차감하며 SR은 26%를 유지합니다.</p><p>SSR 없이 79회 모집했다면 <strong>80회째 SSR 확정</strong>입니다. SSR 획득 즉시 누적 횟수와 상승 확률이 초기화됩니다. 단일·10회 모집 모두 함께 계산하며, 10회 모집 안에서도 한 번씩 갱신합니다.</p><p>10회 모집의 앞 9명에 SR 이상이 없고 10번째가 R일 때, 그 결과를 <strong>SR로 올려 줍니다</strong>. SSR 천장을 먼저 적용합니다.</p><p>보장으로 바뀌는 결과는 위 기본 확률과 다릅니다. 각 등급 안에서는 같은 확률로 뽑습니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개. 같은 용병의 조각으로 최대 5성까지 각성할 수 있습니다.</p></div>`, 'rates');
+    openModal('모집 확률 안내', `<div class="modal-copy"><p><strong>${banner.name}</strong><br>1회 보석 100개 / 10회 900개.</p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회</th><th>용병별 실제 확률</th></tr></thead><tbody>${rows}</tbody></table><p>현재 누적 ${progress.pity}회 · <strong>다음 ${progress.pity + 1}회째 확률</strong>입니다. ${progress.guaranteed ? `다음 SSR은 <strong>${G.BY_ID[banner.featured].name} 확정</strong>입니다.` : `SSR이 나오면 <strong>50%는 ${G.BY_ID[banner.featured].name}</strong>, 나머지 50%는 다른 상시 SSR입니다.`}</p><p>메인 이외의 SSR을 얻으면 <strong>그 배너의 다음 SSR은 메인 확정</strong>입니다. 메인을 얻으면 다시 50:50이 됩니다. 두 배너의 누적 횟수와 메인 보장은 각각 저장됩니다.</p><p>기본 확률 SSR 4% · SR 26% · R 70%. SSR 미획득 기준 <strong>60회째 5%</strong>부터 매회 1%p씩 올라 79회째 24%, <strong>80회째 SSR 확정</strong>입니다. 증가분은 R에서 차감합니다. SSR 획득 시 누적만 0으로 초기화됩니다.</p><p>단일·10회 모집 모두 한 번씩 계산합니다. 10회의 앞 9명에 SR 이상이 없고 마지막 결과가 R이면 SR로 올립니다. SSR 천장을 먼저 적용합니다.</p><p>라바는 <strong>2026년 11월 20일 23:59(한국 시간)까지</strong> 한정 배너에서만 나옵니다. 오시아 상시 배너에서는 나오지 않습니다. 이미 얻은 라바는 종료 후에도 사용할 수 있습니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개. 최대 5성까지 각성할 수 있습니다. 표의 소수점은 반올림하여 합계가 조금 다를 수 있습니다.</p></div>`, 'rates');
   }
   function help() {
-    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>전투는 자동! 용병을 모으고 키워 6개 구역, 30개 지역을 탐험하세요.</p><ul><li>3명의 용병이 매초 싸우고 자동으로 스킬을 씁니다. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
+    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>3명의 용병이 매초 싸우고 자동으로 스킬을 씁니다. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
   }
   async function sdk() {
     if (window.google?.accounts?.id) return;
@@ -438,6 +458,8 @@
       const target = e.target.closest('button'); if (!target || target.disabled) return;
       if (target.dataset.tab) setTab(target.dataset.tab);
       if (target.dataset.hero) heroDetail(target.dataset.hero);
+      if (target.dataset.banner && G.BANNERS[target.dataset.banner]) { selectedBanner = target.dataset.banner; storage.set('school-pickup', selectedBanner); renderKey = ''; render(); }
+      if (target.dataset.speed) act({kind:'speed', speed:Number(target.dataset.speed)});
       if (target.dataset.map !== undefined) stageMap();
       if (target.dataset.filter) { filter = target.dataset.filter; document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === filter)); renderKey = ''; render(); }
       if (target.dataset.action === 'quest') act({kind:'quest', quest:target.dataset.quest});
@@ -448,9 +470,10 @@
     $('modal').addEventListener('click', e => { const r = $('modal').getBoundingClientRect(); if (e.target === $('modal') && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) closeModal(); });
     $('stage-button').onclick = stageMap;
     $('feature-osia-button').onclick = () => heroDetail('osia');
+    $('feature-lava-button').onclick = () => heroDetail('lava');
     $('battle-stage').onclick = stageMap;
     $('offline-strip').onclick = () => setTab('supplies'); $('claim-offline').onclick = () => act({kind:'offline'}); $('claim-daily').onclick = () => act({kind:'daily'});
-    $('recruit-one').onclick = () => act({kind:'recruit', count:1}); $('recruit-ten').onclick = () => act({kind:'recruit', count:10}); $('rates-button').onclick = ratesModal;
+    $('recruit-one').onclick = () => act({kind:'recruit', count:1, banner:selectedBanner}); $('recruit-ten').onclick = () => act({kind:'recruit', count:10, banner:selectedBanner}); $('rates-button').onclick = ratesModal;
     $('coupon-code').addEventListener('input', () => { couponMessage(''); renderButtons(); });
     $('coupon-form').addEventListener('submit', async event => {
       event.preventDefault();
@@ -472,7 +495,7 @@
     window.addEventListener('pagehide', () => { if (mode === 'guest') guestUpdate().catch(() => {}); });
     window.addEventListener('pageshow', () => { if (mode === 'guest') guestUpdate().catch(() => {}); else sync(true); });
     window.addEventListener('online', () => sync(true));
-    window.addEventListener('school-art-ready', () => { renderKey = partyKey = ''; $('feature-osia').src = Art.portrait('osia'); render(); if (modalKind === 'hero' && selectedHero === 'osia') heroDetail('osia'); });
+    window.addEventListener('school-art-ready', () => { renderKey = partyKey = ''; $('feature-osia').src = Art.portrait('osia'); $('feature-lava').src = Art.portrait('lava'); render(); if (modalKind === 'hero' && ['osia','lava'].includes(selectedHero)) heroDetail(selectedHero); });
     window.addEventListener('storage', e => { if (e.key === SAVE && mode === 'guest' && !busy) guestUpdate().catch(() => {}); });
   }
   async function boot() {
@@ -499,7 +522,7 @@
       }
     }
     await Art.ready;
-    $('feature-osia').src = Art.portrait('osia'); $('recruit-count').textContent = `상시 모집 · 용병 ${G.HEROES.length}명`;
+    $('feature-osia').src = Art.portrait('osia'); $('feature-lava').src = Art.portrait('lava'); $('recruit-count').textContent = '상시 오시아 · 한정 라바';
     clientReady = true; bind(); refreshSound(); renderButtons();
     if (!guestSaveFailed && (!wantsCloud || hasCloudState)) render();
     if (wantsCloud) {
@@ -536,7 +559,7 @@
     function animate(time) {
       requestAnimationFrame(animate);
       if (document.hidden || tab !== 'adventure' && innerWidth <= 650 || time - previous < (reduced ? 120 : 32)) return;
-      previous = time; if (fitBattleCanvas()) Art.draw(ctx, state, time / 1000, effects, reduced);
+      previous = time; if (fitBattleCanvas()) Art.draw(ctx, state, animationTime(), effects, reduced);
     }
     requestAnimationFrame(animate);
   }
