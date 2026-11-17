@@ -15,6 +15,11 @@
   const osiaSkill = s => OSIA_SKILLS[(s.units.osia?.nextSkill || 1) - 1];
   const RECRUIT_RATES = { SSR: .04, SR: .26, R: .70 };
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
+  // The deadline is exclusive: both codes work throughout November 20 in Korea.
+  const COUPONS = Object.freeze({
+    OSIA_DEBUT: Object.freeze({ gold: 1000, gems: 1000, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
+    BUG_FIX: Object.freeze({ gold: 1500, gems: 1500, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
+  });
   function recruitRates(misses) {
     const next = misses + 1;
     if (next >= RECRUIT_PITY.hard) return { SSR: 1, SR: 0, R: 0 };
@@ -102,7 +107,7 @@
     const s = { version: 1, at: now, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
       gold: 700, gems: 1800, captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
-      offline: { seconds: 0, gold: 0, xp: 0 }, claimed: [], daily: -1, receipts: [], history: [] };
+      offline: { seconds: 0, gold: 0, xp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [] };
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
   }
@@ -116,6 +121,7 @@
       (s.units.osia?.nextSkill == null || Number.isInteger(s.units.osia.nextSkill) && s.units.osia.nextSkill >= 1 && s.units.osia.nextSkill <= 4) &&
       s.battle && Array.isArray(s.battle.heroes) && Array.isArray(s.battle.enemies) && s.battle.heroes.every(h => BY_ID[h.id] && Number.isFinite(h.hp)) &&
       Array.isArray(s.events) && Array.isArray(s.logs) && Array.isArray(s.claimed) && Array.isArray(s.receipts) && Array.isArray(s.history) &&
+      (s.redeemedCodes === undefined || Array.isArray(s.redeemedCodes) && s.redeemedCodes.length <= 1000 && new Set(s.redeemedCodes).size === s.redeemedCodes.length && s.redeemedCodes.every(code => typeof code === "string" && /^[A-Z0-9_]{1,40}$/.test(code))) &&
       s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) && s.captain && Number.isInteger(s.captain.level));
   }
   function hurt(s, from, target, raw, side, skill = false, detail = {}) {
@@ -262,6 +268,19 @@
   function action(s, input, now = Date.now(), rng = Math.random) {
     fail(input && typeof input === "object" && !Array.isArray(input), "잘못된 행동입니다.");
     const kind = input.kind;
+    if (kind === "redeem") {
+      fail(typeof input.code === "string" && input.code.length <= 128, "코드를 확인해 주세요.");
+      const code = input.code.trim().toUpperCase();
+      fail(code.length > 0, "코드를 입력하세요.");
+      fail(/^[A-Z0-9_]{1,40}$/.test(code) && Object.hasOwn(COUPONS, code), "사용할 수 없는 코드입니다.");
+      const coupon = COUPONS[code], redeemed = s.redeemedCodes || [];
+      fail(!redeemed.includes(code), "이미 사용한 코드입니다.");
+      fail(Number.isFinite(now) && now >= 0 && now < coupon.expiresAt, "사용 기간이 지난 코드입니다.");
+      // Client-supplied rewards and timestamps never participate in redemption.
+      s.redeemedCodes = [...redeemed, code]; s.gold += coupon.gold; s.gems += coupon.gems;
+      log(s, `CODE ${code} · 보석 +${coupon.gems} · 골드 +${coupon.gold}`);
+      return { kind, code, gold: coupon.gold, gems: coupon.gems, expiresAt: coupon.expiresAt };
+    }
     if (kind === "recruit") return recruit(s, input.count, rng);
     if (kind === "train") {
       const u = s.units[input.hero]; fail(u && BY_ID[input.hero], "보유한 용병을 선택하세요.");
@@ -303,5 +322,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, OFFLINE_CAP, CATALOG_VERSION, OSIA_SKILLS, osiaSkill, RECRUIT_RATES, RECRUIT_PITY, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, clone, view };
+  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, OFFLINE_CAP, CATALOG_VERSION, OSIA_SKILLS, osiaSkill, RECRUIT_RATES, RECRUIT_PITY, COUPONS, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, clone, view };
 });

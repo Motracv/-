@@ -100,5 +100,44 @@ const G=require('../school/engine.js');
      now+=2000;r=await call(again,'state');assert.equal(r.data.state.battle.osiaCast.stage,1);assert.equal(r.data.state.units.osia.nextSkill,2);assert.ok(G.validate(JSON.parse(save(who).payload)));
    }finally{Date.now=realNow;}
  });
+ const couponEnd=Date.parse('2026-11-21T00:00:00+09:00');let couponAccount;
+ await test('Coupon rewards use server amounts and time; concurrent normalized codes credit an account once',async()=>{
+   const realNow=Date.now;Date.now=()=>couponEnd-60000;
+   try{
+     couponAccount=(await t.login('school-coupon')).data;const current=await call(couponAccount,'state');
+     const forged={kind:'redeem',code:'  osia_debut  ',gold:1e12,gems:1e12,now:couponEnd+1e12,expiresAt:1e15,redeemedCodes:[]};
+     const attempts=await Promise.all(['A','B'].map(id=>call(couponAccount,'action',{...action(current.data.revision,'coupon-parallel-0000'+id,forged),now:couponEnd+1e12,gold:1e12,gems:1e12})));
+     assert.deepEqual(attempts.map(r=>r.status).sort(),[200,409]);
+     const won=attempts.find(r=>r.status===200);assert.equal(won.data.result.kind,'redeem');assert.equal(won.data.result.code,'OSIA_DEBUT');assert.equal(won.data.result.gold,1000);assert.equal(won.data.result.gems,1000);
+     let row=save(couponAccount),s=JSON.parse(row.payload);assert.equal(s.gold,1700);assert.equal(s.gems,2800);assert.deepEqual(s.redeemedCodes,['OSIA_DEBUT']);
+     const duplicate=await call(couponAccount,'action',action(row.revision,'coupon-duplicate-0001',{kind:'redeem',code:'OSIA_DEBUT',redeemedCodes:[]}));
+     assert.equal(duplicate.status,400);assert.equal(save(couponAccount).payload,row.payload);
+     const reloaded=await call(couponAccount,'state',{state:{redeemedCodes:[]}});assert.deepEqual(reloaded.data.state.redeemedCodes,['OSIA_DEBUT']);assert.equal(reloaded.data.state.gems,2800);
+   }finally{Date.now=realNow;}
+ });
+ await test('A committed coupon with a lost response is replayed safely and a new request cannot claim it again',async()=>{
+   const realNow=Date.now;Date.now=()=>couponEnd-60000;const prepare=t.db.prepare;
+   try{
+     const current=await call(couponAccount,'state'),intent=action(current.data.revision,'coupon-response-lost01',{kind:'redeem',code:'bug_fix'});let drop=true;
+     t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
+     const lost=await call(couponAccount,'action',intent);assert.equal(lost.status,503);t.db.prepare=prepare;
+     const retries=await Promise.all([call(couponAccount,'action',intent),call(couponAccount,'action',intent)]);
+     for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(r.data.result.code,'BUG_FIX');assert.equal(r.data.result.gems,1500);assert.equal(r.data.result.gold,1500);assert.equal(r.data.state.gold,3200);assert.equal(r.data.state.gems,4300);}
+     const row=save(couponAccount),s=JSON.parse(row.payload);assert.deepEqual(s.redeemedCodes,['OSIA_DEBUT','BUG_FIX']);assert.ok(G.validate(s));
+     assert.equal((await call(couponAccount,'action',action(row.revision,'coupon-new-duplicate01',{kind:'redeem',code:'  BUG_FIX  '}))).status,400);assert.equal(save(couponAccount).payload,row.payload);
+   }finally{t.db.prepare=prepare;Date.now=realNow;}
+ });
+ await test('Coupon expiry includes November 20 KST and ignores forged client clocks at the exact cutoff',async()=>{
+   const realNow=Date.now;let now=couponEnd-1;Date.now=()=>now;
+   try{
+     const who=(await t.login('school-coupon-expiry')).data;let current=await call(who,'state');
+     const valid=await call(who,'action',action(current.data.revision,'coupon-last-millisecond',{kind:'redeem',code:'OSIA_DEBUT',now:couponEnd+100000}));
+     assert.equal(valid.status,200);assert.equal(valid.data.state.gems,2800);assert.equal(valid.data.state.gold,1700);
+     now=couponEnd;const before=save(who);
+     const expired=await call(who,'action',{...action(before.revision,'coupon-expired-00001',{kind:'redeem',code:'BUG_FIX',now:couponEnd-86400000}),now:couponEnd-86400000});
+     assert.equal(expired.status,400);assert.equal(save(who).payload,before.payload);
+     current=await call(who,'state');assert.deepEqual(current.data.state.redeemedCodes,['OSIA_DEBUT']);
+   }finally{Date.now=realNow;}
+ });
  t.sqlite.close();console.log(`${passed} school server checks passed (SQLite + signed test Google credentials)`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

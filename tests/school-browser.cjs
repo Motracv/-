@@ -5,6 +5,7 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {fixture}=require('./account-fixture.cjs');
 const {installGuestSeed,seedGuest,runSchoolRegressions}=require('./school-ui-regressions.cjs');
 const {runDisplayRegressions}=require('./school-display-regressions.cjs');
+const {runCouponRegressions}=require('./school-coupon-browser.cjs');
 (async()=>{
  const t=await fixture(),origin='http://127.0.0.1:8801';t.env.ALLOWED_ORIGIN=origin;
  let dropNext=false,actionRequests=0,stateDelay=0,blockedActionToken=null,failNextState=false;const schoolActionLog=[];
@@ -42,7 +43,9 @@ const {runDisplayRegressions}=require('./school-display-regressions.cjs');
  const tab=(p,name)=>p.click(`.bottom-nav [data-tab="${name}"]`);
  async function login(p){await p.click('#account-button');await p.click('#fixture-login');await p.waitForFunction(()=>document.getElementById('account-label').textContent==='계정 저장');}
  try{
+   if(process.env.SCHOOL_COUPON_ONLY==='1'){await runCouponRegressions({pageFor,saved,tab,t,login,dropNextAction:()=>{dropNext=true;}});assert.deepEqual(errors,[]);return;}
    if(process.env.SCHOOL_DISPLAY_ONLY==='1'){await runDisplayRegressions({pageFor,tab});assert.deepEqual(errors,[]);return;}
+   await runCouponRegressions({pageFor,saved,tab,t,login,dropNextAction:()=>{dropNext=true;}});
    await runSchoolRegressions({pageFor,saved,origin,errors,t,login,setStateDelay:ms=>{stateDelay=ms;},setActionBlock:value=>{blockedActionToken=value;},failStateOnce:()=>{failNextState=true;},schoolActionLog});
    if(process.env.SCHOOL_SAVE_ONLY==='1')return;
    const sdkBefore=sdkLoads,p=await pageFor('same-person');assert.equal(sdkLoads,sdkBefore);assert.equal(await p.evaluate(()=>SchoolArt.assetsReady()),true);

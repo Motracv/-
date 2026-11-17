@@ -20,6 +20,9 @@
   try { token = JSON.parse(storage.get(SESSION, true) || 'null')?.token || null; } catch {}
 
   function toast(message) { $('toast').textContent = message; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 3400); }
+  function couponMessage(message, status = '') {
+    $('coupon-message').textContent = message; $('coupon-message').dataset.state = status;
+  }
   function note(message, retry = false) {
     $('connection').hidden = !message;
     $('connection').textContent = message || '';
@@ -156,17 +159,19 @@
   async function sync(manual = false) {
     if (mode !== 'cloud' || busy || (!manual && document.hidden)) return;
     if (!profile || verifiedToken !== token) return useCloud();
+    const checkingCoupon = pending?.action.kind === 'redeem';
     busy = true; renderButtons(); saveStatus('saving', '계정 저장 중');
     try {
       if (pending) { const result = await sendPending(); showResult(result); }
       else applyCloud(await request('/api/school/state'));
       lastSync = Date.now();
     } catch (error) {
-      if (error.confirmedConflict) { toast(error.message); return; }
+      if (error.confirmedConflict) { if (checkingCoupon) couponMessage(error.message, 'error'); toast(error.message); return; }
       connected = false;
       saveStatus('error', '계정 연결 대기');
       if (error.status === 401) { token = null; verifiedToken = null; storage.remove(SESSION, true); }
       if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
+      if (checkingCoupon) couponMessage(pending ? '보상 저장을 확인 중입니다. 연결되면 같은 요청을 이어 확인합니다.' : error.message, pending ? 'pending' : 'error');
       note(error.status === 426 ? error.message : error.status === 401 ? '로그인이 만료되었습니다. 계정 메뉴에서 다시 연결하세요.' : '계정 저장 연결을 기다리고 있어요. 재화 사용은 연결 후 계속됩니다.', error.status === 426 ? 'reload' : true);
       if (manual) toast(error.message);
     } finally { busy = false; renderButtons(); }
@@ -184,8 +189,9 @@
       } else result = await guestUpdate(input);
       showResult(result);
     } catch (error) {
-      if (error.confirmedConflict) { toast(error.message); return; }
+      if (error.confirmedConflict) { if (input.kind === 'redeem') couponMessage(error.message, 'error'); toast(error.message); return; }
       if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
+      if (input.kind === 'redeem') couponMessage(pending ? '보상 저장을 확인 중입니다. 연결되면 같은 요청을 이어 확인합니다.' : error.message, pending ? 'pending' : 'error');
       if (mode === 'cloud' && pending) { connected = false; saveStatus('error', '저장 결과 확인 중'); note(error.status === 426 ? error.message : '요청 결과를 확인 중입니다. 재연결 후 같은 요청을 안전하게 확인합니다.', error.status === 426 ? 'reload' : true); }
       else if (mode === 'cloud' && error.status && error.status < 500 && error.status !== 401) {
         try { applyCloud(await request('/api/school/state')); lastSync = Date.now(); }
@@ -198,6 +204,10 @@
   function showResult(result) {
     if (!result) return;
     if (result.kind === 'recruit') { reveal(result.results); play(result.results.some(r => G.BY_ID[r.id].rarity === 'SSR') ? 'rare' : 'reward'); }
+    else if (result.kind === 'redeem') {
+      const message = `${result.code} · 보석 +${fmt(result.gems)} · 코인 +${fmt(result.gold)} 수령 완료!`;
+      $('coupon-code').value = ''; couponMessage(message, 'success'); toast(message); play('reward');
+    }
     else if (result.kind === 'train') { toast(`${G.BY_ID[result.hero].name} Lv.${result.level}!`); heroDetail(result.hero); play('level'); }
     else if (result.kind === 'awaken') { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); play('rare'); }
     else if (result.kind === 'team') { closeModal(); toast('새 편성으로 출발합니다. 맨 앞 용병이 주로 공격을 받아요.'); }
@@ -272,6 +282,8 @@
     $('recruit-one').disabled = blocked || state.gems < 100; $('recruit-ten').disabled = blocked || state.gems < 900;
     $('claim-offline').disabled = blocked || !state.offline.seconds;
     $('claim-daily').disabled = blocked || state.daily >= G.day(Date.now() + offset);
+    $('redeem-code').disabled = blocked || !$('coupon-code').value.trim();
+    $('redeem-code').textContent = pending?.action.kind === 'redeem' ? '확인 중…' : '보상 받기';
     document.querySelectorAll('[data-action]').forEach(b => { b.disabled = blocked || b.dataset.unavailable === 'true'; });
     if (modalKind === 'hero' && selectedHero && state.units[selectedHero]) {
       const u = state.units[selectedHero]; const train = $('train-hero'), awaken = $('awaken-hero');
@@ -439,6 +451,16 @@
     $('battle-stage').onclick = stageMap;
     $('offline-strip').onclick = () => setTab('supplies'); $('claim-offline').onclick = () => act({kind:'offline'}); $('claim-daily').onclick = () => act({kind:'daily'});
     $('recruit-one').onclick = () => act({kind:'recruit', count:1}); $('recruit-ten').onclick = () => act({kind:'recruit', count:10}); $('rates-button').onclick = ratesModal;
+    $('coupon-code').addEventListener('input', () => { couponMessage(''); renderButtons(); });
+    $('coupon-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (busy || pending) { couponMessage('이전 요청의 저장을 확인하고 있어요. 잠시 기다려주세요.'); return; }
+      if (mode === 'cloud' && (!connected || verifiedToken !== token)) { couponMessage('계정에 다시 연결한 뒤 코드를 입력해 주세요.', 'error'); sync(true); return; }
+      const code = $('coupon-code').value.trim().toUpperCase();
+      if (!/^[A-Z0-9_-]{1,32}$/.test(code)) { couponMessage('영문 코드와 숫자, _ 또는 -를 입력해 주세요.', 'error'); return; }
+      $('coupon-code').value = code; couponMessage('코드와 보상을 확인 중…');
+      await act({kind:'redeem', code});
+    });
     $('log-button').onclick = () => openModal('모험 기록', `<ul class="log-list">${state.logs.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`, 'logs');
     $('history-button').onclick = () => openModal('최근 모집 기록', state.history.length ? state.history.map(r => `<div class="history-row">${portrait(r.id)}${rarity(r.id)}<b>${G.BY_ID[r.id].name}</b><small>${r.fresh ? '첫 만남' : `조각 +${r.shards}`}</small></div>`).join('') : '<p class="modal-copy">아직 모집한 용병이 없어요.</p>', 'history');
     document.addEventListener('visibilitychange', () => {

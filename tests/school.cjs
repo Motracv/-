@@ -67,6 +67,31 @@ test('Training costs and level caps; team swaps start a fresh battle and never d
   G.action(s,{kind:'team',team:['harin','taeo','sua']});assert.equal(s.battle.heroes[0].max,G.stats('harin',s.units.harin).hp);
   s.units.harin.level=60; assert.throws(()=>G.action(s,{kind:'train',hero:'harin'}));
 });
+test('Reward codes normalize case and spacing, grant exact rewards once, and survive a save reload',()=>{
+  const now=Date.parse('2026-11-17T12:00:00+09:00'),s=G.create(now);
+  const result=G.action(s,{kind:'redeem',code:'  osia_debut\n',gold:999999,gems:999999,now:0},now);
+  assert.deepEqual(result,{kind:'redeem',code:'OSIA_DEBUT',gold:1000,gems:1000,expiresAt:Date.parse('2026-11-21T00:00:00+09:00')});
+  assert.equal(s.gold,1700);assert.equal(s.gems,2800);assert.deepEqual(s.redeemedCodes,['OSIA_DEBUT']);
+  const loaded=G.clone(s),before=G.clone(loaded);assert.ok(G.validate(loaded));
+  for(const code of ['OSIA_DEBUT','osia_debut',' OSIA_DEBUT ']){assert.throws(()=>G.action(loaded,{kind:'redeem',code},now),/이미 사용/);assert.deepEqual(loaded,before);}
+  G.action(loaded,{kind:'redeem',code:'bug_fix'},now);assert.equal(loaded.gold,3200);assert.equal(loaded.gems,4300);
+  assert.deepEqual(loaded.redeemedCodes,['OSIA_DEBUT','BUG_FIX']);assert.ok(G.validate(G.clone(loaded)));
+});
+test('Coupon expiry includes all of November 20 in Korea and never trusts an input timestamp',()=>{
+  const cutoff=Date.parse('2026-11-20T15:00:00Z');
+  for(const code of ['OSIA_DEBUT','BUG_FIX']){
+    assert.equal(G.COUPONS[code].expiresAt,cutoff);
+    const last=G.create(cutoff-1);G.action(last,{kind:'redeem',code,now:cutoff+100000},cutoff-1);assert.deepEqual(last.redeemedCodes,[code]);
+    for(const now of [cutoff,cutoff+1,NaN,Infinity,-1]){const s=G.create(cutoff),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'redeem',code,now:cutoff-100000},now),/사용 기간/);assert.deepEqual(s,old);}
+  }
+});
+test('Coupon validation preserves old progress and rejects malformed code records without inventing rewards',()=>{
+  const now=Date.parse('2026-11-17T00:00:00+09:00'),s=G.create(now);delete s.redeemedCodes;s.gold=5860;s.gems=290;s.pity=59;s.units.harin.level=40;
+  const battle=G.clone(s.battle),units=G.clone(s.units);assert.ok(G.validate(s));
+  for(const code of [undefined,null,12,{},'','   ','NO_SUCH_CODE','constructor','__proto__','OSIA DEBUT','ＯＳＩＡ_DEBUT','OSIA_DEBUT'.repeat(20)]){const old=G.clone(s);assert.throws(()=>G.action(s,{kind:'redeem',code},now));assert.deepEqual(s,old);}
+  G.action(s,{kind:'redeem',code:'OSIA_DEBUT'},now);assert.equal(s.gold,6860);assert.equal(s.gems,1290);assert.equal(s.pity,59);assert.deepEqual(s.battle,battle);assert.deepEqual(s.units,units);
+  for(const record of [null,'OSIA_DEBUT',{},[null],['osia_debut'],['OSIA_DEBUT','OSIA_DEBUT']]){const invalid=G.clone(s);invalid.redeemedCodes=record;assert.equal(G.validate(invalid),false);}
+});
 test('Each of thirteen heroes performs their automatic skill; damage and healing stay bounded',()=>{
   for(const hero of G.HEROES){
     const s=G.create(1000,21);s.units[hero.id]={level:1,xp:0,stars:0,shards:0};s.team=[hero.id,...['taeo','harin','sua'].filter(id=>id!==hero.id)].slice(0,3);

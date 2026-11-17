@@ -9,10 +9,10 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%233c6555' d='M4 2h24v20l-12 8L4 22z'/%3E%3Cpath fill='%23f5deb0' d='M14 6h4v14h5v4H9v-4h5z'/%3E%3C/svg%3E">
   <link rel="preload" href="assets/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="school/assets/osia-sprites.png?v=osia1" as="image">
-  <link rel="stylesheet" href="school/style.css?v=school-hd1">
-  <script defer src="school/engine.js?v=school-hd1"></script>
-  <script defer src="school/art.js?v=school-hd1"></script>
-  <script defer src="school/client.js?v=school-hd1"></script>
+  <link rel="stylesheet" href="school/style.css?v=school-code1">
+  <script defer src="school/engine.js?v=school-code1"></script>
+  <script defer src="school/art.js?v=school-code1"></script>
+  <script defer src="school/client.js?v=school-code1"></script>
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -72,6 +72,13 @@
         <div class="section-heading"><div><h2>보급</h2></div><svg class="heading-icon"><use href="#i-bag"/></svg></div>
         <div class="supply-card offline-card"><span class="eyebrow">최대 8시간 자동 적립</span><h3>방치 보상</h3><p id="offline-detail">쌓인 보상이 아직 없어요.</p><button class="primary full" id="claim-offline">보상 받기</button><small id="offline-rate"></small></div>
         <div class="daily-card"><div><b>매일 찾아오는 선물</b><small>골드 250 · 보석 150</small></div><button class="secondary" id="claim-daily">받기</button></div>
+        <section class="coupon-panel" aria-labelledby="coupon-title">
+          <div class="coupon-heading"><label id="coupon-title" for="coupon-code">CODE</label><small id="coupon-note">코드당 1회 · 11월 20일까지</small></div>
+          <form id="coupon-form">
+            <div class="coupon-controls"><input id="coupon-code" name="code" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Enter code" aria-describedby="coupon-note coupon-message"><button class="primary" id="redeem-code" type="submit">보상 받기</button></div>
+            <p id="coupon-message" role="status" aria-live="polite"></p>
+          </form>
+        </section>
         <div class="subheading"><h3>모험 수첩</h3><span>작은 목표, 든든한 보상</span></div><div class="quest-list" id="quests"></div>
       </article>
     </section>
