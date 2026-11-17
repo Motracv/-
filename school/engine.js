@@ -4,8 +4,16 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 30, MAX_LEVEL = 60, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 2;
+  const MAX_STAGE = 30, MAX_LEVEL = 60, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 3;
   const RECRUIT_RATES = { SSR: .04, SR: .26, R: .70 };
+  const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
+  function recruitRates(misses) {
+    const next = misses + 1;
+    if (next >= RECRUIT_PITY.hard) return { SSR: 1, SR: 0, R: 0 };
+    const ssrPercent = RECRUIT_RATES.SSR * 100 + Math.max(0, next - RECRUIT_PITY.soft + 1) * RECRUIT_PITY.stepPercent;
+    // Soft pity takes its extra probability from R, keeping SR at 26%.
+    return { SSR: ssrPercent / 100, SR: RECRUIT_RATES.SR, R: (100 - ssrPercent - RECRUIT_RATES.SR * 100) / 100 };
+  }
   const HEROES = [
     { id: "harin", name: "하린", club: "검도부", role: "전사", rarity: "R", hp: 102, atk: 12, skill: "일섬", cooldown: 5, color: "#d97852", hair: "#553a31", outfit: "#536c76", weapon: "sword", desc: "한 명에게 공격력 300%의 검격." },
     { id: "taeo", name: "태오", club: "체육부", role: "수호", rarity: "R", hp: 158, atk: 8, skill: "굳건한 수비", cooldown: 5, color: "#568b79", hair: "#343b3e", outfit: "#416d62", weapon: "shield", desc: "최대 체력 25%의 보호막. 받는 피해 28% 감소." },
@@ -95,7 +103,7 @@
       s.units && Object.keys(s.units).every(id => BY_ID[id] && Number.isInteger(s.units[id].level) && s.units[id].level >= 1 && s.units[id].level <= MAX_LEVEL && Number.isFinite(s.units[id].xp) && Number.isInteger(s.units[id].stars) && s.units[id].stars >= 0 && s.units[id].stars <= 5 && Number.isFinite(s.units[id].shards)) &&
       Array.isArray(s.team) && s.team.length === 3 && new Set(s.team).size === 3 && s.team.every(id => s.units[id]) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
-      Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < 40 &&
+      Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
       s.battle && Array.isArray(s.battle.heroes) && Array.isArray(s.battle.enemies) && s.battle.heroes.every(h => BY_ID[h.id] && Number.isFinite(h.hp)) &&
       Array.isArray(s.events) && Array.isArray(s.logs) && Array.isArray(s.claimed) && Array.isArray(s.receipts) && Array.isArray(s.history) &&
       s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) && s.captain && Number.isInteger(s.captain.level));
@@ -186,8 +194,8 @@
     const cost = count === 10 ? 900 : 100; fail(s.gems >= cost, "보석이 부족합니다.");
     const results = []; let premium = false;
     for (let i = 0; i < count; i++) {
-      const roll = rng(); let rarity = roll < RECRUIT_RATES.SSR ? "SSR" : roll < RECRUIT_RATES.SSR + RECRUIT_RATES.SR ? "SR" : "R";
-      const pity = s.pity >= 39;
+      const odds = recruitRates(s.pity), roll = rng(); let rarity = roll < odds.SSR ? "SSR" : roll < odds.SSR + odds.SR ? "SR" : "R";
+      const pity = s.pity >= RECRUIT_PITY.hard - 1;
       if (pity) rarity = "SSR";
       if (count === 10 && i === 9 && !premium && rarity === "R") rarity = "SR";
       if (rarity !== "R") premium = true;
@@ -195,7 +203,7 @@
       const candidates = HEROES.filter(h => h.rarity === rarity), h = candidates[Math.min(candidates.length - 1, Math.floor(rng() * candidates.length))];
       const fresh = !s.units[h.id], shards = rarity === "SSR" ? 20 : rarity === "SR" ? 10 : 5;
       if (fresh) s.units[h.id] = { level: 1, xp: 0, stars: 0, shards: 0 }; else s.units[h.id].shards += shards;
-      results.push({ id: h.id, fresh, shards: fresh ? 0 : shards, pity });
+      results.push({ id: h.id, fresh, shards: fresh ? 0 : shards, pity, ssrChance: odds.SSR });
     }
     s.gems -= cost; s.pulls += count; s.history = results.concat(s.history).slice(0, 30);
     event(s, "recruit", { count, ssr: results.some(r => BY_ID[r.id].rarity === "SSR") });
@@ -245,5 +253,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, OFFLINE_CAP, CATALOG_VERSION, RECRUIT_RATES, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, clone, view };
+  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, OFFLINE_CAP, CATALOG_VERSION, RECRUIT_RATES, RECRUIT_PITY, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, clone, view };
 });

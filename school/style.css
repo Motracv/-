@@ -10,6 +10,7 @@
 /* Explicit rows keep the hidden connection notice from shifting the main/nav tracks. */
 .topbar{grid-row:1}.resources{grid-row:2}.connection{grid-row:3}.workspace{grid-row:4}.bottom-nav{grid-row:5}
 .party-hp{display:block;overflow:hidden}
+.pity-track{margin-bottom:8px}.pity-chance{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:9px;color:#8b917b;margin-bottom:25px}.pity-chance b{color:#387f8e;font-size:10px;font-weight:600}
 #battle-stage{font:inherit;padding:0;text-align:left}.map-arrow{color:#98a584;font-family:var(--body);font-size:12px;margin-left:3px}
 .osia-banner{display:block;width:100%;padding:0;border-color:#9fbec4;background-image:linear-gradient(180deg,#dfefeb,#bcdbdf 70%,#77b9c7 70%,#a2d4d9 75%,#dcebea 75%)}
 .osia-banner .banner-copy{background:none;display:flex;flex-direction:column;align-items:center;gap:5px;padding:0 0 14px;line-height:1.4}.osia-banner .banner-copy strong{color:#356c7a;font-size:21px;margin:0}.osia-banner .banner-copy small,.osia-banner .banner-copy>span,.osia-banner .recruit-tag{color:#6e8e8f}

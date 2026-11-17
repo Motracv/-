@@ -14,7 +14,7 @@ export function createSchool() {
       requireSchool(signed, "계정으로 로그인하세요.", 401);
       // Older bundles cannot render newly recruited heroes. Reject before any
       // write or charge, so a refresh can safely resume the same saved request.
-      requireSchool(data.catalogVersion === game.CATALOG_VERSION, "새 용병이 추가되었습니다. 게임 페이지를 새로고침해 주세요.", 426);
+      requireSchool(data.catalogVersion === game.CATALOG_VERSION, "게임이 업데이트되었습니다. 페이지를 새로고침해 주세요.", 426);
       const action = path === "/api/school/action";
       if (action) {
         requireSchool(Number.isInteger(data.revision) && data.revision >= 0, "진행 상황을 다시 불러오세요.", 409);

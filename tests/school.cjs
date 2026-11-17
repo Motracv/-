@@ -19,12 +19,31 @@ test('Exactly 90 seconds simulate battle; longer absences bank rewards; backward
   assert.equal(a.offline.seconds, 0); assert.equal(b.offline.seconds, 91);
   const old = G.clone(b); G.advance(b, 0); assert.deepEqual(b, old);
 });
-test('SSR pity triggers on the fortieth miss and resets; 10 pulls guarantee SR+', () => {
-  const s = G.create(1000); s.gems = 5000; for (let i = 0; i < 39; i++) G.action(s, {kind:'recruit',count:1}, 1000, () => .9);
-  assert.equal(s.pity, 39); const result = G.action(s, {kind:'recruit',count:1},1000, () => .9);
+test('SSR pity triggers on the eightieth draw and resets; 10 pulls guarantee SR+', () => {
+  const s = G.create(1000); s.gems = 10000; for (let i = 0; i < 79; i++) G.action(s, {kind:'recruit',count:1}, 1000, () => .9);
+  assert.equal(s.pity, 79); const result = G.action(s, {kind:'recruit',count:1},1000, () => .9);
   assert.equal(G.BY_ID[result.results[0].id].rarity, 'SSR'); assert.equal(s.pity, 0);
   const t = G.create(1000), ten = G.action(t, {kind:'recruit',count:10},1000, () => .9);
   assert.equal(ten.results.length, 10); assert.equal(t.gems, 900); assert.equal(ten.results.filter(r => G.BY_ID[r.id].rarity !== 'R').length, 1);
+});
+test('Soft pity starts exactly at draw 60, rises one percentage point, and caps at an SSR on 80',()=>{
+  for(const [misses,expected] of [[0,.04],[39,.04],[58,.04],[59,.05],[60,.06],[69,.15],[78,.24],[79,1]]){
+    const rates=G.recruitRates(misses);assert.equal(rates.SSR,expected);assert.ok(Math.abs(rates.SSR+rates.SR+rates.R-1)<1e-12);
+    if(misses<79)assert.equal(rates.SR,.26);else assert.deepEqual(rates,{SSR:1,SR:0,R:0});
+  }
+  const s=G.create(1000);s.pity=39;G.action(s,{kind:'recruit',count:1},1000,()=>.99);assert.equal(s.pity,40);assert.ok(G.validate(s));
+  for(const [misses,roll,grade] of [[58,.045,'SR'],[59,.045,'SSR'],[59,.05,'SR'],[78,.23999,'SSR'],[78,.24,'SR'],[79,.99999,'SSR']]){
+    const a=G.create(1000);a.pity=misses;let n=0;const r=G.action(a,{kind:'recruit',count:1},1000,()=>++n%2?roll:.99);
+    assert.equal(G.BY_ID[r.results[0].id].rarity,grade);assert.equal(r.results[0].ssrChance,G.recruitRates(misses).SSR);
+  }
+});
+test('Ten-pulls update soft pity per slot, reset immediately on SSR, and preserve guarantees',()=>{
+  const s=G.create(1000);s.pity=58;const r=G.action(s,{kind:'recruit',count:10},1000,()=>.99);
+  assert.deepEqual(r.results.map(x=>x.ssrChance),[.04,.05,.06,.07,.08,.09,.10,.11,.12,.13]);assert.equal(s.pity,68);assert.ok(r.results.some(x=>G.BY_ID[x.id].rarity==='SR'));
+  const hard=G.create(1000);hard.pity=78;const h=G.action(hard,{kind:'recruit',count:10},1000,()=>.99);
+  assert.equal(h.results[0].ssrChance,.24);assert.equal(h.results[1].pity,true);assert.equal(h.results[1].ssrChance,1);assert.equal(h.results[2].ssrChance,.04);assert.equal(hard.pity,8);
+  const reset=G.create(1000);reset.pity=59;let i=0;const q=G.action(reset,{kind:'recruit',count:10},1000,()=>++i%2?.049:.99);
+  assert.equal(G.BY_ID[q.results[0].id].rarity,'SSR');assert.equal(q.results[0].ssrChance,.05);assert.ok(q.results.slice(1).every(x=>x.ssrChance===.04&&G.BY_ID[x.id].rarity==='SR'));assert.equal(reset.pity,9);
 });
 test('Boundary rolls use the documented 4/26/70 probabilities and every hero is obtainable', () => {
   const obtained = new Set();
@@ -65,7 +84,7 @@ test('Osia is a permanent SSR, can be drawn by natural roll or pity, and duplica
   const first=G.action(s,{kind:'recruit',count:1},1000,roll);assert.equal(first.results[0].id,'osia');assert.equal(first.results[0].fresh,true);
   const second=G.action(s,{kind:'recruit',count:1},1000,roll);assert.equal(second.results[0].id,'osia');assert.equal(second.results[0].shards,20);
   G.action(s,{kind:'awaken',hero:'osia'});assert.equal(s.units.osia.stars,1);assert.equal(s.units.osia.shards,10);
-  s.pity=39;const forced=G.action(s,{kind:'recruit',count:1},1000,()=>.99);assert.equal(forced.results[0].id,'osia');assert.equal(forced.results[0].pity,true);assert.equal(s.pity,0);
+  s.pity=79;const forced=G.action(s,{kind:'recruit',count:1},1000,()=>.99);assert.equal(forced.results[0].id,'osia');assert.equal(forced.results[0].pity,true);assert.equal(s.pity,0);
   G.action(s,{kind:'team',team:['taeo','osia','sua']});G.action(s,{kind:'train',hero:'osia'});assert.equal(s.units.osia.level,2);assert.ok(G.validate(G.clone(s)));
   assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,3);assert.equal(G.RECRUIT_RATES.SSR,.04);
 });

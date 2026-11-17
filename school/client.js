@@ -2,7 +2,7 @@
   'use strict';
   const G = window.SchoolRPG, Art = window.SchoolArt, $ = id => document.getElementById(id);
   const BASE = 'https://motracv-card-room.densedormouse4.chatgpt.site';
-  const SAVE = 'school-mercenaries-v2', LEGACY_SAVE = 'school-mercenaries-v1', MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
+  const SAVE = 'school-mercenaries-v3', LEGACY_SAVES = ['school-mercenaries-v2', 'school-mercenaries-v1'], MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
   const esc = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = n => Math.floor(n).toLocaleString('ko-KR');
   const duration = seconds => seconds >= 3600 ? `${Math.floor(seconds / 3600)}시간 ${Math.floor(seconds % 3600 / 60)}분` : `${Math.floor(seconds / 60)}분`;
@@ -33,8 +33,8 @@
   function refreshSound() { $('sound-button').classList.toggle('muted', !sound); $('sound-button').setAttribute('aria-label', `효과음 ${sound ? '끄기' : '켜기'}`); $('sound-button').setAttribute('aria-pressed', String(sound)); }
   function freshGuest() { return G.create(Date.now(), crypto.getRandomValues(new Uint32Array(1))[0]); }
   function readGuest() {
-    // Copy the old save on first use; an open v1 tab cannot overwrite Osia.
-    const raw = storage.get(SAVE) || storage.get(LEGACY_SAVE);
+    // Keep old tabs with a shorter pity cap from overwriting the updated save.
+    const raw = storage.get(SAVE) || LEGACY_SAVES.map(key => storage.get(key)).find(Boolean);
     if (!raw) return freshGuest();
     try { const saved = JSON.parse(raw); if (G.validate(saved)) return saved; } catch {}
     storage.set(SAVE + '-recovery', raw);
@@ -158,7 +158,11 @@
       renderKey = key;
       if (tab === 'adventure') renderChapters();
       if (tab === 'roster') renderRoster();
-      if (tab === 'recruit') { $('pity-left').textContent = 40 - state.pity; $('pity-count').textContent = `${state.pity} / 40`; $('pity-bar').style.width = `${state.pity / 40 * 100}%`; }
+      if (tab === 'recruit') {
+        $('pity-left').textContent = G.RECRUIT_PITY.hard - state.pity; $('pity-count').textContent = `${state.pity} / ${G.RECRUIT_PITY.hard}`; $('pity-bar').style.width = `${state.pity / G.RECRUIT_PITY.hard * 100}%`;
+        $('next-ssr-chance').textContent = `다음 SSR ${Math.round(G.recruitRates(state.pity).SSR * 100)}%`;
+        $('pity-phase').textContent = state.pity >= G.RECRUIT_PITY.soft - 1 ? '확률 상승 적용 중' : '60회째부터 매회 +1%p';
+      }
       if (tab === 'supplies') renderSupplies();
     }
     $('recruit-dot').hidden = state.gems < 900;
@@ -221,12 +225,12 @@
     $('modal-content').querySelector('.result-grid').onclick = e => e.currentTarget.classList.add('skip');
   }
   function ratesModal() {
-    const rows = Object.entries(G.RECRUIT_RATES).map(([grade, chance]) => {
+    const rows = Object.entries(G.recruitRates(state.pity)).map(([grade, chance]) => {
       const count = G.HEROES.filter(h => h.rarity === grade).length, each = chance * 100 / count;
       const rounded = Math.round(each * 10000) / 10000;
-      return `<tr><td>${grade} · ${count}명</td><td>${chance * 100}%</td><td>${Math.abs(rounded - each) > 1e-9 ? '약 ' : ''}${rounded}%</td></tr>`;
+      return `<tr><td>${grade} · ${count}명</td><td>${Math.round(chance * 1000000) / 10000}%</td><td>${Math.abs(rounded - each) > 1e-9 ? '약 ' : ''}${rounded}%</td></tr>`;
     }).join('');
-    openModal('모집 확률 안내', `<div class="modal-copy"><p>무료 보석으로 모집합니다. <strong>1회 100개 / 10회 900개.</strong></p><table class="probability-table"><thead><tr><th>등급</th><th>기본 확률</th><th>해당 용병 1명당</th></tr></thead><tbody>${rows}</tbody></table><p>SSR 없이 39회 모집했다면 <strong>다음 1회는 SSR 확정</strong>입니다. SSR 획득 시 카운트는 0으로 초기화됩니다. 단일·10회 모집 모두 함께 계산합니다.</p><p>10회 모집의 앞 9명에 SR 이상이 없고 10번째가 R일 때, 그 결과를 <strong>SR로 올려 줍니다</strong>. SSR 천장을 먼저 적용합니다.</p><p>보장으로 바뀌는 결과는 위 기본 확률과 다릅니다. 각 등급 안에서는 같은 확률로 뽑습니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개. 같은 용병의 조각으로 최대 5성까지 각성할 수 있습니다.</p></div>`, 'rates');
+    openModal('모집 확률 안내', `<div class="modal-copy"><p>무료 보석으로 모집합니다. <strong>1회 100개 / 10회 900개.</strong></p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회 확률</th><th>해당 용병 1명당</th></tr></thead><tbody>${rows}</tbody></table><p>위 표는 현재 누적 ${state.pity}회를 반영한 <strong>다음 ${state.pity + 1}회째 확률</strong>입니다. 기본 확률은 SSR 4% · SR 26% · R 70%입니다.</p><p>SSR 미획득 기준 <strong>60회째 5%</strong>부터 매회 1%p씩 올라 61회째 6%, 79회째 24%가 됩니다. 증가한 확률은 R에서 차감하며 SR은 26%를 유지합니다.</p><p>SSR 없이 79회 모집했다면 <strong>80회째 SSR 확정</strong>입니다. SSR 획득 즉시 누적 횟수와 상승 확률이 초기화됩니다. 단일·10회 모집 모두 함께 계산하며, 10회 모집 안에서도 한 번씩 갱신합니다.</p><p>10회 모집의 앞 9명에 SR 이상이 없고 10번째가 R일 때, 그 결과를 <strong>SR로 올려 줍니다</strong>. SSR 천장을 먼저 적용합니다.</p><p>보장으로 바뀌는 결과는 위 기본 확률과 다릅니다. 각 등급 안에서는 같은 확률로 뽑습니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개. 같은 용병의 조각으로 최대 5성까지 각성할 수 있습니다.</p></div>`, 'rates');
   }
   function help() {
     openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>전투는 자동! 용병을 모으고 키워 6개 구역, 30개 지역을 탐험하세요.</p><ul><li>3명의 용병이 매초 싸우고 자동으로 스킬을 씁니다. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');

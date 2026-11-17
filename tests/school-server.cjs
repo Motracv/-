@@ -21,7 +21,7 @@ const G=require('../school/engine.js');
  });
  await test('Old browser catalogs are rejected before spending or exposing unfamiliar heroes',async()=>{
    const row=save(a);const old=await t.call('/api/school/action',action(row.revision,'outdated-browser-0001',{kind:'recruit',count:10}),null,{'X-Account-Session':a.token});assert.equal(old.status,426);assert.equal(save(a).payload,row.payload);assert.ok(!old.data.state);
-   assert.equal((await call(a,'state',{catalogVersion:1})).status,426);assert.equal(save(a).payload,row.payload);
+   for(const catalogVersion of [1,2])assert.equal((await call(a,'state',{catalogVersion})).status,426);assert.equal(save(a).payload,row.payload);
  });
  await test('Simultaneous same-ID requests and lost-response retries charge once',async()=>{
    const current=await call(a,'state');const input=action(current.data.revision,'same-action-0000000002',{kind:'recruit',count:10});
@@ -71,6 +71,20 @@ const G=require('../school/engine.js');
    r=await call(who,'action',action(r.data.revision,'server-osia-team-001',{kind:'team',team:['taeo','osia','sua']}));assert.equal(r.status,200);
    const again=(await t.login('school-Osia')).data;r=await call(again,'state');assert.equal(r.data.state.team[1],'osia');assert.equal(r.data.state.units.osia.level,1);
    r=await call(again,'action',action(r.data.revision,'server-osia-train-01',{kind:'train',hero:'osia'}));assert.equal(r.status,200);assert.equal(r.data.state.units.osia.level,2);
+ });
+ await test('Server owns the soft-pity count and applies 60th-draw odds, 80th guarantee and resets',async()=>{
+   const who=(await t.login('school-soft-pity')).data;await call(who,'state');
+   const setMisses=misses=>{const s=JSON.parse(save(who).payload);s.pity=misses;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),who.profile.id);};
+   setMisses(39);assert.equal((await call(who,'state')).data.state.pity,39);
+   const random=crypto.getRandomValues;
+   try{
+     setMisses(59);let n=0;crypto.getRandomValues=function(a){if(a instanceof Uint32Array&&a.length===1){a[0]=++n%2?193273528:4294967294;return a;}return random.call(crypto,a);};
+     let current=await call(who,'state');assert.equal(current.data.state.pity,59);
+     let r=await call(who,'action',{...action(current.data.revision,'soft-pity-server-001',{kind:'recruit',count:1}),pity:0,ssrChance:1});
+     assert.equal(r.status,200);assert.equal(r.data.result.results[0].ssrChance,.05);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.pity,0);
+     setMisses(79);crypto.getRandomValues=function(a){if(a instanceof Uint32Array&&a.length===1){a[0]=4294967294;return a;}return random.call(crypto,a);};
+     current=await call(who,'state');r=await call(who,'action',action(current.data.revision,'hard-pity-server-001',{kind:'recruit',count:1}));assert.equal(r.status,200);assert.equal(r.data.result.results[0].ssrChance,1);assert.equal(r.data.result.results[0].pity,true);assert.equal(r.data.state.pity,0);
+   }finally{crypto.getRandomValues=random;}
  });
  t.sqlite.close();console.log(`${passed} school server checks passed (SQLite + signed test Google credentials)`);
 })().catch(e=>{console.error(e);process.exitCode=1;});
