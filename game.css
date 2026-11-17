@@ -523,3 +523,6 @@ nav .primary { background: #b6ceff; color: #14284a; border-color: #d5e3ff; }
   .battle-message { flex-direction: row; flex-wrap: wrap; gap: 2px 7px; }
   .last-result { flex-basis: 100%; }
 }
+@media (min-height: 301px) and (max-height: 340px) and (orientation: landscape) {
+  .arena { padding: 4px 6px; }
+}
