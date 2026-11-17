@@ -2,21 +2,36 @@
 window.SchoolArt = (() => {
   const portraits = new Map(), frontPortraits = new Map(), osiaPoses = new Map(), lavaPoses = new Map(), lavaSources = new Map(), combatLabels = new Map(), S = SchoolRPG;
   let lavaPosePixels = 0, combatLabelPixels = 0;
-  const osiaImage = new Image(), lavaImage = new Image();
-  let osiaLoaded = false, lavaLoaded = false;
+  const osiaImage = new Image(), osiaFrontImage = new Image(), lavaImage = new Image();
+  const osiaFrontSources = new Map();
+  let osiaLoaded = false, osiaFrontLoaded = false, lavaLoaded = false;
   const osiaReady = new Promise(resolve => {
     const timer = setTimeout(() => resolve(false), 5000);
-    osiaImage.onload = () => { osiaLoaded = true; clearTimeout(timer); portraits.delete("osia"); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
+    osiaImage.onload = () => { osiaLoaded = true; clearTimeout(timer); portraits.delete("osia"); frontPortraits.delete("osia"); osiaPoses.clear(); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
     osiaImage.onerror = () => { clearTimeout(timer); resolve(false); };
+  });
+  const osiaFrontReady = new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), 5000);
+    osiaFrontImage.onload = () => { osiaFrontLoaded = true; clearTimeout(timer); frontPortraits.delete("osia"); osiaFrontSources.clear(); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
+    osiaFrontImage.onerror = () => { clearTimeout(timer); resolve(false); };
   });
   const lavaReady = new Promise(resolve => {
     const timer = setTimeout(() => resolve(false), 5000);
     lavaImage.onload = () => { lavaLoaded = true; clearTimeout(timer); portraits.delete("lava"); frontPortraits.delete("lava"); lavaPoses.clear(); lavaPosePixels = 0; resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
     lavaImage.onerror = () => { clearTimeout(timer); resolve(false); };
   });
-  const ready = Promise.all([osiaReady, lavaReady]).then(([osia, lava]) => osia && lava);
+  const lavaFanImage = new Image();
+  let lavaFanLoaded = false;
+  const lavaFanReady = new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), 5000);
+    lavaFanImage.onload = () => { lavaFanLoaded = true; clearTimeout(timer); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
+    lavaFanImage.onerror = () => { clearTimeout(timer); resolve(false); };
+  });
+  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady]).then(([osia, lava]) => osia && lava);
   osiaImage.src = "school/assets/osia-sprites.png?v=osia1";
+  osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-front1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
+  lavaFanImage.src = "school/assets/lava-fan-basic.webp?v=lava-fan1";
   function rect(c, color, x, y, w, h) { c.fillStyle = color; c.fillRect(Math.round(x), Math.round(y), w, h); }
   // Fine details use a half-pixel art grid. They are drawn directly into the
   // display-sized canvas, rather than enlarging a 480px raster afterwards.
@@ -166,6 +181,15 @@ window.SchoolArt = (() => {
     c.translate(4,11);c.rotate(-.95 + (casting?wave*.22:0));c.scale(.8,.8);fan(c,0,0,casting||passive||frame.attackAge!=null||front);c.restore();
     if(passive){c.save();c.globalAlpha=.5*wave;c.strokeStyle="#d7f3d6";c.lineWidth=.6;c.beginPath();c.ellipse(0,-15,16,23,0,-1,4.5);c.stroke();c.restore();}
   }
+  // All approved key poses keep their original time proportions, fitted into
+  // one basic-attack simulation second. No queue or gameplay state is needed.
+  const LAVA_FAN_SEQUENCE = [0,0,1,2,3,4,5,6,7,8,9,0];
+  const LAVA_FAN_ENDS = [100,200,300,400,480,550,640,770,920,1080,1240,1400];
+  function lavaFanPose(age) {
+    const elapsed = age * 1400;
+    for (let i = 0; i < LAVA_FAN_ENDS.length; i++) if (elapsed < LAVA_FAN_ENDS[i]) return LAVA_FAN_SEQUENCE[i];
+    return 0;
+  }
   function lava(c, x, y, scale, frame) {
     c.save();c.translate(Math.round(x),Math.round(y));c.scale(scale*(frame.flip?-1:1),scale);
     if(frame.dead){c.globalAlpha=.4;c.rotate(-Math.PI/2);}
@@ -173,56 +197,58 @@ window.SchoolArt = (() => {
     if(frame.motion)c.transform(1,0,frame.motion.lean,frame.motion.stretch,0,0);
     const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d));
     const resolution=density>4?6:density>2?4:2;
-    const kind=frame.casting?"skill":frame.passive?"passive":frame.attackAge!=null?"attack":"idle";
+    const poseReduced=!!frame.reduced||!!frame.motion?.reduced;
+    const basicAge=Number.isFinite(frame.basicAttackAt)&&Number.isFinite(frame.time)?frame.time-frame.basicAttackAt:frame.attackAge;
+    const fanAttack=lavaFanLoaded&&!poseReduced&&!frame.dead&&!frame.casting&&!frame.passive&&basicAge>=0&&basicAge<1;
+    const kind=fanAttack?"fan":frame.casting?"skill":frame.passive?"passive":frame.attackAge!=null?"attack":"idle";
     const duration=kind==="skill"?1.8:kind==="passive"?1.45:.85,steps=kind==="skill"?18:kind==="idle"?8:12;
     const rawAge=frame.motion?.age??frame.attackAge??0;
     // Limb poses are a fixed tiny atlas. Position/lean still interpolate each
     // rendered frame, but identical pixel poses do not submit 70+ draw calls.
-    const poseReduced=!!frame.reduced||!!frame.motion?.reduced;
-    const step=poseReduced?0:kind==="idle"?Math.floor(((frame.time||0)%(Math.PI*2/1.8))/(Math.PI*2/1.8)*steps):Math.min(steps,Math.max(0,Math.floor(rawAge/duration*steps)));
-    const key=`${resolution}:${kind}:${step}:${+!!frame.blink}:${+poseReduced}`;
+    const step=fanAttack?lavaFanPose(basicAge):poseReduced?0:kind==="idle"?Math.floor(((frame.time||0)%(Math.PI*2/1.8))/(Math.PI*2/1.8)*steps):Math.min(steps,Math.max(0,Math.floor(rawAge/duration*steps)));
+    const key=fanAttack?`${resolution}:fan:${step}`:`${resolution}:${kind}:${step}:${+!!frame.blink}:${+poseReduced}`;
+    const width=fanAttack?48:72,height=fanAttack?54:64,anchorX=fanAttack?24:32,anchorY=fanAttack?48:52;
     let sprite=lavaPoses.get(key);
     if(!sprite){
-      sprite=document.createElement("canvas");sprite.width=72*resolution;sprite.height=64*resolution;
-      const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.scale(resolution,resolution);sc.translate(32,52);
+      sprite=document.createElement("canvas");sprite.width=width*resolution;sprite.height=height*resolution;
+      const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.scale(resolution,resolution);sc.translate(anchorX,anchorY);
       const age=step/steps*duration,poseTime=kind==="idle"?step/steps*Math.PI*2/1.8:age;
-      lavaFigure(sc,poseTime,{...frame,motion:frame.motion?{...frame.motion,age}:undefined,attackAge:kind==="idle"?undefined:age},false);
+      if(fanAttack){
+        // The original neutral body's 290 source pixels map to 44 logical
+        // pixels. Align the planted shoe, not the changing fan/body bounds.
+        const unit=44/290;
+        sc.drawImage(lavaFanImage,(step%5)*288,Math.floor(step/5)*320,288,320,6.65-190*unit,3-308*unit,288*unit,320*unit);
+      }else lavaFigure(sc,poseTime,{...frame,motion:frame.motion?{...frame.motion,age}:undefined,attackAge:kind==="idle"?undefined:age},false);
       while(lavaPoses.size&&lavaPosePixels+sprite.width*sprite.height>3*1024*1024){const oldest=lavaPoses.keys().next().value,old=lavaPoses.get(oldest);lavaPosePixels-=old.width*old.height;lavaPoses.delete(oldest);}
       lavaPoses.set(key,sprite);lavaPosePixels+=sprite.width*sprite.height;
     }else{lavaPoses.delete(key);lavaPoses.set(key,sprite);}
-    c.drawImage(sprite,-32,-52,72,64);
+    c.drawImage(sprite,-anchorX,-anchorY,width,height);
     c.restore();
   }
   function osiaFigure(c, time = 0, frame = {}) {
-    const reduced=frame.reduced, phase=clamp01(frame.charge||0), breath=reduced?0:Math.sin(time*1.6)*.4;
-    const gather=Math.sin(clamp01(phase/.6)*Math.PI/2), release=clamp01((phase-.48)/.52);
-    // Boots and white stockings, black pleated skirt, cropped Osia shirt.
-    rect(c,"#f3eee6",-7,-11,5,14);rect(c,"#f3eee6",2,-11,5,14);
-    rect(c,"#79533f",-8,-2,7,9);rect(c,"#79533f",2,-2,7,9);detail(c,"#bd9167",-7,-1,2,6);detail(c,"#bd9167",3,-1,2,6);
-    rect(c,"#23344b",-11,-25,22,17);rect(c,"#343f55",-10,-24,20,15);rect(c,"#4b5468",-7,-23,3,13);rect(c,"#202d42",2,-23,3,14);
-    rect(c,"#f1f0dd",-10,-12,20,1);rect(c,"#f1f0dd",-10,-9,20,1);
-    rect(c,"#f0c8aa",-6,-28,12,5);rect(c,"#25374b",-9,-41,18,14);rect(c,"#f7f3df",-8,-40,16,13);
-    rect(c,"#dfdfd0",5,-38,3,9);detail(c,"#ffffff",-6,-39,5,1);
-    // Necklace and small 'O' mark remain legible at the sprite scale.
-    detail(c,"#66af9c",-3,-39,1,5);detail(c,"#66af9c",3,-39,1,5);rect(c,"#3c9c8a",-1,-35,3,3);
-    rect(c,"#273846",-3,-31,5,1);rect(c,"#273846",-3,-30,1,2);rect(c,"#273846",1,-30,1,2);rect(c,"#273846",-3,-28,5,1);
-    // Independently pivoting arms: water gathers between hands, then the
-    // leading hand extends toward the dragon instead of zooming a static PNG.
-    for(const side of[-1,1]){c.save();c.translate(side*8,-38);
-      c.rotate(side*(.16+gather*.72-release*(side===1?1.5:.3)));
-      rect(c,"#25374b",side===1?-1:-5,-1,6,7);rect(c,"#f6f2df",side===1?0:-4,0,4,5);
-      rect(c,"#edc3a3",side===1?0:-4,5,4,11);detail(c,"#ffdec0",side===1?0:-4,6,1,7);c.restore();}
-    c.save();c.translate(0,breath);
-    rect(c,"#243f66",-12,-60,24,23);rect(c,"#4c74a8",-11,-59,22,21);rect(c,"#f1c9ab",-7,-55,14,15);
-    rect(c,"#7097c6",-11,-61,22,8);rect(c,"#a0bfdc",-7,-62,12,3);
-    rect(c,"#5882b4",-12,-53,5,15);rect(c,"#5278aa",8,-53,4,15);
-    rect(c,"#85a9d1",-5,-57,7,8);rect(c,"#678ebe",-1,-54,5,6);
-    detail(c,"#bfd6e7",-7,-60,8,1);detail(c,"#345887",-12,-48,2,9);
-    // Symmetrical amber gill fins identify the fish dragon king.
-    for(const side of[-1,1]){rect(c,"#aa775b",side<0?-17:11,-58,6,9);rect(c,"#e8af76",side<0?-16:12,-57,4,7);rect(c,"#f4c998",side<0?-17:14,-60,3,6);detail(c,"#815c53",side<0?-15:12,-56,3,1);}
-    const blink=frame.blink;rect(c,"#263956",-5,-48,3,blink?1:3);rect(c,"#263956",3,-48,3,blink?1:3);
-    if(!blink){detail(c,"#b8d6e7",-4,-48,1,1);detail(c,"#b8d6e7",4,-48,1,1);}
-    detail(c,"#d99289",-6,-44,3,.5);detail(c,"#d99289",5,-44,2,.5);detail(c,"#ab746e",-1,-41,3,.5);c.restore();
+    const reduced = !!frame.reduced, breath = reduced ? 0 : Math.sin(time * 1.6) * .4;
+    if (frame.charge !== undefined) {
+      // The dragon cut-in uses the actual right-facing combat art: gather,
+      // then release. Never replace Osia's face/clothes with a block figure.
+      const phase = clamp01(frame.charge), pose = reduced ? 1 : phase < .18 ? 0 : phase < .64 ? 1 : 2;
+      osia(c, reduced ? 0 : Math.sin(phase * Math.PI) * 1.5, breath, 1.6, {pose,reduced});
+      return;
+    }
+    if (osiaFrontLoaded) {
+      const transform = c.getTransform(), density = Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d));
+      const resolution = density > 4 ? 6 : density > 2 ? 4 : 2, height = 66, width = height * osiaFrontImage.naturalWidth / osiaFrontImage.naturalHeight;
+      let source = osiaFrontSources.get(resolution);
+      if (!source) {
+        source = document.createElement('canvas'); source.width = Math.ceil(width*resolution); source.height = height*resolution;
+        const sc = source.getContext('2d'); sc.imageSmoothingEnabled = false;
+        sc.drawImage(osiaFrontImage,0,0,source.width,source.height); osiaFrontSources.set(resolution,source);
+      }
+      // A small whole-pose breath preserves the restored front-view artwork.
+      c.drawImage(source,-width/2,-62+breath,width,height);
+    } else {
+      // Keep the detailed original visible if the new portrait is slow/offline.
+      osia(c,0,breath,1.6,{pose:0,reduced});
+    }
   }
   function recruitPortrait(c,id,time=0,reduced=false){
     const w=c.canvas.width,h=c.canvas.height;c.save();c.clearRect(0,0,w,h);c.imageSmoothingEnabled=false;
@@ -776,7 +802,7 @@ window.SchoolArt = (() => {
   // Rebuild their pixels lazily; decoded source images and portrait URLs stay.
   function resetRenderCache() {
     backgrounds = new WeakMap();
-    osiaPoses.clear(); lavaPoses.clear(); lavaSources.clear(); sprites.clear(); combatLabels.clear();
+    osiaPoses.clear(); osiaFrontSources.clear(); lavaPoses.clear(); lavaSources.clear(); sprites.clear(); combatLabels.clear();
     lavaPosePixels = spritePixels = combatLabelPixels = 0;
     dragon = null;
   }
@@ -969,7 +995,7 @@ window.SchoolArt = (() => {
     rect(c, "#123a55f5", -50, 62, 580, 141); rect(c, "#1a5671", 0, 69, 480, 126);
     for (let i = 0; i < 15; i++) { const x = reduced ? i * 41 : (i * 41 + age * 230) % 550 - 50; rect(c, i % 2 ? "#75d8e741" : "#b6f6f12e", x, 78 + i * 8, 65 + i % 4 * 21, 2); }
     c.globalAlpha = .42; c.drawImage(dragonSprite(), 278, 69, 195, 135); c.globalAlpha = 1;
-    // This cut-in has its own articulated pose, not a crop of an idle sprite.
+    // Charge and release use the original illustrated poses and identity.
     const charge=reduced?.65:clamp01(age/duration);
     c.save();c.translate(80+(reduced?0:charge*10),234);c.scale(2.55,2.55);
     osiaFigure(c,age,{charge,reduced,blink:false});c.restore();
@@ -1145,7 +1171,8 @@ window.SchoolArt = (() => {
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
         time:sceneTime, reduced, passive:!!visual.passive,
-        attackAge:visual.passive ? time-visual.passive.time : visual.outgoing && !visual.outgoing.skill && time-visual.outgoing.time<.85 ? time-visual.outgoing.time : undefined });
+        basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
+        attackAge:visual.passive ? time-visual.passive.time : visual.outgoing && !visual.outgoing.skill && time-visual.outgoing.time<(item.id === "lava" ? 1 : .85) ? time-visual.outgoing.time : undefined });
       else {
         const impact = visual.incoming, strike = visual.outgoing;
         const life = lifecycle.enemies.get(item.id), deathAge = life.diedAt == null ? undefined : time-life.diedAt;
@@ -1229,5 +1256,5 @@ window.SchoolArt = (() => {
     }
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : osiaLoaded };
+  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : osiaLoaded };
 })();

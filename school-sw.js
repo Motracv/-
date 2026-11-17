@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-smoothfix1';
+const RELEASE = 'school-heroart1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -11,6 +11,7 @@ const required = [
   ...['engine.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css'].map(p => `school/${p}?v=${RELEASE}`),
   'assets/fonts/Galmuri11.woff2', 'assets/fonts/PretendardVariable.woff2',
   'school/assets/osia-sprites.png?v=osia1', 'school/assets/lava.png?v=lava1',
+  'school/assets/lava-fan-basic.webp?v=lava-fan1', 'school/assets/osia-front.webp?v=osia-front1',
   'school/assets/app-192.png', 'school/assets/app-512.png'
 ].map(url);
 const pictures = ['daily','weekly','tower'].map(id => url(`school/assets/dungeon-${id}.png?v=${RELEASE}`));

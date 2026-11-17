@@ -1,0 +1,76 @@
+{
+  "source": "Approved lava-fan-study prototype; original frame pixels cropped and foot-aligned without redrawing.",
+  "sourceFrames": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "cellSize": [
+    288,
+    320
+  ],
+  "columns": 5,
+  "rows": 2,
+  "anchor": [
+    190,
+    308
+  ],
+  "originalDurationMs": 1400,
+  "playbackDurationSimulationMs": 1000,
+  "originalHoldsMs": [
+    100,
+    100,
+    100,
+    100,
+    80,
+    70,
+    90,
+    130,
+    150,
+    160,
+    160,
+    160
+  ],
+  "sequence": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    0
+  ],
+  "sourceSequence": [
+    2,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    2
+  ],
+  "logicalBodyHeight": 44,
+  "neutralBodyHeightSourcePixels": 290,
+  "logicalAnchor": [
+    6.65,
+    3
+  ],
+  "direction": "right"
+}
