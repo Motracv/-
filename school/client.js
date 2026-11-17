@@ -110,7 +110,7 @@
     refreshSound(); Presentation?.refreshPreferences();
   }
   function settingsModal() {
-    openModal('설정', `<div class="settings-list"><label class="setting-row" for="setting-theme"><span><b>다크 모드</b><small>눈이 편한 차분한 어두운 화면</small></span><input id="setting-theme" type="checkbox" role="switch" ${theme === 'dark' ? 'checked' : ''}></label><label class="setting-row" for="setting-sound"><span><b>효과음</b><small>전투·모집·성장 효과음</small></span><input id="setting-sound" type="checkbox" role="switch" ${sound ? 'checked' : ''}></label><label class="setting-row" for="setting-motion"><span><b>모션 줄이기</b><small>큰 움직임과 섬광을 간단하게</small></span><input id="setting-motion" type="checkbox" role="switch" ${reduced ? 'checked' : ''}></label></div><div class="settings-links"><button class="secondary" id="settings-help">${icon('book')} 게임 안내</button><button class="secondary" id="settings-rotate">${icon('rotate')} 가로 화면</button></div><div id="school-install-controls"></div><p class="settings-note">설정은 이 브라우저에 저장됩니다.</p>`, 'settings');
+    openModal('설정', `<div class="settings-list"><label class="setting-row" for="setting-theme"><span><b>다크 모드</b><small>눈이 편한 차분한 어두운 화면</small></span><input id="setting-theme" type="checkbox" role="switch" ${theme === 'dark' ? 'checked' : ''}></label><label class="setting-row" for="setting-sound"><span><b>효과음</b><small>전투·모집·성장 효과음</small></span><input id="setting-sound" type="checkbox" role="switch" ${sound ? 'checked' : ''}></label><label class="setting-row" for="setting-motion"><span><b>모션 줄이기</b><small>큰 움직임과 섬광을 간단하게</small></span><input id="setting-motion" type="checkbox" role="switch" ${reduced ? 'checked' : ''}></label></div><div class="settings-links"><button class="secondary" id="settings-help">${icon('book')} 게임 안내</button><button class="secondary" id="settings-rotate">${icon('fullscreen')} 전체 화면 · 상태바</button></div><div id="school-install-controls"></div><p class="settings-note">설정은 이 브라우저에 저장됩니다.</p>`, 'settings');
     window.SchoolInstall?.renderControls?.($('school-install-controls'));
     $('settings-help').onclick = help; $('settings-rotate').onclick = () => { closeModal(); attemptLandscape(); };
   }
@@ -123,14 +123,35 @@
     if (!portrait) $('board-viewport').scrollLeft = 0;
   }
   function dismissRotation() { storage.set('school-landscape-ack', '1', true); $('rotate-prompt').hidden = true; $('app').inert = false; }
+  function refreshFullscreen() {
+    const button = $('fullscreen-button'); if (!button) return;
+    const active = !!document.fullscreenElement;
+    button.setAttribute('aria-pressed', String(active));
+    button.setAttribute('aria-label', active ? '전체 화면 종료' : '전체 화면 · 상태바 숨기기');
+    button.title = active ? '전체 화면 종료' : '전체 화면 · 상태바 숨기기';
+  }
   async function attemptLandscape() {
     dismissRotation();
-    try {
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
-      if (screen.orientation?.lock) await screen.orientation.lock('landscape');
-    } catch { /* The horizontal board remains usable when rotation is unavailable. */ }
-    updateOrientation();
-    if (matchMedia('(orientation:portrait)').matches) toast('화면을 좌우로 밀거나 전장·용병 버튼을 눌러 이동하세요.');
+    let message = '';
+    if (!document.fullscreenElement) {
+      if (!document.documentElement.requestFullscreen) message = '이 브라우저는 전체 화면을 지원하지 않아요. Android에서는 Chrome으로 게임을 직접 열어주세요.';
+      else try {
+        // Must run from the user's tap. Ask the browser to hide Android's
+        // navigation UI as well as its toolbar; CSS cannot hide OS system bars.
+        await document.documentElement.requestFullscreen({navigationUI:'hide'});
+      } catch { message = '전체 화면 전환이 차단됐어요. Chrome에서 게임을 직접 열고 다시 눌러주세요.'; }
+    }
+    try { if (screen.orientation?.lock) await screen.orientation.lock('landscape'); }
+    catch { /* Rotation can be unavailable even after fullscreen succeeds. */ }
+    refreshFullscreen(); updateOrientation();
+    if (message) toast(message);
+    else if (matchMedia('(orientation:portrait)').matches) toast('휴대폰을 가로로 돌려주세요. 전체 화면에서도 직접 회전할 수 있어요.');
+  }
+  async function toggleFullscreen() {
+    if (!document.fullscreenElement) return attemptLandscape();
+    try { await document.exitFullscreen(); }
+    catch { toast('전체 화면을 종료하지 못했어요. 기기의 뒤로가기 또는 Esc를 눌러주세요.'); }
+    refreshFullscreen(); updateOrientation();
   }
   function boardJump(where) {
     const viewport = $('board-viewport');
@@ -545,7 +566,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-winter1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-fullscreen1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -761,7 +782,9 @@
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();
     if ($('winter-button')) $('winter-button').onclick = () => social?.openWinter();
-    if ($('fullscreen-button')) $('fullscreen-button').onclick = () => document.fullscreenElement ? document.exitFullscreen() : attemptLandscape();
+    if ($('fullscreen-button')) $('fullscreen-button').onclick = toggleFullscreen;
+    document.addEventListener('fullscreenchange', () => { refreshFullscreen(); updateOrientation(); });
+    refreshFullscreen();
     for (const name of ['pointerup','pointercancel','blur']) window.addEventListener(name, () => { if (trainingHold) trainClickUntil = performance.now()+700; stopTraining(); });
     document.addEventListener('pointermove', event => { if (!trainingHold) return; const rect = $('train-hero')?.getBoundingClientRect(); if (!rect || event.clientX<rect.left || event.clientX>rect.right || event.clientY<rect.top || event.clientY>rect.bottom) stopTraining(); });
     document.addEventListener('click', e => {
