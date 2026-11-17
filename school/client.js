@@ -2,7 +2,7 @@
   'use strict';
   const G = window.SchoolRPG, Art = window.SchoolArt, $ = id => document.getElementById(id);
   const BASE = 'https://motracv-card-room.densedormouse4.chatgpt.site';
-  const SAVE = 'school-mercenaries-v1', MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
+  const SAVE = 'school-mercenaries-v2', LEGACY_SAVE = 'school-mercenaries-v1', MODE = 'school-save-mode', SESSION = `card-account:${BASE}`, PENDING = 'school-pending-action';
   const esc = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = n => Math.floor(n).toLocaleString('ko-KR');
   const duration = seconds => seconds >= 3600 ? `${Math.floor(seconds / 3600)}시간 ${Math.floor(seconds % 3600 / 60)}분` : `${Math.floor(seconds / 60)}분`;
@@ -20,20 +20,21 @@
   function note(message, retry = false) {
     $('connection').hidden = !message;
     $('connection').textContent = message || '';
-    if (retry) { const b = document.createElement('button'); b.textContent = '다시 연결'; b.onclick = () => sync(true); $('connection').append(b); }
+    if (retry) { const b = document.createElement('button'); b.textContent = retry === 'reload' ? '새로고침' : '다시 연결'; b.onclick = () => retry === 'reload' ? location.reload() : sync(true); $('connection').append(b); }
   }
   function play(kind) {
     if (!sound) return;
     try {
       audio ||= new (window.AudioContext || window.webkitAudioContext)(); audio.resume().catch(() => {});
-      const frequencies = kind === 'rare' ? [440, 554, 659, 880] : kind === 'reward' ? [523, 659, 784] : kind === 'level' ? [392, 523, 659] : [440];
+      const frequencies = kind === 'water' ? [392, 587, 784, 1175] : kind === 'rare' ? [440, 554, 659, 880] : kind === 'reward' ? [523, 659, 784] : kind === 'level' ? [392, 523, 659] : [440];
       frequencies.forEach((hz, i) => { const osc = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime + i * .09; osc.type = 'triangle'; osc.frequency.value = hz; gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(.045, t + .01); gain.gain.exponentialRampToValueAtTime(.001, t + .18); osc.connect(gain); gain.connect(audio.destination); osc.start(t); osc.stop(t + .2); });
     } catch {}
   }
   function refreshSound() { $('sound-button').classList.toggle('muted', !sound); $('sound-button').setAttribute('aria-label', `효과음 ${sound ? '끄기' : '켜기'}`); $('sound-button').setAttribute('aria-pressed', String(sound)); }
   function freshGuest() { return G.create(Date.now(), crypto.getRandomValues(new Uint32Array(1))[0]); }
   function readGuest() {
-    const raw = storage.get(SAVE);
+    // Copy the old save on first use; an open v1 tab cannot overwrite Osia.
+    const raw = storage.get(SAVE) || storage.get(LEGACY_SAVE);
     if (!raw) return freshGuest();
     try { const saved = JSON.parse(raw); if (G.validate(saved)) return saved; } catch {}
     storage.set(SAVE + '-recovery', raw);
@@ -54,8 +55,9 @@
   }
   async function request(path, data, auth = 'school') {
     let response;
+    const payload = path.startsWith('/api/school/') ? { ...data, catalogVersion: G.CATALOG_VERSION } : data || {};
     try {
-      response = await fetch(BASE + path, { method: path.endsWith('/config') ? 'GET' : 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token ? auth === 'school' ? { 'X-Account-Session': token } : { Authorization: `Bearer ${token}` } : {}) }, ...(path.endsWith('/config') ? {} : { body: JSON.stringify(data || {}) }), signal: AbortSignal.timeout(14000) });
+      response = await fetch(BASE + path, { method: path.endsWith('/config') ? 'GET' : 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token ? auth === 'school' ? { 'X-Account-Session': token } : { Authorization: `Bearer ${token}` } : {}) }, ...(path.endsWith('/config') ? {} : { body: JSON.stringify(payload) }), signal: AbortSignal.timeout(14000) });
     } catch { throw Error('저장 서버에 연결하지 못했습니다. 연결 후 다시 시도하세요.'); }
     let body; try { body = await response.json(); } catch { throw Error('저장 서버의 응답을 읽지 못했습니다.'); }
     if (!response.ok && !body.conflict) throw Object.assign(Error(body.error || '요청을 처리하지 못했습니다.'), { status: response.status });
@@ -84,8 +86,8 @@
       lastSync = Date.now();
     } catch (error) {
       connected = false;
-      if (error.status && error.status < 500 && error.status !== 409) clearPending();
-      note(error.status === 401 ? '로그인이 만료되었습니다. 계정 메뉴에서 다시 연결하세요.' : '계정 저장 연결을 기다리고 있어요. 재화 사용은 연결 후 계속됩니다.', true);
+      if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
+      note(error.status === 426 ? error.message : error.status === 401 ? '로그인이 만료되었습니다. 계정 메뉴에서 다시 연결하세요.' : '계정 저장 연결을 기다리고 있어요. 재화 사용은 연결 후 계속됩니다.', error.status === 426 ? 'reload' : true);
       if (manual) toast(error.message);
     } finally { busy = false; renderButtons(); }
   }
@@ -102,8 +104,8 @@
       } else result = await guestUpdate(input);
       showResult(result);
     } catch (error) {
-      if (error.status && error.status < 500 && error.status !== 409) clearPending();
-      if (mode === 'cloud' && pending) { connected = false; note('요청 결과를 확인 중입니다. 같은 모집을 중복 결제하지 않도록 재연결하고 있어요.', true); }
+      if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
+      if (mode === 'cloud' && pending) { connected = false; note(error.status === 426 ? error.message : '요청 결과를 확인 중입니다. 같은 모집을 중복 결제하지 않도록 재연결하고 있어요.', error.status === 426 ? 'reload' : true); }
       toast(error.message);
     } finally { busy = false; renderButtons(); }
   }
@@ -125,6 +127,7 @@
       effects.push({ ...e, time: now });
       if (e.kind === 'clear') { toast(`${G.stageName(e.stage)} 클리어! 보석 +60`); play('reward'); }
       if (e.kind === 'captain') { toast(`단장 레벨 ${e.level}! 보석 +30`); play('level'); }
+      if (e.kind === 'skill' && e.from === 'osia') play('water');
     }
     effects = effects.filter(e => now - e.time < 2).slice(-70);
   }
@@ -182,7 +185,7 @@
     }).join('');
   }
   function renderRoster() {
-    $('roster-count').textContent = `${Object.keys(state.units).length} / 12`;
+    $('roster-count').textContent = `${Object.keys(state.units).length} / ${G.HEROES.length}`;
     const list = G.HEROES.filter(h => filter === 'all' || state.units[h.id]).sort((a, b) => Number(!!state.units[b.id]) - Number(!!state.units[a.id]) || ({SSR:3, SR:2, R:1}[b.rarity] - {SSR:3, SR:2, R:1}[a.rarity]));
     $('roster').innerHTML = list.map(h => { const u = state.units[h.id]; return `<button class="hero-card ${h.rarity} ${u ? '' : 'unowned'}" data-hero="${h.id}">${rarity(h.id)}${state.team.includes(h.id) ? '<span class="equipped">출전</span>' : ''}${portrait(h.id, 'portrait')}<b>${h.name}</b><small>${u ? `Lv.${u.level} · ` : ''}${h.role}</small><span class="stars">${u ? '★'.repeat(u.stars) + '☆'.repeat(5 - u.stars) : '미보유'}</span></button>`; }).join('');
   }
@@ -200,7 +203,7 @@
   function heroDetail(id) {
     const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
     const st = G.stats(id, u || {level:1, stars:0});
-    openModal('용병 정보', `<div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p></div></div><div class="hero-stat-grid"><div><small>레벨</small>${u ? u.level : 1}<small>/ 60</small></div><div><small>체력</small>${fmt(st.hp)}</div><div><small>공격력</small>${fmt(st.atk)}</div></div><div class="skill-box"><b>${h.skill} <span>· ${h.cooldown}초마다 자동 사용</span></b>${h.desc}</div>${u ? `<div class="detail-note">경험치 ${fmt(u.xp)} / ${G.needXp(u.level)} · 각성 ${u.stars} / 5성<br>각성마다 기본 능력치 +15% · 조각 ${u.shards}개 보유</div><div class="detail-actions"><button class="primary" id="train-hero">1레벨 훈련<small>${u.level >= 60 ? '최대 레벨' : `골드 ${fmt(G.trainingCost(u))}`}</small></button><button class="secondary" id="awaken-hero">각성하기<small>${u.stars >= 5 ? '최대 각성' : `조각 ${G.awakeningCost(u)}개`}</small></button></div><p class="detail-note">훈련·각성 능력치는 다음 전투부터 적용됩니다.</p><h3 class="stage-title">출전 위치 선택</h3><div class="slot-buttons">${state.team.map((member, i) => `<button data-slot="${i}" class="${member === id ? 'selected' : ''}">${portrait(member)}${i === 0 ? '전열' : i === 1 ? '중열' : '후열'} · ${G.BY_ID[member].name}</button>`).join('')}</div><p class="detail-note">전열은 적의 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 처음부터 시작합니다.</p>` : '<p class="detail-note">아직 만나지 못한 용병입니다. 모집에서 획득할 수 있어요.</p><button class="primary full" id="to-recruit">모집하러 가기 →</button>'}`, 'hero');
+    openModal('용병 정보', `<div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small>${u ? u.level : 1}<small>/ 60</small></div><div><small>체력</small>${fmt(st.hp)}</div><div><small>공격력</small>${fmt(st.atk)}</div></div><div class="skill-box"><b>${h.skill} <span>· ${h.cooldown}초마다 자동 사용</span></b>${h.desc}</div>${u ? `<div class="detail-note">경험치 ${fmt(u.xp)} / ${G.needXp(u.level)} · 각성 ${u.stars} / 5성<br>각성마다 기본 능력치 +15% · 조각 ${u.shards}개 보유</div><div class="detail-actions"><button class="primary" id="train-hero">1레벨 훈련<small>${u.level >= 60 ? '최대 레벨' : `골드 ${fmt(G.trainingCost(u))}`}</small></button><button class="secondary" id="awaken-hero">각성하기<small>${u.stars >= 5 ? '최대 각성' : `조각 ${G.awakeningCost(u)}개`}</small></button></div><p class="detail-note">훈련·각성 능력치는 다음 전투부터 적용됩니다.</p><h3 class="stage-title">출전 위치 선택</h3><div class="slot-buttons">${state.team.map((member, i) => `<button data-slot="${i}" class="${member === id ? 'selected' : ''}">${portrait(member)}${i === 0 ? '전열' : i === 1 ? '중열' : '후열'} · ${G.BY_ID[member].name}</button>`).join('')}</div><p class="detail-note">전열은 적의 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 처음부터 시작합니다.</p>` : '<p class="detail-note">아직 만나지 못한 용병입니다. 모집에서 획득할 수 있어요.</p><button class="primary full" id="to-recruit">모집하러 가기 →</button>'}`, 'hero');
     if (u) {
       $('train-hero').onclick = () => act({kind:'train', hero:id}); $('awaken-hero').onclick = () => act({kind:'awaken', hero:id});
       document.querySelectorAll('[data-slot]').forEach(b => { b.onclick = () => { const index = Number(b.dataset.slot), team = [...state.team], old = team.indexOf(id); if (old === index) { toast('이미 이 위치에 출전 중이에요.'); return; } if (old >= 0) team[old] = team[index]; team[index] = id; act({kind:'team', team}); }; });
@@ -218,7 +221,12 @@
     $('modal-content').querySelector('.result-grid').onclick = e => e.currentTarget.classList.add('skip');
   }
   function ratesModal() {
-    openModal('모집 확률 안내', `<div class="modal-copy"><p>무료 보석으로 모집합니다. <strong>1회 100개 / 10회 900개.</strong></p><table class="probability-table"><thead><tr><th>등급</th><th>기본 확률</th><th>해당 용병 1명당</th></tr></thead><tbody><tr><td>SSR · 2명</td><td>4%</td><td>2%</td></tr><tr><td>SR · 4명</td><td>26%</td><td>6.5%</td></tr><tr><td>R · 6명</td><td>70%</td><td>약 11.6667%</td></tr></tbody></table><p>SSR 없이 39회 모집했다면 <strong>다음 1회는 SSR 확정</strong>입니다. SSR 획득 시 카운트는 0으로 초기화됩니다. 단일·10회 모집 모두 함께 계산합니다.</p><p>10회 모집의 앞 9명에 SR 이상이 없고 10번째가 R일 때, 그 결과를 <strong>SR로 올려 줍니다</strong>. SSR 천장을 먼저 적용합니다.</p><p>보장으로 바뀌는 결과는 위 기본 확률과 다릅니다. 각 등급 안에서는 같은 확률로 뽑습니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개. 같은 용병의 조각으로 최대 5성까지 각성할 수 있습니다.</p></div>`, 'rates');
+    const rows = Object.entries(G.RECRUIT_RATES).map(([grade, chance]) => {
+      const count = G.HEROES.filter(h => h.rarity === grade).length, each = chance * 100 / count;
+      const rounded = Math.round(each * 10000) / 10000;
+      return `<tr><td>${grade} · ${count}명</td><td>${chance * 100}%</td><td>${Math.abs(rounded - each) > 1e-9 ? '약 ' : ''}${rounded}%</td></tr>`;
+    }).join('');
+    openModal('모집 확률 안내', `<div class="modal-copy"><p>무료 보석으로 모집합니다. <strong>1회 100개 / 10회 900개.</strong></p><table class="probability-table"><thead><tr><th>등급</th><th>기본 확률</th><th>해당 용병 1명당</th></tr></thead><tbody>${rows}</tbody></table><p>SSR 없이 39회 모집했다면 <strong>다음 1회는 SSR 확정</strong>입니다. SSR 획득 시 카운트는 0으로 초기화됩니다. 단일·10회 모집 모두 함께 계산합니다.</p><p>10회 모집의 앞 9명에 SR 이상이 없고 10번째가 R일 때, 그 결과를 <strong>SR로 올려 줍니다</strong>. SSR 천장을 먼저 적용합니다.</p><p>보장으로 바뀌는 결과는 위 기본 확률과 다릅니다. 각 등급 안에서는 같은 확률로 뽑습니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개. 같은 용병의 조각으로 최대 5성까지 각성할 수 있습니다.</p></div>`, 'rates');
   }
   function help() {
     openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>전투는 자동! 용병을 모으고 키워 6개 구역, 30개 지역을 탐험하세요.</p><ul><li>3명의 용병이 매초 싸우고 자동으로 스킬을 씁니다. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
@@ -295,6 +303,7 @@
     $('modal-close').onclick = closeModal; $('modal').addEventListener('cancel', () => { modalKind = ''; loginGeneration++; });
     $('modal').addEventListener('click', e => { const r = $('modal').getBoundingClientRect(); if (e.target === $('modal') && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) closeModal(); });
     $('stage-button').onclick = stageMap;
+    $('feature-osia-button').onclick = () => heroDetail('osia');
     $('battle-stage').onclick = stageMap;
     $('offline-strip').onclick = () => setTab('supplies'); $('claim-offline').onclick = () => act({kind:'offline'}); $('claim-daily').onclick = () => act({kind:'daily'});
     $('recruit-one').onclick = () => act({kind:'recruit', count:1}); $('recruit-ten').onclick = () => act({kind:'recruit', count:10}); $('rates-button').onclick = ratesModal;
@@ -302,11 +311,13 @@
     $('history-button').onclick = () => openModal('최근 모집 기록', state.history.length ? state.history.map(r => `<div class="history-row">${portrait(r.id)}${rarity(r.id)}<b>${G.BY_ID[r.id].name}</b><small>${r.fresh ? '첫 만남' : `조각 +${r.shards}`}</small></div>`).join('') : '<p class="modal-copy">아직 모집한 용병이 없어요.</p>', 'history');
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (mode === 'cloud') sync(true); else guestUpdate().catch(e => toast(e.message)); } });
     window.addEventListener('online', () => sync(true));
+    window.addEventListener('school-art-ready', () => { renderKey = partyKey = ''; $('feature-osia').src = Art.portrait('osia'); render(); if (modalKind === 'hero' && selectedHero === 'osia') heroDetail('osia'); });
     window.addEventListener('storage', e => { if (e.key === SAVE && mode === 'guest' && !busy) { state = readGuest(); consumeEvents(); render(); } });
   }
   async function boot() {
     state = readGuest(); G.advance(state, Date.now()); writeGuest(state); lastSeq = state.seq;
-    $('feature-ian').src = Art.portrait('ian'); $('feature-lumi').src = Art.portrait('lumi');
+    await Art.ready;
+    $('feature-osia').src = Art.portrait('osia'); $('recruit-count').textContent = `상시 모집 · 용병 ${G.HEROES.length}명`;
     bind(); refreshSound(); render();
     if (storage.get(MODE) === 'cloud') {
       if (token) await useCloud(); else note('계정 기록을 이어 하려면 계정 메뉴에서 Google로 로그인하세요. 지금은 게스트 화면입니다.');

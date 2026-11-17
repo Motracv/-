@@ -5,7 +5,7 @@ const G=require('../school/engine.js');
  const t=await fixture();let passed=0;
  const test=async(name,fn)=>{await fn();passed++;console.log('PASS',name);};
  const a=(await t.login('school-A')).data,b=(await t.login('school-B')).data;
- const call=(who,route,data={})=>t.call('/api/school/'+route,data,null,who?{'X-Account-Session':who.token}:{});
+ const call=(who,route,data={})=>t.call('/api/school/'+route,{catalogVersion:G.CATALOG_VERSION,...data},null,who?{'X-Account-Session':who.token}:{});
  const save=who=>t.sqlite.prepare('SELECT * FROM school_saves WHERE account_id=?').get(who.profile.id);
  const action=(revision,id,input)=>({revision,requestId:id,action:input});
  await test('Unauthenticated, room-token and forged sessions cannot read school saves',async()=>{
@@ -18,6 +18,10 @@ const G=require('../school/engine.js');
  await test('Client-supplied currency, time, account and draw results are ignored',async()=>{
    const ra=await call(a,'state',{gold:1e12,state:{gems:1e12},now:Date.now()+1e12,accountId:b.profile.id});assert.equal(ra.status,200);assert.equal(ra.data.state.gems,1800);assert.equal(ra.data.state.offline.seconds,0);
    const r=await call(a,'action',{...action(ra.data.revision,'server-owned-action-01',{kind:'recruit',count:1,gems:1e12,results:[{id:'lumi'}]}),accountId:b.profile.id});assert.equal(r.status,200);assert.equal(r.data.state.gems,1700);assert.equal(r.data.state.pulls,1);assert.equal(JSON.parse(save(b).payload).pulls,0);
+ });
+ await test('Old browser catalogs are rejected before spending or exposing unfamiliar heroes',async()=>{
+   const row=save(a);const old=await t.call('/api/school/action',action(row.revision,'outdated-browser-0001',{kind:'recruit',count:10}),null,{'X-Account-Session':a.token});assert.equal(old.status,426);assert.equal(save(a).payload,row.payload);assert.ok(!old.data.state);
+   assert.equal((await call(a,'state',{catalogVersion:1})).status,426);assert.equal(save(a).payload,row.payload);
  });
  await test('Simultaneous same-ID requests and lost-response retries charge once',async()=>{
    const current=await call(a,'state');const input=action(current.data.revision,'same-action-0000000002',{kind:'recruit',count:10});
@@ -57,6 +61,16 @@ const G=require('../school/engine.js');
  });
  await test('Real persisted payload remains valid after requests and excludes personal Google claims',async()=>{
    const payload=save(b).payload;assert.ok(G.validate(JSON.parse(payload)));assert.ok(!payload.includes('never-store@example.test'));assert.ok(!payload.includes(b.token));
+ });
+ await test('Osia acquired through the server pool persists, can join the party and level up after reconnect',async()=>{
+   const who=(await t.login('school-Osia')).data;const current=await call(who,'state');
+   const random=crypto.getRandomValues;let n=0;
+   crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=++n%2===1?42949672:4294967294;return array;}return random.call(crypto,array);};
+   let r;try{r=await call(who,'action',action(current.data.revision,'server-osia-draw-001',{kind:'recruit',count:1}));}finally{crypto.getRandomValues=random;}
+   assert.equal(r.status,200);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.gems,1700);
+   r=await call(who,'action',action(r.data.revision,'server-osia-team-001',{kind:'team',team:['taeo','osia','sua']}));assert.equal(r.status,200);
+   const again=(await t.login('school-Osia')).data;r=await call(again,'state');assert.equal(r.data.state.team[1],'osia');assert.equal(r.data.state.units.osia.level,1);
+   r=await call(again,'action',action(r.data.revision,'server-osia-train-01',{kind:'train',hero:'osia'}));assert.equal(r.status,200);assert.equal(r.data.state.units.osia.level,2);
  });
  t.sqlite.close();console.log(`${passed} school server checks passed (SQLite + signed test Google credentials)`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

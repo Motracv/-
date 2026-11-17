@@ -8,10 +8,11 @@
   <title>학교용병단 · 방과 후의 모험</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%233c6555' d='M4 2h24v20l-12 8L4 22z'/%3E%3Cpath fill='%23f5deb0' d='M14 6h4v14h5v4H9v-4h5z'/%3E%3C/svg%3E">
   <link rel="preload" href="assets/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="school/style.css?v=1">
-  <script defer src="school/engine.js?v=1"></script>
-  <script defer src="school/art.js?v=1"></script>
-  <script defer src="school/client.js?v=1"></script>
+  <link rel="preload" href="school/assets/osia-sprites.png?v=osia1" as="image">
+  <link rel="stylesheet" href="school/style.css?v=osia2">
+  <script defer src="school/engine.js?v=osia2"></script>
+  <script defer src="school/art.js?v=osia2"></script>
+  <script defer src="school/client.js?v=osia2"></script>
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -55,7 +56,7 @@
         <div class="note"><svg><use href="#i-star"/></svg><span>새로운 동료와 함께라면 더 멀리.<br><button class="text-button" data-tab="recruit">용병 모집하러 가기 →</button></span></div>
       </article>
       <article class="tab-panel" id="tab-roster" hidden>
-        <div class="section-heading"><div><span class="eyebrow">OUR LITTLE HEROES</span><h2>우리 용병들</h2></div><span class="count-tag" id="roster-count">3 / 12</span></div>
+        <div class="section-heading"><div><span class="eyebrow">OUR LITTLE HEROES</span><h2>우리 용병들</h2></div><span class="count-tag" id="roster-count">3 / 13</span></div>
         <p class="panel-description">용병을 눌러 육성하고, 함께할 3명을 골라요.</p>
         <div class="filter-row" aria-label="용병 보기"><button class="filter active" data-filter="owned">보유 용병</button><button class="filter" data-filter="all">전체 도감</button></div>
         <div class="roster-grid" id="roster"></div>
@@ -63,10 +64,10 @@
       <article class="tab-panel" id="tab-recruit" hidden>
         <div class="section-heading"><div><span class="eyebrow">A NEW FRIEND AWAITS</span><h2>새로운 동료</h2></div><button class="text-button" id="rates-button">확률 안내 ↗</button></div>
         <p class="panel-description">어떤 동아리의 친구가 찾아올까요?</p>
-        <div class="recruit-banner"><span class="banner-stars">✧ · ✦ · ✧</span><span class="recruit-tag">상시 모집 · 용병 12명</span><div class="featured-heroes"><img id="feature-ian" alt="SSR 이안"><img id="feature-lumi" alt="SSR 루미"></div><div class="banner-copy"><small>평범한 방과 후의, 특별한 만남</small><strong>함께 모험할래?</strong><span>SSR 이안 · 루미를 만나보세요</span></div></div>
+        <button class="recruit-banner osia-banner" id="feature-osia-button" aria-label="물의 용왕 오시아 상세 보기"><span class="banner-stars">✧ · ✦ · ✧</span><span class="recruit-tag" id="recruit-count">상시 모집 · 용병 13명</span><span class="featured-heroes"><img id="feature-osia" alt="오른쪽을 바라보는 SSR 오시아"></span><span class="banner-copy"><small>SSR · 물속성 마법사</small><strong>물의 용왕, 오시아</strong><span>Osia · 상시 모집 합류</span></span></button>
         <div class="pity-line"><span>SSR 확정까지 <b id="pity-left">40</b>회</span><span id="pity-count">0 / 40</span></div><div class="pity-track"><i id="pity-bar"></i></div>
         <div class="recruit-buttons"><button class="secondary" id="recruit-one"><b>1회 모집</b><span><svg><use href="#i-gem"/></svg>100</span></button><button class="primary" id="recruit-ten"><span class="button-ribbon">SR 이상 1명 확정</span><b>10회 모집</b><span><svg><use href="#i-gem"/></svg>900</span></button></div>
-        <p class="recruit-footnote">중복 용병은 각성에 쓰는 조각으로 바뀌어요.<br>모집에는 플레이로 얻는 무료 보석만 사용해요.</p>
+        <p class="recruit-footnote">오시아·이안·루미는 같은 확률의 상시 SSR입니다.<br>중복은 각성 조각으로 · 플레이로 얻는 무료 보석만 사용</p>
         <button class="text-button history-button" id="history-button">최근 모집 기록 ↗</button>
       </article>
       <article class="tab-panel" id="tab-supplies" hidden>

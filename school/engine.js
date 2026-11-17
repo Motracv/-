@@ -4,7 +4,8 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 30, MAX_LEVEL = 60, OFFLINE_CAP = 8 * 3600;
+  const MAX_STAGE = 30, MAX_LEVEL = 60, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 2;
+  const RECRUIT_RATES = { SSR: .04, SR: .26, R: .70 };
   const HEROES = [
     { id: "harin", name: "하린", club: "검도부", role: "전사", rarity: "R", hp: 102, atk: 12, skill: "일섬", cooldown: 5, color: "#d97852", hair: "#553a31", outfit: "#536c76", weapon: "sword", desc: "한 명에게 공격력 300%의 검격." },
     { id: "taeo", name: "태오", club: "체육부", role: "수호", rarity: "R", hp: 158, atk: 8, skill: "굳건한 수비", cooldown: 5, color: "#568b79", hair: "#343b3e", outfit: "#416d62", weapon: "shield", desc: "최대 체력 25%의 보호막. 받는 피해 28% 감소." },
@@ -18,6 +19,7 @@
     { id: "geonu", name: "건우", club: "럭비부", role: "수호", rarity: "SR", hp: 192, atk: 11, skill: "철벽 스크럼", cooldown: 4, color: "#7e9a74", hair: "#776348", outfit: "#68774c", weapon: "shield", desc: "최대 체력 25%의 보호막. 받는 피해 28% 감소." },
     { id: "ian", name: "이안", club: "풍기위원", role: "전사", rarity: "SSR", hp: 155, atk: 19, skill: "황혼의 발도", cooldown: 4, color: "#dfb354", hair: "#d8d1b7", outfit: "#344a51", weapon: "sword", desc: "한 명에게 공격력 300%의 발도. 높은 체력과 공격력." },
     { id: "lumi", name: "루미", club: "오컬트부", role: "마법", rarity: "SSR", hp: 128, atk: 21, skill: "달빛 소환", cooldown: 4, color: "#c89ed4", hair: "#b9b2db", outfit: "#5c527d", weapon: "staff", desc: "적 전체에게 공격력 170%의 달빛. 빠른 광역 공격." },
+    { id: "osia", name: "오시아", latin: "Osia", club: "물의 용왕", species: "물고기", element: "water", role: "마법", rarity: "SSR", hp: 136, atk: 20, skill: "용왕의 해일", skillMultiplier: 2.2, cooldown: 5, color: "#59bdd7", hair: "#6587bb", outfit: "#f6f3eb", weapon: "water", desc: "물의 용을 불러 적 전체에게 공격력 220%의 물 피해." },
   ];
   const BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
   const CHAPTERS = ["오래된 교실", "방과 후 복도", "비밀의 도서관", "뒤뜰의 정원", "체육관 결계", "별이 내리는 옥상"];
@@ -106,7 +108,7 @@
       if (shield) event(s, "shield", { to: target.id, amount: shield });
     }
     amount = Math.min(target.hp, amount); target.hp -= amount;
-    event(s, "hit", { from, to: target.id, side, amount, skill });
+    event(s, "hit", { from, to: target.id, side, amount, skill, ...(BY_ID[from]?.element ? { element: BY_ID[from].element } : {}) });
     if (target.hp <= 0 && side === "enemy") s.kills++;
   }
   function victory(s) {
@@ -132,7 +134,7 @@
       const enemies = b.enemies.filter(e => e.hp > 0); if (!enemies.length) break;
       const def = BY_ID[hero.id]; hero.energy++;
       const skill = hero.energy >= def.cooldown;
-      if (skill) { hero.energy = 0; event(s, "skill", { from: hero.id, name: def.skill, role: def.role }); }
+      if (skill) { hero.energy = 0; event(s, "skill", { from: hero.id, name: def.skill, role: def.role, ...(def.element ? { element: def.element } : {}) }); }
       let target = enemies[0], multiplier = skill ? 3 : 1;
       if (skill && def.role === "치유") {
         for (const friend of b.heroes.filter(h => h.hp > 0)) {
@@ -145,7 +147,7 @@
       if (skill && def.role === "지원") { b.buff = 4; multiplier = 1; }
       if (skill && def.role === "사수") { target = enemies.reduce((a, e) => a.hp < e.hp ? a : e); multiplier = 2.6; }
       const victims = skill && def.role === "마법" ? enemies : [target];
-      if (skill && def.role === "마법") multiplier = 1.7;
+      if (skill && def.role === "마법") multiplier = def.skillMultiplier || 1.7;
       for (const enemy of victims) {
         const critical = random(s) < .12;
         hurt(s, hero.id, enemy, hero.atk * multiplier * (b.buff ? 1.3 : 1) * (.9 + random(s) * .2) * (critical ? 1.5 : 1), "enemy", skill);
@@ -184,7 +186,7 @@
     const cost = count === 10 ? 900 : 100; fail(s.gems >= cost, "보석이 부족합니다.");
     const results = []; let premium = false;
     for (let i = 0; i < count; i++) {
-      const roll = rng(); let rarity = roll < .04 ? "SSR" : roll < .30 ? "SR" : "R";
+      const roll = rng(); let rarity = roll < RECRUIT_RATES.SSR ? "SSR" : roll < RECRUIT_RATES.SSR + RECRUIT_RATES.SR ? "SR" : "R";
       const pity = s.pity >= 39;
       if (pity) rarity = "SSR";
       if (count === 10 && i === 9 && !premium && rarity === "R") rarity = "SR";
@@ -243,5 +245,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, OFFLINE_CAP, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, clone, view };
+  return { HEROES, BY_ID, CHAPTERS, ENEMIES, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, OFFLINE_CAP, CATALOG_VERSION, RECRUIT_RATES, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, clone, view };
 });

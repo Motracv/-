@@ -264,6 +264,7 @@ const server = http.createServer(async (req, res) => {
         "/school/art.js": "school/art.js",
         "/school/client.js": "school/client.js",
         "/school/style.css": "school/style.css",
+        "/school/assets/osia-sprites.png": "school/assets/osia-sprites.png",
         "/effects.css": "effects.css",
         "/assets/cards/manifest.json": "assets/cards/manifest.json",
         "/assets/fonts/PretendardVariable.woff2":
@@ -294,6 +295,8 @@ const server = http.createServer(async (req, res) => {
               ? "text/javascript; charset=utf-8"
               : file.endsWith(".css")
                 ? "text/css"
+                : file.endsWith(".png")
+                  ? "image/png"
                 : file.endsWith(".webp")
                   ? "image/webp"
                   : file.endsWith(".json")

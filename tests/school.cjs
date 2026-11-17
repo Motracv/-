@@ -32,7 +32,7 @@ test('Boundary rolls use the documented 4/26/70 probabilities and every hero is 
     const pool = G.HEROES.filter(h => h.rarity === rarity);
     for (let j = 0; j < pool.length; j++) { const s = G.create(1000), values = [roll,(j+.5)/pool.length]; const r = G.action(s,{kind:'recruit',count:1},1000,()=>values.shift()); assert.equal(G.BY_ID[r.results[0].id].rarity,rarity); obtained.add(r.results[0].id); }
   }
-  assert.equal(obtained.size,12);
+  assert.equal(obtained.size,13); assert.ok(obtained.has('osia'));
 });
 test('Duplicates award shards and awakening spends exact shards without consuming the hero', () => {
   const s = G.create(1000); s.gems = 1000; G.action(s,{kind:'recruit',count:1},1000,()=>.9); G.action(s,{kind:'recruit',count:1},1000,()=>.9); G.action(s,{kind:'recruit',count:1},1000,()=>.9);
@@ -48,7 +48,7 @@ test('Training costs and level caps; team swaps start a fresh battle and never d
   G.action(s,{kind:'team',team:['harin','taeo','sua']});assert.equal(s.battle.heroes[0].max,G.stats('harin',s.units.harin).hp);
   s.units.harin.level=60; assert.throws(()=>G.action(s,{kind:'train',hero:'harin'}));
 });
-test('Each of twelve heroes performs their automatic skill; damage and healing stay bounded',()=>{
+test('Each of thirteen heroes performs their automatic skill; damage and healing stay bounded',()=>{
   for(const hero of G.HEROES){
     const s=G.create(1000,21);s.units[hero.id]={level:1,xp:0,stars:0,shards:0};s.team=[hero.id,...['taeo','harin','sua'].filter(id=>id!==hero.id)].slice(0,3);
     G.action(s,{kind:'stage',stage:1,mode:'farm'});
@@ -58,6 +58,25 @@ test('Each of twelve heroes performs their automatic skill; damage and healing s
     if(hero.role==='치유') assert.ok(s.events.some(e=>e.kind==='heal'&&e.from===hero.id));
     if(hero.role==='수호') assert.ok(s.events.some(e=>e.kind==='guard'&&e.to===hero.id));
   }
+});
+test('Osia is a permanent SSR, can be drawn by natural roll or pity, and duplicates awaken normally',()=>{
+  const s=G.create(1000); const old=G.clone(s); assert.ok(G.validate(old));
+  const values=[.01,.99,.01,.99];const roll=()=>values.shift();
+  const first=G.action(s,{kind:'recruit',count:1},1000,roll);assert.equal(first.results[0].id,'osia');assert.equal(first.results[0].fresh,true);
+  const second=G.action(s,{kind:'recruit',count:1},1000,roll);assert.equal(second.results[0].id,'osia');assert.equal(second.results[0].shards,20);
+  G.action(s,{kind:'awaken',hero:'osia'});assert.equal(s.units.osia.stars,1);assert.equal(s.units.osia.shards,10);
+  s.pity=39;const forced=G.action(s,{kind:'recruit',count:1},1000,()=>.99);assert.equal(forced.results[0].id,'osia');assert.equal(forced.results[0].pity,true);assert.equal(s.pity,0);
+  G.action(s,{kind:'team',team:['taeo','osia','sua']});G.action(s,{kind:'train',hero:'osia'});assert.equal(s.units.osia.level,2);assert.ok(G.validate(G.clone(s)));
+  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,3);assert.equal(G.RECRUIT_RATES.SSR,.04);
+});
+test('Osia hits each living enemy once at 220% on the fifth second; water events survive save/reload',()=>{
+  const s=G.create(1000,26);s.units.osia={level:1,xp:0,stars:0,shards:0};G.action(s,{kind:'team',team:['taeo','osia','sua']});
+  for(const e of s.battle.enemies){e.hp=e.max=100000;e.atk=1;}run(s,4);
+  assert.ok(!s.events.some(e=>e.kind==='skill'&&e.from==='osia'));
+  const loaded=G.clone(s);run(s,1);run(loaded,1);assert.deepEqual(s,loaded);
+  const hits=s.events.filter(e=>e.from==='osia'&&e.kind==='hit'&&e.skill);assert.equal(hits.length,3);assert.equal(new Set(hits.map(e=>e.to)).size,3);
+  assert.ok(hits.every(e=>e.element==='water'&&e.amount>=40&&e.amount<=73));assert.ok(s.events.some(e=>e.kind==='skill'&&e.from==='osia'&&e.name==='용왕의 해일'));
+  assert.equal(s.battle.heroes.find(h=>h.id==='osia').energy,0);
 });
 test('Korean midnight daily reset and one-time quests cannot pay twice',()=>{
   const s=G.create(1000), time=Date.UTC(2026,10,17,14,59,59);G.action(s,{kind:'daily'},time);assert.throws(()=>G.action(s,{kind:'daily'},time));G.action(s,{kind:'daily'},time+1000);
