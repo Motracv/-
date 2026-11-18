@@ -134,3 +134,6 @@
  .wm-stage-note,.wm-mode-note{font-size:8px}.wm-chapter-number{font-size:8px}
 }
 @media(prefers-reduced-motion:reduce){.wm-chapter{transition:none}}
+
+/* Reward changes are visible before entering an older farming region. */
+.wm-reward[data-reduced=true],.wm-stage-note[data-reduced=true]{color:#f0c58b}.wm-reward[data-reduced=true]::before{content:'!';color:#f0c58b}.app[data-tab=adventure] #battle-status[data-reduced=true]{color:#ffe3b5;background:#35291fdd}

@@ -21,12 +21,12 @@ const G = require('../school/engine.js');
   const award = (s, id) => G.questBoard(s, now).items.find(q => q.id === id);
   const prepareWin = (who, elapsed = 1000) => patch(who, s => { s.at = now - elapsed; for (const h of s.battle.heroes) { h.atk = 10000; h.energy = 0; } for (const e of s.battle.enemies) { e.hp = 1; e.atk = 0; } });
   try {
-    await test('Catalog13 is required before account reads or spending; catalog12 cannot mutate a save', async () => {
-      assert.equal(G.CATALOG_VERSION, 13);
+    await test('Catalog14 is required before account reads or spending; catalog13 cannot mutate a save', async () => {
+      assert.equal(G.CATALOG_VERSION, 14);
       const who = await account('catalog'), before = row(who);
       for (const route of ['state', 'action']) {
         const data = route === 'action' ? intent(who, { kind: 'recruit', count: 1, cost: 100 }) : {};
-        const r = await call(who, route, { ...data, catalogVersion: 12 });
+        const r = await call(who, route, { ...data, catalogVersion: 13 });
         assert.equal(r.status, 426); assert.match(r.data.error, /업데이트/); assert.ok(!r.data.state);
       }
       assert.equal(row(who).payload, before.payload); assert.equal(row(who).revision, before.revision);
@@ -135,7 +135,7 @@ const G = require('../school/engine.js');
 
     await test('A captain level gained from actual combat adds one reward and reconnect cannot replay it', async () => {
       const who = await account('captain-battle'); patch(who, s => { s.captain.xp = G.captainNeed(1) - 1; }); prepareWin(who);
-      const before = saved(who), r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(r.data.state.captain.level, 2); assert.equal(r.data.state.gems, before.gems + 160); assert.equal(r.data.state.gold, before.gold + 700 + 16);
+      const before = saved(who), r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(r.data.state.captain.level, 2); assert.equal(r.data.state.gems, before.gems + 160); const combatReward = r.data.state.events.findLast(e => e.kind === 'reward'); assert.ok(combatReward.gold > 0); assert.equal(r.data.state.gold, before.gold + 700 + combatReward.gold);
       assert.equal((await call(who, 'state')).data.state.gems, before.gems + 160); assert.equal(saved(who).events.filter(e => e.kind === 'captain' && e.level === 2).length, 1);
     });
 
@@ -182,6 +182,22 @@ const G = require('../school/engine.js');
       const before = [row(a).payload, row(b).payload]; r = await social(b, 'arena_accept', { id: invite, quests: { repeat: { kills: 1e9 } }, gems: 1e12 }); assert.equal(r.status, 200); assert.ok(r.data.match.events.length > 0); assert.equal(r.data.match.rules.rewards, false);
       assert.equal((await social(a, 'arena_match', { id: invite })).status, 200); assert.equal((await social(b, 'arena_match', { id: invite })).status, 200);
       assert.equal(row(a).payload, before[0]); assert.equal(row(b).payload, before[1]);
+    });
+
+    await test('Choosing a very weak cleared stage cannot farm quest counters or snow; the five-stage boundary is enforced server-side', async () => {
+      const who = await account('weak-stage'); patch(who, s => { s.best = 60; s.quests.repeat = { kills: 90, waves: 20, bosses: 5 }; s.quests.daily = { day: G.day(now), kills: 40, waves: 10, bosses: 1, claimed: [] }; });
+      for (const stage of [1, 54, 55]) {
+        const entry = await act(who, { kind: 'stage', stage, mode: 'farm', best: 0, eligible: true }); assert.equal(entry.status, 200); assert.equal(entry.data.state.best, 60);
+        patch(who, s => { s.seed = 1; }); prepareWin(who);
+        const before = saved(who), r = await call(who, 'state', { eligible: true, state: { best: 0 }, stage: 60, questProgress: 1000, snowflakes: 1000 });
+        assert.equal(r.status, 200); assert.equal(r.data.state.battle.phase, 'victory'); assert.equal(r.data.state.kills, before.kills + 3);
+        if (stage < 55) { assert.deepEqual(r.data.state.quests, before.quests); assert.deepEqual(r.data.state.winter, before.winter); if (stage === 1) { assert.equal(r.data.state.gold, before.gold + 1); assert.equal(r.data.state.gems, before.gems); assert.deepEqual(r.data.state.captain, before.captain); for (const id of before.team) assert.equal(r.data.state.units[id].xp, before.units[id].xp); } }
+        else { assert.equal(r.data.state.quests.repeat.kills, before.quests.repeat.kills + 3); assert.equal(r.data.state.quests.daily.kills, before.quests.daily.kills + 3); assert.equal(r.data.state.quests.repeat.waves, before.quests.repeat.waves + 1); assert.equal(r.data.state.winter.snowflakes, before.winter.snowflakes + 1); }
+      }
+      // A real final-wave settlement also cannot bypass the weak-stage rule.
+      assert.equal((await act(who, { kind: 'stage', stage: 1, mode: 'farm' })).status, 200);
+      patch(who, s => { s.wave = s.battle.wave = 4; s.battle.boss = true; s.battle.enemies = [s.battle.enemies[0]]; s.battle.enemies[0].boss = true; s.seed = 1; }); prepareWin(who);
+      const before = saved(who), r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(r.data.state.battle.phase, 'victory'); assert.deepEqual(r.data.state.quests, before.quests); assert.deepEqual(r.data.state.winter, before.winter); assert.equal(r.data.state.gold, before.gold + 2); assert.equal(r.data.state.gems, before.gems); assert.deepEqual(r.data.state.captain, before.captain);
     });
 
     await test('Every persisted progression save remains valid and private receipts stay server-side', async () => {

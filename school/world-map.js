@@ -78,9 +78,17 @@ window.SchoolWorldMap = (() => {
       }
       q('.wm-stage-title').textContent=G.stageName(selectedStage);
       q('.wm-stage-state').textContent=locked?'미개방':selectedStage===state.stage?'현재 지역':selectedStage<=best?'돌파 완료':'새로운 도전';
-      q('.wm-stage-note').textContent=locked?`${G.stageName(selectedStage-1)} 돌파 후 열려요.`:'일반 전투 3번 · 마지막 웨이브 보스';
-      q('.wm-reward').textContent=selectedStage<=best?'첫 돌파 보상 수령 완료':'첫 돌파 보석 60';
-      q('.wm-reward').classList.toggle('claimed',selectedStage<=best);
+      const rewardInfo=G.campaignRewardInfo?.(state,selectedStage,false),reducedRewards=!locked&&rewardInfo?.eligible===false;
+      q('.wm-stage-note').textContent=locked?`${G.stageName(selectedStage-1)} 돌파 후 열려요.`:reducedRewards?'반복·일일 임무 / 눈송이 미집계':'일반 전투 3번 · 마지막 웨이브 보스';
+      q('.wm-stage-note').dataset.reduced=String(reducedRewards);
+      // Ask the shared rules for the range instead of duplicating the cutoff.
+      const firstEligible=G.campaignRewardInfo?Array.from({length:opened},(_,i)=>i+1).find(stage=>G.campaignRewardInfo(state,stage,false).eligible):1;
+      const range=`정상 보상 지역: ${G.stageName(firstEligible)} ~ ${G.stageName(opened)}`;
+      q('.wm-stage-note').title=range;
+      q('.wm-stage-note').setAttribute('aria-label',`${q('.wm-stage-note').textContent} · ${range}`);
+      q('.wm-reward').textContent=reducedRewards?`저레벨 지역 · 전투 보상 ${Math.round(rewardInfo.multiplier*100)}%`:selectedStage<=best?'첫 돌파 보상 수령 완료':'첫 돌파 보석 60';
+      q('.wm-reward').dataset.reduced=String(reducedRewards);
+      q('.wm-reward').classList.toggle('claimed',!reducedRewards&&selectedStage<=best);
       q('[data-map-start]').textContent=selectedStage<=best?'다시 도전':'도전 시작';
       for(const button of container.querySelectorAll('[data-map-start],[data-map-farm]'))button.disabled=locked||!!why||sending;
       q('.wm-block-reason').textContent=why||lastError;q('.wm-block-reason').hidden=!(why||lastError);

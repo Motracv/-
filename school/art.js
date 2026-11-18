@@ -30,8 +30,10 @@ window.SchoolArt = (() => {
   // Horas sources are optional at boot and independently recover after a slow
   // request. The combat atlas has fixed feet across twelve authored key poses.
   const horasImage = new Image(), horasPortraitImage = new Image(), horasCutinImage = new Image();
-  const horasPoses = new Map(), horasPortraitSources = new Map();
-  let horasLoaded = false, horasPortraitLoaded = false, horasCutinLoaded = false, horasPosePixels = 0;
+  const horasPoses = new Map(), horasPortraitSources = new Map(), horasFxSources = new Map();
+  const horasWarmPending = new Map(), horasWarmQueue = [], horasMaterialized = new WeakSet();
+  let horasWarmScheduled = false;
+  let horasLoaded = false, horasPortraitLoaded = false, horasCutinLoaded = false, horasPosePixels = 0, horasCutinSource = null;
   const horasReady = Promise.all([
     new Promise(resolve => {
       const timer = setTimeout(() => resolve(false), 5000);
@@ -45,14 +47,15 @@ window.SchoolArt = (() => {
     }),
     new Promise(resolve => {
       const timer = setTimeout(() => resolve(false), 5000);
-      horasCutinImage.onload = () => { horasCutinLoaded = true; clearTimeout(timer); resolve(true); window.dispatchEvent(new Event('school-art-ready')); };
+      horasCutinImage.onload = () => { horasCutinLoaded = true; horasCutinSource = null; clearTimeout(timer); void warmHorasSource('face'); resolve(true); window.dispatchEvent(new Event('school-art-ready')); };
       horasCutinImage.onerror = () => { clearTimeout(timer); resolve(false); };
     }),
-  ]);
+  ]).then(async result => { await Promise.all([horasFxReady, warmHorasSource('face')]); return result; });
+  const horasFxReady = Promise.resolve().then(warmHorasEffects);
   horasImage.src = 'school/assets/horas/combat.webp?v=horas1';
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
-  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady]).then(([osia, lava]) => osia && lava);
+  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
   osiaImage.src = "school/assets/osia-sprites.png?v=osia1";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-front1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
@@ -263,7 +266,63 @@ window.SchoolArt = (() => {
     c.restore();
   }
   const HORAS_ATLAS = Object.freeze({columns:4, rows:3, width:384, height:352, footX:192, footY:328, bodyHeight:300});
-  const HORAS_ORBS = Array.from({length:5}, (_, i) => { const a=-1.1+i*.55; return {x:-13-Math.cos(a)*13,y:-25+Math.sin(a)*19}; });
+  const HORAS_ORBS = [{x:-29,y:-22},{x:-31,y:-37},{x:-23,y:-49},{x:-9,y:-54},{x:5,y:-49}];
+  const HORAS_PETALS = Array.from({length:12},(_,i)=>({angle:i*2.39996323,reach:23+(i%4)*10,lift:12+(i%3)*9,turn:i*.71}));
+  // Four fixed, reusable effect sources (<2 MiB RGBA in total). Glows and
+  // detailed flower geometry are rasterized once, never blurred per frame.
+  function horasFx(kind) {
+    let image=horasFxSources.get(kind);if(image)return image;
+    image=document.createElement('canvas');image.dataset.horasFx=kind;const size=kind==='seal'?512:kind==='bloom'?384:kind==='beam'?96:128;
+    image.width=size;image.height=kind==='beam'?256:size;
+    const p=image.getContext('2d'),mid=size/2;p.translate(mid,image.height/2);
+    if(kind==='beam'){
+      const g=p.createLinearGradient(-mid,0,mid,0);g.addColorStop(0,'#ed7bc700');g.addColorStop(.22,'#ee92d461');g.addColorStop(.4,'#ffcae9dc');g.addColorStop(.48,'#fff6eaff');g.addColorStop(.52,'#fff6eaff');g.addColorStop(.6,'#ffcae9dc');g.addColorStop(.78,'#ee92d461');g.addColorStop(1,'#ed7bc700');p.fillStyle=g;p.fillRect(-mid,-128,size,256);
+    }else{
+      const g=p.createRadialGradient(0,0,0,0,0,mid);g.addColorStop(0,kind==='seal'?'#22122abf':kind==='glow'?'#fff8e8f0':'#ffd4ed7d');g.addColorStop(.22,kind==='seal'?'#4e214a96':'#ffc5e878');g.addColorStop(.55,kind==='seal'?'#61315c6b':'#ef89c72a');g.addColorStop(1,'#e581ca00');p.fillStyle=g;p.fillRect(-mid,-mid,size,size);
+      if(kind==='seal'||kind==='bloom'){
+        const radius=mid*.83;p.lineWidth=kind==='seal'?3.6:2.2;p.strokeStyle='#ffdbcbd9';
+        if(kind==='seal')for(const ratio of [1,.91]){p.beginPath();p.arc(0,0,radius*ratio,0,Math.PI*2);p.stroke();}
+        if(kind==='seal'){
+          p.beginPath();for(let i=0;i<=5;i++){const a=-Math.PI/2+(i*2%5)*Math.PI*2/5;i?p.lineTo(Math.cos(a)*radius*.92,Math.sin(a)*radius*.92):p.moveTo(Math.cos(a)*radius*.92,Math.sin(a)*radius*.92);}p.strokeStyle='#ffd9cc78';p.stroke();
+          for(let i=0;i<20;i++){const a=i*Math.PI/10;p.beginPath();p.moveTo(Math.cos(a)*radius*.98,Math.sin(a)*radius*.98);p.lineTo(Math.cos(a)*radius*1.04,Math.sin(a)*radius*1.04);p.stroke();}
+        }
+        for(let i=0;i<5;i++){
+          p.save();p.rotate(i*Math.PI*2/5);p.beginPath();p.moveTo(0,0);p.bezierCurveTo(-radius*.55,-radius*.34,-radius*.36,-radius*.76,0,-radius*.9);p.bezierCurveTo(radius*.36,-radius*.76,radius*.55,-radius*.34,0,0);
+          if(kind==='bloom'){const petal=p.createLinearGradient(0,0,0,-radius);petal.addColorStop(0,'#fff9ee');petal.addColorStop(.25,'#ffe5f4e8');petal.addColorStop(.65,'#f8a6d3b8');petal.addColorStop(1,'#d977ba80');p.fillStyle=petal;}else p.fillStyle='#ea86c75c';
+          p.fill();if(kind==='seal'){p.lineWidth=7;p.strokeStyle='#bd509b';p.stroke();p.lineWidth=3.6;}p.strokeStyle='#ffe4ef';p.stroke();p.beginPath();p.moveTo(0,-radius*.08);p.lineTo(0,-radius*.76);p.strokeStyle='#fff4d6bb';p.stroke();p.restore();
+        }
+        if(kind==='seal')for(let i=0;i<5;i++){const a=-Math.PI/2+i*Math.PI*2/5;horasStar(p,Math.cos(a)*radius,Math.sin(a)*radius,8);}
+        blossom(p,0,0,mid*.15,0,true);
+      }
+    }
+    horasFxSources.set(kind,image);return image;
+  }
+  function horasGlow(c,x,y,r,alpha=1){c.save();c.globalAlpha*=alpha;c.imageSmoothingEnabled=true;c.drawImage(horasFx('glow'),x-r,y-r,r*2,r*2);c.restore();}
+  function horasFaceSource(){
+    if(!horasCutinLoaded)return null;
+    if(!horasCutinSource){horasCutinSource=document.createElement('canvas');horasCutinSource.width=500;horasCutinSource.height=350;horasCutinSource.getContext('2d').drawImage(horasCutinImage,60,80,500,350,0,0,500,350);}
+    return horasCutinSource;
+  }
+  // Canvas painting is deferred by Chromium. Materialize each small source in
+  // its own idle task while the existing boot screen is up, rather than making
+  // the first real ultimate flush four cold gradients on the battle rAF.
+  function scheduleHorasWarm(){
+    if(horasWarmScheduled||!horasWarmQueue.length)return;
+    horasWarmScheduled=true;
+    const run=()=>{horasWarmScheduled=false;horasWarmQueue.shift()();scheduleHorasWarm();};
+    if(window.requestIdleCallback&&!document.hidden)window.requestIdleCallback(run,{timeout:120});else setTimeout(run,0);
+  }
+  function warmHorasSource(kind){
+    if(horasWarmPending.has(kind))return horasWarmPending.get(kind);
+    const promise=new Promise(resolve=>{horasWarmQueue.push(()=>{
+      try{const source=kind==='face'?horasFaceSource():horasFx(kind);if(source&&!horasMaterialized.has(source)){source.getContext('2d').getImageData(0,0,source.width,source.height);horasMaterialized.add(source);}}
+      catch{/* The normal lazy draw path remains available after context loss. */}
+      finally{horasWarmPending.delete(kind);resolve();}
+    });});
+    horasWarmPending.set(kind,promise);scheduleHorasWarm();return promise;
+  }
+  function warmHorasEffects(){return Promise.all(['glow','seal','bloom','beam'].map(warmHorasSource));}
+  function horasLabel(c,text,x,y,size=9){const mirrored=c.getTransform().a<0;c.save();c.translate(x,y);if(mirrored)c.scale(-1,1);c.font=`${size}px Galmuri, monospace`;c.textAlign='center';c.fillStyle='#ffe4ed';c.fillText(text,0,0);c.restore();}
   function blossom(c,x,y,r=4,rotation=0,bright=false) {
     c.save();c.translate(x,y);c.rotate(rotation);
     c.fillStyle=bright?'#fff5ee':'#ffc2e6';
@@ -275,9 +334,10 @@ window.SchoolArt = (() => {
     for(let i=0;i<8;i++){const a=i*Math.PI/4,rr=i%2?r*.23:r;c.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}c.closePath();c.fill();c.restore();
   }
   function horasPose(frame) {
-    if(frame.dead || frame.hit) return frame.dead ? 0 : 11;
+    if(frame.dead)return 0;
     const cast=frame.horasCastAge;
-    if(Number.isFinite(cast)&&cast>=0) return frame.reduced?9:cast<.48?7:cast<1?8:cast<1.35?9:10;
+    if(Number.isFinite(cast)&&cast>=0&&cast<2.12) return frame.reduced?cast<1.5?9:10:cast<.32?7:cast<.92?8:cast<1.48?9:cast<1.85?10:6;
+    if(frame.hit)return 11;
     const age=frame.attackAge;
     if(Number.isFinite(age)&&age>=0&&age<1.05){const start=frame.horasBasicPose===2?4:1;return frame.reduced?start+1:age<.25?start:age<.60?start+1:start+2;}
     return 0;
@@ -286,21 +346,28 @@ window.SchoolArt = (() => {
     c.save();c.translate(x,y);c.scale(scale*(frame.flip?-1:1),scale);
     if(frame.dead){c.globalAlpha*=.4;c.rotate(-Math.PI/2);}
     rect(c,'#26333b35',-9,1+(frame.shadowY||0),20,2);
-    const cast=frame.horasCastAge,active=Number.isFinite(cast)&&cast>=0,age=frame.attackAge,attack=Number.isFinite(age)&&age>=0&&age<1.05;
+    const cast=frame.horasCastAge,active=Number.isFinite(cast)&&cast>=0&&cast<2.12,age=frame.attackAge,attack=Number.isFinite(age)&&age>=0&&age<1.05;
     const wave=frame.reduced||frame.dead||!active&&!attack?0:Math.sin(clamp01((active?cast:age)/(active?1.5:1.05))*Math.PI);
     const breath=frame.reduced||active||attack||frame.dead?0:Math.sin((frame.time||0)*1.7)*.35;
-    const merge=active?clamp01(cast):0,stacks=frame.dead?0:active&&cast<1?5:Math.min(5,Math.max(0,frame.horasStacks||0));
+    const merge=active?clamp01((cast-.25)/.7):0,stacks=frame.dead?0:active&&cast<1?5:Math.min(5,Math.max(0,frame.horasStacks||0));
     // The stack halo is behind her back, not a screen HUD effect. During the
     // fusion the same five visible orbs converge into her cupped hands.
     for(let i=0;i<stacks;i++){
       const p=HORAS_ORBS[i],t=active?merge*merge:0,bob=frame.reduced||active?0:Math.sin((frame.time||0)*2+i)*.65;
       const xx=p.x+(11-p.x)*t,yy=p.y+(-27-p.y)*t+bob;
       c.save();c.globalAlpha*=active?1-merge*.4:.82;
-      c.strokeStyle='#ed8ed3';c.lineWidth=.6;c.beginPath();c.arc(xx,yy,3.5,0,Math.PI*2);c.stroke();
-      blossom(c,xx,yy,2.5,(frame.reduced?0:(frame.time||0)*.2)+i);c.restore();
+      if(active&&!frame.reduced){c.strokeStyle='#f6c7df55';c.lineWidth=.65;c.beginPath();c.moveTo(p.x,p.y);c.quadraticCurveTo(p.x-5,p.y-12,xx,yy);c.stroke();}
+      horasGlow(c,xx,yy,active?8:5.5,.72);c.strokeStyle='#ffe0d6';c.lineWidth=.55;c.beginPath();c.arc(xx,yy,active?4:3.5,0,Math.PI*2);c.stroke();
+      blossom(c,xx,yy,active?3.1:2.5,(frame.reduced?0:(frame.time||0)*.2)+i);c.restore();
     }
-    const pose=horasPose(frame),offset=frame.reduced?0:wave*(active?1.1:frame.horasBasicPose===2?-1.2:1.7);
-    c.translate(offset,breath-(active?wave*1.1:0));
+    const pose=horasPose(frame);let offset=frame.reduced?0:wave*(frame.horasBasicPose===2?-1.2:1.7),lift=breath,lean=0;
+    if(active&&!frame.reduced){
+      if(cast<.32){const p=clamp01(cast/.32);offset=-1.8*p;lift=1.4*p;lean=-.035*p;}
+      else if(cast<.92){const p=clamp01((cast-.32)/.6);offset=-1.8+p;lift=1.4-2.2*p;lean=-.035*(1-p);}
+      else if(cast<1.48){const p=clamp01((cast-.92)/.56);offset=-.8+2.8*p;lift=-.8-Math.sin(p*Math.PI/2)*2.7;lean=-.025;}
+      else{const p=clamp01((cast-1.48)/.64),strike=Math.sin(clamp01(p/.32)*Math.PI/2)*(1-clamp01((p-.32)/.68));offset=2*(1-p)+4*strike;lift=-3.5*(1-clamp01(p/.2))+1.2*strike;lean=.055*strike;}
+    }
+    c.translate(offset,lift);if(lean)c.rotate(lean);
     if(horasLoaded){
       const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d));
       const resolution=density>4?6:density>2?4:2,key=`${pose}:${resolution}`;
@@ -326,7 +393,7 @@ window.SchoolArt = (() => {
       const hand=attack?7+wave*8:7;rect(c,'#cbd7ff',hand,-24,8,9);rect(c,'#ffe8e7',hand+5,-25,4,3);
       rect(c,'#f5efff',-5,-9,4,10);rect(c,'#f5efff',4,-9,4,10);rect(c,'#a5cfce',-6,0,7,3);rect(c,'#a5cfce',3,0,8,3);
     }
-    if(active){c.save();c.globalAlpha*=.5+.4*Math.sin(Math.min(1,cast)*Math.PI/2);blossom(c,11,-27,2+merge*4,frame.reduced?0:cast, true);c.restore();}
+    if(active&&cast<1.48){const coreY=cast<.92?-27:-27-clamp01((cast-.92)/.56)*18;c.save();c.globalAlpha*=.45+merge*.5;horasGlow(c,11,coreY,6+merge*8,.9);blossom(c,11,coreY,2+merge*4,frame.reduced?0:cast*.35,true);c.restore();}
     c.restore();
   }
   function horasIllustration(c,x,y,w,h){
@@ -339,41 +406,43 @@ window.SchoolArt = (() => {
     c.save();c.imageSmoothingEnabled=true;c.drawImage(image,x-width/2,y+(h-height),width,height);c.restore();
   }
   function horasSeal(c,x,y,r,age,reduced=false){
-    c.save();c.translate(x,y);c.rotate(reduced?0:age*.22);c.strokeStyle='#f6a8db';c.lineWidth=.9;
-    c.beginPath();c.arc(0,0,r,0,Math.PI*2);c.stroke();c.beginPath();c.arc(0,0,r*.82,0,Math.PI*2);c.stroke();
-    c.beginPath();for(let i=0;i<=5;i++){const a=-Math.PI/2+(i*2%5)*Math.PI*2/5;const xx=Math.cos(a)*r*.84,yy=Math.sin(a)*r*.84;i?c.lineTo(xx,yy):c.moveTo(xx,yy);}c.stroke();
-    blossom(c,0,0,r*.38,0,true);
-    for(let i=0;i<5;i++){const a=-Math.PI/2+i*Math.PI*2/5;blossom(c,Math.cos(a)*r,Math.sin(a)*r,r*.13,0);}
-    c.restore();
+    c.save();c.translate(x,y);c.scale(1,.57);c.rotate(reduced?0:age*.12);c.imageSmoothingEnabled=true;c.drawImage(horasFx('seal'),-r,-r,r*2,r*2);c.restore();
   }
   function horasCutin(c,age,reduced=false){
-    if(reduced||age<.46||age>1.22)return;
-    const enter=clamp01((age-.46)/.18),leave=clamp01((1.22-age)/.2);
+    if(reduced||!Number.isFinite(age)||age<.58||age>1.16)return;
+    const enter=clamp01((age-.58)/.13),leave=clamp01((1.16-age)/.15);
     c.save();c.globalAlpha*=Math.min(enter,leave)*.96;
-    const bounds=sceneBounds(c.canvas);rect(c,'#1a102a4d',bounds.x,bounds.y,bounds.width,bounds.height);
-    c.beginPath();c.rect(25,37,282,66);c.clip();
-    c.translate((1-enter)*-18,0);rect(c,'#241933ef',25,37,282,66);rect(c,'#54314d',25,39,282,62);
-    for(let i=0;i<5;i++){c.strokeStyle='#f4b3dd33';c.lineWidth=1;c.beginPath();c.moveTo(25,46+i*11);c.lineTo(308,35+i*11);c.stroke();}
-    // Anime source remains a real illustration rather than enlarging a sprite.
-    if(horasCutinLoaded){c.save();c.imageSmoothingEnabled=true;c.drawImage(horasCutinImage,30,16,126,126);c.restore();}
-    else horasIllustration(c,78,40,117,196);
-    c.textAlign='left';c.font='8px Galmuri, monospace';c.fillStyle='#f6badf';c.fillText('UR · 호라스',142,56);
-    c.font='17px Galmuri, monospace';c.fillStyle='#fff1db';c.fillText('벚꽃의식',140,79);
-    c.font='7px Galmuri, monospace';c.fillStyle='#f7d4e8';c.fillText('다섯 별빛이 하나의 꽃으로',142,93);
-    detail(c,'#f4d294',25,38,282,1);detail(c,'#f4d294',25,101,282,1);c.restore();
+    const bounds=sceneBounds(c.canvas);rect(c,'#1a102a38',bounds.x,bounds.y,bounds.width,bounds.height);
+    c.translate((1-enter)*-32+(1-leave)*12,0);
+    c.beginPath();c.moveTo(0,46);c.lineTo(309,14);c.lineTo(282,101);c.lineTo(0,131);c.closePath();c.clip();
+    rect(c,'#21142ef5',0,0,320,140);horasGlow(c,100,70,112,.45);
+    c.strokeStyle='#f4b3dd40';c.lineWidth=.7;for(let i=0;i<6;i++){c.beginPath();c.moveTo(0,51+i*16);c.lineTo(320,8+i*16);c.stroke();}
+    // Cache the face crop, preserving the original heterochromia and design.
+    if(horasCutinLoaded){
+      c.save();c.imageSmoothingEnabled=true;c.drawImage(horasFaceSource(),2-enter*3,11,190,133);c.restore();
+    }else horasIllustration(c,88,4,165,220);
+    rect(c,'#24162bd6',171,26,141,76);
+    c.textAlign='left';c.font='8px Galmuri, monospace';c.fillStyle='#f9c6df';c.fillText('UR · 호라스',177,48);
+    c.font='18px Galmuri, monospace';c.fillStyle='#fff2d9';c.fillText('벚꽃의식',174,74);
+    c.font='6.5px Galmuri, monospace';c.fillStyle='#eec9e4';c.fillText('다섯 별빛, 하나의 운명',177,88);
+    c.strokeStyle='#ffe4c9';c.lineWidth=1.2;c.beginPath();c.moveTo(0,47);c.lineTo(309,15);c.moveTo(0,130);c.lineTo(282,100);c.stroke();c.restore();
   }
-  function horasVisualEffects(c,battle,effects,positions,time,reduced=false,economy=false,interpolation=0){
+  function horasVisualEffects(c,battle,effects,positions,time,reduced=false,economy=false,interpolation=0,skipCutin=false){
     const source=positions.horas;if(!source)return;
-    const pending=battle.horasCast,castEvent=lastEffect(effects,e=>e.kind==='horas-cast'&&(!pending||e.castId===pending.id));
-    const impact=lastEffect(effects,e=>e.kind==='horas-impact'),cast=pending||castEvent;
+    const caster=battle.heroes?.find(h=>h.id==='horas'),pending=caster?.hp<=0?null:battle.horasCast;
+    const impact=lastEffect(effects,e=>e.kind==='horas-impact'&&time>=e.time&&time-e.time<1.2);
+    const castEvent=lastEffect(effects,e=>e.kind==='horas-cast'&&time>=e.time&&(pending?e.castId===pending.id:impact?.castId===e.castId));
+    const cast=pending||castEvent,scale=Math.max(.6,Math.min(2,battle.horasEffectScale||1));
     const age=pending?Math.max(0,(battle.elapsed-pending.began)/1000+(battle.cinematic?0:interpolation)):castEvent?time-castEvent.time:-1;
     const targetId=cast?.targetId||impact?.targetId,target=positions[targetId];
-    if(cast&&target&&age>=0&&age<1.5){
-      const t=clamp01(age/1.5),r=10+t*25;
-      c.save();c.globalAlpha*=Math.min(1,age*4);
-      c.strokeStyle='#f7a9dc';c.lineWidth=1;c.beginPath();c.ellipse(target.x,target.y+1,r,r*.24,0,0,Math.PI*2);c.stroke();
-      if(age>.55){const rise=clamp01((age-.55)/.6);horasSeal(c,target.x,target.y-115,12+rise*24,age,reduced);}
-      if(!reduced&&!economy)for(let i=0;i<5;i++){const p=clamp01((age-.55+i*.05)/.8);if(p>0&&p<1){const x=source.x+17+(target.x-source.x-17)*p,y=source.y-40+(target.y-115-source.y+40)*p-Math.sin(p*Math.PI)*27;blossom(c,x,y,2.1,age+i);}}
+    if(pending&&target&&age>=0&&age<1.5){
+      const rise=clamp01((age-.82)/.5),skyY=Math.max(64*scale,target.y-141*scale),radius=(30+rise*39)*scale;
+      c.save();c.globalAlpha*=Math.min(1,age*5);
+      // Only this designated target receives the large reticle and sky seal.
+      c.strokeStyle='#f8c1e2';c.lineWidth=1*scale;c.beginPath();c.ellipse(target.x,target.y+1,(20+rise*17)*scale,(5+rise*5)*scale,0,0,Math.PI*2);c.stroke();
+      if(!reduced){c.strokeStyle='#ffebc58c';c.beginPath();c.moveTo(target.x-45*scale,target.y+1);c.lineTo(target.x-30*scale,target.y+1);c.moveTo(target.x+30*scale,target.y+1);c.lineTo(target.x+45*scale,target.y+1);c.stroke();}
+      if(age>.82){horasGlow(c,target.x,skyY,radius*1.18,.3);horasSeal(c,target.x,skyY,radius,age,reduced);horasStar(c,target.x,skyY,5*scale,reduced?0:age*.4);}
+      if(age>.95&&!reduced&&!economy){const p=clamp01((age-.95)/.45),x=source.x+17+(target.x-source.x-17)*p,y=source.y-48+(skyY-source.y+48)*p-Math.sin(p*Math.PI)*32*scale;horasGlow(c,x,y,8*scale,.65);blossom(c,x,y,4*scale,age,true);}
       c.restore();
     }
     for(const e of effects){
@@ -385,17 +454,25 @@ window.SchoolArt = (() => {
         c.beginPath();c.ellipse(source.x+11,source.y-35,20,14,direction*.25,-1.8+direction*a*3,.5+direction*a*3);c.stroke();
         if(a>.15){const x=source.x+16+(to.x-source.x-16)*p,y=source.y-36+(to.y-29-source.y+36)*p-Math.sin(p*Math.PI)*9*direction;horasStar(c,x,y,4.4,reduced?0:a*3);if(!reduced)for(let i=1;i<(economy?2:4);i++)blossom(c,x-i*5,y+Math.sin(i+a*5)*3,1.7,a+i);}
         c.restore();
-      }else if(e.kind==='horas-impact'&&a<1.0){
+      }else if(e.kind==='horas-impact'&&a<1.2){
         const p=positions[e.targetId];if(!p)continue;
-        const hitX=p.x+(e.missed?24:0),fade=1-clamp01(a),spread=reduced?23:7+a*50;
+        const hitX=p.x+(e.missed?36*scale:0),skyY=Math.max(64*scale,p.y-141*scale),fade=1-clamp01((a-.55)/.65);
         c.save();c.globalAlpha*=fade;
-        horasSeal(c,hitX,p.y-115,35,a,reduced);
-        if(a<.55){const beam=reduced?10:7+Math.sin(clamp01(a/.55)*Math.PI)*14;c.fillStyle=e.missed?'#e9a5d966':'#f08acb88';c.fillRect(hitX-beam,p.y-115,beam*2,115);c.fillStyle='#ffd7edcc';c.fillRect(hitX-beam*.4,p.y-115,beam*.8,115);c.fillStyle='#fff6dc';c.fillRect(hitX-1.5,p.y-115,3,115);}
-        c.strokeStyle='#fbb5e0';c.lineWidth=2;c.beginPath();c.ellipse(hitX,p.y,spread,spread*.28,0,0,Math.PI*2);c.stroke();
-        blossom(c,hitX,p.y-27,Math.max(4,18*(1-a)),a*.3,true);
-        if(!reduced)for(let i=0,n=economy?5:10;i<n;i++){const angle=i*Math.PI*2/n,radius=10+a*42;blossom(c,hitX+Math.cos(angle)*radius,p.y-25+Math.sin(angle)*radius*.6-a*12,2.4,a+i);}
-        if(!e.missed)for(const entry of e.targets||[]){const id=typeof entry==='string'?entry:entry.id;if(id===e.targetId)continue;const q=positions[id];if(q){c.lineWidth=1;c.beginPath();c.ellipse(q.x,q.y,8+a*15,3+a*4,0,0,Math.PI*2);c.stroke();blossom(c,q.x,q.y-24,4,a);}}
-        if(e.missed){c.font='9px Galmuri, monospace';c.textAlign='center';c.fillStyle='#ffe4ed';c.fillText('빗나감',p.x,p.y-79-a*6);}
+        horasSeal(c,hitX,skyY,69*scale,a+1.5,reduced);
+        if(a<.46){const strength=1-clamp01(a/.46),beam=(reduced?22:e.missed?30:42+Math.sin(clamp01(a/.25)*Math.PI)*15)*scale;c.save();c.globalAlpha*=strength*(e.missed?.58:1);c.imageSmoothingEnabled=true;c.drawImage(horasFx('beam'),hitX-beam,skyY,beam*2,p.y-skyY);if(!e.missed){c.fillStyle='#fff6e4';c.fillRect(hitX-2.6*scale,skyY,5.2*scale,p.y-skyY);c.fillStyle='#ffdef0b3';c.fillRect(hitX-7*scale,skyY,1.1*scale,p.y-skyY);c.fillRect(hitX+6*scale,skyY,1.1*scale,p.y-skyY);}c.restore();}
+        if(e.missed){
+          // A miss falls in empty space. No blossom impact, splash, ground
+          // shockwave or new mark may visually imply that the enemy was hit.
+          horasLabel(c,'빗나감',p.x,p.y-79*scale-a*6,9*scale);
+        }else{
+          const bloom=(reduced?43:22+clamp01((a-.025)/.28)*55)*scale,spread=(reduced?42:24+clamp01(a/.7)*43)*scale;
+          horasGlow(c,hitX,p.y-21*scale,bloom*1.25,.8);
+          c.save();c.imageSmoothingEnabled=true;c.globalAlpha*=reduced?.6:Math.min(1,a*16+.15)*.83;c.drawImage(horasFx('bloom'),hitX-bloom,p.y-bloom*1.65,bloom*2,bloom*2);c.restore();
+          c.strokeStyle='#ffdaf0';c.lineWidth=1.5*scale;c.beginPath();c.ellipse(hitX,p.y+1,spread,spread*.24,0,0,Math.PI*2);c.stroke();
+          c.strokeStyle='#ffedbe9c';c.lineWidth=.7*scale;c.beginPath();c.ellipse(hitX,p.y+1,spread*.77,spread*.18,0,0,Math.PI*2);c.stroke();
+          if(!reduced)for(let i=0,n=economy?6:12;i<n;i++){const v=HORAS_PETALS[i],reach=(8+a*v.reach)*scale,x=hitX+Math.cos(v.angle)*reach,y=p.y-22*scale+Math.sin(v.angle)*reach*.45-Math.sin(clamp01(a/1.2)*Math.PI)*v.lift*scale;c.save();c.translate(x,y);c.rotate(v.turn+a*.7);c.fillStyle=i%3?'#ffc5e4':'#ffefce';c.beginPath();c.ellipse(0,0,3.1*scale,1.3*scale,0,0,Math.PI*2);c.fill();c.restore();}
+          for(const entry of e.targets||[]){const id=typeof entry==='string'?entry:entry.id;if(id===e.targetId)continue;const q=positions[id];if(q){c.save();c.globalAlpha*=.48;c.strokeStyle='#fbb5e0';c.lineWidth=.7*scale;c.beginPath();c.ellipse(q.x,q.y,(9+a*13)*scale,(3+a*3)*scale,0,0,Math.PI*2);c.stroke();blossom(c,q.x,q.y-24*scale,3.5*scale,a);c.restore();}}
+        }
         c.restore();
       }else if(e.kind==='hit'&&e.from==='horas'&&e.stunBonus&&a<.7){
         const p=positions[e.to];if(!p)continue;c.save();c.globalAlpha*=1-a/.7;
@@ -407,8 +484,8 @@ window.SchoolArt = (() => {
         c.restore();
       }
     }
-    for(const enemy of battle.enemies||[]){if(enemy.hp<=0||!enemy.horasMark||(enemy.horasMark.until||0)<=battle.elapsed)continue;const p=positions[enemy.id];if(!p)continue;c.save();const y=p.y-(enemy.boss?122:84)-((enemy.stunUntil||0)>battle.elapsed?23:0);c.globalAlpha=.9;blossom(c,p.x,y,7,reduced?0:time*.25);c.restore();}
-    if(!battle.skipHorasCutin&&(pending||castEvent))horasCutin(c,age,reduced);
+    for(const enemy of battle.enemies||[]){if(enemy.hp<=0||!enemy.horasMark||(enemy.horasMark.until||0)<=battle.elapsed||impact?.missed&&enemy.horasMark.castId===impact.castId)continue;const p=positions[enemy.id];if(!p)continue;c.save();const y=p.y-(enemy.boss?122:84)*scale-((enemy.stunUntil||0)>battle.elapsed?23*scale:0);c.globalAlpha=.9;horasGlow(c,p.x,y,11*scale,.48);blossom(c,p.x,y,7*scale,reduced?0:time*.18);c.restore();}
+    if(!skipCutin&&!battle.skipHorasCutin&&pending)horasCutin(c,age,reduced);
   }
   function osiaFigure(c, time = 0, frame = {}) {
     const reduced = !!frame.reduced, breath = reduced ? 0 : Math.sin(time * 1.6) * .4;
@@ -1026,8 +1103,9 @@ window.SchoolArt = (() => {
   // Rebuild their pixels lazily; decoded source images and portrait URLs stay.
   function resetRenderCache() {
     backgrounds = new WeakMap();
-    osiaPoses.clear(); osiaFrontSources.clear(); lavaPoses.clear(); lavaSources.clear(); sprites.clear(); combatLabels.clear(); horasPoses.clear(); horasPortraitSources.clear();
+    osiaPoses.clear(); osiaFrontSources.clear(); lavaPoses.clear(); lavaSources.clear(); sprites.clear(); combatLabels.clear(); horasPoses.clear(); horasPortraitSources.clear(); horasFxSources.clear(); horasCutinSource=null;
     lavaPosePixels = spritePixels = combatLabelPixels = horasPosePixels = 0;
+    void warmHorasEffects();if(horasCutinLoaded)void warmHorasSource('face');
     dragon = null;
   }
   function waterOrb(c, x, y, radius) {
@@ -1371,12 +1449,17 @@ window.SchoolArt = (() => {
       if (event.kind === "lava-skill" && age < 1.8) actor("lava").combo = event;
       if (event.kind === "horas-basic" && age < 1.1) actor("horas").basic = event;
       if (event.kind === "horas-cast" && age < 1.8) actor("horas").horasCast = event;
+      if (event.kind === "horas-impact" && age < .62) actor("horas").horasImpact = event;
       if ((event.kind === "guard" || event.kind === "rescue") && event.from === "lava" && age < 1.45) actor("lava").passive = event;
     }
     // Only a critical impact nudges the combat layer (never the DOM or camera
     // layout). Ordinary attack traffic cannot continuously shake the screen.
     const strongHit=lastEffect(effects,e=>e.kind==="hit"&&e.critical&&e.amount>0&&time-e.time<.16);
-    if(strongHit&&!reduced&&!battle.cinematic){const age=time-strongHit.time,decay=1-age/.16;c.translate(Math.sin(age*75)*1.4*decay,Math.cos(age*65)*.7*decay);}
+    const horasStrike=lastEffect(effects,e=>e.kind==='horas-impact'&&!e.missed&&time-e.time<.18&&effects.some(hit=>hit.kind==='hit'&&hit.from==='horas'&&hit.castId===e.castId&&hit.to===e.targetId&&hit.amount>0));
+    if(!reduced&&!battle.cinematic){
+      if(horasStrike){const age=time-horasStrike.time,decay=1-age/.18;c.translate(Math.sin(age*69)*2*decay,Math.cos(age*58)*1.1*decay);}
+      else if(strongHit){const age=time-strongHit.time,decay=1-age/.16;c.translate(Math.sin(age*75)*1.4*decay,Math.cos(age*65)*.7*decay);}
+    }
     const horasInterpolation = battle.cinematic ? 0 : Math.max(0, Math.min(.5, time - (state.simTime || 0) / 1000));
     const lifecycle = sceneLife(c.canvas, battle, time, effects);
     const positions = {};
@@ -1404,7 +1487,7 @@ window.SchoolArt = (() => {
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
         time:sceneTime, reduced, passive:!!visual.passive,
         horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
-        horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasCast ? time-visual.horasCast.time : -1,
+        horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasImpact ? 1.5+time-visual.horasImpact.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
         attackAge:item.id === "horas" ? visual.basic ? sceneTime-visual.basic.time : undefined : visual.passive ? time-visual.passive.time : visual.outgoing && !visual.outgoing.skill && time-visual.outgoing.time<(item.id === "lava" ? 1 : .85) ? time-visual.outgoing.time : undefined });
       else {
@@ -1426,7 +1509,7 @@ window.SchoolArt = (() => {
     }
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy);
     lavaEffects(c, effects, visualPositions, time, reduced,economy);
-    horasVisualEffects(c,battle,effects,visualPositions,time,reduced,economy,horasInterpolation);
+    horasVisualEffects(c,battle,effects,visualPositions,time,reduced,economy,horasInterpolation,true);
     monsterSkillEffects(c,effects,positions,time,reduced);
     impactEffects(c,effects,positions,time,reduced,economy);
     bossEffects(c, battle, positions, effects, time, reduced);
@@ -1490,6 +1573,7 @@ window.SchoolArt = (() => {
       c.font = "10px Galmuri, monospace"; c.fillText(activity ? "결과에서 다음 행동을 선택하세요." : battle.phase === "victory" ? `다음 전투까지 ${Math.ceil(battle.wait)}초` : `${Math.ceil(battle.wait)}초 뒤 자동 재도전`, 240, 135); c.textAlign = "left";
       c.restore();
     }
+    if(!battle.cinematic&&battle.phase==='fight'&&battle.horasCast&&battle.heroes.some(h=>h.id==='horas'&&h.hp>0))horasCutin(c,Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation),reduced);
     osiaCinematic(c, state, time, effects, reduced);
   }
   return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };

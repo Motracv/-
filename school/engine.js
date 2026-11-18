@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 13;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 14;
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
   const OSIA_SKILLS = [
@@ -42,6 +42,7 @@
   });
   const BOSS_RULES = Object.freeze({ storyHp: 2.6, storyAttack: 1, aoeEvery: 6000, aoeMultiplier: 1.6, rageEvery: 15000, rageStep: .12 });
   const PROGRESSION = Object.freeze({ unitRequirement: 3, battleXp: .2, dungeonXp: .35, offlineXp: .2, captainBattleXp: .25, captainOfflineDivisor: 8 });
+  const CAMPAIGN_REWARDS = Object.freeze({ safeGap: 5, decay: .75, minimum: .05, bonusStart: 10, bonusPerStage: .02 });
   const CRITICAL = Object.freeze({ chance: .12, multiplier: 1.5 });
   const PARTY_SYNERGIES = Object.freeze([
     Object.freeze({ id: "tank", name: "철벽 전열", required: 3, description: "수호 3명 · 아군 전체 받는 피해 15% 감소" }),
@@ -49,7 +50,7 @@
     Object.freeze({ id: "healer", name: "생명의 합주", required: 3, description: "치유 3명 · 아군 전체 회복량 20% 증가" }),
   ]);
   const WINTER_EVENT = Object.freeze({ id: "first-snow-2026", name: "겨울의 첫눈", startsAt: Date.parse("2026-11-18T00:00:00+09:00"), endsAt: null, dropChance: .2,
-    shop: Object.freeze({ gold: Object.freeze({ cost: 10, limit: 30, gold: 1000, gems: 0 }), gems: Object.freeze({ cost: 20, limit: 15, gold: 0, gems: 100 }) }) });
+    shop: Object.freeze({ gold: Object.freeze({ cost: 30, limit: 10, gold: 1000, gems: 0 }), gems: Object.freeze({ cost: 60, limit: 10, gold: 0, gems: 100 }) }) });
   // Use integer percentages so 1400 × 35% is exactly 490, not 489.999… .
   const scaledXp = (amount, multiplier) => amount > 0 ? Math.max(1, Math.floor(amount * Math.round(multiplier * 100) / 100)) : 0;
   function recruitRates(misses, banner = "osia") {
@@ -170,7 +171,7 @@
   }
   function questCombatEligible(s) {
     const activity = s.battle?.activity;
-    return !activity || activity.kind !== "tower" || activity.floor > (s.activities?.towerBest || 0);
+    return activity ? activity.kind !== "tower" || activity.floor > (s.activities?.towerBest || 0) : campaignRewardInfo(s).eligible;
   }
   function questProgress(s, metric, amount = 1) {
     const q = refreshQuestState(s, s.at);
@@ -221,17 +222,30 @@
     return { counts, active: PARTY_SYNERGIES.filter(def => counts[def.id] >= def.required).map(def => ({ ...def, count: counts[def.id] })),
       damageMultiplier: counts.damage >= 3 ? 1.15 : 1, healMultiplier: counts.healer >= 3 ? 1.2 : 1, incomingMultiplier: counts.tank >= 3 ? .85 : 1 };
   }
-  function newWinter() { return { id: WINTER_EVENT.id, snowflakes: 0, earned: 0, exchanges: { gold: 0, gems: 0 } }; }
+  function winterDay(now) { return { day: day(now), exchanges: { gold: 0, gems: 0 } }; }
+  function newWinter(now) { return { id: WINTER_EVENT.id, snowflakes: 0, earned: 0, exchanges: { gold: 0, gems: 0 }, ...(Number.isFinite(now) ? { daily: winterDay(now) } : {}) }; }
   function validWinter(w) {
+    const counts = (values, limit = Number.MAX_SAFE_INTEGER) => values && Object.keys(WINTER_EVENT.shop).every(id => Number.isSafeInteger(values[id]) && values[id] >= 0 && values[id] <= limit);
     return w === undefined || !!(w && w.id === WINTER_EVENT.id && Number.isSafeInteger(w.snowflakes) && w.snowflakes >= 0 && Number.isSafeInteger(w.earned) && w.earned >= w.snowflakes &&
-      w.exchanges && Object.keys(WINTER_EVENT.shop).every(id => Number.isInteger(w.exchanges[id]) && w.exchanges[id] >= 0 && w.exchanges[id] <= WINTER_EVENT.shop[id].limit));
+      counts(w.exchanges) && (w.daily === undefined || w.daily && Number.isSafeInteger(w.daily.day) && w.daily.day >= 0 && counts(w.daily.exchanges, 10)));
+  }
+  function refreshWinter(s, now) {
+    const w = s.winter ||= newWinter(now);
+    // Keep lifetime exchanges for old saves. The daily allowance starts at zero
+    // once, without reclaiming any previously earned currency or snowflakes.
+    if (!w.daily || day(now) > w.daily.day) w.daily = winterDay(now);
+    return w;
   }
   function winterInfo(s, now = Date.now()) {
-    const w = s.winter || newWinter(), active = Number.isFinite(now) && now >= WINTER_EVENT.startsAt && (WINTER_EVENT.endsAt === null || now < WINTER_EVENT.endsAt);
-    return { id: WINTER_EVENT.id, name: WINTER_EVENT.name, active, snowflakes: w.snowflakes, earned: w.earned,
-      items: Object.entries(WINTER_EVENT.shop).map(([id, item]) => ({ id, ...item, bought: w.exchanges[id], remaining: item.limit - w.exchanges[id], canBuy: active && w.exchanges[id] < item.limit && w.snowflakes >= item.cost })) };
+    const at = Number.isFinite(now) && now >= 0 ? Math.max(s.at, now) : s.at;
+    const w = s.winter || newWinter(at), currentDay = Math.max(w.daily?.day ?? day(at), day(at));
+    const daily = w.daily?.day === currentDay ? w.daily : winterDay(at);
+    const active = at >= WINTER_EVENT.startsAt && (WINTER_EVENT.endsAt === null || at < WINTER_EVENT.endsAt);
+    return { id: WINTER_EVENT.id, name: WINTER_EVENT.name, active, snowflakes: w.snowflakes, earned: w.earned, day: currentDay, resetsAt: (currentDay + 1) * 86400000 - 9 * 3600000,
+      items: Object.entries(WINTER_EVENT.shop).map(([id, item]) => ({ id, ...item, bought: daily.exchanges[id], totalBought: w.exchanges[id], remaining: item.limit - daily.exchanges[id], canBuy: active && daily.exchanges[id] < item.limit && w.snowflakes >= item.cost })) };
   }
   function winterDrop(s) {
+    if (!s.battle.activity && !campaignRewardInfo(s).eligible) return 0;
     if (!winterInfo(s, s.at).active || random(s) >= WINTER_EVENT.dropChance) return 0;
     const w = s.winter ||= newWinter(), amount = s.battle.boss ? 2 : 1;
     if (w.earned > Number.MAX_SAFE_INTEGER - amount) return 0;
@@ -332,6 +346,16 @@
     if (s.captain.level === CAPTAIN_MAX_LEVEL) s.captain.xp = 0;
   }
   function rates(s) { return { gold: 20 + s.best * 7, xp: scaledXp(8 + s.best * 2, PROGRESSION.offlineXp) }; }
+  function campaignRewardInfo(s, stage = s.battle?.stage ?? s.stage, boss = !!s.battle?.boss) {
+    const best = s.best, gap = Math.max(0, best - stage), eligible = gap <= CAMPAIGN_REWARDS.safeGap;
+    const multiplier = eligible ? 1 : Math.max(CAMPAIGN_REWARDS.minimum, Math.pow(CAMPAIGN_REWARDS.decay, gap - CAMPAIGN_REWARDS.safeGap));
+    const baseGold = (12 + 4 * stage) * (boss ? 3 : 1), stageBonus = 1 + Math.max(0, stage - CAMPAIGN_REWARDS.bonusStart) * CAMPAIGN_REWARDS.bonusPerStage;
+    // Keep the first ten stages and nearby farming intact. Lower stages retain
+    // token gold, but no minimum XP that could bypass the captain reward curve.
+    return { stage, best, gap, eligible, multiplier, baseGold, stageBonus, gold: Math.max(1, Math.floor(baseGold * stageBonus * multiplier)),
+      xp: Math.floor(scaledXp((8 + stage * 2) * (boss ? 2 : 1), PROGRESSION.battleXp) * multiplier),
+      captainXp: Math.floor(scaledXp(4 + Math.floor(stage / 2), PROGRESSION.captainBattleXp) * multiplier) };
+  }
   function campaignScale(stage) {
     const late = Math.max(0, stage - 30) / 30, middle = Math.max(0, Math.min(20, stage - 10)) / 20;
     return { hp: Math.pow(1.18, Math.min(29, stage - 1)) * Math.pow(1.055, Math.max(0, stage - 30)) * (1 + middle * .25 + late * (BOSS_RULES.storyHp - 1.25)),
@@ -409,7 +433,7 @@
   function create(now = Date.now(), seed = 123456789) {
     fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
-      gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
+      gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
       banners: { osia: { pity: 0, guaranteed: false }, lava: { pity: 0, guaranteed: false }, horas: { pity: 0, guaranteed: false } },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
@@ -584,11 +608,11 @@
   }
   function victory(s) {
     if (s.battle.activity) { settleActivity(s, true, "victory"); return; }
-    questProgress(s, "waves"); if (s.battle.boss) questProgress(s, "bosses");
-    const b = s.battle, gold = (12 + s.stage * 4) * (b.boss ? 3 : 1), xp = scaledXp((8 + s.stage * 2) * (b.boss ? 2 : 1), PROGRESSION.battleXp);
+    const b = s.battle, reward = campaignRewardInfo(s), { gold, xp } = reward;
+    if (reward.eligible) { questProgress(s, "waves"); if (b.boss) questProgress(s, "bosses"); }
     s.gold += gold; for (const id of s.team) addUnitXp(s, id, xp);
-    captainXp(s, scaledXp(4 + Math.floor(s.stage / 2), PROGRESSION.captainBattleXp));
-    event(s, "reward", { gold, xp, boss: b.boss });
+    if (reward.captainXp) captainXp(s, reward.captainXp);
+    event(s, "reward", { gold, xp, boss: b.boss, eligible: reward.eligible, multiplier: reward.multiplier });
     winterDrop(s);
     if (b.boss) {
       s.losses = 0;
@@ -755,7 +779,7 @@
     }
   }
   function advance(s, now) {
-    refreshQuestState(s, s.at);
+    refreshQuestState(s, s.at); refreshWinter(s, s.at);
     s.speed ??= 1; s.simCredit ??= 0; s.simTime ??= 0;
     s.commanderName ??= "새내기 단장";
     // Preserve the captain share already earned under the previous bank rate.
@@ -846,14 +870,16 @@
       return { kind, name, cost: info.cost };
     }
     if (kind === "winter-exchange") {
+      fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
       const info = winterInfo(s, now);
       fail(info.active, "겨울 이벤트 기간이 아닙니다.");
       fail(typeof input.item === "string" && Object.hasOwn(WINTER_EVENT.shop, input.item), "교환할 보상을 선택하세요.");
       const item = info.items.find(item => item.id === input.item);
-      fail(item.remaining > 0, "이 보상은 모두 교환했어요.");
+      fail(item.remaining > 0, "오늘의 교환 횟수를 모두 사용했어요. 자정에 초기화됩니다.");
       fail(info.snowflakes >= item.cost, "눈송이가 부족합니다.");
-      const w = s.winter ||= newWinter();
-      w.snowflakes -= item.cost; w.exchanges[item.id]++;
+      fail(Number.isSafeInteger(s.gold + item.gold) && Number.isSafeInteger(s.gems + item.gems) && (s.winter?.exchanges[item.id] || 0) < Number.MAX_SAFE_INTEGER, "보유 재화를 확인하세요.");
+      const w = refreshWinter(s, Math.max(s.at, now));
+      w.snowflakes -= item.cost; w.exchanges[item.id]++; w.daily.exchanges[item.id]++;
       s.gold += item.gold; s.gems += item.gems;
       event(s, "winter-exchange", { item: item.id, cost: item.cost, gold: item.gold, gems: item.gems });
       return { kind, item: item.id, cost: item.cost, gold: item.gold, gems: item.gems, remaining: item.remaining - 1 };
@@ -965,5 +991,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { HEROES, BY_ID, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

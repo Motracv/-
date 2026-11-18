@@ -83,12 +83,12 @@ test('Winter projection does not mutate legacy saves; invalid exchange never inv
 });
 test('Winter exchanges charge exact snowflakes, retain limits after reload and reject forged rewards',()=>{
   const s=make();s.winter.snowflakes=s.winter.earned=1000;const start={gold:s.gold,gems:s.gems};
-  for(let i=0;i<30;i++)G.action(s,{kind:'winter-exchange',item:'gold',gold:1e9,cost:0},s.at);
-  assert.equal(s.gold,start.gold+30000);assert.equal(s.winter.snowflakes,700);reject(s,{kind:'winter-exchange',item:'gold'});
-  const loaded=G.clone(s);for(let i=0;i<15;i++)G.action(loaded,{kind:'winter-exchange',item:'gems',gems:1e9},loaded.at);
-  assert.equal(loaded.gems,start.gems+1500);assert.equal(loaded.winter.snowflakes,400);reject(loaded,{kind:'winter-exchange',item:'gems'});
-  assert.ok(G.winterInfo(loaded).items.every(item=>item.remaining===0));assert.ok(G.validate(loaded));
-  reject(s,{kind:'winter-exchange',item:'gems'},G.WINTER_EVENT.startsAt-1);
+  for(let i=0;i<10;i++)G.action(s,{kind:'winter-exchange',item:'gold',gold:1e9,cost:0},s.at);
+  assert.equal(s.gold,start.gold+10000);assert.equal(s.winter.snowflakes,700);reject(s,{kind:'winter-exchange',item:'gold'});
+  const loaded=G.clone(s);for(let i=0;i<10;i++)G.action(loaded,{kind:'winter-exchange',item:'gems',gems:1e9},loaded.at);
+  assert.equal(loaded.gems,start.gems+1000);assert.equal(loaded.winter.snowflakes,100);reject(loaded,{kind:'winter-exchange',item:'gems'});
+  assert.ok(G.winterInfo(loaded,loaded.at).items.every(item=>item.remaining===0));assert.ok(G.validate(loaded));
+  const beforeEvent=G.create(G.WINTER_EVENT.startsAt-1);reject(beforeEvent,{kind:'winter-exchange',item:'gems'},beforeEvent.at);
 });
 test('Snowflakes come from won battles; offline and repeat tower clears do not award more',()=>{
   const s=make();s.seed=1;s.battle.enemies.forEach(e=>e.hp=0);G.advance(s,s.at+500);assert.equal(s.winter.snowflakes,1);
@@ -98,7 +98,7 @@ test('Snowflakes come from won battles; offline and repeat tower clears do not a
 });
 test('Winter save counters reject negative, fractional, infinite and over-limit values',()=>{
   for(const value of [-1,.5,Infinity,NaN]){const s=make();s.winter.snowflakes=value;assert.equal(G.validate(s),false);}
-  const s=make();s.winter.exchanges.gems=16;assert.equal(G.validate(s),false);
+  const s=make();s.winter.daily.exchanges.gems=11;assert.equal(G.validate(s),false);
   const a=make();a.winter.earned=-1;assert.equal(G.validate(a),false);
 });
 test('The previous update code is disabled and HORAS_CELEBRATION grants 2000 of each currency without expiry',()=>{

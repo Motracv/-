@@ -19,9 +19,12 @@
   const time = stamp => Number.isFinite(Number(stamp)) ? new Date(Number(stamp)).toLocaleDateString('ko-KR', {month:'numeric',day:'numeric'}) : '';
 
   function create(context) {
-    let generation = 0, loadEpoch = 0, view = '', data = null, busy = false, poll = null, cancelReplay = null, pending = null, stopped = false;
+    let generation = 0, loadEpoch = 0, view = '', data = null, busy = false, poll = null, cancelReplay = null, pending = null, stopped = false, winterSignature = '';
     const own = () => !stopped && document.querySelector(`#school-social[data-view="${view}"]`)?.closest('dialog')?.open;
     const $ = id => document.getElementById(id);
+    const now = () => context.serverNow?.() ?? Date.now();
+    const winterInfo = () => window.SchoolRPG.winterInfo?.(context.getState(), now());
+    const winterBlocked = () => busy || !!context.isBlocked?.();
     function stop() { generation++; clearTimeout(poll); poll = null; cancelReplay?.(); cancelReplay = null; }
     function status(message, error = false) {
       const node = $('social-message');
@@ -129,24 +132,46 @@
       finally { if (ticket === generation) { busy = false; lockButtons(); if (!cancelReplay) schedulePoll(); } }
     }
     function winterMarkup() {
-      const info = window.SchoolRPG.winterInfo?.(context.getState());
+      const info = winterInfo();
       if (!info) return '<div class="social-empty">겨울 이벤트를 준비하고 있어요.</div>';
-      return `<div class="winter-banner"><div class="winter-snow" aria-hidden="true">✦ · ✧ · ✦</div>${icon('winter')}<small>WINTER FESTIVAL</small><h3>${escape(info.name)}</h3><p>모험 끝에 찾아온 작은 눈송이</p></div><div class="winter-wallet"><span>${icon('winter')} 내 눈송이</span><b id="winter-balance">${number(info.snowflakes)}</b></div><div class="winter-shop">${info.items.map(item => `<div class="winter-item"><span class="winter-reward-icon ${item.id}">${icon(item.gems ? 'gem' : 'coin')}</span><div><b>${item.gems ? '보석' : '코인'} ${number(item.gems || item.gold)}</b><small>남은 교환 ${number(item.remaining)} / ${number(item.limit)}</small></div><button class="primary" data-winter-item="${escape(item.id)}" ${!item.canBuy || busy ? 'disabled' : ''} aria-label="${item.gems ? '보석' : '코인'} 교환, 눈송이 ${number(item.cost)}개">${icon('winter')}${number(item.cost)}</button></div>`).join('')}</div><p class="social-note">전투 승리 시 가끔 눈송이를 얻어요. 보스는 한 번에 2개! 교환 한도는 이벤트 전체에 적용됩니다.</p><p id="social-message" role="status" aria-live="polite"></p>`;
+      return `<div class="winter-banner"><div class="winter-snow" aria-hidden="true">✦ · ✧ · ✦</div>${icon('winter')}<small>WINTER FESTIVAL</small><h3>${escape(info.name)}</h3><p>모험 끝에 찾아온 작은 눈송이</p><div class="winter-reset"><span>매일 00:00 · 한국 시간</span><b id="winter-reset-countdown"></b></div></div><div class="winter-wallet"><span>${icon('winter')} 내 눈송이</span><b id="winter-balance">0</b></div><div class="winter-shop">${info.items.map(item => `<div class="winter-item" data-winter-row="${escape(item.id)}"><span class="winter-reward-icon ${item.id}">${icon(item.gems ? 'gem' : 'coin')}</span><div><b>${item.gems ? '보석' : '코인'} ${number(item.gems || item.gold)}</b><small data-winter-remaining></small></div><button class="primary" data-winter-item="${escape(item.id)}" disabled>${icon('winter')}<span data-winter-price>${number(item.cost)}</span></button></div>`).join('')}</div><p class="social-note">보상 대상 지역에서 승리하면 가끔 눈송이를 얻어요. 보스는 2개! 교환은 품목별 하루 10회예요.</p>`;
     }
     function renderWinter() {
       if (!own()) return;
-      $('school-social').innerHTML = winterMarkup();
-      $('school-social').querySelectorAll('[data-winter-item]').forEach(button => button.addEventListener('click', async () => {
-        if (busy) return;
-        const ticket = generation, before = window.SchoolRPG.winterInfo(context.getState()).snowflakes;
-        busy = true; lockButtons(); let message = '', failed = false;
-        try {
-          await context.dispatch({kind:'winter-exchange',item:button.dataset.winterItem});
-          if (ticket !== generation || !own()) return;
-          if (window.SchoolRPG.winterInfo(context.getState()).snowflakes < before) message = '교환한 보상을 받았어요!';
-        } catch (error) { message = error.message; failed = true; }
-        finally { if (ticket === generation && own()) { busy = false; renderWinter(); if (message) status(message, failed); } }
-      }));
+      const root = $('school-social'), info = winterInfo();
+      if (!info || !root.querySelector('.winter-shop')) return;
+      if (!root.dataset.winterReady) {
+        root.dataset.winterReady = 'true'; winterSignature = '';
+        root.querySelectorAll('[data-winter-item]').forEach(button => button.addEventListener('click', async () => {
+          if (winterBlocked()) return;
+          const item = winterInfo()?.items.find(item => item.id === button.dataset.winterItem);
+          if (!item?.canBuy) { renderWinter(); return; }
+          const ticket = generation, before = item.totalBought;
+          busy = true; renderWinter(); let message = '', failed = false;
+          try {
+            await context.dispatch({kind:'winter-exchange',item:item.id});
+            if (ticket !== generation || !own()) return;
+            const after = winterInfo()?.items.find(entry => entry.id === item.id);
+            if (after && after.totalBought > before) message = '교환한 보상을 받았어요!';
+          } catch (error) { message = error.message; failed = true; }
+          finally { if (ticket === generation && own()) { busy = false; renderWinter(); if (message) status(message, failed); } }
+        }));
+      }
+      // Preserve each pressed/focused button across balance and midnight updates.
+      const blocked = winterBlocked(), signature = [info.day,info.active,info.snowflakes,blocked,...info.items.flatMap(item => [item.id,item.bought,item.remaining,item.cost,item.canBuy])].join('|');
+      if (winterSignature !== signature) {
+        winterSignature = signature; $('winter-balance').textContent = number(info.snowflakes);
+        for (const item of info.items) {
+          const row = root.querySelector(`[data-winter-row="${item.id}"]`), button = row.querySelector('button');
+          row.querySelector('[data-winter-remaining]').textContent = `오늘 남은 교환 ${number(item.remaining)} / ${number(item.limit)}`;
+          row.querySelector('[data-winter-price]').textContent = number(item.cost);
+          button.disabled = blocked || !item.canBuy;
+          button.setAttribute('aria-label', `${item.gems ? '보석' : '코인'} ${number(item.gems || item.gold)} 교환 · 눈송이 ${number(item.cost)}개 · 오늘 ${number(item.remaining)}회 남음`);
+        }
+      }
+      const left = Math.max(0, Math.ceil((info.resetsAt - now()) / 1000));
+      const countdown = info.active ? `갱신까지 ${String(Math.floor(left/3600)).padStart(2,'0')}:${String(Math.floor(left%3600/60)).padStart(2,'0')}:${String(left%60).padStart(2,'0')}` : '이벤트 종료';
+      if ($('winter-reset-countdown').textContent !== countdown) $('winter-reset-countdown').textContent = countdown;
     }
     function open(next) {
       stop(); stopped = false; view = next; busy = false;
@@ -176,10 +201,7 @@
 
     function refresh() {
       if (!own()) return;
-      if (view === 'winter' && !busy) {
-        const balance = number(window.SchoolRPG.winterInfo?.(context.getState())?.snowflakes);
-        if ($('winter-balance')?.textContent !== balance) renderWinter();
-      }
+      if (view === 'winter') renderWinter();
     }
     return {openFriends:() => open('friends'),openArena:() => open('arena'),openWinter:() => open('winter'),refresh,destroy() {stop();stopped = true;data = null;}};
   }
@@ -198,7 +220,7 @@
     let cancelled = false, finished = false, frame = 0, clock = 0, previous = 0, lastDraw = 0, lastDom = -1000, cursor = 0;
     let events = [...(match.events || [])].sort((a,b) => a.t - b.t), effects = [];
     const duration = Math.max(1, Number(match.durationMs) || Number(events.at(-1)?.t) || 1000);
-    const units = match.teams.map((team,side) => team.units.map((unit,index) => ({...unit,hp:unit.max || unit.hp,shield:0,side,index,actAt:-10000,hitAt:-10000,actKind:'attack',skill:'',horasStacks:0,horasBasicAt:-10000,horasBasicPose:1,horasCastAt:-10000,horasCast:null})));
+    const units = match.teams.map((team,side) => team.units.map((unit,index) => ({...unit,hp:unit.max || unit.hp,shield:0,side,index,actAt:-10000,hitAt:-10000,actKind:'attack',skill:'',horasStacks:0,horasBasicAt:-10000,horasBasicPose:1,horasCastAt:-10000,horasImpactAt:-10000,horasCast:null})));
     const byKey = new Map(units.flat().map(unit => [`${unit.side}:${unit.id}`,unit]));
     const positions = new Map(units.flat().map(unit => {
       const column = unit.index < 3 ? 1 : 0, row = unit.index % 3;
@@ -233,7 +255,13 @@
         if(event.kind==='horas-basic'){from.horasBasicAt=event.t;from.horasBasicPose=event.pose;}
         if(event.kind==='horas-stack'||event.kind==='horas-refund')from.horasStacks=event.stacks;
         if(event.kind==='horas-cast'){from.horasStacks=0;from.horasCastAt=event.t;from.horasCast={id:event.castId,began:event.t,simBegan:event.t,targetId:event.targetId,impactDelay:event.impactDelay,mergeMs:event.mergeMs};}
-        if(event.kind==='horas-impact')from.horasCast=null;
+        if(event.kind==='horas-impact'){
+          from.horasCast=null;from.horasImpactAt=event.t;
+          const landed=!event.missed&&events.some(hit=>hit.kind==='skill'&&hit.side===event.side&&hit.from==='horas'&&hit.castId===event.castId&&hit.primary&&hit.amount>0);
+          event={...event,landed};
+          if(!finished&&clock-event.t>=0&&clock-event.t<200&&(event.missed||landed))window.SchoolPresentation?.play(event.missed?'blossom-miss':'blossom');
+        }
+        if(event.kind==='horas-cast'&&!finished&&clock-event.t>=0&&clock-event.t<200)window.SchoolPresentation?.play('blossom-charge');
       }
       if (target) {
         if (Number.isFinite(event.hp)) target.hp = Math.max(0,event.hp);
@@ -265,10 +293,13 @@
     }
     function draw() {
       scenery();c.setTransform(1,0,0,1,0,0);c.drawImage(background,0,0);c.setTransform(scale,0,0,scale,0,0);c.imageSmoothingEnabled=false;
+      let impact=null;
+      for(let i=effects.length-1;i>=0;i--){const event=effects[i];if(event.kind==='horas-impact'&&event.landed&&clock-event.t>=0&&clock-event.t<180){impact=event;break;}}
+      if(impact&&!reduced){const age=(clock-impact.t)/1000,decay=1-age/.18;c.translate(Math.sin(age*100)*4*decay,Math.cos(age*83)*2*decay);}
       units.flat().sort((a,b)=>positions.get(`${a.side}:${a.id}`).y-positions.get(`${b.side}:${b.id}`).y).forEach(unit=>{
         const position=positions.get(`${unit.side}:${unit.id}`),actAge=(clock-unit.actAt)/1000,hitAge=clock-unit.hitAt;
-        const horasAge=(clock-unit.horasBasicAt)/1000,horasCastAge=(clock-unit.horasCastAt)/1000;
-        const casting=unit.id==='horas'?!!unit.horasCast&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<1.15&&unit.hp>0;
+        const horasAge=(clock-unit.horasBasicAt)/1000,horasCastAge=unit.horasCast?(clock-unit.horasCastAt)/1000:1.5+(clock-unit.horasImpactAt)/1000;
+        const casting=unit.id==='horas'?(!!unit.horasCast||horasCastAge>=1.5&&horasCastAge<2.1)&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<1.15&&unit.hp>0;
         const attacking=(unit.id==='horas'?horasAge>=0&&horasAge<.9:actAge>=0&&actAge<.48)&&unit.hp>0, direction=unit.side?-1:1;
         const move=attacking&&!reduced?Math.sin(actAge/.48*Math.PI)*15*direction:0;
         const motion=casting&&['osia','lava'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
@@ -285,7 +316,7 @@
         for(const target of units[1-side])p[`enemy:${target.id}`]=mirror(positions.get(`${1-side}:${target.id}`));
         const cast=caster.horasCast?{...caster.horasCast,targetId:`enemy:${caster.horasCast.targetId}`}:null;
         const recent=effects.filter(event=>event.side===side&&event.from==='horas').map(event=>({...event,time:event.t/1000,from:'horas',to:event.toSide===side?'horas':`enemy:${event.target}`,targetId:event.targetId?`enemy:${event.targetId}`:undefined,targets:event.targets?.map(id=>`enemy:${id}`)}));
-        const battle={elapsed:clock,skipHorasCutin:true,horas:{stacks:caster.horasStacks},horasCast:caster.hp>0?cast:null,heroes:[{...caster,id:'horas'}],enemies:units[1-side].map(unit=>({...unit,id:`enemy:${unit.id}`}))};
+        const battle={elapsed:clock,skipHorasCutin:true,horasEffectScale:1.55,horas:{stacks:caster.horasStacks},horasCast:caster.hp>0?cast:null,heroes:[{...caster,id:'horas'}],enemies:units[1-side].map(unit=>({...unit,id:`enemy:${unit.id}`}))};
         c.save();if(side){c.translate(960,0);c.scale(-1,1);}
         window.SchoolArt?.horasVisualEffects?.(c,battle,recent,p,clock/1000,reduced,false);c.restore();
       }
@@ -299,7 +330,7 @@
         if(event.amount){c.textAlign='center';c.font=`${event.crit?20:15}px Galmuri,monospace`;c.fillStyle=healing?'#b8efb5':shield?'#acdbf0':event.crit?'#ffcf71':'#fff1df';c.strokeStyle='#233244';c.lineWidth=3;const label=(healing?'+':shield?'+':'')+number(event.amount),y=p.y-79-age*24;c.strokeText(label,p.x,y);c.fillText(label,p.x,y);if(event.crit){c.fillStyle='#ffe49a';c.fillRect(p.x-6,y-29,12,5);c.fillRect(p.x-2,y-33,4,13);c.fillRect(p.x-12,y-26,4,4);c.fillRect(p.x+8,y-26,4,4);}}
         c.restore();
       }
-      const cutin=units.flat().find(unit=>unit.id==='horas'&&unit.hp>0&&unit.horasCast&&clock-unit.horasCastAt>=400&&clock-unit.horasCastAt<1100);
+      const cutin=units.flat().find(unit=>unit.id==='horas'&&unit.hp>0&&unit.horasCast&&clock-unit.horasCastAt>=580&&clock-unit.horasCastAt<1160);
       if(cutin){c.save();c.scale(2,1.5);window.SchoolArt?.horasCutin?.(c,(clock-cutin.horasCastAt)/1000,reduced);c.restore();}
       if(clock-lastDom>=200||finished){lastDom=clock;const seconds=Math.floor(clock/1000),label=document.getElementById('arena-clock'),progress=document.getElementById('arena-progress');if(label)label.textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;if(progress)progress.value=clock;}
     }

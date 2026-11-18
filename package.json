@@ -19,7 +19,9 @@
     "test:school:horas": "node tests/school-horras.cjs && node tests/school-horas-server.cjs",
     "test:school:price": "node tests/school-recruit-price.cjs && node tests/school-recruit-price-browser.cjs",
     "test:school:progression": "node tests/school-progression.cjs && node tests/school-progression-server.cjs",
-    "test:school:progression-browser": "node tests/school-progression-browser.cjs"
+    "test:school:progression-browser": "node tests/school-progression-browser.cjs",
+    "test:school:blossom": "node tests/school-campaign-economy.cjs && node tests/school-winter-daily.cjs && node tests/school-winter-daily-server.cjs",
+    "test:school:blossom-browser": "node tests/school-blossom2-browser.cjs"
   },
   "engines": {
     "node": ">=20"

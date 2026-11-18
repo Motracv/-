@@ -91,7 +91,7 @@
     try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
     catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
   }
-  function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openAccount:accountModal,openCaptain:captainModal}); }
+  function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openAccount:accountModal,openCaptain:captainModal}); }
   function damageModal() {
     const report = G.damageReport?.(state);
     const rows = report?.rows || []; const maximum = Math.max(1,...rows.map(r=>r.damage));
@@ -520,7 +520,10 @@
       if (e.kind === 'skill-impact' && age < .5 && e.battleId === state.battle.id) play('water', e.stage);
       if (age < .5 && e.battleId === state.battle.id) {
         if (e.kind === 'horas-cast') play('blossom-charge');
-        if (e.kind === 'horas-impact') play(e.missed ? 'blossom-miss' : 'blossom');
+        if (e.kind === 'horas-impact') {
+          const landed = !e.missed && events.some(hit => hit.kind === 'hit' && hit.from === 'horas' && hit.castId === e.castId && hit.primary && hit.amount > 0);
+          if (e.missed || landed) play(e.missed ? 'blossom-miss' : 'blossom');
+        }
         if (e.kind === 'horas-refund') play('blossom-refund');
       }
     }
@@ -666,7 +669,12 @@
       const info = G.horasInfo(state);
       battleStatus = info.casting ? '호라스 · 구슬 융합 → 벚꽃의식' : `호라스 · 벚꽃 구슬 ${info.stacks}/${info.maxStacks}`;
     }
-    setText('battle-status', battleStatus);
+    const campaignReward = !activity ? G.campaignRewardInfo?.(state) : null;
+    const reducedRewards = campaignReward?.eligible === false;
+    setText('battle-status', reducedRewards ? `저레벨 지역 · 전투 보상 ${Math.round(campaignReward.multiplier*100)}%` : battleStatus);
+    setAttr($('battle-status'), 'data-reduced', String(reducedRewards));
+    setAttr($('battle-status'), 'title', reducedRewards ? '저레벨 지역: 보상 감소 · 반복/일일 임무와 눈송이는 집계하지 않아요. 최근 돌파 지역에서 사냥해 주세요.' : battleStatus);
+    setAttr($('battle-status'), 'aria-label', reducedRewards ? `${$('battle-status').textContent} · 반복·일일 임무와 눈송이 미집계` : battleStatus);
     const pk = state.team.join('|');
     setText($('party-count'), `${state.team.length} / ${maxTeam()}`);
     if (pk !== partyKey) {
@@ -831,7 +839,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-quests1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-blossom2" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
