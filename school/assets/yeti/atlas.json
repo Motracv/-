@@ -1,0 +1,18 @@
+{
+  "image": "poses.png",
+  "width": 1536,
+  "height": 1024,
+  "columns": 3,
+  "rows": 2,
+  "cellWidth": 512,
+  "cellHeight": 512,
+  "facing": "left",
+  "poses": [
+    { "id": "idle", "column": 0, "row": 0, "anchorX": 256, "anchorY": 424 },
+    { "id": "windup", "column": 1, "row": 0, "anchorX": 256, "anchorY": 424 },
+    { "id": "slam", "column": 2, "row": 0, "anchorX": 256, "anchorY": 423 },
+    { "id": "roar", "column": 0, "row": 1, "anchorX": 256, "anchorY": 408 },
+    { "id": "charge", "column": 1, "row": 1, "anchorX": 256, "anchorY": 407 },
+    { "id": "defeat", "column": 2, "row": 1, "anchorX": 256, "anchorY": 405 }
+  ]
+}

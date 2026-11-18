@@ -13,23 +13,24 @@
  const magical=(g,id)=>['마법','치유'].includes(g.BY_ID[id]?.role)||id==='horas';
  function snapshot(g,s){return{synergy:g.partySynergies(s),rescued:false,buffUntil:0,damage:0,units:s.team.slice(0,6).map(id=>{const d=g.BY_ID[id],st=g.stats(id,s.units[id],s);return{id,name:d.name,role:d.role,level:s.units[id].level,stars:s.units[id].stars,magic:magical(g,id),max:st.hp,hp:st.hp,atk:st.atk,defense:st.defense,shield:0,energy:0,stage:1,hits:0,stacks:0,stunUntil:0,protectedUntil:0,nextBasic:0,damage:0,healing:0,exclusive:g.exclusivePassive?.(s,id)||null};})};}
  function create(g,members,now,seed,hp=HP){return{rules:2,startedAt:now,elapsed:0,seed:seed>>>0||1,seq:0,events:[],ended:false,outcome:null,damage:0,teams:members.map(m=>({account:m.account,...snapshot(g,m.save)})),boss:{hp,max:HP,guardUntil:0,stunUntil:0,nextAt:3000,nextBasicAt:1250,pattern:0,cast:null}};}
- function advance(g,s,now){
-  const end=Math.min(DURATION,Math.max(0,Math.floor((now-s.startedAt)/STEP)*STEP));
+ function advance(g,s,now,encounter){
+  const duration=encounter?.duration||DURATION;
+  const end=Math.min(duration,Math.max(0,Math.floor((now-s.startedAt)/STEP)*STEP));
   const random=()=>{let x=s.seed|0;x^=x<<13;x^=x>>>17;x^=x<<5;s.seed=x>>>0;return s.seed/4294967296;};
   const emit=(kind,extra={})=>s.events.push({seq:++s.seq,t:s.elapsed,kind,...extra});
   const living=t=>t.units.filter(u=>u.hp>0),weak=t=>living(t).sort((a,b)=>a.hp/a.max-b.hp/b.max)[0];
   const shield=(ti,u,amount,from)=>{const n=Math.max(0,Math.min(Math.round(amount),Math.floor(u.max*.6)-u.shield));u.shield+=n;if(n)emit('shield',{team:ti,id:u.id,from,amount:n});};
   const heal=(ti,u,amount,from)=>{const t=s.teams[ti],before=u.hp,n=Math.max(0,Math.min(u.max-u.hp,Math.round(amount*t.synergy.healMultiplier)));u.hp+=n;const caster=t.units.find(a=>a.id===from);if(caster)caster.healing+=n;if(n)emit('heal',{team:ti,id:u.id,from,amount:n,hpBefore:before,hpAfter:u.hp});};
-  const hit=(ti,u,mult,skill)=>{if(!s.boss.hp)return 0;const crit=random()<.12;const n=u.magic?Math.min(s.boss.hp,Math.max(1,Math.round(u.atk*mult*(.9+random()*.2)*(crit?1.5:1)*s.teams[ti].synergy.damageMultiplier*(s.teams[ti].buffUntil>s.elapsed?1.3:1)*(s.boss.guardUntil>s.elapsed?.6:1)*(u.id==='horas'&&s.boss.stunUntil>s.elapsed?1.5:1)*(1+(u.exclusive?.strength||0))))):0;s.boss.hp-=n;s.damage+=n;s.teams[ti].damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:crit&&n>0,skill:skill||null});return n;};
+  const hit=(ti,u,mult,skill)=>{if(!s.boss.hp)return 0;const crit=random()<.12;const n=(u.magic||encounter?.physical)?Math.min(s.boss.hp,Math.max(1,Math.round(u.atk*mult*(.9+random()*.2)*(crit?1.5:1)*s.teams[ti].synergy.damageMultiplier*(s.teams[ti].buffUntil>s.elapsed?1.3:1)*(s.boss.guardUntil>s.elapsed?.6:1)*(u.id==='horas'&&s.boss.stunUntil>s.elapsed?1.5:1)*(1+(u.exclusive?.strength||0))))):0;s.boss.hp-=n;s.damage+=n;s.teams[ti].damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:crit&&n>0,skill:skill||null});return n;};
   function hurt(ti,original,mult,pattern){const t=s.teams[ti],guard=g.ryusionGuard(t.units,s.elapsed),u=guard.taunting?guard.hero:original;if(!u||u.hp<=0)return;
    const hpBefore=u.hp,shieldBefore=u.shield;
-   let n=Math.max(1,Math.round((480+s.elapsed/1000*4)*mult*(1-u.defense)*t.synergy.incomingMultiplier*(guard.hero?1-g.RYUSION_RULES.teamReduction:1)*(guard.taunting&&u.id==='ryusion'?1-g.RYUSION_RULES.tauntReduction:1)));
+   let n=Math.max(1,Math.round(((encounter?.attack||480)+s.elapsed/1000*(encounter?.rage||4))*mult*(1-u.defense)*t.synergy.incomingMultiplier*(guard.hero?1-g.RYUSION_RULES.teamReduction:1)*(guard.taunting&&u.id==='ryusion'?1-g.RYUSION_RULES.tauntReduction:1)));
    const absorbed=Math.min(u.shield,n);u.shield-=absorbed;n-=absorbed;g.absorbEarthShield(u,absorbed);
    if(n>=u.hp&&!t.rescued&&living(t).some(a=>a.id==='lava')){t.rescued=true;u.protectedUntil=s.elapsed+2000;emit('rescue',{team:ti,id:u.id});}
    if(u.protectedUntil>s.elapsed)n=Math.min(n,Math.max(0,u.hp-1));n=Math.min(u.hp,n);u.hp-=n;u.taken=(u.taken||0)+n;u.absorbed=(u.absorbed||0)+absorbed;emit('hurt',{team:ti,id:u.id,amount:n,absorbed,pattern,hpBefore,hpAfter:u.hp,shieldBefore,shieldAfter:u.shield});
    if(u.id==='horas'&&n>0&&s.elapsed>=(u.lastHit||-1000)+1000){u.lastHit=s.elapsed;u.stacks=Math.min(5,u.stacks+1);}return u;
   }
-  function bossAct(){const b=s.boss;if(b.stunUntil>s.elapsed)return;
+  function bossAct(){if(encounter?.bossAct){encounter.bossAct({s,emit,hurt,living});return;}const b=s.boss;if(b.stunUntil>s.elapsed)return;
    if(b.cast&&s.elapsed>=b.cast.at){const id=b.cast.id;emit('impact',{pattern:id});b.cast=null;b.nextBasicAt=s.elapsed+750;
     if(id==='guard'){b.guardUntil=s.elapsed+6000;return;}
     s.teams.forEach((t,ti)=>{const live=living(t);let targets=id==='storm'?live:id==='pull'?live.sort((a,b)=>b.atk-a.atk).slice(0,1):live.slice(0,id==='rise'?3:id==='dash'?2:1);for(const v of targets){const u=hurt(ti,v,id==='storm'?.7:id==='dash'?1.65:id==='pull'?1.15:1.2,id);if(id==='pull'&&u?.hp>0)u.stunUntil=s.elapsed+1000;}});
@@ -38,7 +39,7 @@
    if(b.nextBasicAt==null)b.nextBasicAt=s.elapsed+500;
    if(!b.cast&&s.elapsed>=b.nextBasicAt){b.nextBasicAt=s.elapsed+BOSS_BASIC_MS;emit('impact',{pattern:'basic'});s.teams.forEach((t,ti)=>hurt(ti,living(t)[0],.75,'basic'));}
   }
-  function act(ti,u){const t=s.teams[ti];if(u.hp<=0||u.stunUntil>s.elapsed)return;
+  function act(ti,u){const t=s.teams[ti];if(u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn)return;
    if(u.cast){if(s.elapsed<u.cast.at)return;const cast=u.cast;delete u.cast;if(!cast.miss){hit(ti,u,g.HORAS_RULES.primaryMultiplier,'벚꽃의식');emit('ritual',{team:ti,id:u.id});}else emit('miss',{team:ti,id:u.id});return;}
    if(u.id==='horas'){
     if(u.stacks>=5){u.stacks=0;u.cast={at:s.elapsed+1500,miss:random()<.1};emit('cast',{team:ti,id:u.id,skill:'벚꽃의식'});return;}
@@ -59,11 +60,11 @@
    const n=hit(ti,u,skill?(u.role==='마법'?1.7:u.role==='사수'?2.6:u.role==='전사'?3:1):1,skill?def.skill:null);
    if(u.id==='lava'&&n>0&&++u.hits%10===0){const a=weak(t);if(a)shield(ti,a,(u.atk*2+a.max*.08)*(1+(u.exclusive?.strength||0)),u.id);}
   }
-  while(!s.ended&&s.elapsed<end){s.elapsed+=STEP;
+  while(!s.ended&&s.elapsed<end){s.elapsed+=STEP;encounter?.tick?.({s,emit,hurt,living});if(s.ended)break;
    for(const t of s.teams)for(const u of t.units)g.expireEarthShield(u,s.elapsed);
    for(let i=0;i<s.teams.length;i++)for(const u of s.teams[i].units)if(s.boss.hp>0)act(i,u);
    if(s.boss.hp>0)bossAct();
-   if(s.boss.hp<=0||s.teams.every(t=>!living(t).length)||s.elapsed>=DURATION){s.ended=true;s.outcome=s.boss.hp<=0?'defeated':s.teams.every(t=>!living(t).length)?'down':'timeout';emit('end',{outcome:s.outcome});}
+   if(s.boss.hp<=0||s.teams.every(t=>!living(t).length)||s.elapsed>=duration){s.ended=true;s.outcome=s.boss.hp<=0?'defeated':s.teams.every(t=>!living(t).length)?'down':'timeout';emit('end',{outcome:s.outcome});}
    s.events=s.events.slice(-240);
   }return s;
  }

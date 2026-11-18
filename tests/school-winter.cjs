@@ -77,7 +77,7 @@ test('Later ordinary monsters use melee, ranged and healer skills; early enemies
 });
 test('Winter projection does not mutate legacy saves; invalid exchange never invents balances',()=>{
   const s=make();delete s.winter;const original=G.clone(s),info=G.winterInfo(s,NOW);
-  assert.equal(info.active,true);assert.equal(info.snowflakes,0);assert.equal(info.items.length,2);assert.deepEqual(s,original);assert.ok(G.validate(s));
+  assert.equal(info.active,true);assert.equal(info.snowflakes,0);assert.equal(info.items.length,3);assert.deepEqual(s,original);assert.ok(G.validate(s));
   reject(s,{kind:'winter-exchange',item:'gold',snowflakes:999999,cost:0});
   reject(s,{kind:'winter-exchange',item:'constructor'});
 });
@@ -87,7 +87,7 @@ test('Winter exchanges charge exact snowflakes, retain limits after reload and r
   assert.equal(s.gold,start.gold+10000);assert.equal(s.winter.snowflakes,700);reject(s,{kind:'winter-exchange',item:'gold'});
   const loaded=G.clone(s);for(let i=0;i<10;i++)G.action(loaded,{kind:'winter-exchange',item:'gems',gems:1e9},loaded.at);
   assert.equal(loaded.gems,start.gems+1000);assert.equal(loaded.winter.snowflakes,100);reject(loaded,{kind:'winter-exchange',item:'gems'});
-  assert.ok(G.winterInfo(loaded,loaded.at).items.every(item=>item.remaining===0));assert.ok(G.validate(loaded));
+  assert.ok(G.winterInfo(loaded,loaded.at).items.filter(i=>!i.hero).every(item=>item.remaining===0));assert.ok(G.validate(loaded));
   const beforeEvent=G.create(G.WINTER_EVENT.startsAt-1);reject(beforeEvent,{kind:'winter-exchange',item:'gems'},beforeEvent.at);
 });
 test('Snowflakes come from won battles; offline and repeat tower clears do not award more',()=>{

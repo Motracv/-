@@ -82,7 +82,8 @@ export function createSeasons(game) {
       db.prepare(`WITH ranked AS (SELECT e.*,n.display_name AS name,RANK() OVER(ORDER BY MAX(0,1000+e.points) DESC) AS rank,
         ROW_NUMBER() OVER(ORDER BY MAX(0,1000+e.points) DESC,e.registered_at ASC,e.account_id ASC) AS position
         FROM school_season_entries e JOIN school_names n ON n.account_id = e.account_id WHERE e.season = ?)
-        SELECT r.*,a.id AS award_id,a.season AS award_season,a.tier AS award_tier FROM ranked r
+        SELECT r.*,CASE WHEN json_valid(s.payload) THEN json_object('profile',json_extract(s.payload,'$.profile'),'team',json_extract(s.payload,'$.team'),'redeemedCodes',json_extract(s.payload,'$.redeemedCodes')) ELSE '{}' END AS appearance,a.id AS award_id,a.season AS award_season,a.tier AS award_tier FROM ranked r
+        LEFT JOIN school_saves s ON s.account_id=r.account_id
         LEFT JOIN school_season_profiles p ON p.account_id = r.account_id
         LEFT JOIN school_season_awards a ON a.id = p.award_id AND a.account_id = r.account_id
         WHERE r.position <= 50 OR r.account_id = ? ORDER BY r.position`).bind(season.id, id).all(),
@@ -91,11 +92,11 @@ export function createSeasons(game) {
     const currentPower = game.power(ownSave), usedToday = usage?.n || 0;
     return {
       season, rules: SEASON_RULES,
-      me: { registered: !!entry, canRegister: !!own, requiresName: !own, name: own?.display_name || ownSave.commanderName, rating: rating(entry), tier: seasonTier(rating(entry)), attacks: entry?.attacks || 0,
+      me: { ...game.publicProfile(ownSave), registered: !!entry, canRegister: !!own, requiresName: !own, name: own?.display_name || ownSave.commanderName, rating: rating(entry), tier: seasonTier(rating(entry)), attacks: entry?.attacks || 0,
         usedToday, remainingToday: Math.max(0, SEASON_RULES.dailyAttacks - usedToday), attackPower: currentPower, cosmetic,
         defense: entry ? { ...JSON.parse(entry.defense), power: entry.power, updatedAt: entry.updated_at } : null },
       candidates: entry ? await candidates(db, id, season, now, currentPower) : [],
-      rankings: (rankRows.results || []).map(row => ({ rank: row.rank, name: row.name, rating: rating(row), tier: seasonTier(rating(row)), attacks: row.attacks, isMe: row.account_id === id,
+      rankings: (rankRows.results || []).map(row => ({ ...game.publicProfile(row.appearance), rank: row.rank, name: row.name, rating: rating(row), tier: seasonTier(rating(row)), attacks: row.attacks, isMe: row.account_id === id,
         cosmetic: seasonCosmetic({ id: row.award_id, season: row.award_season, tier: row.award_tier }) })),
       matches: (matchRows.results || []).map(row => { const isAttack = row.challenger === id, side = isAttack ? 0 : 1; return { id: row.id, seasonId: row.season, opponent: row.opponent, result: row.winner === -1 ? 'draw' : row.winner === side ? 'win' : 'loss', ratingChange: isAttack ? row.delta : 0, createdAt: row.created_at, isAttack }; }),
       awards: (awardRows.results || []).map(row => ({ id: row.id, season: row.season, tier: row.tier, rating: row.rating, ...seasonCosmetic(row), equipped: !!row.equipped })),

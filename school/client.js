@@ -41,7 +41,7 @@
   const Presentation = window.SchoolPresentation;
   Presentation?.configure({soundEnabled:()=>sound, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
-  let social, guild, raid, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
+  let social, guild, raid, yeti, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
   let lobby = null, worldMap = null, qol = null, equipmentUI = null;
   let questCategory = 'daily', questChapter = null, questRowsKey = '', questCacheKey = '', questCache = null;
@@ -93,13 +93,14 @@
     try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
     clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; cloudClock = null; clearPending();
     storage.remove(CLOUD_CACHE, true); storage.set(MODE, 'guest'); mode = 'guest'; connected = true; effects = [];
-    Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); raid?.destroy(); social = createSocial(); guild=createGuild(); raid=createRaid(); closeModal();
+    Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); raid?.destroy(); yeti?.destroy(); social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti(); closeModal();
     try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
     catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
   }
+  function createYeti(){return window.SchoolYeti?.create({request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,canClaim:()=>!busy&&!pending,dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
   function createRaid(){return window.SchoolRaid?.create({request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
   function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
-  function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openAccount:accountModal,openCaptain:captainModal}); }
+  function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openYeti:()=>yeti?.open(),openAccount:accountModal,openCaptain:captainModal}); }
   function damageModal() {
     const report = G.damageReport?.(state);
     const rows = report?.rows || []; const maximum = Math.max(1,...rows.map(r=>r.damage));
@@ -507,8 +508,9 @@
     else if (result.kind === 'train') { if (!trainingHold) toast(`${G.BY_ID[result.hero].name} Lv.${result.level}!`); renderButtons(); play('level'); }
     else if (result.kind === 'awaken') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.awaken({hero:result.hero,stars:result.stars,key:`${accountScope()}:awaken:${completedActionKey}`}); if (!shown?.cancelled) { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); } }
     else if (result.kind.startsWith('gear-')) { equipmentUI?.handleResult(result,completedActionKey); }
+    else if(result.kind==='yeti-claim'){toast(`예티 토벌 보상 · 눈송이 +${result.snowflakes}`);play('reward');social?.refresh();}
     else if (result.kind === 'winter-exchange') { play('reward'); social?.refresh(); }
-    else if (result.kind === 'profile') { toast('프로필을 저장했어요.'); captainModal(); }
+    else if (result.kind === 'profile') { rankingCache.clear(); toast('프로필을 저장했어요.'); captainModal(); }
     else if(result.kind==='raid-claim'||result.kind==='guild-project-claim'){toast(`${result.kind==='raid-claim'?'길드전':'협동 퀘스트'} 보상 · 보석 +${result.gems} · 골드 +${fmt(result.gold)}`);play('reward');}
     else if (result.kind === 'guild-checkin') { toast('길드 출석 · 보석 +30'); play('reward'); }
     else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); captainModal(); }
@@ -839,6 +841,8 @@
     setDisabled(button,blocked);setText('counter-title',operation==='counter'?'반격 확인 중':'반격!');setText('counter-time',`${(o.remainingMs/1000).toFixed(1)}초`);
     setWidth($('counter-fill'),`${Math.max(0,o.remainingMs/G.COUNTER_RULES.windowMs*100)}%`);
     setAttr(button,'aria-label',`${o.enemyName}에게 반격 · ${(o.remainingMs/1000).toFixed(1)}초 남음`);
+    if(button.dataset.opportunity!==o.id){let hash=0;for(const char of o.id)hash=(Math.imul(hash,31)+char.charCodeAt(0))>>>0;button.style.setProperty('--counter-x',`${22+hash%57}%`);button.style.setProperty('--counter-y',`${30+(hash>>>8)%30}%`);}
+    button.style.setProperty('--counter-progress',String(Math.max(0,o.remainingMs/G.COUNTER_RULES.windowMs)));
     setAttr(button,'data-opportunity',o.id);
   }
   function renderBossHUD() {
@@ -900,7 +904,7 @@
       }
       if (generation !== rankingGeneration || modalKind !== 'rankings' || scope !== accountScope()) return;
       const score = entry => requestedMode === 'tower' ? `${fmt(entry.floor)}층` : `Lv.${fmt(entry.level)}`;
-      $('ranking-content').innerHTML = `${data.me ? `<div class="ranking-mine" id="ranking-me">내 순위 <b>${fmt(data.me.rank)}위</b> · ${esc(data.me.name)} · ${score(data.me)}</div>` : `<p class="ranking-notice">${mode === 'guest' ? 'Google 계정의 용병단이 랭킹에 등록됩니다. 게스트도 랭킹을 볼 수 있어요.' : requestedMode === 'tower' ? '복도를 1층 이상 클리어하면 기록이 올라가요.' : '계정의 저장 기록을 확인한 뒤 다시 확인해 주세요.'}</p>`}<ol class="ranking-list">${data.entries.map(entry => `<li class="ranking-row ${entry.isMe ? 'mine' : ''}"><span>${fmt(entry.rank)}</span><b>${esc(entry.name)}</b><small>${score(entry)}</small></li>`).join('')}</ol>${!data.entries.length ? '<p class="ranking-notice">아직 등록된 기록이 없어요. 첫 기록에 도전해 보세요!</p>' : ''}`;
+      $('ranking-content').innerHTML = `${data.me ? `<div class="ranking-mine" id="ranking-me">내 순위 <b>${fmt(data.me.rank)}위</b> · <span class="ranking-person">${window.SchoolGuild.avatar(data.me,data.me.hero)}${esc(data.me.name)}</span> · ${score(data.me)}</div>` : `<p class="ranking-notice">${mode === 'guest' ? 'Google 계정의 용병단이 랭킹에 등록됩니다. 게스트도 랭킹을 볼 수 있어요.' : requestedMode === 'tower' ? '복도를 1층 이상 클리어하면 기록이 올라가요.' : '계정의 저장 기록을 확인한 뒤 다시 확인해 주세요.'}</p>`}<ol class="ranking-list">${data.entries.map(entry => `<li class="ranking-row ${entry.isMe ? 'mine' : ''}"><span>${fmt(entry.rank)}</span><b class="ranking-person">${window.SchoolGuild.avatar(entry,entry.hero)}<span>${esc(entry.name)}</span></b><small>${score(entry)}</small></li>`).join('')}</ol>${!data.entries.length ? '<p class="ranking-notice">아직 등록된 기록이 없어요. 첫 기록에 도전해 보세요!</p>' : ''}`;
       $('ranking-updated').textContent = `상위 ${data.limit || 50}명 · 총 ${fmt(data.total)}명 · ${new Date(data.updatedAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})} 갱신`;
     } catch (error) {
       if (generation === rankingGeneration && modalKind === 'rankings') $('ranking-content').innerHTML = `<p class="ranking-notice" role="alert">${esc(error.message)}<br>새로고침을 눌러 다시 확인해 주세요.</p>`;
@@ -1039,15 +1043,17 @@
   function openModal(title, html, kind = '') {
     qol?.close();equipmentUI?.close();$('modal').classList.remove('qol-modal','equipment-modal');
     worldMap?.destroy(); worldMap = null;
+    if(kind!=='yeti')yeti?.destroy(); $('modal').classList.toggle('yeti-modal',kind==='yeti');
     if(kind!=='raid')raid?.destroy(); $('modal').classList.toggle('raid-modal',kind==='raid'); $('modal').classList.toggle('world-map-modal', kind === 'map'); $('modal').classList.toggle('guild-modal',kind==='guild'); $('modal').classList.toggle('captain-modal',kind==='captain');
     loginGeneration++; modalKind = kind; delete $('modal').dataset.activityResult; $('modal-title').textContent = title; $('modal-content').innerHTML = html;
     if (!$('modal').open) $('modal').showModal(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
   }
+  async function requestModalClose(){if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
     qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
-    raid?.destroy(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
+    raid?.destroy(); yeti?.destroy(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
   }
   function heroDetail(id) {
     const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
@@ -1202,7 +1208,7 @@
       qol.refreshCountdowns();
     }
     equipmentUI = window.SchoolEquipment?.create({getState:()=>state,accountScope,modalKind:()=>modalKind,isBlocked:()=>busy||!!pending||activityAwaitingConfirmation()||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,openHero:heroDetail,toast,play});
-    social = createSocial(); guild=createGuild(); raid=createRaid();
+    social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti();
     if ($('guild-button')) $('guild-button').onclick=()=>guild?.open();
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();
@@ -1259,8 +1265,8 @@
     $('tower-ranking-button').onclick = () => rankingModal('tower');
     window.addEventListener('resize', updateOrientation);
     $('account-button').onclick = accountModal; $('help-button').onclick = help; $('captain-button').onclick = captainModal;
-    $('modal-close').onclick = () => closeModal(true);
-    $('modal').addEventListener('cancel', event => { event.preventDefault(); closeModal(true); });
+    $('modal-close').onclick = requestModalClose;
+    $('modal').addEventListener('cancel', event => { event.preventDefault(); requestModalClose(); });
     $('modal').addEventListener('close', () => {
       stopTraining();
       if ($('modal').open) return;
@@ -1269,7 +1275,7 @@
       delete $('modal').dataset.activityResult; modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
     });
     document.addEventListener('close', event => { if (event.target.id === 'school-presentation') queueMicrotask(maybeShowActivityResult); }, true);
-    $('modal').addEventListener('click', e => { const r = $('modal').getBoundingClientRect(); if (e.target === $('modal') && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) closeModal(true); });
+    $('modal').addEventListener('click', e => { const r = $('modal').getBoundingClientRect(); if (e.target === $('modal') && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) requestModalClose(); });
     $('stage-button').onclick = stageMap;
     $('feature-ryusion-button').onclick = () => heroDetail('ryusion');
     $('feature-horas-button').onclick = () => heroDetail('horas');

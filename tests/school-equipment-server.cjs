@@ -35,7 +35,7 @@ const G = require('../school/engine.js');
   };
   try {
     await test('Current catalog and authentication protect all equipment changes before any write', async () => {
-      assert.equal(G.CATALOG_VERSION, 23);
+      assert.equal(G.CATALOG_VERSION, 24);
       const who = await account('catalog'), before = row(who), id = item(saved(who), 'weapon');
       for (const action of [{ kind: 'gear-equip', hero: 'taeo', item: id }, { kind: 'gear-unequip', hero: 'taeo', slot: 'weapon' }, { kind: 'gear-awaken', item: id }]) {
         assert.equal((await call(null, 'action', intent(who, action))).status, 401);

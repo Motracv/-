@@ -1,0 +1,61 @@
+/* Winter duo rules. Only the server advances the encounter or accepts a thaw. */
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.SchoolYetiRules=api;})(globalThis,()=>{
+ 'use strict';
+ const HP=1600000,DURATION=150000,MAX_PLAYERS=2;
+ const PATTERNS=Object.freeze([
+  {id:'claw',name:'서리 발톱',tell:1000,desc:'전열 2명을 공격하고 1초 기절시켜요.'},
+  {id:'freeze',name:'꽁꽁 얼음!',tell:1800,desc:'한쪽 용병단을 얼려요. 동료의 얼음땡이 필요해요.'},
+  {id:'slam',name:'빙하 내려찍기',tell:1400,desc:'모두를 공격하고 1.5초 기절시켜요.'},
+  {id:'guard',name:'만년설 갑옷',tell:1000,desc:'6초 동안 받는 피해가 40% 줄어요.'},
+  {id:'charge',name:'눈사태 돌진',tell:1600,desc:'전열 3명을 공격하고 2초 기절시켜요.'},
+  {id:'blizzard',name:'백야의 눈보라',tell:1600,desc:'모두를 공격하고 1초 기절시켜요.'}
+ ]);
+ function create(g,parties,now,seed){
+  if(parties.length!==2)throw Error('예티는 두 명이 함께 도전해야 해요.');
+  const s=globalThis.SchoolRaidRules.create(g,parties,now,seed,HP);
+  s.encounter='yeti';s.boss.max=HP;s.boss.nextAt=3000;s.boss.pattern=0;s.freezeNext=0;
+  for(const t of s.teams){t.frozen=null;t.thaws=0;}
+  return s;
+ }
+ function bossAct({s,emit,hurt,living}){
+  const b=s.boss;if(b.stunUntil>s.elapsed)return;
+  if(b.cast&&s.elapsed>=b.cast.at){
+   const id=b.cast.id;b.cast=null;b.nextBasicAt=s.elapsed+1200;emit('impact',{pattern:id});
+   if(id==='guard'){b.guardUntil=s.elapsed+6000;return;}
+   if(id==='freeze'){
+    if(!s.teams.some(t=>t.frozen)){
+     const ti=s.freezeNext++%2,t=s.teams[ti],other=s.teams[1-ti];
+     if(t&&!t.withdrawn&&living(t).length&&other&&!other.withdrawn&&living(other).length){
+      t.frozen={id:`ice-${s.seq+1}`,at:s.elapsed};
+      emit('freeze',{team:ti,freezeId:t.frozen.id});
+     }
+    }
+    return;
+   }
+   s.teams.forEach((t,ti)=>{
+    const targets=['slam','blizzard'].includes(id)?living(t):living(t).slice(0,id==='charge'?3:2);
+    for(const unit of targets){const hit=hurt(ti,unit,id==='charge'?1.3:id==='slam'?.85:id==='blizzard'?.65:1,id);if(hit?.hp>0)hit.stunUntil=Math.max(hit.stunUntil,s.elapsed+(id==='charge'?2000:id==='slam'?1500:1000));}
+   });
+  }
+  if(!b.cast&&s.elapsed>=b.nextAt){const p=PATTERNS[b.pattern++%PATTERNS.length];b.cast={id:p.id,at:s.elapsed+p.tell};b.nextAt=s.elapsed+5500;emit('telegraph',{pattern:p.id,impactAt:b.cast.at});}
+  if(!b.cast&&s.elapsed>=b.nextBasicAt){b.nextBasicAt=s.elapsed+2000;emit('impact',{pattern:'basic'});s.teams.forEach((t,ti)=>hurt(ti,living(t)[0],.55,'basic'));}
+ }
+ function tick({s,emit,hurt,living}){
+  for(let ti=0;ti<s.teams.length;ti++){
+   const t=s.teams[ti];if(t.frozen&&s.elapsed-t.frozen.at>=3000&&s.elapsed%3000===0){for(const u of living(t))hurt(ti,u,.3,'frostbite');}
+  }
+  if(s.teams.every(t=>t.withdrawn||!living(t).length||t.frozen)){s.ended=true;s.outcome='trapped';emit('end',{outcome:s.outcome});}
+ }
+ function advance(g,s,now){return globalThis.SchoolRaidRules.advance(g,s,now,{physical:true,duration:DURATION,attack:480,rage:3,bossAct,tick});}
+ function thaw(g,s,actor,freezeId,now){
+  advance(g,s,now);
+  const ti=s.teams.findIndex(t=>t.account===actor),own=s.teams[ti],target=s.teams[1-ti];
+  if(s.ended||!own||own.withdrawn||own.frozen||!own.units.some(u=>u.hp>0)||!target?.frozen||target.frozen.id!==freezeId||!target.units.some(u=>u.hp>0))throw Error('동료의 현재 얼음만 해제할 수 있어요.');
+  target.frozen=null;own.thaws++;
+  for(const u of target.units)if(u.hp>0){u.stunUntil=s.elapsed;u.shield=Math.min(u.max*.6,u.shield+Math.round(u.max*.08));}
+  s.events.push({seq:++s.seq,t:s.elapsed,kind:'thaw',team:1-ti,fromTeam:ti,freezeId});s.events=s.events.slice(-240);
+  return s;
+ }
+ function withdraw(s,account){const t=s.teams.find(t=>t.account===account);if(t){t.withdrawn=true;t.frozen=null;for(const u of t.units)u.hp=0;}s.ended=true;s.outcome='abandoned';s.events.push({seq:++s.seq,t:s.elapsed,kind:'end',outcome:s.outcome});}
+ return {HP,DURATION,MAX_PLAYERS,PATTERNS,create,advance,thaw,withdraw};
+});

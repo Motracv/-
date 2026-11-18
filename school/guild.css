@@ -45,3 +45,8 @@
 
 /* Coupon portraits keep their hand-drawn lines at every avatar size. */
 .reward-avatar{object-fit:cover;image-rendering:auto;border-radius:9px;border:1px solid #c8b27480}.profile-unlock-label{font-size:11px;color:var(--muted);line-height:1.4}.profile-choices button:disabled .reward-avatar{filter:grayscale(.8);opacity:.55}
+
+/* Use the same artwork box as neighbouring menu buttons. */
+.app #guild-button>svg{display:block;width:100%;height:var(--menu-art);flex:none;filter:drop-shadow(0 3px 0 #11182780)}
+.app .lobby-shortcuts .lobby-patch-notes>svg{width:100%;height:100%;max-width:none;max-height:none;display:block}
+.ranking-person{display:inline-flex;align-items:center;gap:9px;min-width:0}.ranking-person .profile-avatar{width:38px;height:38px;flex:none;border-radius:7px}.ranking-person>span{overflow:hidden;text-overflow:ellipsis}.ranking-mine{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.season-rank-person .ranking-person{width:100%}.season-rank-person .profile-avatar{width:34px;height:34px}.season-profile-art>.profile-avatar{width:100%;height:100%}

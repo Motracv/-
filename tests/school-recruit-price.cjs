@@ -6,7 +6,7 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
   let passed=0;
   const test=async(name,run)=>{await run();passed++;console.log('PASS',name);};
   await test('Banner-specific SSR100/1000 and UR160/1600 costs reject insufficient funds atomically',()=>{
-    assert.equal(G.CATALOG_VERSION,23);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
+    assert.equal(G.CATALOG_VERSION,24);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
     for(const banner of ['horas','osia','lava']){
       const cost=G.recruitCost(banner,10),singleCost=G.recruitCost(banner,1);
       assert(G.bannerAvailable(banner,NOW));

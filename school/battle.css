@@ -242,3 +242,8 @@ html[data-theme] .app[data-tab=adventure] .party-panel { background:transparent;
 @media (orientation:portrait) and (max-width:1000px) {
   .app[data-tab=adventure] .battle-panel { display:block!important; }
 }
+
+/* Reaction target: stable for this opportunity, safe from the HUD edges. */
+.app[data-tab=adventure] .counter-button:not([hidden]){left:var(--counter-x,50%);top:var(--counter-y,45%);bottom:auto;width:clamp(64px,9vh,90px);height:clamp(64px,9vh,90px);min-width:64px;min-height:64px;padding:7px;border-radius:50%;gap:0;flex-direction:column;transform:translate(-50%,-50%);background:radial-gradient(circle,#215978 48%,#0c233b 50%,#10273c 61%,transparent 63%),conic-gradient(#a5f7ff calc(var(--counter-progress,1)*1turn),#183749 0);border:2px solid #cbfaff;box-shadow:0 0 0 5px #0c233b90,0 0 27px #62dfff88;animation:counter-circle-in .18s ease-out;isolation:isolate}
+.counter-button .counter-symbol{font-size:22px;line-height:1}.counter-button b{font-size:12px}.counter-button small{font-size:10px}.counter-button .counter-track{display:none}.app[data-tab=adventure] .counter-button:active{transform:translate(-50%,-50%) scale(.87)}
+@keyframes counter-circle-in{from{opacity:0;transform:translate(-50%,-50%) scale(1.8)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}

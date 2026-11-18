@@ -22,7 +22,7 @@ const G = require('../school/engine.js');
   const prepareWin = (who, elapsed = 1000) => patch(who, s => { s.at = now - elapsed; for (const h of s.battle.heroes) { h.atk = 10000; h.energy = 0; } for (const e of s.battle.enemies) { e.hp = 1; e.atk = 0; } });
   try {
     await test('Catalog16 is required before account reads or spending; catalog15 cannot mutate a save', async () => {
-      assert.equal(G.CATALOG_VERSION, 23);
+      assert.equal(G.CATALOG_VERSION, 24);
       const who = await account('catalog'), before = row(who);
       for (const route of ['state', 'action']) {
         const data = route === 'action' ? intent(who, { kind: 'recruit', count: 1, cost: 100 }) : {};

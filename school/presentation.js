@@ -222,15 +222,24 @@
     const id = job.data.hero, hero = info(id), stars = Math.min(5, Math.max(1, Number(job.data.stars) || 1));
     const ui = shell(job, '각성 성공!', `${hero.name} · ${stars - 1}성 → ${stars}성`, 'awaken');
     const left = portraitCard(id, stars - 1, 'fusion-source source-left'), right = portraitCard(id, stars - 1, 'fusion-source source-right'), result = portraitCard(id, stars, 'fusion-result');
+    const newStar=result.querySelector(`[data-star="${stars}"]`);newStar.style.visibility='hidden';
     result.hidden = true; ui.scene.append(left, right, result);
     play('fusion', 4, job.id);
     await Promise.all([move(job, left, [{ opacity: 0, transform: 'translate(calc(-50% - 100px),-50%) perspective(600px) rotateY(35deg) scale(.75)' }, { opacity: 1, transform: 'translate(calc(-50% - 90px),-50%) perspective(600px) rotateY(20deg) scale(.83)', offset: .3 }, { opacity: 0, transform: 'translate(-50%,-50%) perspective(600px) rotateY(-80deg) scale(.2)' }], 780), move(job, right, [{ opacity: 0, transform: 'translate(calc(-50% + 100px),-50%) perspective(600px) rotateY(-35deg) scale(.75)' }, { opacity: 1, transform: 'translate(calc(-50% + 90px),-50%) perspective(600px) rotateY(-20deg) scale(.83)', offset: .3 }, { opacity: 0, transform: 'translate(-50%,-50%) perspective(600px) rotateY(80deg) scale(.2)' }], 780)]);
     if (!alive(job)) return;
     left.remove(); right.remove(); result.hidden = false; ui.dialog.dataset.phase = 'fused'; particles(job, ui.scene, '#fbd57e', 22);
-    const newStar = result.querySelector(`[data-star="${stars}"]`); newStar.classList.add('new-star');
+    newStar.classList.add('new-star');
+    const ring=node('div','awakening-shockwave');ui.scene.append(ring);move(job,ring,[{opacity:1,transform:'translate(-50%,-50%) scale(.1)'},{opacity:0,transform:'translate(-50%,-50%) scale(2.2)'}],850);
     await move(job, result, [{ opacity: 0, transform: 'translate(-50%,-50%) perspective(600px) rotateY(-30deg) scale(.4)' }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(600px) rotateY(0) scale(1.12)', offset: .55 }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(600px) rotateY(0) scale(1)' }], 520);
     if (!alive(job)) return;
-    await move(job, newStar, [{ opacity: 0, transform: 'scale(3.4) translateY(-12px)' }, { opacity: 1, transform: 'scale(1.3)', offset: .6 }, { opacity: 1, transform: 'scale(1)' }], 440);
+    ui.dialog.dataset.phase='star-born';
+    const born=node('div','awakening-born-star','★');ui.scene.append(born);
+    await move(job,born,[{opacity:0,transform:'translate(-50%,-50%) scale(.05) rotate(-160deg)'},{opacity:1,transform:'translate(-50%,-50%) scale(1.2) rotate(8deg)',offset:.7},{opacity:1,transform:'translate(-50%,-50%) scale(1) rotate(0)'}],650);
+    if(!alive(job))return;play('captain',4,job.id);
+    const target=newStar.getBoundingClientRect(),scene=ui.scene.getBoundingClientRect(),dx=target.left+target.width/2-scene.left-scene.width/2,dy=target.top+target.height/2-scene.top-scene.height/2;
+    await move(job,born,[{opacity:1,transform:'translate(-50%,-50%) scale(1)'},{opacity:1,transform:`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(.14)`}],500);
+    if(!alive(job))return;born.remove();newStar.style.visibility='';particles(job,ui.scene,'#fff2b8',18);
+    await move(job,newStar,[{opacity:1,transform:'scale(2.5)'},{opacity:1,transform:'scale(.85)',offset:.65},{opacity:1,transform:'scale(1)'}],400);
     if (!alive(job)) return;
     ui.dialog.dataset.phase = 'revealed'; await delay(job, 600);
   }

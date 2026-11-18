@@ -229,3 +229,11 @@ html[data-theme=dark] .captain-reward-gems { color:#8dd6ef; }html[data-theme=dar
   .ur-cinematic-rarity { font-size:40px; }.ur-cinematic-name { font-size:36px; }.ur-cinematic-line { display:none; }
   .school-presentation[data-cinematic=horas] .presentation-footer { inset:auto 12px 12px; }.school-presentation[data-cinematic=horas] .presentation-footer small { font-size:9px; }
 }
+
+.awakening-born-star{position:absolute;left:50%;top:50%;font-size:140px;line-height:1;z-index:8;color:#fff1a5;text-shadow:0 0 12px #fff,0 0 38px #ffc742,0 0 68px #e99e39;pointer-events:none}.awakening-shockwave{position:absolute;left:50%;top:50%;width:210px;height:210px;border:5px solid #ffe4a0;box-shadow:0 0 18px #ffda73,inset 0 0 18px #fff0b1;border-radius:50%;pointer-events:none}.school-presentation[data-phase=star-born] .presentation-heading{color:#f4ce78}
+.presentation-hero-card[data-rarity=R]{--present-line:#8cadc5;--present-glow:#79bbde;--present-accent:#38728e}
+.presentation-hero-card[data-rarity=SR]{--present-line:#c396ff;--present-glow:#b070ff;--present-accent:#8746b5}
+.presentation-hero-card[data-rarity=SSR]{--present-line:#f7ce70;--present-glow:#ffbc3e;--present-accent:#b47b18}
+.presentation-hero-card[data-rarity=UR]{--present-line:#ff94d7;--present-glow:#ee65ca;--present-accent:#c44399}
+.presentation-hero-card[data-rarity]{border-color:var(--present-line)}.presentation-hero-card .presentation-rarity{border:1px solid var(--present-line);background:color-mix(in srgb,var(--present-glow) 20%,var(--present-paper));padding:4px 7px;border-radius:4px}.presentation-hero-card[data-rarity=UR]::after{border-width:2px;border-style:double}
+html[data-theme=dark] .presentation-hero-card .presentation-rarity{color:var(--present-line);text-shadow:none}

@@ -3,6 +3,7 @@ import { createSocial, ensureSchoolName, nameKey } from './social.mjs';
 
 import { createGuilds } from './guilds.mjs';
 import { createRaids } from './raids.mjs';
+import { createYeti } from './yeti.mjs';
 import { guildActivity, guildProjectClaim } from './guild-progress.mjs';
 
 export function createSchool() {
@@ -10,6 +11,7 @@ export function createSchool() {
   const social = createSocial(game);
   const guilds = createGuilds(game);
   const raids = createRaids(game);
+  const yeti = createYeti(game);
   const requireSchool = (condition, message, status = 400) => {
     if (!condition) throw Object.assign(new Error(message), { status });
   };
@@ -32,13 +34,13 @@ export function createSchool() {
         COUNT(*) OVER () AS total
       FROM school_saves WHERE ${valid}
     ) SELECT ranked.*, json_extract(${safePayload}, '$.commanderName') AS name,
-      ${levelScore} AS level, ${towerScore} AS floor
+      ${levelScore} AS level, ${towerScore} AS floor, json_object('profile',json_extract(${safePayload},'$.profile'),'team',json_extract(${safePayload},'$.team'),'redeemedCodes',json_extract(${safePayload},'$.redeemedCodes')) AS appearance
       FROM ranked JOIN school_saves USING (account_id)
       WHERE position <= 50 OR account_id = ? ORDER BY position`)
       .bind(signed?.id || '').all();
     const rows = result.results || [];
     const publicEntry = row => ({
-      rank: row.rank, name: game.normalizeCommanderName(row.name) || '새내기 단장',
+      ...game.publicProfile(row.appearance), rank: row.rank, name: game.normalizeCommanderName(row.name) || '새내기 단장',
       level: row.level, floor: Math.max(0, row.floor), isMe: row.account_id === signed?.id,
     });
     const mine = signed && rows.find(row => row.account_id === signed.id);
@@ -49,6 +51,7 @@ export function createSchool() {
   return {
     async request(path, request, env, data, accounts) {
       try {
+      if (path === '/api/school/yeti') return await yeti.request(request, env, data, accounts);
       if (path === '/api/school/raid') return await raids.request(request, env, data, accounts);
       if (path === '/api/school/guild') return await guilds.request(request, env, data, accounts);
       if (path === '/api/school/social') return await social.request(request, env, data, accounts);
@@ -122,6 +125,9 @@ export function createSchool() {
         let guildMember = null;
         const claimingProject=action&&data.action.kind==='guild-project-claim';
         const projectReward=claimingProject?await guildProjectClaim(env.DB,game,signed.id,data.action,now):null;
+        const yetiClaim=action&&data.action.kind==='yeti-claim';
+        let yetiReward=null;
+        if(yetiClaim){yetiReward=await env.DB.prepare('SELECT * FROM school_yeti_rewards WHERE account_id=? AND room_id=?').bind(signed.id,String(data.action.roomId||'')).first();requireSchool(yetiReward&&!yetiReward.claimed,'이미 받았거나 받을 수 없는 예티 보상이에요.');requireSchool(Number.isSafeInteger((state.winter?.snowflakes||0)+yetiReward.snowflakes)&&Number.isSafeInteger((state.winter?.earned||0)+yetiReward.snowflakes),'보유 눈송이를 확인하세요.');}
         const raidClaim = action && data.action.kind === 'raid-claim';
         let raidReward=null;
         if(raidClaim){
@@ -141,7 +147,7 @@ export function createSchool() {
           // The client submits intentions only. Time, loot, draws and costs are server-owned.
           // Speed changes can consume a fractional combat step and settle a
           // dungeon too, so they share the same authoritative loot context.
-          try { if(projectReward){requireSchool(Number.isSafeInteger(state.gold+projectReward.gold)&&Number.isSafeInteger(state.gems+projectReward.gems),'재화를 확인해 주세요.');state.gold+=projectReward.gold;state.gems+=projectReward.gems;result={kind:'guild-project-claim',gold:projectReward.gold,gems:projectReward.gems};}else if(raidClaim){state.gold+=raidReward.gold;state.gems+=raidReward.gems;result={kind:'raid-claim',gold:raidReward.gold,gems:raidReward.gems};}else if(checkingIn){state.gems+=30;result={kind:'guild-checkin',gems:30,day:game.day(now)};}else result = game.action(state, data.action, now, secure, { gearRng: secure }); }
+          try { if(yetiClaim){state.winter.snowflakes+=yetiReward.snowflakes;state.winter.earned+=yetiReward.snowflakes;result={kind:'yeti-claim',snowflakes:yetiReward.snowflakes};}else if(projectReward){requireSchool(Number.isSafeInteger(state.gold+projectReward.gold)&&Number.isSafeInteger(state.gems+projectReward.gems),'재화를 확인해 주세요.');state.gold+=projectReward.gold;state.gems+=projectReward.gems;result={kind:'guild-project-claim',gold:projectReward.gold,gems:projectReward.gems};}else if(raidClaim){state.gold+=raidReward.gold;state.gems+=raidReward.gems;result={kind:'raid-claim',gold:raidReward.gold,gems:raidReward.gems};}else if(checkingIn){state.gems+=30;result={kind:'guild-checkin',gems:30,day:game.day(now)};}else result = game.action(state, data.action, now, secure, { gearRng: secure }); }
           catch (error) { throw Object.assign(error, { status: 400 }); }
           state.receipts.push({ id: data.requestId, result }); state.receipts = state.receipts.slice(-20);
           if (renaming) state.nameNeedsClaim = false;
@@ -151,7 +157,12 @@ export function createSchool() {
         const update = env.DB.prepare("UPDATE school_saves SET payload = ?, revision = revision + 1, updated_at = ? WHERE account_id = ? AND revision = ?")
           .bind(payload, now, signed.id, row.revision);
         let written;
-        if(projectReward){
+        if(yetiClaim){
+          const results=await env.DB.batch([
+           env.DB.prepare('UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=? AND EXISTS(SELECT 1 FROM school_yeti_rewards WHERE account_id=? AND room_id=? AND claimed=0)').bind(payload,now,signed.id,row.revision,signed.id,yetiReward.room_id),
+           env.DB.prepare("UPDATE school_yeti_rewards SET claimed=1 WHERE account_id=? AND room_id=? AND claimed=0 AND EXISTS(SELECT 1 FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=?)").bind(signed.id,yetiReward.room_id,signed.id,row.revision+1,data.requestId)
+          ]);written=results[0];
+        }else if(projectReward){
           const p=projectReward;
           const results=await env.DB.batch([
             env.DB.prepare(`UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=?

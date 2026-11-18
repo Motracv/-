@@ -19,7 +19,7 @@ const G = require('../school/engine.js');
   const test = async (name, fn) => { now += 61000; await fn(); passed++; console.log('PASS', name); };
   try {
     await test('Catalog16 rejects old15 reads and purchases before any server migration or charge', async () => {
-      assert.equal(G.CATALOG_VERSION, 23);
+      assert.equal(G.CATALOG_VERSION, 24);
       const who = await account('catalog'); funded(who); const before = row(who);
       for (const route of ['state', 'action']) {
         const payload = route === 'action' ? input(who, { kind: 'winter-exchange', item: 'gold', cost: 10 }) : {};
@@ -35,7 +35,7 @@ const G = require('../school/engine.js');
       let r = await call(who, 'state'); assert.equal(r.status, 200);
       assert.equal(r.data.state.winter.snowflakes, 1432); assert.equal(r.data.state.winter.earned, 3000); assert.equal(r.data.state.gold, 5860); assert.equal(r.data.state.gems, 290);
       assert.deepEqual(r.data.state.winter.exchanges, { gold: 30, gems: 15 }); assert.deepEqual(r.data.state.winter.daily, { day: G.day(now), exchanges: { gold: 0, gems: 0 } });
-      assert.ok(info(who).items.every(entry => entry.remaining === 10));
+      assert.ok(info(who).items.filter(i=>!i.hero).every(entry => entry.remaining === 10));
       r = await act(who, { kind: 'winter-exchange', item: 'gold' }); assert.equal(r.status, 200); assert.equal(r.data.state.winter.snowflakes, 1402); assert.equal(r.data.state.gold, 6860); assert.deepEqual(r.data.state.winter.exchanges, { gold: 31, gems: 15 }); assert.equal(r.data.state.winter.daily.exchanges.gold, 1);
       const reloaded = (await t.login('winter-daily-legacy')).data;
       const r2 = await call(reloaded, 'state', { state: { winter: { daily: null, snowflakes: 1e12, exchanges: { gold: 0, gems: 0 } } } });
@@ -53,19 +53,19 @@ const G = require('../school/engine.js');
     await test('Exactly ten purchases of each item succeed per account; both eleventh attempts fail without consuming snow', async () => {
       const who = await account('limits'), other = await account('independent'); funded(who); funded(other); const before = saved(who), otherBefore = row(other).payload;
       for (const id of ['gold', 'gems']) for (let i = 0; i < 10; i++) { const r = await act(who, { kind: 'winter-exchange', item: id }); assert.equal(r.status, 200); assert.equal(r.data.result.remaining, 9 - i); }
-      assert.deepEqual(saved(who).winter.daily.exchanges, { gold: 10, gems: 10 }); assert.deepEqual(saved(who).winter.exchanges, { gold: 10, gems: 10 }); assert.equal(saved(who).winter.snowflakes, 4100); assert.equal(saved(who).gold, before.gold + 10000); assert.equal(saved(who).gems, before.gems + 1000); assert.ok(info(who).items.every(entry => entry.remaining === 0 && !entry.canBuy));
+      assert.deepEqual(saved(who).winter.daily.exchanges, { gold: 10, gems: 10 }); assert.deepEqual(saved(who).winter.exchanges, { gold: 10, gems: 10 }); assert.equal(saved(who).winter.snowflakes, 4100); assert.equal(saved(who).gold, before.gold + 10000); assert.equal(saved(who).gems, before.gems + 1000); assert.ok(info(who).items.filter(i=>!i.hero).every(entry => entry.remaining === 0 && !entry.canBuy));
       for (const id of ['gold', 'gems']) { const beforeRow = row(who).payload; const r = await act(who, { kind: 'winter-exchange', item: id, daily: { exchanges: { gold: 0, gems: 0 } }, now: now + 86400000, cost: 0 }); assert.equal(r.status, 400); assert.equal(row(who).payload, beforeRow); }
-      assert.equal(row(other).payload, otherBefore); assert.ok(info(other).items.every(entry => entry.remaining === 10)); assert.equal((await act(other, { kind: 'winter-exchange', item: 'gems' })).status, 200); assert.equal(saved(other).winter.snowflakes, 4940); assert.equal(item(who, 'gems').remaining, 0);
+      assert.equal(row(other).payload, otherBefore); assert.ok(info(other).items.filter(i=>!i.hero).every(entry => entry.remaining === 10)); assert.equal((await act(other, { kind: 'winter-exchange', item: 'gems' })).status, 200); assert.equal(saved(other).winter.snowflakes, 4940); assert.equal(item(who, 'gems').remaining, 0);
     });
 
     await test('Korean midnight resets both quotas at the exact boundary, preserving snow and lifetime history', async () => {
       now = Date.parse('2026-11-20T00:00:00+09:00') - 1;
       const who = await account('midnight'); funded(who); patch(who, s => { s.winter.exchanges = { gold: 30, gems: 15 }; s.winter.daily.exchanges = { gold: 10, gems: 10 }; });
       const before = saved(who), yesterday = G.day(now), boundary = now + 1;
-      assert.equal(info(who).resetsAt, boundary); assert.ok(info(who).items.every(entry => entry.remaining === 0));
+      assert.equal(info(who).resetsAt, boundary); assert.ok(info(who).items.filter(i=>!i.hero).every(entry => entry.remaining === 0));
       assert.equal((await act(who, { kind: 'winter-exchange', item: 'gold', now: boundary })).status, 400);
       now = boundary;
-      let r = await call(who, 'state'); assert.equal(r.status, 200); const board = G.winterInfo(r.data.state, now); assert.equal(board.day, yesterday + 1); assert.ok(board.items.every(entry => entry.remaining === 10)); assert.equal(r.data.state.winter.snowflakes, before.winter.snowflakes); assert.deepEqual(r.data.state.winter.exchanges, before.winter.exchanges); assert.equal(r.data.state.gold, before.gold); assert.equal(r.data.state.gems, before.gems);
+      let r = await call(who, 'state'); assert.equal(r.status, 200); const board = G.winterInfo(r.data.state, now); assert.equal(board.day, yesterday + 1); assert.ok(board.items.filter(i=>!i.hero).every(entry => entry.remaining === 10)); assert.equal(r.data.state.winter.snowflakes, before.winter.snowflakes); assert.deepEqual(r.data.state.winter.exchanges, before.winter.exchanges); assert.equal(r.data.state.gold, before.gold); assert.equal(r.data.state.gems, before.gems);
       r = await act(who, { kind: 'winter-exchange', item: 'gold' }); assert.equal(r.status, 200); assert.deepEqual(r.data.state.winter.daily, { day: yesterday + 1, exchanges: { gold: 1, gems: 0 } });
       r = await act(who, { kind: 'winter-exchange', item: 'gems' }); assert.equal(r.status, 200); assert.deepEqual(r.data.state.winter.daily.exchanges, { gold: 1, gems: 1 }); assert.deepEqual(r.data.state.winter.exchanges, { gold: 31, gems: 16 }); assert.equal(r.data.state.winter.snowflakes, before.winter.snowflakes - 90);
       r = await call(who, 'state'); assert.equal(G.winterInfo(r.data.state, now).items[0].remaining, 9); assert.equal(r.data.state.winter.daily.exchanges.gold, 1);
@@ -99,7 +99,7 @@ const G = require('../school/engine.js');
       const who = await account('backwards'); funded(who); patch(who, s => { s.winter.daily.exchanges = { gold: 10, gems: 10 }; s.winter.exchanges = { gold: 40, gems: 35 }; });
       const before = saved(who), usedDay = G.day(now), forwardTime = now;
       now -= 500;
-      let r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(G.winterInfo(r.data.state, now).day, usedDay); assert.ok(G.winterInfo(r.data.state, now).items.every(entry => entry.remaining === 0));
+      let r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(G.winterInfo(r.data.state, now).day, usedDay); assert.ok(G.winterInfo(r.data.state, now).items.filter(i=>!i.hero).every(entry => entry.remaining === 0));
       for (const id of ['gold', 'gems']) assert.equal((await act(who, { kind: 'winter-exchange', item: id, day: G.day(now), now: forwardTime + 86400000, daily: null })).status, 400);
       now = forwardTime; r = await call(who, 'state'); assert.equal(r.status, 200); assert.deepEqual(r.data.state.winter, before.winter); assert.equal(r.data.state.gold, before.gold); assert.equal(r.data.state.gems, before.gems);
       assert.equal((await act(who, { kind: 'winter-exchange', item: 'gold' })).status, 400);
