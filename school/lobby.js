@@ -48,6 +48,9 @@ window.SchoolLobby = (() => {
         const description = `${definition.name} Lv.${unit.level} · ${unit.stars || 0}성 · 눌러서 육성`;
         if (button.getAttribute('aria-label') !== description) button.setAttribute('aria-label', description);
       }
+      const osia=slots.get('osia'),quote=osia?.querySelector('.bond-lobby-quote');
+      if(osia&&state.bonds?.osia?.read?.includes(4)&&!quote){const bubble=document.createElement('span');bubble.className='bond-lobby-quote';bubble.textContent='돌아갈 곳을 찾는 동안, 지키고 싶은 곳이 또 생겼어.';osia.append(bubble);}
+      else if(quote&&!state.bonds?.osia?.read?.includes(4))quote.remove();
       const leader = state.team[0], appearance=game.profileInfo(state), identity=[leader,appearance.avatar,appearance.title].join('|');
       if (leader && identity !== captainId) {
         captainId = identity;

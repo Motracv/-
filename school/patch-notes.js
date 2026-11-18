@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-dungeon-portal2',
+  version:'school-bonds1',
   entries:Object.freeze([
+    {version:'school-bonds1',date:'2026.11.19',title:'전투의 기록 · 수면 아래의 기억',items:[
+      '피해·실제 회복·보호막 흡수·받은 피해를 비교하고 주요 기술과 전투불능 기록을 확인할 수 있어요. 최근 보스전·패배·던전 결과를 보관합니다.',
+      '오시아 인연 이야기 4편 추가. 오시아 상세 또는 단장 프로필에서 인연 기록을 열어 보세요. 함께 전투하고 개인 임무를 완료하면 프로필·칭호·로비 대사를 해금해요. 능력치 보상은 없어요.',
+      '코인 파밍 우선: 열린 모든 지역의 보상 감소와 전투 시간을 계산합니다. 3회 모두 성공한 지역만 추천하고 현재보다 수입이 낮은 이동을 피합니다.',
+      '현재 지역과 수입 차이가 5% 이내이면 현재 지역 유지 추천. 계산은 별도 작업에서 실행해 전투 화면을 막지 않아요.'
+    ]},
     {version:'school-dungeon-portal2',date:'2026.11.19',title:'던전 · 문 너머로',items:[
       '던전 메뉴를 전체 화면의 큰 그림 카드로 바꿨어요. 방과 후 보급고·뫼비우스의 복도·봉인된 이사장실을 선택하세요.',
       '던전에 들어갈 때 화면이 깊어지는 전환을, 카드를 선택할 때 그림 안으로 확대되는 연출을 추가했어요. 모션 줄이기 설정에서는 즉시 이동해요.',

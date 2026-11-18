@@ -53,13 +53,13 @@ window.SchoolQoL = (() => {
     }
     function fingerprint(){return G.farmingFingerprint?.(state())||'';}
     function farm(){
-      open('파밍 추천',`<div class="qol-heading"><div><p>현재 편성으로 미리 전투해요</p>${teamHTML(state().team)}</div><button type="button" class="secondary" id="farm-preview-retry">다시 계산</button></div><p class="qol-note" id="farm-preview-status" role="status">전투를 계산할 준비를 하고 있어요.</p><progress id="farm-preview-progress" max="6" value="0" aria-label="파밍 지역 계산 진행"></progress><div id="farm-recommendations" class="farm-recommendations"></div><p class="qol-note">계산 결과는 재화나 편성에 적용되지 않아요. 아래 버튼을 눌러야 지역을 이동합니다.</p><details class="qol-details"><summary>어떻게 계산하나요?</summary><p>현재 편성·레벨·각성과 전투 속도로 최근 정상 보상 지역을 비교해요. 각 지역을 180초씩 3번 계산하며, 골드/분은 전투 보상만 포함합니다. 임무·첫 돌파·방치·눈송이 보상은 제외해요. 안정도와 획득량은 추정치이므로 실제 결과와 다를 수 있어요.</p></details>`,'farm-recommend');
+      open('코인 파밍 추천',`<div class="qol-heading"><div><p>코인 / 분을 우선 비교해요</p>${teamHTML(state().team)}</div><button type="button" class="secondary" id="farm-preview-retry">다시 계산</button></div><p class="qol-note" id="farm-preview-status" role="status">전투를 계산할 준비를 하고 있어요.</p><progress id="farm-preview-progress" max="6" value="0" aria-label="파밍 지역 계산 진행"></progress><div id="farm-recommendations" class="farm-recommendations"></div><p class="qol-note">계산 결과는 재화나 편성에 적용되지 않아요. 아래 버튼을 눌러야 지역을 이동합니다.</p><details class="qol-details"><summary>어떻게 계산하나요?</summary><p>현재 편성·레벨·각성·장비·전투 속도로 열린 모든 지역의 코인 효율을 비교해요. 낮은 지역의 보상 감소도 계산에 포함해요. 각 지역을 180초씩 3번 계산하고 세 번 모두 클리어한 지역만 추천해요. 코인/분은 전투 보상만 포함하며, 현재 지역보다 수입이 낮은 대안은 추천에서 제외합니다. 차이가 5% 이내이면 현재 지역 유지를 안내해요. 임무·첫 돌파·방치·눈송이 보상은 제외해요. 안정도와 획득량은 추정치이므로 실제 결과와 다를 수 있어요.</p></details>`,'farm-recommend');
       $('farm-preview-retry').onclick=startPreview;
       $('farm-recommendations').onclick=async event=>{
         const button=event.target.closest('[data-farm-start]');if(!button||button.disabled||!preview||blocked())return;
         if(preview.scope!==scope()||preview.fingerprint!==fingerprint())return invalidatePreview();
         if(ctx.activityActive()||state().battle.activity)return ctx.toast('던전 결과를 확인한 뒤 모험으로 돌아와 주세요.');
-        const stage=Number(button.dataset.farmStart);if(!G.farmingCandidates(state()).includes(stage))return invalidatePreview();
+        const stage=Number(button.dataset.farmStart);if(stage===state().stage&&state().mode==='farm')return ctx.toast('현재 지역에서 코인 파밍 중이에요.');if(!G.farmingCandidates(state()).includes(stage))return invalidatePreview();
         await ctx.dispatch({kind:'stage',stage,mode:'farm'});
       };startPreview();
     }
@@ -67,8 +67,8 @@ window.SchoolQoL = (() => {
       if(!active('farm-recommend'))return;
       $('farm-preview-progress').hidden=true;disabled($('farm-preview-retry'),blocked());
       const rows=data.recommendations||[];
-      text($('farm-preview-status'),rows.length?`안정적으로 사냥할 지역 ${rows.length}곳 · 현재 ${(state().speed||1).toFixed(1)}× 기준`:'안정적으로 돌파할 지역을 찾지 못했어요. 용병을 육성하거나 편성을 바꿔 다시 계산해 보세요.');
-      $('farm-recommendations').innerHTML=rows.map((r,i)=>`<section class="farm-recommendation"><div class="farm-rank">${i===0?'추천':'대안'} ${i+1}</div><h3>${esc(G.stageName(r.stage))} · ${esc(G.CHAPTERS[G.chapter(r.stage)])}</h3><div class="farm-estimate"><strong>${fmt(r.goldPerMinute)}<small>골드 / 분</small></strong><span>안정 ${r.successfulSeeds}/${r.totalSeeds}회<small>평균 돌파 ${r.meanClearSeconds?`${Math.round(r.meanClearSeconds)}초`:'—'}</small></span></div><p>용병별 경험치 약 ${fmt(r.xpPerMinute)} / 분</p><button type="button" class="primary" data-farm-start="${r.stage}">이동 · 반복 사냥</button></section>`).join('');
+      text($('farm-preview-status'),rows.length?`코인 효율 우선 · 안전한 지역 ${rows.length}곳 · 현재 ${(state().speed||1).toFixed(1)}× 기준`:'안정적으로 돌파할 지역을 찾지 못했어요. 용병을 육성하거나 편성을 바꿔 다시 계산해 보세요.');
+      $('farm-recommendations').innerHTML=(data.baseline?`<div class="farm-current"><b>현재 ${esc(G.stageName(data.baseline.stage))} · 약 ${fmt(data.baseline.goldPerMinute)} 코인/분</b><span>${data.keepCurrent?'현재 지역 유지 추천 · 이동할 만큼 큰 차이가 없어요.':data.baseline.stable?'현재 지역보다 높은 코인 수입을 비교했어요.':'현재 지역은 실패 위험이 있어 안정적인 지역을 우선 안내해요.'}</span></div>`:'')+rows.map((r,i)=>`<section class="farm-recommendation"><div class="farm-rank">${r.stage===state().stage?'현재 지역':i===0?'코인 우선 추천':'다른 추천'}</div><h3>${esc(G.stageName(r.stage))} · ${esc(G.CHAPTERS[G.chapter(r.stage)])}</h3><div class="farm-estimate"><strong>${fmt(r.goldPerMinute)}<small>코인 / 분</small></strong><span>안정 ${r.successfulSeeds}/${r.totalSeeds}회<small>평균 돌파 ${r.meanClearSeconds?`${Math.round(r.meanClearSeconds)}초`:'—'}</small></span></div><p>관측 범위 ${fmt(r.minGoldPerMinute)}~${fmt(r.maxGoldPerMinute)} 코인/분<br>용병 경험치 약 ${fmt(r.xpPerMinute)} / 분</p><button type="button" class="primary" data-farm-start="${r.stage}">${r.stage===state().stage&&state().mode==='farm'?'현재 지역에서 반복 중':r.stage===state().stage?'이 지역에서 반복 사냥':'이동 · 반복 사냥'}</button></section>`).join('');
       refreshFarm();
     }
     function startPreview(){
@@ -80,7 +80,7 @@ window.SchoolQoL = (() => {
       if(!G.farmingFingerprint||!window.Worker){text($('farm-preview-status'),'이 브라우저에서는 파밍 계산을 지원하지 않아요. 모험 지도에서 지역을 직접 선택해 주세요.');$('farm-preview-progress').hidden=true;return;}
       text($('farm-preview-status'),'현재 편성으로 전투를 계산하고 있어요…');$('farm-preview-progress').hidden=false;$('farm-preview-progress').value=0;disabled($('farm-preview-retry'),true);
       try{
-        worker=new Worker('school/farming-worker.js?v=school-dungeon-portal2');
+        worker=new Worker('school/farming-worker.js?v=school-bonds1');
         worker.onmessage=event=>{
           const msg=event.data;if(!active('farm-recommend')||!preview||msg.id!==id||preview.id!==id)return;
           if(owner!==scope()||key!==fingerprint()||(msg.kind!=='error'&&msg.fingerprint!==key))return invalidatePreview();

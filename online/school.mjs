@@ -34,7 +34,7 @@ export function createSchool() {
         COUNT(*) OVER () AS total
       FROM school_saves WHERE ${valid}
     ) SELECT ranked.*, json_extract(${safePayload}, '$.commanderName') AS name,
-      ${levelScore} AS level, ${towerScore} AS floor, json_object('profile',json_extract(${safePayload},'$.profile'),'team',json_extract(${safePayload},'$.team'),'redeemedCodes',json_extract(${safePayload},'$.redeemedCodes')) AS appearance
+      ${levelScore} AS level, ${towerScore} AS floor, json_object('profile',json_extract(${safePayload},'$.profile'),'team',json_extract(${safePayload},'$.team'),'redeemedCodes',json_extract(${safePayload},'$.redeemedCodes'),'bonds',json_extract(${safePayload},'$.bonds')) AS appearance
       FROM ranked JOIN school_saves USING (account_id)
       WHERE position <= 50 OR account_id = ? ORDER BY position`)
       .bind(signed?.id || '').all();

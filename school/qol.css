@@ -51,3 +51,5 @@ html[data-theme=dark] .preset-name-row input{background:#263143}html[data-theme=
  #modal:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))){padding:7px 12px;max-height:calc(100dvh - 12px)}
  #modal:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))) .modal-top{margin-bottom:6px;padding-bottom:0}
 }
+
+.farm-current{grid-column:1/-1;padding:16px;border:1px solid #ae915f;border-radius:10px;background:#bba47318}.farm-current b,.farm-current span{display:block}.farm-current span{margin-top:7px;font-size:13px}.farm-recommendation button{min-height:46px}.farm-recommendation p{font-size:12px;line-height:1.7}

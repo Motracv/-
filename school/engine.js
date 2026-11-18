@@ -4,19 +4,19 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 27;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 28;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const PROFILE_AVATARS = Object.freeze(['knight','witch','scholar','bear','cat','bird']);
   const PROFILE_REWARDS = Object.freeze([Object.freeze({id:'rank-first',name:'랭킹 1등 기념',code:'랭킹1등축하드립니다',receipt:'RANKING_FIRST_CONGRATS',image:'school/assets/profile/rank-first.webp?v=rank-profile1'})]);
-  const ownsProfileAvatar = (s, id) => id === 'leader' || PROFILE_AVATARS.includes(id) || PROFILE_REWARDS.some(p => p.id === id && Array.isArray(s.redeemedCodes) && s.redeemedCodes.includes(p.receipt));
+  const ownsProfileAvatar = (s, id) => id === 'osia-memory' && !!s.bonds?.osia?.read?.includes(2) || id === 'leader' || PROFILE_AVATARS.includes(id) || PROFILE_REWARDS.some(p => p.id === id && Array.isArray(s.redeemedCodes) && s.redeemedCodes.includes(p.receipt));
   function normalizeCouponCode(value) {
     const code = String(value ?? '').normalize('NFC').trim().toUpperCase();
     return PROFILE_REWARDS.find(p => p.code === code)?.receipt || code;
   }
   function publicProfile(s){try{if(typeof s==='string')s=JSON.parse(s);const id=s?.profile?.avatar;return {avatar:ownsProfileAvatar(s||{},id)?id:'leader',hero:BY_ID[s?.team?.[0]]?s.team[0]:'taeo'};}catch{return{avatar:'leader',hero:'taeo'};}}
   const profileInfo = s => s.profile || {avatar:'leader',title:'',beta:true};
-  const validProfile = (p,s) => p === undefined || p && typeof p === 'object' && !Array.isArray(p) && ownsProfileAvatar(s,p.avatar) && typeof p.beta === 'boolean' && (p.title === '' || p.title === 'beta' && p.beta);
+  const validProfile = (p,s) => p === undefined || p && typeof p === 'object' && !Array.isArray(p) && ownsProfileAvatar(s,p.avatar) && typeof p.beta === 'boolean' && ownsProfileTitle(s,p.title);
   const COUNTER_RULES = Object.freeze({ chance: .18, bossChance: .32, windowMs: 3500, cooldownMs: 10000, multiplier: 1.8 });
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
@@ -490,14 +490,16 @@
     const b = s.battle, elapsedMs = b.elapsed || 0;
     const rows = b.heroes.map(hero => {
       const record = b.damage?.[hero.id] || {};
-      const row = { id: hero.id, damage: record.damage || 0, healing: record.healing || 0, taken: record.taken || 0, criticals: record.criticals || 0 };
+      const row = { id: hero.id, damage: record.damage || 0, healing: record.healing || 0, taken: record.taken || 0, absorbed: record.absorbed || 0, criticals: record.criticals || 0 };
       return { ...row, dps: Math.round(row.damage / Math.max(1, elapsedMs / 1000)) };
     });
-    return { battleId: b.id, elapsedMs, rows, totals: rows.reduce((sum, row) => { for (const key of ["damage", "healing", "taken", "criticals"]) sum[key] += row[key]; return sum; }, { damage: 0, healing: 0, taken: 0, criticals: 0 }) };
+    return { battleId: b.id, elapsedMs, rows, stage:b.stage, wave:b.wave, boss:!!b.boss, activity:b.activity?clone(b.activity):null, phase:b.phase,
+      timeline:clone(b.timeline||[]), fallen:clone(b.reportFallen||[]), enemies:b.enemies.map(e=>({name:e.name,physicalReduction:e.physicalReduction||0,magicReduction:e.magicReduction||0})),
+      totals: rows.reduce((sum, row) => { for (const key of ["damage", "healing", "taken", "absorbed", "criticals"]) sum[key] += row[key]; return sum; }, { damage: 0, healing: 0, taken: 0, absorbed: 0, criticals: 0 }) };
   }
   function meter(s, id, key, amount) {
     if (!Object.hasOwn(BY_ID, id) || !Number.isFinite(amount) || amount <= 0) return;
-    const records = s.battle.damage ||= {}, record = records[id] ||= { damage: 0, healing: 0, taken: 0, criticals: 0 };
+    const records = s.battle.damage ||= {}, record = records[id] ||= { damage: 0, healing: 0, taken: 0, absorbed: 0, criticals: 0 };
     record[key] = (record[key] || 0) + amount;
   }
   function activityReward(kind, value) {
@@ -558,6 +560,14 @@
   function chapter(stage) { return clamp(Math.floor((stage - 1) / 5), 0, CHAPTERS.length - 1); }
   function event(s, kind, data = {}) {
     const e = { seq: ++s.seq, kind, at: s.at, simAt: s.simTime || 0, battleId: s.battle?.id, ...data };
+    if(s.battle){
+      const entries=s.battle.timeline||=[];
+      if(['skill-impact','ryusion-taunt','rescue','boss-skill','monster-skill','horas-impact','spica-skill'].includes(kind)){
+        entries.push({ms:s.battle.elapsed||0,kind,from:data.from||'',name:data.name|| (kind==='ryusion-taunt'?'내가 대신 맞아줄게':kind==='rescue'?'긴급생존':kind==='horas-impact'?'벚꽃의식':'기술 사용')});
+      }
+      if(kind==='hit'&&data.side==='hero'&&data.hpBefore>0&&data.hpAfter<=0){const fall={ms:s.battle.elapsed||0,kind:'fallen',from:data.to,name:BY_ID[data.to]?.name||'용병'};entries.push(fall);s.battle.reportFallen||=[];if(!s.battle.reportFallen.some(f=>f.from===data.to))s.battle.reportFallen.push(fall);}
+      if(entries.length>32)entries.splice(0,entries.length-32);
+    }
     s.events.push(e); if (s.events.length > 50) s.events.splice(0, s.events.length - 50);
     return e;
   }
@@ -672,6 +682,7 @@
     let reward = { gold: 0, gems: 0, xp: 0 }, refunded = false;
     const firstClear = won && run.kind === "tower" && run.floor > a.towerBest;
     if (won && (run.kind !== "tower" || firstClear)) reward = activityReward(run.kind, run.kind === "tower" ? run.floor : run.tier);
+    if(won&&(run.kind!=="tower"||firstClear)){bondCombat(s,"waves");if(s.battle.boss)bondCombat(s,"bosses");}
     if (firstClear) a.towerBest = run.floor;
     if (!won && run.kind !== "tower" && a[run.kind].period === run.period && a[run.kind].used > 0) { a[run.kind].used--; refunded = true; }
     s.gold += reward.gold; s.gems += reward.gems;
@@ -680,6 +691,7 @@
     const gearResult = won ? awardEquipment(s, run, firstClear) : { gearDrops: [] };
     a.lastResult = { ...gearResult, runId: run.id, kind: run.kind, ...(run.kind === "tower" ? { floor: run.floor } : { tier: run.tier }), won, reason, firstClear, reward, refunded };
     s.battle.phase = won ? "victory" : "defeat"; s.battle.wait = 0; delete s.battle.osiaCast; delete s.battle.horasCast; delete s.battle.cinematic;
+    s.lastCombatReport={...damageReport(s),reason,at:s.at};
     event(s, "activity-result", { ...a.lastResult, kind: "activity-result", activityKind: run.kind }); log(s, `${DUNGEONS[run.kind].name} ${won ? "승리" : reason === "exit" ? "도전 종료" : "패배"}${refunded ? " · 열쇠 반환" : ""}`);
     return a.lastResult;
   }
@@ -693,6 +705,45 @@
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
   }
+
+  const BOND_LEVELS = Object.freeze([0,20,60,120,200,300,450,650]);
+  const BOND_EPISODES = Object.freeze([
+    {id:1,level:1,title:'낯선 교실의 파도',reward:'이야기'},
+    {id:2,level:3,title:'가라앉은 왕좌',reward:'기억 속 용왕 · 프로필'},
+    {id:3,level:5,title:'용왕의 약속',reward:'파도를 지키는 자 · 칭호'},
+    {id:4,level:8,title:'학교에 남은 이유',reward:'오시아 · 로비 대사'}
+  ].map(Object.freeze));
+  const BOND_MISSIONS = Object.freeze([
+    {id:'waves',name:'같은 전선을 지키며',desc:'오시아와 보상 적용 전투 10회 승리',goal:10,xp:20},
+    {id:'bosses',name:'왕의 책임',desc:'오시아와 보상 적용 보스 3회 처치',goal:3,xp:30},
+    {id:'dragons',name:'잊지 않은 권능',desc:'보상 적용 전투에서 수룡 3회 명중',goal:3,xp:30}
+  ].map(Object.freeze));
+  const newBondDay = now => ({day:day(now),waves:0,bosses:0,dragons:0,earned:0,claimed:[]});
+  function validBonds(s) {
+    if(s.bonds===undefined)return true;
+    if(!s.bonds||typeof s.bonds!=='object'||Array.isArray(s.bonds)||Object.keys(s.bonds).some(k=>k!=='osia'))return false;
+    const b=s.bonds.osia;if(b===undefined)return true;
+    return !!s.units.osia&&b&&Number.isInteger(b.xp)&&b.xp>=0&&b.xp<=650&&Array.isArray(b.read)&&b.read.length<=4&&b.read.every((id,i)=>id===i+1)&&b.daily&&Number.isInteger(b.daily.day)&&b.daily.day>=0&&['waves','bosses','dragons','earned'].every(k=>Number.isInteger(b.daily[k])&&b.daily[k]>=0&&b.daily[k]<=200)&&Array.isArray(b.daily.claimed)&&b.daily.claimed.length<=3&&new Set(b.daily.claimed).size===b.daily.claimed.length&&b.daily.claimed.every(id=>BOND_MISSIONS.some(m=>m.id===id));
+  }
+  function bondInfo(s,now=s.at) {
+    const owned=!!s.units.osia,b=s.bonds?.osia||{xp:0,read:[],daily:newBondDay(now)},d=day(Math.max(s.at,now))>b.daily.day?newBondDay(Math.max(s.at,now)):b.daily;
+    const level=BOND_LEVELS.filter(x=>x<=b.xp).length,base=BOND_LEVELS[level-1],next=BOND_LEVELS[level]??base;
+    return {owned,xp:b.xp,level,progress:b.xp-base,needed:next-base,dailyEarned:d.earned,dailyLimit:200,
+      episodes:BOND_EPISODES.map(e=>({...e,read:b.read.includes(e.id),unlocked:owned&&level>=e.level&&(e.id===1||b.read.includes(e.id-1))})),
+      missions:BOND_MISSIONS.map(m=>({...m,value:Math.min(m.goal,d[m.id]),claimed:d.claimed.includes(m.id),ready:owned&&d[m.id]>=m.goal&&!d.claimed.includes(m.id)&&d.earned<200&&b.xp<650})),
+      avatar:b.read.includes(2),title:b.read.includes(3),dialogue:b.read.includes(4)};
+  }
+  function bondState(s) {
+    s.bonds||={};const b=s.bonds.osia||={xp:0,read:[],daily:newBondDay(s.at)};
+    if(day(s.at)>b.daily.day)b.daily=newBondDay(s.at);return b;
+  }
+  function bondCombat(s,metric) {
+    if(!s.units.osia||!s.battle.heroes.some(h=>h.id==='osia')||!questCombatEligible(s))return;
+    const b=bondState(s);b.daily[metric]=Math.min(200,b.daily[metric]+1);
+    if(metric==='waves'&&b.xp<650&&b.daily.earned<200){b.xp++;b.daily.earned++;}
+  }
+  const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||title==='osia-oath'&&!!s.bonds?.osia?.read?.includes(3);
+
   const SHARD_LIMIT=1000000000;
   function shardInfo(s){return {unlocked:s.captain.level>=20,SR:s.shardExchange?.SR||0,SSR:s.shardExchange?.SSR||0,choices:[...STANDARD_SSR],recyclable:Object.entries(s.units).filter(([id,u])=>u.stars===5&&['SR','SSR'].includes(BY_ID[id].rarity)).map(([id,u])=>({id,rarity:BY_ID[id].rarity,shards:u.shards,batch:BY_ID[id].rarity==='SSR'?20:10}))};}
   function validShards(s){return s.shardExchange===undefined||s.shardExchange&&typeof s.shardExchange==='object'&&!Array.isArray(s.shardExchange)&&Object.keys(s.shardExchange).length===2&&['SR','SSR'].every(r=>Number.isSafeInteger(s.shardExchange[r])&&s.shardExchange[r]>=0&&s.shardExchange[r]<=SHARD_LIMIT);}
@@ -706,7 +757,7 @@
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
       s.units && Object.keys(s.units).every(id => Object.hasOwn(BY_ID, id) && Number.isInteger(s.units[id].level) && s.units[id].level >= 1 && s.units[id].level <= MAX_LEVEL && Number.isFinite(s.units[id].xp) && Number.isInteger(s.units[id].stars) && s.units[id].stars >= 0 && s.units[id].stars <= 5 && Number.isFinite(s.units[id].shards)) &&
       Array.isArray(s.team) && s.team.length >= 1 && s.team.length <= MAX_TEAM && new Set(s.team).size === s.team.length && s.team.every(id => typeof id === "string" && Object.hasOwn(BY_ID, id) && Object.hasOwn(s.units, id)) &&
-      validShards(s) && validShop(s) && validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
+      validBonds(s) && validShards(s) && validShop(s) && validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
       (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)) && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean")) &&
@@ -829,6 +880,9 @@
     if (side === "hero") {
       amount = Math.max(1, Math.round(amount * (1 - target.defense) * (earthGuard.hero ? 1-RYUSION_RULES.teamReduction : 1) * (earthGuard.taunting&&target===earthGuard.hero ? 1-ryusionDefense(earthGuard.hero).tauntReduction : 1)));
       const shield = Math.min(target.shield, amount); target.shield -= shield; amount -= shield;
+      const earthAbsorbed=Math.min(shield,target.earthShield||0);meter(s,'ryusion','absorbed',earthAbsorbed);
+      let rest=shield-earthAbsorbed;
+      for(const source of Object.keys(target.shieldSources||{})){const used=Math.min(rest,target.shieldSources[source]);target.shieldSources[source]-=used;rest-=used;meter(s,source,'absorbed',used);}
       absorbEarthShield(target,shield);
       if (shield) event(s, "shield", { to: target.id, amount: shield, ...(detail.redirectedFrom?{redirectedFrom:detail.redirectedFrom}:{}) });
       const b = s.battle;
@@ -865,7 +919,7 @@
   }
   function lavaGuard(s, hero, target, raw, passive) {
     const amount = Math.max(0, Math.min(Math.round(raw * (1+(hero.exclusive?.strength||0))), Math.round(target.max * .6) - target.shield));
-    target.shield += amount;
+    target.shield += amount;target.shieldSources||={};target.shieldSources[hero.id]=(target.shieldSources[hero.id]||0)+amount;
     if (amount) event(s, "guard", { from: hero.id, to: target.id, amount, shield: target.shield, passive, element: "wind" });
   }
   function lavaHeal(s, hero, target, raw, stage) {
@@ -879,7 +933,7 @@
     if (s.counter) delete s.counter.opportunity;
     if (s.battle.activity) { settleActivity(s, true, "victory"); return; }
     const b = s.battle, reward = campaignRewardInfo(s), { gold, xp } = reward;
-    if (reward.eligible) { questProgress(s, "waves"); if (b.boss) questProgress(s, "bosses"); }
+    if (reward.eligible) { bondCombat(s,"waves"); if(b.boss)bondCombat(s,"bosses"); questProgress(s, "waves"); if (b.boss) questProgress(s, "bosses"); }
     s.gold += gold; for (const id of s.team) addUnitXp(s, id, xp);
     if (reward.captainXp) captainXp(s, reward.captainXp);
     event(s, "reward", { gold, xp, boss: b.boss, eligible: reward.eligible, multiplier: reward.multiplier });
@@ -891,7 +945,7 @@
       if (s.stage === MAX_STAGE && s.best === MAX_STAGE) s.mode = "farm";
       s.wave = 1;
     } else s.wave++;
-    b.phase = "victory"; b.wait = b.boss ? 4 : 2; delete b.osiaCast; delete b.horasCast; delete b.cinematic;
+    b.phase = "victory"; if(b.boss)s.lastCombatReport={...damageReport(s),reason:"victory",at:s.at}; b.wait = b.boss ? 4 : 2; delete b.osiaCast; delete b.horasCast; delete b.cinematic;
   }
   function osiaStep(s) {
     const b = s.battle, cast = b.osiaCast;
@@ -901,8 +955,9 @@
     if (b.elapsed < cast.began + step.impactDelay) return false;
     const targets = b.enemies.filter(e => e.hp > 0 && cast.targets.some(t => t.id === e.id));
     event(s, "skill-impact", { from: "osia", castId: cast.id, stage: step.stage, name: step.name, element: "water", targets: targets.map(e => e.id) });
+    if(step.stage===4&&targets.length)bondCombat(s,"dragons");
     const owner=b.heroes.find(h=>h.id==="osia");
-    if(step.stage===4&&targets.length&&owner?.exclusive){const amount=Math.max(0,Math.min(Math.round(owner.atk*.2),Math.round(owner.max*.6)-owner.shield));owner.shield+=amount;if(amount)event(s,"guard",{from:"osia",to:"osia",amount,shield:owner.shield,passive:"weapon-tide",element:"water"});}
+    if(step.stage===4&&targets.length&&owner?.exclusive){const amount=Math.max(0,Math.min(Math.round(owner.atk*.2),Math.round(owner.max*.6)-owner.shield));owner.shield+=amount;owner.shieldSources||={};owner.shieldSources.osia=(owner.shieldSources.osia||0)+amount;if(amount)event(s,"guard",{from:"osia",to:"osia",amount,shield:owner.shield,passive:"weapon-tide",element:"water"});}
     for (const enemy of targets) {
       const hit = cast.targets.find(t => t.id === enemy.id);
       hurt(s, "osia", enemy, hit.amount, "enemy", true, { castId: cast.id, stage: step.stage, critical: !!hit.critical });
@@ -1091,7 +1146,7 @@
         }
         continue;
       }
-      if (skill && def.role === "수호") { hero.shield += Math.round(hero.max * .25); event(s, "guard", { to: hero.id, amount: hero.shield }); multiplier = 1; }
+      if (skill && def.role === "수호") { const gained=Math.round(hero.max*.25);hero.shield+=gained;hero.shieldSources||={};hero.shieldSources[hero.id]=(hero.shieldSources[hero.id]||0)+gained; event(s, "guard", { to: hero.id, amount: hero.shield }); multiplier = 1; }
       if (skill && def.role === "지원") { b.buff = 4; multiplier = 1; }
       if (skill && def.role === "사수") { target = enemies.reduce((a, e) => a.hp < e.hp ? a : e); multiplier = 2.6; }
       const victims = skill && def.role === "마법" ? enemies : [target];
@@ -1142,6 +1197,7 @@
     if (b.heroes.every(h => h.hp <= 0) || b.tick >= 120) {
       if (b.activity) { settleActivity(s, false, b.tick >= 120 ? "timeout" : "defeat"); return; }
       b.phase = "defeat"; b.wait = 5; s.wave = 1; s.losses++; delete b.osiaCast; delete b.horasCast; delete b.cinematic; if(s.counter)delete s.counter.opportunity;
+      s.lastCombatReport={...damageReport(s),reason:b.tick>=120?"timeout":"defeat",at:s.at};
       event(s, "defeat", { boss: b.boss, stage: b.stage, reason: b.tick >= 120 ? "timeout" : "defeat", report: damageReport(s) }); log(s, "잠시 쉬어 갑니다. 용병을 훈련하거나 편성을 바꿔보세요.");
       if (s.losses >= 3 && s.best >= 1) { s.mode = "farm"; s.stage = s.best; s.losses = 0; log(s, "클리어한 지역에서 자동으로 성장합니다. 도전 버튼으로 다시 출발하세요."); }
     }
@@ -1285,10 +1341,18 @@
       if(s.shop?.day!==day(now))s.shop={day:day(now),counts:{}};s.shop.counts[item.id]=(s.shop.counts[item.id]||0)+1;
       return {kind,item:item.id,gold:item.gold,price:item.price};
     }
+    if(kind==='bond-mission') {
+      const m=bondInfo(s,now).missions.find(m=>m.id===input.mission);fail(m?.ready,'완료한 인연 임무와 오늘의 획득 한도를 확인하세요.');
+      const b=bondState(s),xp=Math.min(m.xp,200-b.daily.earned,650-b.xp);b.xp+=xp;b.daily.earned+=xp;b.daily.claimed.push(m.id);return {kind,xp};
+    }
+    if(kind==='bond-read') {
+      const e=bondInfo(s,now).episodes.find(e=>e.id===input.episode);fail(e?.unlocked,'오시아 영입·인연 레벨·이전 이야기를 확인하세요.');
+      const b=bondState(s),fresh=!b.read.includes(e.id);if(fresh)b.read.push(e.id);return {kind,episode:e.id,fresh,reward:e.reward};
+    }
     if (kind === 'profile') {
       const current = profileInfo(s), avatar = input.avatar ?? current.avatar, title = input.title ?? current.title;
       fail(ownsProfileAvatar(s,avatar), '해금한 프로필 그림만 사용할 수 있어요.');
-      fail(title === '' || title === 'beta' && current.beta, '해금한 칭호만 사용할 수 있어요.');
+      fail(ownsProfileTitle(s,title), '해금한 칭호만 사용할 수 있어요.');
       s.profile = {...current, avatar, title}; return {kind, avatar, title};
     }
     if (kind === 'counter') return counterAttack(s,input,now);
@@ -1475,14 +1539,14 @@
     }
     throw Error("지원하지 않는 행동입니다.");
   }
-  const FARMING_ANALYSIS = Object.freeze({ seconds: 180, seeds: Object.freeze([0x8d12a7b3, 0x41c6ce57, 0xe7139a2d]), minSuccessfulSeeds: 2 });
+  const FARMING_ANALYSIS = Object.freeze({ seconds: 180, seeds: Object.freeze([0x8d12a7b3, 0x41c6ce57, 0xe7139a2d]), minSuccessfulSeeds: 3 });
   function farmingCandidates(s) {
     const top = Math.max(1, Math.min(MAX_STAGE, s.best));
-    return Array.from({ length: top - Math.max(1, top - CAMPAIGN_REWARDS.safeGap) + 1 }, (_, i) => Math.max(1, top - CAMPAIGN_REWARDS.safeGap) + i);
+    return Array.from({length:top},(_,i)=>i+1);
   }
   function farmingFingerprint(s) {
     const gear = snapshotEquipment(s);
-    return JSON.stringify([CATALOG_VERSION, s.best, s.speed || 1, s.team.map(id => [id, s.units[id].level, s.units[id].stars]), ...(Object.keys(gear.equipped).length ? [gear] : [])]);
+    return JSON.stringify([CATALOG_VERSION, s.best, s.stage, s.speed || 1, s.team.map(id => [id, s.units[id].level, s.units[id].stars]), ...(Object.keys(gear.equipped).length ? [gear] : [])]);
   }
   // CPU-heavy analysis belongs in farming-worker.js, never the render loop.
   // Every run starts at wave one on a detached save; current investment is held
@@ -1490,19 +1554,19 @@
   function simulateFarmingStage(source, stage) {
     fail(validate(source), "분석할 편성 정보를 확인하세요.");
     fail(farmingCandidates(source).includes(stage), "보상이 적용되는 열린 지역만 분석할 수 있습니다.");
-    let totalGold = 0, totalXp = 0, clears = 0, losses = 0, successfulSeeds = 0, clearTime = 0;
+    let totalGold = 0, totalXp = 0, clears = 0, losses = 0, successfulSeeds = 0, clearTime = 0;const seedGold=[];
     for (const seed of FARMING_ANALYSIS.seeds) {
       const s = clone(source), levels = Object.fromEntries(s.team.map(id => [id, s.units[id].level]));
       s.at = WINTER_EVENT.startsAt; s.seed = seed; s.simTime = 0; s.simCredit = 0; s.seq = 0; s.events = []; s.logs = []; s.receipts = []; s.history = [];
       s.captain = { level: CAPTAIN_MAX_LEVEL, xp: 0 }; s.activities = newActivities(s.at); s.offline = { seconds: 0, gold: 0, xp: 0, captainXp: 0 };
       for (const id of s.team) { s.units[id].xp = 0; if (id === "osia" || id === "lava" || id === "ryusion") s.units[id].nextSkill = 1; if (id === "lava") s.units[id].basicHits = 0; }
       action(s, { kind: "stage", stage, mode: "farm" }, s.at);
-      let trialClears = 0, trialLosses = 0, previousClear = 0;
+      let trialClears = 0, trialLosses = 0, previousClear = 0, trialGold=0;
       for (let elapsed = STEP_MS; elapsed <= FARMING_ANALYSIS.seconds * 1000; elapsed += STEP_MS) {
         const seq = s.seq; advance(s, s.at + STEP_MS);
         for (const e of s.events) if (e.seq > seq) {
           if (e.kind === "reward") {
-            totalGold += e.gold; totalXp += e.xp;
+            totalGold += e.gold; trialGold+=e.gold; totalXp += e.xp;
             if (e.boss) { clears++; trialClears++; clearTime += elapsed - previousClear; previousClear = elapsed; }
           } else if (e.kind === "defeat") { losses++; trialLosses++; }
         }
@@ -1513,19 +1577,26 @@
         // no income, instead of silently farming a different fallback stage.
         if (trialLosses) break;
       }
+      seedGold.push(Math.floor(trialGold/(FARMING_ANALYSIS.seconds/60)));
       if (trialClears > 0 && trialLosses === 0) successfulSeeds++;
     }
     const totalSeeds = FARMING_ANALYSIS.seeds.length, minutes = totalSeeds * FARMING_ANALYSIS.seconds / 60;
     return { stage, name: stageName(stage), goldPerMinute: Math.round(totalGold / minutes), xpPerMinute: Math.round(totalXp / minutes), clears, losses,
-      successfulSeeds, totalSeeds, successRate: successfulSeeds / totalSeeds, stable: successfulSeeds >= FARMING_ANALYSIS.minSuccessfulSeeds,
+      successfulSeeds, totalSeeds, successRate: successfulSeeds / totalSeeds, minGoldPerMinute:Math.min(...seedGold), maxGoldPerMinute:Math.max(...seedGold), stable: successfulSeeds >= FARMING_ANALYSIS.minSuccessfulSeeds,
       meanClearSeconds: clears ? Math.round(clearTime / clears / 100) / 10 : null };
   }
   function farmingRecommendations(s, candidates) {
-    const ranked = [...candidates].filter(r => r.stable).sort((a, b) => b.goldPerMinute - a.goldPerMinute || b.successfulSeeds - a.successfulSeeds || a.stage - b.stage);
-    return { fingerprint: farmingFingerprint(s), recommendations: ranked.slice(0, 3), candidates: [...candidates], seconds: FARMING_ANALYSIS.seconds, seeds: FARMING_ANALYSIS.seeds.length,
-      basis: "combat-gold-only", reason: ranked.length ? "ok" : "train" };
+    const baseline=candidates.find(r=>r.stage===s.stage)||null;
+    const ranked = [...candidates].filter(r => r.stable&&r.losses===0).sort((a,b)=>b.goldPerMinute-a.goldPerMinute||b.minGoldPerMinute-a.minGoldPerMinute||Number(b.stage===s.stage)-Number(a.stage===s.stage)||a.stage-b.stage);
+    // Switching for noise-sized gains costs a partially completed wave. Keep a
+    // safe current region when its estimate is within 5% of the best result.
+    const keepCurrent=baseline?.stable&&ranked[0]&&ranked[0].goldPerMinute<=baseline.goldPerMinute*1.05;
+    const filtered=ranked.filter(r=>!baseline?.stable||r.stage===s.stage||r.goldPerMinute>baseline.goldPerMinute*1.05);
+    if(keepCurrent){filtered.splice(0,filtered.length,baseline);}
+    return {fingerprint:farmingFingerprint(s),recommendations:filtered.slice(0,3),candidates:[...candidates],baseline,keepCurrent:!!keepCurrent,
+      seconds:FARMING_ANALYSIS.seconds,seeds:FARMING_ANALYSIS.seeds.length,basis:'combat-gold-only',reason:filtered.length?'ok':'train'};
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

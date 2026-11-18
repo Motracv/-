@@ -4,9 +4,9 @@ window.SchoolGuild=(()=>{
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const labels=['용기의 방패','별빛의 약속','지혜의 서고'];
  const crest=(n,cls='')=>`<span class="guild-crest ${cls}" data-emblem="${Number(n)||0}" aria-hidden="true"></span>`;
- function avatarImage(p,hero='taeo',cls=''){const reward=window.SchoolRPG.PROFILE_REWARDS.find(r=>r.id===p?.avatar);if(reward)return `<img class="profile-avatar reward-avatar ${cls}" src="${esc(reward.image)}" alt="${esc(reward.name)}">`;const i=window.SchoolRPG.PROFILE_AVATARS.indexOf(p?.avatar);return i<0?`<img class="profile-avatar ${cls}" src="${esc(window.SchoolArt.portrait(hero))}" alt="">`:`<span class="profile-avatar painted-avatar ${cls}" data-avatar="${i}" aria-hidden="true"></span>`;}
+ function avatarImage(p,hero='taeo',cls=''){if(p?.avatar==='osia-memory')return `<img class="profile-avatar bond-avatar ${cls}" src="school/assets/bonds/osia-memory.webp" alt="기억 속 용왕 오시아">`;const reward=window.SchoolRPG.PROFILE_REWARDS.find(r=>r.id===p?.avatar);if(reward)return `<img class="profile-avatar reward-avatar ${cls}" src="${esc(reward.image)}" alt="${esc(reward.name)}">`;const i=window.SchoolRPG.PROFILE_AVATARS.indexOf(p?.avatar);return i<0?`<img class="profile-avatar ${cls}" src="${esc(window.SchoolArt.portrait(hero))}" alt="">`:`<span class="profile-avatar painted-avatar ${cls}" data-avatar="${i}" aria-hidden="true"></span>`;}
  function avatar(p,hero='taeo',cls=''){const image=avatarImage(p,hero,cls);return p?.name?`<button type="button" class="inspect-avatar" data-inspect-name="${esc(p.name)}" aria-label="${esc(p.name)} 프로필 보기">${image}</button>`:image;}
- const title=p=>p?.title==='beta'?'<span class="beta-title"><i aria-hidden="true">✦</i> 베타테스터 <i aria-hidden="true">✦</i></span>':'';
+ const title=p=>p?.title==='osia-oath'?'<span class="bond-oath-title">✧ 파도를 지키는 자 ✧</span>':p?.title==='beta'?'<span class="beta-title"><i aria-hidden="true">✦</i> 베타테스터 <i aria-hidden="true">✦</i></span>':'';
  function create(ctx){
   let data=null,busy=false,epoch=0,timer=null,tab='room',pending=null,stopped=false,draft=null;
   const root=()=>document.querySelector('#guild-view'),own=()=>!stopped&&!!root()?.closest('dialog')?.open;
