@@ -7,7 +7,7 @@ function add(s,id,count=1,stars=0){s.equipment.inventory[id]={count,stars};}
 function enter(s,kind,value=1){if(kind==='tower')s.activities.towerBest=Math.max(0,value-1);else s.best=60;act(s,{kind:'activity',mode:kind,...(kind==='tower'?{floor:value}:{tier:value})});}
 function finish(s,rng=()=>0,preview=false){for(const e of s.battle.enemies)e.hp=0;G.advance(s,s.at+500,{gearRng:rng,preview});assert.equal(s.battle.phase,'victory');return s.activities.lastResult;}
 test('Twelve equipment types and old-save migration never grant free items or rewrite already-paid results',()=>{
- const s=make();assert.equal(G.CATALOG_VERSION,19);assert.equal(G.GEAR.length,12);for(const rarity of ['R','SR','SSR'])assert.deepEqual(G.GEAR.filter(d=>d.rarity===rarity).map(d=>d.slot),['weapon','armor','charm']);
+ const s=make();assert.equal(G.CATALOG_VERSION,20);assert.equal(G.GEAR.length,12);for(const rarity of ['R','SR','SSR'])assert.deepEqual(G.GEAR.filter(d=>d.rarity===rarity).map(d=>d.slot),['weapon','armor','charm']);
  enter(s,'daily');finish(s);delete s.equipment;delete s.activities.lastResult.gearDrops;const before=G.clone(s);assert(G.validate(s));assert.equal(G.equipmentInfo(s).items.filter(i=>i.count).length,0);assert.deepEqual(s,before);G.advance(s,s.at);assert.deepEqual(s.equipment,{inventory:{},equipped:{}});assert.deepEqual(s.activities,before.activities);for(const key of ['gold','gems','units','banners','presets','captain','quests','winter'])assert.deepEqual(s[key],before[key]);assert(G.validate(s));
 });
 test('Three slots share copies correctly, swapping frees the previous item, and changes do not reset or heal the current battle',()=>{

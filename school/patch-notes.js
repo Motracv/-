@@ -1,7 +1,14 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-ryusion1',
+  version:'school-guild1',
   entries:Object.freeze([
+    {version:'school-guild1',date:'2026.11.18',title:'우리 반 길드 · 더 풍성한 모험',items:[
+      '모험·던전·방치·임무·일일 보급·단장 레벨업 코인이 2.6배 늘었어요. 기존 잔액·쿠폰 금액·보석 보상은 유지해요.',
+      '끝없는 토벌을 100마리에서 75마리로 줄였어요. 모아둔 처치 진행도는 그대로 이어져요.',
+      '메인 깃발에서 길드를 만들어요. 3~16글자 중복 없는 이름, 최대 30명, 문장 3종과 교실 칠판 공지를 지원해요.',
+      '길드장은 단장 이름으로 초대·강퇴·위임·해산할 수 있어요. 길드 출석은 가입 다음 한국 날짜부터 매일 보석 30개예요. 길드 보스전은 추후 개방해요.',
+      '왼쪽 위 프로필에서 그림 6종과 출전 대표를 고를 수 있어요. 업데이트 이전 저장 기록에는 능력치 없는 베타테스터 칭호가 해금돼요.'
+    ]},
     {version:'school-ryusion1',date:'2026.11.18',title:'SSR 류시온 · 대지의 방패',items:[
       '대지 속성 SSR 수비 용병 류시온이 합류했어요. 전용 모집 일러스트와 도트 대기·평타·도발·돌격·보호막·피격 동작을 추가했어요.',
       '5초마다 2초 동안 광역 공격까지 대신 받아요. 생존 중 아군 피해 8% 감소, 도발 중 본인 피해 추가 60% 감소.',

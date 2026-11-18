@@ -46,10 +46,14 @@ window.SchoolLobby = (() => {
         const description = `${definition.name} Lv.${unit.level} · ${unit.stars || 0}성 · 눌러서 육성`;
         if (button.getAttribute('aria-label') !== description) button.setAttribute('aria-label', description);
       }
-      const leader = state.team[0];
-      if (leader && leader !== captainId) {
-        captainId = leader;
-        document.getElementById('captain-portrait').src = art.portrait(leader);
+      const leader = state.team[0], appearance=game.profileInfo(state), identity=[leader,appearance.avatar,appearance.title].join('|');
+      if (leader && identity !== captainId) {
+        captainId = identity;
+        const image=document.getElementById('captain-portrait'),custom=document.getElementById('captain-custom-avatar'),label=document.getElementById('captain-title');
+        image.src=art.portrait(leader);image.hidden=appearance.avatar!=='leader';custom.hidden=appearance.avatar==='leader';
+        custom.innerHTML=appearance.avatar==='leader'?'':window.SchoolGuild.avatar(appearance,leader);
+        label.innerHTML=window.SchoolGuild.title(appearance);label.hidden=!appearance.title;
+        document.getElementById('captain-button').classList.toggle('has-title',!!appearance.title);
       }
       const next = Math.min(game.MAX_STAGE, state.best + 1);
       text('lobby-party-count', `${state.team.length} / ${game.MAX_TEAM || 6}`);

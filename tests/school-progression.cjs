@@ -9,14 +9,14 @@ function reject(s,input,now=s.at){const old=G.clone(s);assert.throws(()=>G.actio
 function win(s,boss=false){s.battle.boss=boss;s.mode='farm';for(const h of s.battle.heroes){h.atk=1000000;h.hp=h.max=1000000;}for(const e of s.battle.enemies){e.hp=1;e.stunUntil=1000000;}G.advance(s,s.at+1000);assert.equal(s.battle.phase,'victory');}
 function next(s){G.action(s,{kind:'stage',stage:1,mode:'farm'},s.at);}
 test('Catalog 16 preserves only current prices and new code definitions; legacy save migration never credits currency',()=>{
-  assert.equal(G.CATALOG_VERSION,19);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
+  assert.equal(G.CATALOG_VERSION,20);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
   const s=make();delete s.quests;s.kills=500000;s.pulls=10000;s.best=60;s.captain={level:50,xp:1234};s.claimed=G.QUESTS.map(q=>q.id);s.redeemedCodes=['OSIA_DEBUT','BUG_FIX','LAVA_DEBUT','THANK_YOU','MAJORUPDATE'];
   const old=G.clone(s);assert(G.validate(s));const projected=board(s);assert.equal(projected.items.length,77);assert.equal(projected.items.filter(q=>q.category==='stage'&&q.ready).length,60);assert(projected.items.filter(q=>['repeat','daily'].includes(q.category)).every(q=>q.value===0));assert.deepEqual(s,old);
   G.advance(s,s.at);for(const key of ['gold','gems','units','captain','banners','claimed','redeemedCodes'])assert.deepEqual(s[key],old[key]);assert.deepEqual(s.quests.repeat,{kills:0,waves:0,bosses:0});assert(G.validate(s));
 });
 test('Every stage has a once-only first-clear quest, including legacy clears, and the original seven rewards remain intact',()=>{
   const s=make();s.best=60;assert.equal(G.QUESTS.length,7);assert.deepEqual(G.QUESTS.map(q=>[q.id,q.gold,q.gems]),[['first',200,100],['recruit',300,150],['collection',500,200],['chapter',700,200],['captain',900,250],['veteran',2000,400],['graduation',5000,1000]]);
-  for(let stage=1;stage<=60;stage++){const before=[s.gold,s.gems],r=claim(s,'stage-'+stage);assert.equal(r.gold,200+20*stage);assert.equal(r.gems,80);assert.equal(s.gold,before[0]+r.gold);assert.equal(s.gems,before[1]+80);reject(s,{kind:'quest',quest:'stage-'+stage});}
+  for(let stage=1;stage<=60;stage++){const before=[s.gold,s.gems],r=claim(s,'stage-'+stage);assert.equal(r.gold,(200+20*stage)*2.6);assert.equal(r.gems,80);assert.equal(s.gold,before[0]+r.gold);assert.equal(s.gems,before[1]+80);reject(s,{kind:'quest',quest:'stage-'+stage});}
   assert.equal(s.claimed.filter(id=>id.startsWith('stage-')).length,60);claim(s,'first');reject(s,{kind:'quest',quest:'first'});assert(G.validate(G.clone(s)));
   const fresh=make();for(const id of ['stage-1','stage-0','stage-61','stage-01','constructor',{},null])reject(fresh,{kind:'quest',quest:id});
 });
@@ -36,14 +36,14 @@ test('Keyed dungeons and new tower floors count, while repeated tower floors, de
   const lose=make();for(const h of lose.battle.heroes)h.hp=0;G.advance(lose,lose.at+1000);assert.equal(lose.battle.phase,'defeat');assert.deepEqual(lose.quests.repeat,{kills:0,waves:0,bosses:0});
 });
 test('Repeat claims retain overflow, limit each transaction to 100 cycles, and ignore forged client rewards',()=>{
-  const s=make();s.quests.repeat={kills:10253,waves:31,bosses:11};assert.equal(item(s,'repeat-kills').cycles,100);
+  const s=make();s.quests.repeat={kills:7753,waves:31,bosses:11};assert.equal(item(s,'repeat-kills').cycles,100);
   const before=[s.gold,s.gems],r=G.action(s,{kind:'quest',quest:'repeat-kills',gold:1e12,gems:1e12,cycles:10000},s.at);
-  assert.equal(r.cycles,100);assert.equal(r.gold,25000);assert.equal(r.gems,4000);assert.deepEqual([s.gold,s.gems],[before[0]+25000,before[1]+4000]);assert.equal(s.quests.repeat.kills,253);
-  assert.equal(claim(s,'repeat-kills').cycles,2);assert.equal(s.quests.repeat.kills,53);reject(s,{kind:'quest',quest:'repeat-kills'});claim(s,'repeat-waves');claim(s,'repeat-bosses');assert.deepEqual(s.quests.repeat,{kills:53,waves:1,bosses:1});
+  assert.equal(r.cycles,100);assert.equal(r.gold,65000);assert.equal(r.gems,4000);assert.deepEqual([s.gold,s.gems],[before[0]+65000,before[1]+4000]);assert.equal(s.quests.repeat.kills,253);
+  assert.equal(claim(s,'repeat-kills').cycles,3);assert.equal(s.quests.repeat.kills,28);reject(s,{kind:'quest',quest:'repeat-kills'});claim(s,'repeat-waves');claim(s,'repeat-bosses');assert.deepEqual(s.quests.repeat,{kills:28,waves:1,bosses:1});
 });
 test('Claim-all combines only eligible rewards atomically and cannot replay any consumed cycle',()=>{
   const s=make();s.best=2;s.quests.repeat={kills:253,waves:63,bosses:20};Object.assign(s.quests.daily,{kills:100,waves:30,bosses:4});
-  const shown=board(s),before=G.clone(s),r=G.action(s,{kind:'quest-all',gold:1e12,gems:1e12},s.at);assert.equal(r.gold,shown.readyGold);assert.equal(r.gems,shown.readyGems);assert.equal(r.claimed.length,shown.readyCount);assert.equal(s.gold,before.gold+r.gold);assert.equal(s.gems,before.gems+r.gems);assert.equal(G.questReady(s,s.at),0);assert.deepEqual(s.quests.repeat,{kills:53,waves:3,bosses:0});assert.equal(s.quests.daily.claimed.length,3);reject(s,{kind:'quest-all'});
+  const shown=board(s),before=G.clone(s),r=G.action(s,{kind:'quest-all',gold:1e12,gems:1e12},s.at);assert.equal(r.gold,shown.readyGold);assert.equal(r.gems,shown.readyGems);assert.equal(r.claimed.length,shown.readyCount);assert.equal(s.gold,before.gold+r.gold);assert.equal(s.gems,before.gems+r.gems);assert.equal(G.questReady(s,s.at),0);assert.deepEqual(s.quests.repeat,{kills:28,waves:3,bosses:0});assert.equal(s.quests.daily.claimed.length,3);reject(s,{kind:'quest-all'});
   const overflow=make();overflow.best=1;overflow.gold=Number.MAX_SAFE_INTEGER;reject(overflow,{kind:'quest-all'});assert.equal(overflow.claimed.length,0);
 });
 test('Daily quests roll over at Korean midnight; old-day and backward-clock claims cannot be repeated',()=>{
@@ -68,10 +68,10 @@ test('Active codes are accepted, historical claims persist, and future redemptio
   assert.deepEqual([s.gold,s.gems],[before[0]+17500,before[1]+5500]);assert.equal(s.redeemedCodes.length,9);assert(G.validate(G.clone(s)));
 });
 test('Captain rewards pay 160 gems plus 500+100 per new level only, including exact multi-level offline crossings',()=>{
-  const s=make();s.captain.xp=G.captainNeed(1)-1;const before=[s.gold,s.gems];win(s);assert.equal(s.captain.level,2);assert.deepEqual([s.gold,s.gems],[before[0]+16+700,before[1]+160]);assert.deepEqual(s.events.filter(e=>e.kind==='captain').map(e=>[e.level,e.gold,e.gems]),[[2,700,160]]);
-  const t=make();t.captain.xp=G.captainNeed(1)-1;t.offline={seconds:60,gold:0,xp:0,captainXp:1+G.captainNeed(2)+G.captainNeed(3)};const initial=G.clone(t);G.action(t,{kind:'offline'},t.at);assert.deepEqual(t.captain,{level:4,xp:0});assert.equal(t.gold,initial.gold+700+800+900);assert.equal(t.gems,initial.gems+480);assert.equal(t.events.filter(e=>e.kind==='captain').length,3);reject(t,{kind:'offline'});const paid=G.clone(t);G.advance(t,t.at);assert.deepEqual(t,paid);
+  const s=make();s.captain.xp=G.captainNeed(1)-1;const before=[s.gold,s.gems];win(s);assert.equal(s.captain.level,2);assert.deepEqual([s.gold,s.gems],[before[0]+42+1820,before[1]+160]);assert.deepEqual(s.events.filter(e=>e.kind==='captain').map(e=>[e.level,e.gold,e.gems]),[[2,1820,160]]);
+  const t=make();t.captain.xp=G.captainNeed(1)-1;t.offline={seconds:60,gold:0,xp:0,captainXp:1+G.captainNeed(2)+G.captainNeed(3)};const initial=G.clone(t);G.action(t,{kind:'offline'},t.at);assert.deepEqual(t.captain,{level:4,xp:0});assert.equal(t.gold,initial.gold+1820+2080+2340);assert.equal(t.gems,initial.gems+480);assert.equal(t.events.filter(e=>e.kind==='captain').length,3);reject(t,{kind:'offline'});const paid=G.clone(t);G.advance(t,t.at);assert.deepEqual(t,paid);
   const trained=make(),captain=G.clone(trained.captain),gems=trained.gems;G.action(trained,{kind:'train',hero:'harin'},trained.at);assert.deepEqual(trained.captain,captain);assert.equal(trained.gems,gems);assert.equal(G.captainNeed(1),35);assert.equal(G.captainNeed(50),13020);
-  const max=make();max.captain={level:200,xp:0};const money=[max.gold,max.gems];win(max);assert.deepEqual([max.gold,max.gems],[money[0]+16,money[1]]);assert.deepEqual(max.captain,{level:200,xp:0});
+  const max=make();max.captain={level:200,xp:0};const money=[max.gold,max.gems];win(max);assert.deepEqual([max.gold,max.gems],[money[0]+42,money[1]]);assert.deepEqual(max.captain,{level:200,xp:0});
 });
 test('Quest progress stays deterministic through save reload and speed changes',()=>{
   const a=make();a.speed=1.5;const b=G.clone(a);G.advance(a,a.at+60000);for(let i=0;i<120;i++)G.advance(b,b.at+500);assert.deepEqual(a,b);assert(a.quests.repeat.kills>0);assert(a.quests.repeat.waves>0);assert(G.validate(a));

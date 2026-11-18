@@ -20,31 +20,33 @@
   <link rel="preload" href="school/assets/lava.png?v=lava1" as="image">
   <link rel="preload" href="school/assets/lava-fan-basic.webp?v=lava-fan1" as="image">
   <link rel="preload" href="school/assets/osia-front.webp?v=osia-front1" as="image">
-  <link rel="stylesheet" href="school/style.css?v=school-ryusion1">
-  <script defer src="school/engine.js?v=school-ryusion1"></script>
-  <script defer src="school/combat-feedback.js?v=school-ryusion1"></script>
-  <script defer src="school/ryusion.js?v=school-ryusion1"></script>
-  <script defer src="school/art.js?v=school-ryusion1"></script>
-  <link rel="stylesheet" href="school/presentation.css?v=school-ryusion1">
-  <script defer src="school/presentation.js?v=school-ryusion1"></script>
-  <link rel="stylesheet" href="school/install.css?v=school-ryusion1">
-  <script defer src="school/install.js?v=school-ryusion1"></script>
-  <link rel="stylesheet" href="school/social.css?v=school-ryusion1">
-  <script defer src="school/social.js?v=school-ryusion1"></script>
+  <link rel="stylesheet" href="school/style.css?v=school-guild1">
+  <script defer src="school/engine.js?v=school-guild1"></script>
+  <script defer src="school/combat-feedback.js?v=school-guild1"></script>
+  <script defer src="school/ryusion.js?v=school-guild1"></script>
+  <script defer src="school/art.js?v=school-guild1"></script>
+  <link rel="stylesheet" href="school/presentation.css?v=school-guild1">
+  <script defer src="school/presentation.js?v=school-guild1"></script>
+  <link rel="stylesheet" href="school/install.css?v=school-guild1">
+  <script defer src="school/install.js?v=school-guild1"></script>
+  <link rel="stylesheet" href="school/social.css?v=school-guild1">
+  <script defer src="school/social.js?v=school-guild1"></script>
   <link rel="preload" href="school/assets/lobby/courtyard.webp?v=lobby1" as="image">
-  <link rel="stylesheet" href="school/lobby.css?v=school-ryusion1">
-  <link rel="stylesheet" href="school/world-map.css?v=school-ryusion1">
-  <link rel="stylesheet" href="school/qol.css?v=school-ryusion1">
-  <link rel="stylesheet" href="school/equipment.css?v=school-ryusion1">
-  <link rel="stylesheet" href="school/battle.css?v=school-ryusion1">
-  <link rel="stylesheet" href="school/horas.css?v=school-ryusion1">
-  <link rel="stylesheet" href="school/quests.css?v=school-ryusion1">
-  <script defer src="school/lobby.js?v=school-ryusion1"></script>
-  <script defer src="school/world-map.js?v=school-ryusion1"></script>
-  <script defer src="school/patch-notes.js?v=school-ryusion1"></script>
-  <script defer src="school/qol.js?v=school-ryusion1"></script>
-  <script defer src="school/equipment.js?v=school-ryusion1"></script>
-  <script defer src="school/client.js?v=school-ryusion1"></script>
+  <link rel="stylesheet" href="school/lobby.css?v=school-guild1">
+  <link rel="stylesheet" href="school/world-map.css?v=school-guild1">
+  <link rel="stylesheet" href="school/qol.css?v=school-guild1">
+  <link rel="stylesheet" href="school/equipment.css?v=school-guild1">
+  <link rel="stylesheet" href="school/battle.css?v=school-guild1">
+  <link rel="stylesheet" href="school/horas.css?v=school-guild1">
+  <link rel="stylesheet" href="school/quests.css?v=school-guild1">
+  <script defer src="school/lobby.js?v=school-guild1"></script>
+  <script defer src="school/world-map.js?v=school-guild1"></script>
+  <script defer src="school/patch-notes.js?v=school-guild1"></script>
+  <script defer src="school/qol.js?v=school-guild1"></script>
+  <script defer src="school/equipment.js?v=school-guild1"></script>
+  <link rel="stylesheet" href="school/guild.css?v=school-guild1">
+  <script defer src="school/guild.js?v=school-guild1"></script>
+  <script defer src="school/client.js?v=school-guild1"></script>
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -76,7 +78,7 @@
   <header class="topbar">
     <div class="brand"><span class="crest" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M3 13h8V7h10v6h8v16H3zM11 7l5-4 5 4M13 29v-8h6v8M6 17h2M6 22h2M24 17h2M24 22h2M14 12h4M16 10v4"/></svg></span><span><strong>학교용병단</strong><small id="save-status" role="status" aria-live="polite">저장 확인 중</small></span></div>
     <section class="resources" aria-label="내 용병단">
-      <button class="captain" id="captain-button" aria-label="단장 정보"><img id="captain-portrait" alt="" width="48" height="56"><span class="captain-copy"><span class="captain-emblem" id="captain-name-label">새내기 단장</span><b id="captain-level">Lv.1</b><span class="mini-track"><i id="captain-xp"></i></span></span></button>
+      <button class="captain" id="captain-button" aria-label="단장 정보"><img id="captain-portrait" alt="" width="48" height="56"><span id="captain-custom-avatar" hidden></span><span class="captain-copy"><span class="captain-emblem" id="captain-name-label">새내기 단장</span><b id="captain-level">Lv.1</b><span id="captain-title" hidden></span><span class="mini-track"><i id="captain-xp"></i></span></span></button>
       <div class="currency currency-gold"><svg class="coin" aria-hidden="true"><use href="#i-coin"/></svg><span><small>골드</small><b id="gold">—</b></span></div>
       <div class="currency currency-gems"><svg class="gem" aria-hidden="true"><use href="#i-gem"/></svg><span><small>보석</small><b id="gems">—</b></span></div>
     </section>
@@ -100,6 +102,7 @@
         <button class="lobby-menu" data-lobby-action="supplies"><span class="lobby-menu-art icon-supplies" aria-hidden="true"></span><span class="lobby-menu-label">보급</span><i id="lobby-supply-dot" class="lobby-dot" hidden></i></button>
         <button class="lobby-menu" data-lobby-action="codex"><span class="lobby-menu-art icon-codex" aria-hidden="true"></span><span class="lobby-menu-label">도감</span></button>
         <button class="lobby-menu" id="arena-button"><span class="lobby-menu-art icon-arena" aria-hidden="true"></span><span class="lobby-menu-label">아레나</span></button>
+        <button class="lobby-menu" id="guild-button" aria-label="길드" title="길드"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M9 45V5M11 7h27l-5 9 5 9H11z"/><path d="m22 10 4 3 4-3v9l-4 3-4-3z" fill="#754b3d"/></svg><span class="lobby-menu-label">길드</span></button>
         <button class="lobby-menu lobby-gate" data-lobby-action="dungeons"><span class="lobby-menu-art icon-dungeon" aria-hidden="true"></span><span class="lobby-menu-label">던전</span></button>
         <button class="lobby-menu lobby-gate" data-lobby-action="map"><span class="lobby-menu-art icon-adventure" aria-hidden="true"></span><span class="lobby-menu-label">모험</span></button>
       </nav>
@@ -168,7 +171,7 @@
       <article class="tab-panel" id="tab-supplies" hidden>
         <div class="section-heading"><div><h2>보급</h2></div><svg class="heading-icon"><use href="#i-bag"/></svg></div>
         <div class="supply-card offline-card"><span class="eyebrow">최대 8시간 자동 적립</span><h3>방치 보상</h3><p id="offline-detail">쌓인 보상이 아직 없어요.</p><button class="primary full" id="claim-offline">보상 받기</button><small id="offline-rate"></small></div>
-        <div class="daily-card"><div><b>매일 찾아오는 선물</b><small>골드 250 · 보석 150</small></div><button class="secondary" id="claim-daily">받기</button></div>
+        <div class="daily-card"><div><b>매일 찾아오는 선물</b><small>골드 650 · 보석 150</small></div><button class="secondary" id="claim-daily">받기</button></div>
         <section class="coupon-panel" aria-labelledby="coupon-title">
           <div class="coupon-heading"><label id="coupon-title" for="coupon-code">CODE</label><small id="coupon-note">코드당 1회 · 코드별 기한 확인</small></div><p class="coupon-announcement" id="coupon-announcement"></p>
           <form id="coupon-form">

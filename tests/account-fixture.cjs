@@ -10,7 +10,8 @@ async function fixture({ keysResponse } = {}) {
   const jwk = { ...await crypto.subtle.exportKey("jwk", pair.publicKey), kid: "fixture-google-key", alg: "RS256", use: "sig" };
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys=ON");
-  for (const file of ["0001_rooms.sql", "0002_accounts.sql", "0003_school.sql", "0004_school_rankings.sql", "0005_school_social.sql", "0006_school_seasons.sql"]) sqlite.exec(fs.readFileSync(path.join(__dirname, "../online/migrations", file), "utf8"));
+  const migrations=process.env.SCHOOL_TEST_MIGRATIONS||path.join(__dirname,"../online/migrations");
+  for(const file of fs.readdirSync(migrations).filter(name=>/^\d+.*\.sql$/.test(name)).sort()) sqlite.exec(fs.readFileSync(path.join(migrations,file),"utf8"));
   let failBatch = false, keyReads = 0;
   const db = {
     prepare(sql) {

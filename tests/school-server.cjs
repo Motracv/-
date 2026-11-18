@@ -42,7 +42,7 @@ const G=require('../school/engine.js');
    const row=save(b),state=JSON.parse(row.payload);state.at=Date.now()-48*3600000;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),b.profile.id);
    const current=await call(b,'state');assert.equal(current.data.state.offline.seconds,28800);const before=current.data.state.gold;
    const rs=await Promise.all(['1','2'].map(id=>call(b,'action',action(current.data.revision,'offline-claim-00000'+id,{kind:'offline'}))));assert.deepEqual(rs.map(r=>r.status).sort(),[200,409]);
-   const saved=JSON.parse(save(b).payload);assert.equal(saved.gold,before+9600+700);assert.equal(saved.captain.level,2);assert.equal(saved.offline.seconds,0);
+   const saved=JSON.parse(save(b).payload);assert.equal(saved.gold,before+24960+1820);assert.equal(saved.captain.level,2);assert.equal(saved.offline.seconds,0);
    assert.equal((await call(b,'action',action(save(b).revision,'offline-claim-again1',{kind:'offline'}))).status,400);
  });
  await test('Daily reset and quest eligibility are enforced by server, not browser flags',async()=>{
@@ -148,7 +148,7 @@ const G=require('../school/engine.js');
      now+=1000;const again=(await t.login('school-speed')).data;current=await call(again,'state',{speed:20,now:now+1000000});assert.equal(current.status,200);assert.equal(current.data.state.speed,1.5);assert.equal(current.data.state.battle.elapsed,initial+1500);assert.equal(current.data.state.simCredit,0);
      const row=save(who);assert.equal((await call(who,'action',action(row.revision,'speed-server-invalid01',{kind:'speed',speed:2}))).status,400);assert.equal(save(who).payload,row.payload);
      const state=JSON.parse(row.payload);state.at=now-12*3600000;state.best=0;state.offline={seconds:0,gold:0,xp:0};t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);
-     current=await call(who,'state');assert.equal(current.status,200);assert.equal(current.data.state.offline.seconds,28800);assert.equal(current.data.state.offline.gold,9600);assert.equal(current.data.state.speed,1.5);
+     current=await call(who,'state');assert.equal(current.status,200);assert.equal(current.data.state.offline.seconds,28800);assert.equal(current.data.state.offline.gold,24960);assert.equal(current.data.state.speed,1.5);
    }finally{Date.now=realNow;}
  });
  await test('Old account formations migrate intact and six owned members persist across sessions without granting heroes',async()=>{
@@ -178,8 +178,8 @@ const G=require('../school/engine.js');
      const ready=JSON.parse(save(who).payload);for(const e of ready.battle.enemies)e.hp=0;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(ready),who.profile.id);now+=500;let drop=true;
      t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
      const lost=await call(who,'state');assert.equal(lost.status,503);t.db.prepare=prepare;
-     current=await call(who,'state');assert.equal(current.status,200);assert.equal(current.data.state.activities.run.settled,true);assert.equal(current.data.state.gold,before.gold+2000);assert.equal(current.data.state.gems,before.gems+80);assert.deepEqual(current.data.state.activities.lastResult.reward,{gold:2000,gems:80,xp:70});
-     const paid=G.clone(current.data.state.activities);now+=30000;const retries=await Promise.all([call(who,'state'),call(who,'action',intent)]);for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.state.gold,before.gold+2000);assert.equal(r.data.state.gems,before.gems+80);assert.equal(r.data.state.activities.daily.used,1);assert.equal(r.data.state.activities.run.id,paid.run.id);assert.equal(r.data.state.battle.phase,'victory');}
+     current=await call(who,'state');assert.equal(current.status,200);assert.equal(current.data.state.activities.run.settled,true);assert.equal(current.data.state.gold,before.gold+5200);assert.equal(current.data.state.gems,before.gems+80);assert.deepEqual(current.data.state.activities.lastResult.reward,{gold:5200,gems:80,xp:70});
+     const paid=G.clone(current.data.state.activities);now+=30000;const retries=await Promise.all([call(who,'state'),call(who,'action',intent)]);for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.state.gold,before.gold+5200);assert.equal(r.data.state.gems,before.gems+80);assert.equal(r.data.state.activities.daily.used,1);assert.equal(r.data.state.activities.run.id,paid.run.id);assert.equal(r.data.state.battle.phase,'victory');}
    }finally{t.db.prepare=prepare;Date.now=realNow;}
  });
  await test('Server Korean day/week boundaries refill keys without trusting browser clocks or over-refunding old entries',async()=>{
@@ -197,7 +197,7 @@ const G=require('../school/engine.js');
    try{
      const who=(await t.login('school-tower-rewards')).data;let current=await call(who,'state');const first=save(who);assert.equal((await call(who,'action',action(first.revision,'tower-locked-floor001',{kind:'activity',mode:'tower',floor:2,towerBest:99}))).status,400);assert.equal(save(who).payload,first.payload);
      const win=async id=>{current=await call(who,'action',action(current.data.revision,id,{kind:'activity',mode:'tower',floor:1,towerBest:99,gold:1e12,reward:{gold:1e12}}));assert.equal(current.status,200);const s=JSON.parse(save(who).payload);for(const e of s.battle.enemies)e.hp=0;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),who.profile.id);now+=500;current=await call(who,'state');assert.equal(current.status,200);};
-     await win('tower-first-enter001');assert.equal(current.data.state.activities.towerBest,1);assert.equal(current.data.state.gold,805);assert.equal(current.data.state.gems,1810);assert.equal(current.data.state.activities.lastResult.firstClear,true);const paid=G.clone(current.data.state);
+     await win('tower-first-enter001');assert.equal(current.data.state.activities.towerBest,1);assert.equal(current.data.state.gold,973);assert.equal(current.data.state.gems,1810);assert.equal(current.data.state.activities.lastResult.firstClear,true);const paid=G.clone(current.data.state);
      await win('tower-repeat-enter01');assert.equal(current.data.state.activities.lastResult.firstClear,false);assert.deepEqual(current.data.state.activities.lastResult.reward,{gold:0,gems:0,xp:0});assert.equal(current.data.state.gold,paid.gold);assert.equal(current.data.state.gems,paid.gems);assert.deepEqual(current.data.state.units,paid.units);assert.deepEqual(current.data.state.captain,paid.captain);assert.equal(current.data.state.activities.daily.used,0);assert.equal(current.data.state.activities.weekly.used,0);
    }finally{Date.now=realNow;}
  });

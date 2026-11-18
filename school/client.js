@@ -41,7 +41,7 @@
   const Presentation = window.SchoolPresentation;
   Presentation?.configure({soundEnabled:()=>sound, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
-  let social, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
+  let social, guild, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
   let lobby = null, worldMap = null, qol = null, equipmentUI = null;
   let questCategory = 'daily', questChapter = null, questRowsKey = '', questCacheKey = '', questCache = null;
@@ -93,10 +93,11 @@
     try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
     clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; cloudClock = null; clearPending();
     storage.remove(CLOUD_CACHE, true); storage.set(MODE, 'guest'); mode = 'guest'; connected = true; effects = [];
-    Presentation?.cancel(); rankingCache.clear(); social?.destroy(); social = createSocial(); closeModal();
+    Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); social = createSocial(); guild=createGuild(); closeModal();
     try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
     catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
   }
+  function createGuild(){return window.SchoolGuild?.create({request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
   function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openAccount:accountModal,openCaptain:captainModal}); }
   function damageModal() {
     const report = G.damageReport?.(state);
@@ -506,6 +507,8 @@
     else if (result.kind === 'awaken') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.awaken({hero:result.hero,stars:result.stars,key:`${accountScope()}:awaken:${completedActionKey}`}); if (!shown?.cancelled) { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); } }
     else if (result.kind.startsWith('gear-')) { equipmentUI?.handleResult(result,completedActionKey); }
     else if (result.kind === 'winter-exchange') { play('reward'); social?.refresh(); }
+    else if (result.kind === 'profile') { toast('프로필을 저장했어요.'); captainModal(); }
+    else if (result.kind === 'guild-checkin') { toast('길드 출석 · 보석 +30'); play('reward'); }
     else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); captainModal(); }
     else if (result.kind.startsWith('preset-')) { toast(({'preset-save':'현재 편성을 저장했어요.','preset-apply':'저장한 편성을 불러왔어요.','preset-delete':'저장한 편성을 비웠어요.','preset-rename':'편성 이름을 저장했어요.'})[result.kind] || '편성을 저장했어요.');qol?.refresh(); }
     else if (result.kind === 'team') { closeModal(); toast(`새 편성으로 출발합니다. ${formationHint()}`); }
@@ -865,7 +868,11 @@
   }
   function captainModal() {
     const captain = state.captain, maxed = captain.level >= G.CAPTAIN_MAX_LEVEL, need = G.captainNeed(captain.level), nextReward = G.captainReward(captain.level + 1);
-    openModal('내 단장', `<section class="captain-profile"><span class="crest" aria-hidden="true">校</span><div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3><p>단장 <strong id="captain-modal-level">Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">${G.commanderNameInfo?.(state).cost ? '3,000 보석으로 변경' : '이름 확정'}</button></div><p id="name-message" role="status">첫 이름은 무료 · 변경은 보석 3,000개. 계정 이름은 중복될 수 없어요. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><section id="captain-level-rewards" class="captain-level-rewards"><b id="captain-reward-heading">${maxed ? '단장 최대 레벨 달성' : `다음 Lv.${captain.level + 1} 보상`}</b><div id="captain-next-reward" class="quest-rewards" ${maxed ? 'hidden' : ''}><span class="quest-gems">${icon('gem')}<strong id="captain-next-gems">${fmt(nextReward.gems)}</strong></span><span class="quest-gold">${icon('coin')}<strong id="captain-next-gold">${fmt(nextReward.gold)}</strong></span></div><p class="detail-note">새 단장 레벨마다 보석 160개와 골드를 받아요. 전투·방치 보상으로 성장합니다.</p></section>`, 'captain');
+    openModal('내 단장', `<section class="captain-profile">${window.SchoolGuild.avatar(G.profileInfo(state),state.team[0])}<div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3>${window.SchoolGuild.title(G.profileInfo(state))}<p>단장 <strong id="captain-modal-level">Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>전투력</small>${fmt(G.power(state))}</span><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">${G.commanderNameInfo?.(state).cost ? '3,000 보석으로 변경' : '이름 확정'}</button></div><p id="name-message" role="status">첫 이름은 무료 · 변경은 보석 3,000개. 계정 이름은 중복될 수 없어요. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><section id="captain-level-rewards" class="captain-level-rewards"><b id="captain-reward-heading">${maxed ? '단장 최대 레벨 달성' : `다음 Lv.${captain.level + 1} 보상`}</b><div id="captain-next-reward" class="quest-rewards" ${maxed ? 'hidden' : ''}><span class="quest-gems">${icon('gem')}<strong id="captain-next-gems">${fmt(nextReward.gems)}</strong></span><span class="quest-gold">${icon('coin')}<strong id="captain-next-gold">${fmt(nextReward.gold)}</strong></span></div><p class="detail-note">새 단장 레벨마다 보석 160개와 골드를 받아요. 전투·방치 보상으로 성장합니다.</p></section>`, 'captain');
+    const appearance=G.profileInfo(state), avatarNames=['학생 기사','달빛 마녀','책의 학자','수호 곰','하얀 고양이','전령새'];
+    $('modal-content').insertAdjacentHTML('beforeend',`<section class="profile-section"><h3>프로필 그림</h3><div class="profile-choices"><button data-profile-avatar="leader" aria-pressed="${appearance.avatar==='leader'}">${window.SchoolGuild.avatar({avatar:'leader'},state.team[0])}<small>출전 대표</small></button>${G.PROFILE_AVATARS.map((id,i)=>`<button data-profile-avatar="${id}" aria-pressed="${appearance.avatar===id}">${window.SchoolGuild.avatar({avatar:id})}<small>${avatarNames[i]}</small></button>`).join('')}</div></section><section class="profile-section"><h3>칭호</h3><div class="profile-title-options"><button data-profile-title="" aria-pressed="${!appearance.title}">사용 안 함</button><button data-profile-title="beta" aria-pressed="${appearance.title==='beta'}" ${appearance.beta?'':'disabled'}>${window.SchoolGuild.title({title:'beta'})}</button></div><p>${appearance.beta?'함께 시작한 단장님께 드리는 기념 칭호예요.':'베타 업데이트 이전부터 플레이한 기록에 해금되는 칭호예요.'} 능력치는 바뀌지 않아요.</p></section>`);
+    $('modal-content').querySelectorAll('[data-profile-avatar]').forEach(b=>b.onclick=()=>act({kind:'profile',avatar:b.dataset.profileAvatar}));
+    $('modal-content').querySelectorAll('[data-profile-title]').forEach(b=>b.onclick=()=>act({kind:'profile',title:b.dataset.profileTitle}));
     $('captain-name-form').onsubmit = event => {
       event.preventDefault(); const name = G.normalizeCommanderName($('commander-name').value);
       if (!name) { $('name-message').textContent = '이름은 2~12글자로 입력해 주세요. 특수문자는 _와 -만 사용할 수 있어요.'; return; }
@@ -1029,7 +1036,7 @@
   function openModal(title, html, kind = '') {
     qol?.close();equipmentUI?.close();$('modal').classList.remove('qol-modal','equipment-modal');
     worldMap?.destroy(); worldMap = null;
-    $('modal').classList.toggle('world-map-modal', kind === 'map');
+    $('modal').classList.toggle('world-map-modal', kind === 'map'); $('modal').classList.toggle('guild-modal',kind==='guild'); $('modal').classList.toggle('captain-modal',kind==='captain');
     loginGeneration++; modalKind = kind; delete $('modal').dataset.activityResult; $('modal-title').textContent = title; $('modal-content').innerHTML = html;
     if (!$('modal').open) $('modal').showModal(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
@@ -1192,7 +1199,8 @@
       qol.refreshCountdowns();
     }
     equipmentUI = window.SchoolEquipment?.create({getState:()=>state,accountScope,modalKind:()=>modalKind,isBlocked:()=>busy||!!pending||activityAwaitingConfirmation()||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,openHero:heroDetail,toast,play});
-    social = createSocial();
+    social = createSocial(); guild=createGuild();
+    if ($('guild-button')) $('guild-button').onclick=()=>guild?.open();
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();
     if ($('winter-button')) $('winter-button').onclick = () => social?.openWinter();

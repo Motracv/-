@@ -22,7 +22,7 @@ const G = require('../school/engine.js');
   const prepareWin = (who, elapsed = 1000) => patch(who, s => { s.at = now - elapsed; for (const h of s.battle.heroes) { h.atk = 10000; h.energy = 0; } for (const e of s.battle.enemies) { e.hp = 1; e.atk = 0; } });
   try {
     await test('Catalog16 is required before account reads or spending; catalog15 cannot mutate a save', async () => {
-      assert.equal(G.CATALOG_VERSION, 19);
+      assert.equal(G.CATALOG_VERSION, 20);
       const who = await account('catalog'), before = row(who);
       for (const route of ['state', 'action']) {
         const data = route === 'action' ? intent(who, { kind: 'recruit', count: 1, cost: 100 }) : {};
@@ -46,24 +46,24 @@ const G = require('../school/engine.js');
 
     await test('Actual server combat advances kill and wave counters without trusting browser totals', async () => {
       const who = await account('battle');
-      patch(who, s => { s.quests.repeat.kills = 97; s.quests.daily.kills = 47; });
+      patch(who, s => { s.quests.repeat.kills = 72; s.quests.daily.kills = 47; });
       prepareWin(who);
       const r = await call(who, 'state', { kills: 1e9, quests: { repeat: { kills: 1e9 } } });
       assert.equal(r.status, 200); assert.equal(r.data.state.battle.phase, 'victory');
-      assert.equal(r.data.state.kills, 3); assert.equal(r.data.state.quests.repeat.kills, 100); assert.equal(r.data.state.quests.daily.kills, 50);
+      assert.equal(r.data.state.kills, 3); assert.equal(r.data.state.quests.repeat.kills, 75); assert.equal(r.data.state.quests.daily.kills, 50);
       assert.equal(r.data.state.quests.repeat.waves, 1); assert.equal(r.data.state.quests.daily.waves, 1); assert.equal(r.data.state.quests.repeat.bosses, 0);
       assert.equal(award(r.data.state, 'repeat-kills').ready, true); assert.equal(award(r.data.state, 'daily-kills').ready, true);
     });
 
     await test('Concurrent same-ID repeat claims and reconnect retries credit all cycles exactly once', async () => {
-      const who = await account('same-claim'); patch(who, s => { s.quests.repeat.kills = 250; });
+      const who = await account('same-claim'); patch(who, s => { s.quests.repeat.kills = 200; });
       const before = saved(who), input = intent(who, { kind: 'quest', quest: 'repeat-kills', cycles: 999, gold: 1e12, gems: 1e12 });
       const replies = await Promise.all([call(who, 'action', input), call(who, 'action', input)]);
-      for (const r of replies) { assert.equal(r.status, 200); assert.equal(r.data.result.cycles, 2); assert.equal(r.data.result.gold, 500); assert.equal(r.data.result.gems, 80); assert.equal(r.data.state.quests.repeat.kills, 50); }
+      for (const r of replies) { assert.equal(r.status, 200); assert.equal(r.data.result.cycles, 2); assert.equal(r.data.result.gold, 1300); assert.equal(r.data.result.gems, 80); assert.equal(r.data.state.quests.repeat.kills, 50); }
       assert.deepEqual(replies[0].data.result, replies[1].data.result);
       const again = (await t.login('progression-same-claim')).data;
       const retry = await call(again, 'action', input); assert.equal(retry.status, 200); assert.equal(retry.data.repeated, true);
-      assert.equal(saved(who).gold, before.gold + 500); assert.equal(saved(who).gems, before.gems + 80);
+      assert.equal(saved(who).gold, before.gold + 1300); assert.equal(saved(who).gems, before.gems + 80);
       assert.equal((await act(again, { kind: 'quest', quest: 'repeat-kills' })).status, 400);
     });
 
@@ -72,19 +72,19 @@ const G = require('../school/engine.js');
       const before = saved(who), first = intent(who, { kind: 'quest', quest: 'repeat-waves' }), second = intent(who, { kind: 'quest', quest: 'repeat-waves' });
       const replies = await Promise.all([call(who, 'action', first), call(who, 'action', second)]);
       assert.deepEqual(replies.map(r => r.status).sort(), [200, 409]);
-      assert.equal(saved(who).gold, before.gold + 350); assert.equal(saved(who).gems, before.gems + 40); assert.equal(saved(who).quests.repeat.waves, 0);
+      assert.equal(saved(who).gold, before.gold + 910); assert.equal(saved(who).gems, before.gems + 40); assert.equal(saved(who).quests.repeat.waves, 0);
       assert.equal((await act(who, { kind: 'quest', quest: 'repeat-waves' })).status, 400);
     });
 
     await test('Repeat reward cap retains overflow for later claims and partial progress', async () => {
-      const who = await account('overflow'); patch(who, s => { s.quests.repeat.kills = 10175; });
+      const who = await account('overflow'); patch(who, s => { s.quests.repeat.kills = 7625; });
       const before = saved(who);
       let r = await act(who, { kind: 'quest', quest: 'repeat-kills' });
-      assert.equal(r.status, 200); assert.equal(r.data.result.cycles, 100); assert.equal(r.data.state.quests.repeat.kills, 175);
+      assert.equal(r.status, 200); assert.equal(r.data.result.cycles, 100); assert.equal(r.data.state.quests.repeat.kills, 125);
       r = await act(who, { kind: 'quest', quest: 'repeat-kills' });
-      assert.equal(r.status, 200); assert.equal(r.data.result.cycles, 1); assert.equal(r.data.state.quests.repeat.kills, 75);
-      assert.equal(saved(who).gems, before.gems + 101 * 40); assert.equal(saved(who).gold, before.gold + 101 * 250);
-      const r2 = await call(who, 'state'); assert.equal(award(r2.data.state, 'repeat-kills').value, 75); assert.equal(award(r2.data.state, 'repeat-kills').ready, false);
+      assert.equal(r.status, 200); assert.equal(r.data.result.cycles, 1); assert.equal(r.data.state.quests.repeat.kills, 50);
+      assert.equal(saved(who).gems, before.gems + 101 * 40); assert.equal(saved(who).gold, before.gold + 101 * 650);
+      const r2 = await call(who, 'state'); assert.equal(award(r2.data.state, 'repeat-kills').value, 50); assert.equal(award(r2.data.state, 'repeat-kills').ready, false);
     });
 
     await test('Korean midnight resets daily eligibility without losing repeat progress or accepting forged yesterday', async () => {
@@ -112,8 +112,8 @@ const G = require('../school/engine.js');
       let r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(r.data.state.gold, 5860); assert.equal(r.data.state.gems, 290); assert.equal(r.data.state.kills, 999999); assert.deepEqual(r.data.state.quests.repeat, { kills: 0, waves: 0, bosses: 0 }); assert.deepEqual(r.data.state.redeemedCodes, ['OSIA_DEBUT', 'MAJORUPDATE']);
       const ready = G.questBoard(r.data.state, now).items.filter(q => q.ready); assert.deepEqual(ready.map(q => q.id), Array.from({ length: 7 }, (_, i) => 'stage-' + (i + 1)));
       const input = intent(who, { kind: 'quest-all', best: 60, gold: 1e12, gems: 1e12 });
-      r = await call(who, 'action', input); assert.equal(r.status, 200); assert.equal(r.data.result.cycles, 7); assert.equal(r.data.result.gems, 560); assert.equal(r.data.result.gold, 1960);
-      assert.equal(r.data.state.gold, 7820); assert.equal(r.data.state.gems, 850);
+      r = await call(who, 'action', input); assert.equal(r.status, 200); assert.equal(r.data.result.cycles, 7); assert.equal(r.data.result.gems, 560); assert.equal(r.data.result.gold, 5096);
+      assert.equal(r.data.state.gold, 10956); assert.equal(r.data.state.gems, 850);
       const retried = await call(who, 'action', input); assert.equal(retried.data.repeated, true); assert.equal(retried.data.state.gems, 850);
       assert.equal((await act(who, { kind: 'quest', quest: 'stage-7' })).status, 400); assert.equal((await act(who, { kind: 'quest', quest: 'stage-8' })).status, 400);
       const after = await call(who, 'state'); assert.equal(G.questReady(after.data.state, now), 0); for (const q of G.QUESTS) assert.ok(after.data.state.claimed.includes(q.id));
@@ -127,15 +127,15 @@ const G = require('../school/engine.js');
       t.db.prepare = sql => { const statement = prepare(sql); if (!sql.startsWith('UPDATE school_saves')) return statement; return { bind(...args) { const bound = statement.bind(...args); return { ...bound, async run() { const result = await bound.run(); if (drop) { drop = false; throw Error('D1_RESPONSE_LOST'); } return result; } }; } }; };
       try { assert.equal((await call(who, 'action', input)).status, 503); } finally { t.db.prepare = prepare; }
       const retries = await Promise.all([call(who, 'action', input), call(who, 'action', input)]);
-      for (const r of retries) { assert.equal(r.status, 200); assert.equal(r.data.repeated, true); assert.equal(r.data.state.captain.level, 4); assert.equal(r.data.state.captain.xp, 7); assert.equal(r.data.state.gems, before.gems + 480); assert.equal(r.data.state.gold, before.gold + 2400); }
-      const events = saved(who).events.filter(e => e.kind === 'captain'); assert.deepEqual(events.map(e => [e.level, e.gems, e.gold]), [[2, 160, 700], [3, 160, 800], [4, 160, 900]]);
+      for (const r of retries) { assert.equal(r.status, 200); assert.equal(r.data.repeated, true); assert.equal(r.data.state.captain.level, 4); assert.equal(r.data.state.captain.xp, 7); assert.equal(r.data.state.gems, before.gems + 480); assert.equal(r.data.state.gold, before.gold + 6240); }
+      const events = saved(who).events.filter(e => e.kind === 'captain'); assert.deepEqual(events.map(e => [e.level, e.gems, e.gold]), [[2, 160, 1820], [3, 160, 2080], [4, 160, 2340]]);
       const again = (await t.login('progression-captain-bank')).data, reloaded = await call(again, 'state'); assert.equal(reloaded.data.state.gems, before.gems + 480); assert.equal((await act(again, { kind: 'offline' })).status, 400);
       assert.deepEqual(saved(who).quests.repeat, before.quests.repeat);
     });
 
     await test('A captain level gained from actual combat adds one reward and reconnect cannot replay it', async () => {
       const who = await account('captain-battle'); patch(who, s => { s.captain.xp = G.captainNeed(1) - 1; }); prepareWin(who);
-      const before = saved(who), r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(r.data.state.captain.level, 2); assert.equal(r.data.state.gems, before.gems + 160); const combatReward = r.data.state.events.findLast(e => e.kind === 'reward'); assert.ok(combatReward.gold > 0); assert.equal(r.data.state.gold, before.gold + 700 + combatReward.gold);
+      const before = saved(who), r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(r.data.state.captain.level, 2); assert.equal(r.data.state.gems, before.gems + 160); const combatReward = r.data.state.events.findLast(e => e.kind === 'reward'); assert.ok(combatReward.gold > 0); assert.equal(r.data.state.gold, before.gold + 1820 + combatReward.gold);
       assert.equal((await call(who, 'state')).data.state.gems, before.gems + 160); assert.equal(saved(who).events.filter(e => e.kind === 'captain' && e.level === 2).length, 1);
     });
 
@@ -191,13 +191,13 @@ const G = require('../school/engine.js');
         patch(who, s => { s.seed = 1; }); prepareWin(who);
         const before = saved(who), r = await call(who, 'state', { eligible: true, state: { best: 0 }, stage: 60, questProgress: 1000, snowflakes: 1000 });
         assert.equal(r.status, 200); assert.equal(r.data.state.battle.phase, 'victory'); assert.equal(r.data.state.kills, before.kills + 3);
-        if (stage < 55) { assert.deepEqual(r.data.state.quests, before.quests); assert.deepEqual(r.data.state.winter, before.winter); if (stage === 1) { assert.equal(r.data.state.gold, before.gold + 1); assert.equal(r.data.state.gems, before.gems); assert.deepEqual(r.data.state.captain, before.captain); for (const id of before.team) assert.equal(r.data.state.units[id].xp, before.units[id].xp); } }
+        if (stage < 55) { assert.deepEqual(r.data.state.quests, before.quests); assert.deepEqual(r.data.state.winter, before.winter); if (stage === 1) { assert.equal(r.data.state.gold, before.gold + 3); assert.equal(r.data.state.gems, before.gems); assert.deepEqual(r.data.state.captain, before.captain); for (const id of before.team) assert.equal(r.data.state.units[id].xp, before.units[id].xp); } }
         else { assert.equal(r.data.state.quests.repeat.kills, before.quests.repeat.kills + 3); assert.equal(r.data.state.quests.daily.kills, before.quests.daily.kills + 3); assert.equal(r.data.state.quests.repeat.waves, before.quests.repeat.waves + 1); assert.equal(r.data.state.winter.snowflakes, before.winter.snowflakes + 1); }
       }
       // A real final-wave settlement also cannot bypass the weak-stage rule.
       assert.equal((await act(who, { kind: 'stage', stage: 1, mode: 'farm' })).status, 200);
       patch(who, s => { s.wave = s.battle.wave = 4; s.battle.boss = true; s.battle.enemies = [s.battle.enemies[0]]; s.battle.enemies[0].boss = true; s.seed = 1; }); prepareWin(who);
-      const before = saved(who), r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(r.data.state.battle.phase, 'victory'); assert.deepEqual(r.data.state.quests, before.quests); assert.deepEqual(r.data.state.winter, before.winter); assert.equal(r.data.state.gold, before.gold + 2); assert.equal(r.data.state.gems, before.gems); assert.deepEqual(r.data.state.captain, before.captain);
+      const before = saved(who), r = await call(who, 'state'); assert.equal(r.status, 200); assert.equal(r.data.state.battle.phase, 'victory'); assert.deepEqual(r.data.state.quests, before.quests); assert.deepEqual(r.data.state.winter, before.winter); assert.equal(r.data.state.gold, before.gold + 5); assert.equal(r.data.state.gems, before.gems); assert.deepEqual(r.data.state.captain, before.captain);
     });
 
     await test('Every persisted progression save remains valid and private receipts stay server-side', async () => {

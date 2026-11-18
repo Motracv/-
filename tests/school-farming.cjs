@@ -22,7 +22,7 @@ function response(worker,id){return new Promise((resolve,reject)=>{const timeout
   const s=make(),fingerprint=G.farmingFingerprint(s);for(const mutate of [v=>v.units.harin.level++,v=>v.units.harin.stars++,v=>v.team.reverse(),v=>v.speed=1.5,v=>v.best++]){const c=G.clone(s);mutate(c);assert.notEqual(G.farmingFingerprint(c),fingerprint);}const c=G.clone(s);c.presets[0].name='테스트';c.gold++;c.seed++;assert.equal(G.farmingFingerprint(c),fingerprint);
  });
  await test('Full boss cycles and recovery waits are measured; faster game speed improves direct combat income',()=>{
-  const s=make(),normal=G.simulateFarmingStage(s,1);assert(normal.clears>0);assert(normal.meanClearSeconds>5);assert(normal.goldPerMinute>0);assert(normal.goldPerMinute<400);s.speed=1.5;const fast=G.simulateFarmingStage(s,1);assert(fast.goldPerMinute>normal.goldPerMinute*1.2);assert(fast.meanClearSeconds<normal.meanClearSeconds);assert.equal(fast.totalSeeds,3);
+  const s=make(),normal=G.simulateFarmingStage(s,1);assert(normal.clears>0);assert(normal.meanClearSeconds>5);assert(normal.goldPerMinute>0);assert(normal.goldPerMinute<1040);s.speed=1.5;const fast=G.simulateFarmingStage(s,1);assert(fast.goldPerMinute>normal.goldPerMinute*1.2);assert(fast.meanClearSeconds<normal.meanClearSeconds);assert.equal(fast.totalSeeds,3);
  });
  await test('An underpowered team gets a training fallback rather than a fake stable recommendation',()=>{
   const s=make();s.best=60;const before=G.clone(s),r=report(s);assert.equal(r.reason,'train');assert.equal(r.recommendations.length,0);assert(r.candidates.every(c=>!c.stable&&c.successfulSeeds<2));assert.deepEqual(s,before);

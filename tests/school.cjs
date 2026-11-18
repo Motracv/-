@@ -11,9 +11,9 @@ test('Automatic combat wins, grants XP, unlocks stages and stays deterministic a
 });
 test('Offline rewards cap at eight hours, never skip stages, and cannot be claimed twice', () => {
   const s = G.create(1000); const best = s.best; G.advance(s, 1000 + 48 * 3600000);
-  assert.equal(s.offline.seconds, 28800); assert.equal(s.offline.gold, 9600); assert.equal(s.best, best);
+  assert.equal(s.offline.seconds, 28800); assert.equal(s.offline.gold, 24960); assert.equal(s.best, best);
   G.advance(s, s.at + 9 * 3600000); assert.equal(s.offline.seconds, 28800);
-  const before = s.gold, reward = G.action(s, {kind:'offline'}); assert.equal(s.gold, before + reward.reward.gold + 700); assert.equal(s.captain.level,2);
+  const before = s.gold, reward = G.action(s, {kind:'offline'}); assert.equal(s.gold, before + reward.reward.gold + 1820); assert.equal(s.captain.level,2);
   const snapshot = G.clone(s); assert.throws(() => G.action(s, {kind:'offline'})); assert.deepEqual(s, snapshot);
 });
 test('Exactly 90 seconds simulate battle; longer absences bank rewards; backward clocks give nothing', () => {

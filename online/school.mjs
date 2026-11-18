@@ -1,9 +1,12 @@
 import "../school/engine.js";
 import { createSocial, ensureSchoolName, nameKey } from './social.mjs';
 
+import { createGuilds } from './guilds.mjs';
+
 export function createSchool() {
   const game = globalThis.SchoolRPG;
   const social = createSocial(game);
+  const guilds = createGuilds(game);
   const requireSchool = (condition, message, status = 400) => {
     if (!condition) throw Object.assign(new Error(message), { status });
   };
@@ -43,6 +46,7 @@ export function createSchool() {
   return {
     async request(path, request, env, data, accounts) {
       try {
+      if (path === '/api/school/guild') return await guilds.request(request, env, data, accounts);
       if (path === '/api/school/social') return await social.request(request, env, data, accounts);
       requireSchool(["/api/school/state", "/api/school/action", "/api/school/rankings"].includes(path), "지원하지 않는 경로입니다.", 404);
       let signed;
@@ -110,11 +114,21 @@ export function createSchool() {
           const owner = await env.DB.prepare('SELECT account_id FROM school_names WHERE name_key = ?').bind(nameKey(normalized)).first();
           requireSchool(!owner || owner.account_id === signed.id, '이미 사용 중인 단장 이름이에요.', 409);
         }
+        const checkingIn = action && data.action.kind === 'guild-checkin';
+        let guildMember = null;
+        if (checkingIn) {
+          guildMember = await env.DB.prepare('SELECT guild_id,membership_key,joined_at FROM school_guild_members WHERE account_id=?').bind(signed.id).first();
+          requireSchool(guildMember && guildMember.guild_id === data.action.guildId, '길드 정보를 다시 확인해 주세요.', 400);
+          requireSchool(game.day(guildMember.joined_at) < game.day(now), '가입 다음 날부터 출석할 수 있어요. 한국 시간 자정에 열려요.', 400);
+          const taken = await env.DB.prepare('SELECT 1 AS yes FROM school_guild_attendance WHERE account_id=? AND day=?').bind(signed.id,game.day(now)).first();
+          requireSchool(!taken, '오늘 출석 보상을 이미 받았어요.', 400);
+          requireSchool(Number.isSafeInteger(state.gems + 30), '보유 보석을 확인해 주세요.', 400);
+        }
         if (action) {
           // The client submits intentions only. Time, loot, draws and costs are server-owned.
           // Speed changes can consume a fractional combat step and settle a
           // dungeon too, so they share the same authoritative loot context.
-          try { result = game.action(state, data.action, now, secure, { gearRng: secure }); }
+          try { if(checkingIn){state.gems+=30;result={kind:'guild-checkin',gems:30,day:game.day(now)};}else result = game.action(state, data.action, now, secure, { gearRng: secure }); }
           catch (error) { throw Object.assign(error, { status: 400 }); }
           state.receipts.push({ id: data.requestId, result }); state.receipts = state.receipts.slice(-20);
           if (renaming) state.nameNeedsClaim = false;
@@ -124,7 +138,14 @@ export function createSchool() {
         const update = env.DB.prepare("UPDATE school_saves SET payload = ?, revision = revision + 1, updated_at = ? WHERE account_id = ? AND revision = ?")
           .bind(payload, now, signed.id, row.revision);
         let written;
-        if (renaming) {
+        if (checkingIn) {
+          const results = await env.DB.batch([
+            env.DB.prepare(`UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=? AND EXISTS(SELECT 1 FROM school_guild_members WHERE account_id=? AND guild_id=? AND membership_key=?) AND NOT EXISTS(SELECT 1 FROM school_guild_attendance WHERE account_id=? AND day=?)`)
+              .bind(payload,now,signed.id,row.revision,signed.id,guildMember.guild_id,guildMember.membership_key,signed.id,game.day(now)),
+            env.DB.prepare(`INSERT INTO school_guild_attendance(account_id,day,created_at) SELECT account_id,?,? FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=? AND NOT EXISTS(SELECT 1 FROM school_guild_attendance WHERE account_id=? AND day=?)`)
+              .bind(game.day(now),now,signed.id,row.revision+1,data.requestId,signed.id,game.day(now))
+          ]); written=results[0];
+        } else if (renaming) {
           try {
             const results = await env.DB.batch([update, env.DB.prepare(`INSERT INTO school_names(account_id,name_key,display_name,created_at)
               SELECT account_id,?,?,? FROM school_saves WHERE account_id = ? AND revision = ? AND json_extract(payload,'$.receipts[#-1].id') = ?

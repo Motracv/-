@@ -4,7 +4,12 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 19;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 20;
+  const GOLD_MULTIPLIER = 2.6;
+  const earnedGold = amount => Math.round(amount * 26 / 10);
+  const PROFILE_AVATARS = Object.freeze(['knight','witch','scholar','bear','cat','bird']);
+  const profileInfo = s => s.profile || {avatar:'leader',title:'',beta:true};
+  const validProfile = p => p === undefined || p && typeof p === 'object' && !Array.isArray(p) && (p.avatar === 'leader' || PROFILE_AVATARS.includes(p.avatar)) && typeof p.beta === 'boolean' && (p.title === '' || p.title === 'beta' && p.beta);
   const COUNTER_RULES = Object.freeze({ chance: .18, bossChance: .32, windowMs: 3500, cooldownMs: 10000, multiplier: 1.8 });
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
@@ -178,7 +183,7 @@
     { id: "graduation", name: "학교의 전설", desc: "6-5 지역 클리어", goal: 30, metric: "best", gold: 5000, gems: 1000 },
   ];
   const PROGRESS_QUESTS = Object.freeze([
-    { id: "repeat-kills", category: "repeat", name: "끝없는 토벌", desc: "몬스터 100마리 처치", metric: "kills", goal: 100, gems: 40, gold: 250 },
+    { id: "repeat-kills", category: "repeat", name: "끝없는 토벌", desc: "몬스터 75마리 처치", metric: "kills", goal: 75, gems: 40, gold: 250 },
     { id: "repeat-waves", category: "repeat", name: "꾸준한 전투", desc: "전투 웨이브 30회 승리", metric: "waves", goal: 30, gems: 40, gold: 350 },
     { id: "repeat-bosses", category: "repeat", name: "학교의 수호자", desc: "모험 보스 10회 처치", metric: "bosses", goal: 10, gems: 60, gold: 500 },
     { id: "daily-kills", category: "daily", name: "오늘의 토벌", desc: "오늘 몬스터 50마리 처치", metric: "kills", goal: 50, gems: 30, gold: 300 },
@@ -192,7 +197,7 @@
     { id: "captain-25", name: "숙련된 단장", desc: "단장 레벨 25 달성", metric: "captain", goal: 25, gems: 400, gold: 2500 },
   ].map(Object.freeze));
   const QUEST_CLAIM_LIMIT = 100, QUEST_COUNTER_LIMIT = 1000000000;
-  const captainReward = level => ({ gems: 160, gold: 500 + 100 * level });
+  const captainReward = level => ({ gems: 160, gold: earnedGold(500 + 100 * level) });
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const fail = (condition, message) => { if (!condition) throw new Error(message); };
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -241,6 +246,7 @@
       const value = questValue(s, def), claimed = s.claimed.includes(def.id), cycles = !claimed && value >= def.goal ? 1 : 0;
       items.push({ ...def, category: "milestone", value, progress: Math.min(def.goal, value), claimed, cycles, ready: cycles > 0 });
     }
+    for (const item of items) item.gold = earnedGold(item.gold);
     const ready = items.filter(item => item.ready);
     return { items, readyCount: ready.length, readyGems: ready.reduce((sum, q) => sum + q.gems * q.cycles, 0), readyGold: ready.reduce((sum, q) => sum + q.gold * q.cycles, 0), day: currentDay, resetsAt: (currentDay + 1) * 86400000 - 9 * 3600000 };
   }
@@ -448,9 +454,9 @@
     record[key] = (record[key] || 0) + amount;
   }
   function activityReward(kind, value) {
-    if (kind === "tower") return { gold: 100 + 5 * value, gems: 10 + Math.floor(value / 5), xp: 0 };
-    return kind === "daily" ? { gold: 2000 + 1500 * (value - 1), gems: 80 + 30 * (value - 1), xp: scaledXp(200 + 100 * (value - 1), PROGRESSION.dungeonXp) }
-      : { gold: 12000 + 6000 * (value - 1), gems: 600 + 200 * (value - 1), xp: scaledXp(1000 + 400 * (value - 1), PROGRESSION.dungeonXp) };
+    if (kind === "tower") return { gold: earnedGold(100 + 5 * value), gems: 10 + Math.floor(value / 5), xp: 0 };
+    return kind === "daily" ? { gold: earnedGold(2000 + 1500 * (value - 1)), gems: 80 + 30 * (value - 1), xp: scaledXp(200 + 100 * (value - 1), PROGRESSION.dungeonXp) }
+      : { gold: earnedGold(12000 + 6000 * (value - 1)), gems: 600 + 200 * (value - 1), xp: scaledXp(1000 + 400 * (value - 1), PROGRESSION.dungeonXp) };
   }
   function newActivities(now) {
     return { daily: { period: day(now), used: 0 }, weekly: { period: week(now), used: 0 }, towerBest: 0, run: null, lastResult: null };
@@ -526,14 +532,14 @@
     }
     if (s.captain.level === CAPTAIN_MAX_LEVEL) s.captain.xp = 0;
   }
-  function rates(s) { return { gold: 20 + s.best * 7, xp: scaledXp(8 + s.best * 2, PROGRESSION.offlineXp) }; }
+  function rates(s) { return { gold: earnedGold(20 + s.best * 7), xp: scaledXp(8 + s.best * 2, PROGRESSION.offlineXp) }; }
   function campaignRewardInfo(s, stage = s.battle?.stage ?? s.stage, boss = !!s.battle?.boss) {
     const best = s.best, gap = Math.max(0, best - stage), eligible = gap <= CAMPAIGN_REWARDS.safeGap;
     const multiplier = eligible ? 1 : Math.max(CAMPAIGN_REWARDS.minimum, Math.pow(CAMPAIGN_REWARDS.decay, gap - CAMPAIGN_REWARDS.safeGap));
     const baseGold = (12 + 4 * stage) * (boss ? 3 : 1), stageBonus = 1 + Math.max(0, stage - CAMPAIGN_REWARDS.bonusStart) * CAMPAIGN_REWARDS.bonusPerStage;
     // Keep the first ten stages and nearby farming intact. Lower stages retain
     // token gold, but no minimum XP that could bypass the captain reward curve.
-    return { stage, best, gap, eligible, multiplier, baseGold, stageBonus, gold: Math.max(1, Math.floor(baseGold * stageBonus * multiplier)),
+    return { stage, best, gap, eligible, multiplier, baseGold, stageBonus, gold: earnedGold(Math.max(1, Math.floor(baseGold * stageBonus * multiplier))),
       xp: Math.floor(scaledXp((8 + stage * 2) * (boss ? 2 : 1), PROGRESSION.battleXp) * multiplier),
       captainXp: Math.floor(scaledXp(4 + Math.floor(stage / 2), PROGRESSION.captainBattleXp) * multiplier) };
   }
@@ -617,7 +623,7 @@
   function create(now = Date.now(), seed = 123456789) {
     fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
-      gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
+      profile: {avatar:'leader',title:'',beta:false}, gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
       banners: { osia: { pity: 0, guaranteed: false }, lava: { pity: 0, guaranteed: false }, horas: { pity: 0, guaranteed: false } },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
@@ -654,7 +660,7 @@
       (s.redeemedCodes === undefined || Array.isArray(s.redeemedCodes) && s.redeemedCodes.length <= 1000 && new Set(s.redeemedCodes).size === s.redeemedCodes.length && s.redeemedCodes.every(code => typeof code === "string" && /^[A-Z0-9_]{1,40}$/.test(code))) &&
       s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) &&
       (s.offline.captainXp === undefined || Number.isFinite(s.offline.captainXp) && s.offline.captainXp >= 0) &&
-      s.captain && Number.isInteger(s.captain.level) && s.captain.level >= 1 && s.captain.level <= CAPTAIN_MAX_LEVEL && Number.isFinite(s.captain.xp) && s.captain.xp >= 0);
+      validProfile(s.profile) && s.captain && Number.isInteger(s.captain.level) && s.captain.level >= 1 && s.captain.level <= CAPTAIN_MAX_LEVEL && Number.isFinite(s.captain.xp) && s.captain.xp >= 0);
   }
   function newHoras(stacks = 0) {
     return { stacks, nextBasicAt: HORAS_RULES.basicMs, basicPose: 1, lastHitStackAt: -HORAS_RULES.hitStackMs, lastCastAt: -HORAS_RULES.minCastMs };
@@ -1033,6 +1039,7 @@
   }
   function advance(s, now, options) { return withGearContext(s, options, () => advanceCore(s, now)); }
   function advanceCore(s, now) {
+    s.profile ??= {avatar:'leader',title:'',beta:true};
     refreshQuestState(s, s.at); refreshWinter(s, s.at);
     s.speed ??= 1; s.simCredit ??= 0; s.simTime ??= 0;
     s.commanderName ??= "새내기 단장"; s.presets ??= newPresets(); s.equipment ??= newEquipment(); s.weaponBanners ??= {standard:{pity:0},limited:{pity:0}}; s.weaponPulls ??= 0; s.weaponHistory ??= [];
@@ -1117,6 +1124,12 @@
   function actionCore(s, input, now, rng) {
     fail(input && typeof input === "object" && !Array.isArray(input), "잘못된 행동입니다.");
     const kind = input.kind;
+    if (kind === 'profile') {
+      const current = profileInfo(s), avatar = input.avatar ?? current.avatar, title = input.title ?? current.title;
+      fail(avatar === 'leader' || PROFILE_AVATARS.includes(avatar), '프로필 그림을 선택해 주세요.');
+      fail(title === '' || title === 'beta' && current.beta, '해금한 칭호만 사용할 수 있어요.');
+      s.profile = {...current, avatar, title}; return {kind, avatar, title};
+    }
     if (kind === 'counter') return counterAttack(s,input,now);
     if (kind === "rename") {
       const name = normalizeCommanderName(input.name);
@@ -1276,7 +1289,7 @@
     }
     if (kind === "daily") {
       const today = day(now); fail(s.daily < today, "오늘의 보급은 이미 받았습니다.");
-      s.daily = today; s.gold += 250; s.gems += 150; return { kind, gold: 250, gems: 150 };
+      s.daily = today; s.gold += earnedGold(250); s.gems += 150; return { kind, gold: earnedGold(250), gems: 150 };
     }
     if (kind === "quest" || kind === "quest-all") {
       fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
@@ -1348,5 +1361,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });
