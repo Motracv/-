@@ -43,6 +43,7 @@ const SAVE = 'school-mercenaries-v8';
       try {
         await page.goto(`http://127.0.0.1:${server.address().port}/school.html`);
         await page.waitForFunction(() => document.querySelector('#boot-screen').hidden);
+        await page.click('#lobby-resume');
         await page.evaluate(() => document.fonts.ready);
         await page.evaluate(() => {
           const draw = SchoolArt.draw;

@@ -3,7 +3,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {fixture}=require('./account-fixture.cjs');
-const {installGuestSeed,seedGuest,runSchoolRegressions}=require('./school-ui-regressions.cjs');
+const {installGuestSeed,seedGuest,enterBattle,runSchoolRegressions}=require('./school-ui-regressions.cjs');
 const {runDisplayRegressions}=require('./school-display-regressions.cjs');
 const {runCouponRegressions}=require('./school-coupon-browser.cjs');
 const {runExpansionRegressions}=require('./school-expansion-browser.cjs');
@@ -29,9 +29,9 @@ const {runFrameCadence}=require('./school-frame-cadence.cjs');
        if(url.pathname==='/api/school/action'){actionRequests++;if(dropNext){dropNext=false;res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'검증용: 저장 후 응답이 끊겼습니다.'}));return;}}
        res.writeHead(r.status,Object.fromEntries(r.headers));res.end(Buffer.from(await r.arrayBuffer()));return;
      }
-     const file=url.pathname.slice(1);if(!/^(school\.html|privacy\.html|index\.html|game\.html|school\.webmanifest|school-sw\.js|school\/(engine\.js|art\.js|client\.js|social\.js|social\.css|presentation\.js|presentation\.css|style\.css|install\.js|install\.css|assets\/(osia-sprites|lava|dungeon-daily|dungeon-weekly|dungeon-tower|app-192|app-512)\.png)|assets\/fonts\/(Galmuri11|PretendardVariable)\.woff2)$/.test(file)){res.writeHead(404);res.end();return;}
+     const file=url.pathname.slice(1);if(!/^(school\.html|privacy\.html|index\.html|game\.html|school\.webmanifest|school-sw\.js|school\/(engine\.js|art\.js|client\.js|social\.js|social\.css|presentation\.js|presentation\.css|style\.css|install\.js|install\.css|lobby\.js|lobby\.css|world-map\.js|world-map\.css|assets\/(osia-sprites|lava|dungeon-daily|dungeon-weekly|dungeon-tower|app-192|app-512)\.png|assets\/(lava-fan-basic|osia-front)\.webp|assets\/lobby\/(courtyard|icon-(adventure|arena|codex|dungeon|help|quests|ranking|recruit|supplies|winter))\.webp)|assets\/fonts\/(Galmuri11|PretendardVariable)\.woff2)$/.test(file)){res.writeHead(404);res.end();return;}
      let body=fs.readFileSync(path.join(__dirname,'..',file));if(file==='school/client.js')body=Buffer.from(body.toString().replace('https://motracv-card-room.densedormouse4.chatgpt.site',origin));
-     const types={'.js':'text/javascript','.html':'text/html','.css':'text/css','.woff2':'font/woff2','.png':'image/png','.webmanifest':'application/manifest+json'};res.writeHead(200,{'Content-Type':types[path.extname(file)]});res.end(body);
+     const types={'.js':'text/javascript','.html':'text/html','.css':'text/css','.woff2':'font/woff2','.png':'image/png','.webp':'image/webp','.webmanifest':'application/manifest+json'};res.writeHead(200,{'Content-Type':types[path.extname(file)]});res.end(body);
    }catch(e){res.writeHead(500);res.end(e.message);}
  });
  await new Promise(r=>server.listen(8801,'127.0.0.1',r));
@@ -47,10 +47,10 @@ const {runFrameCadence}=require('./school-frame-cadence.cjs');
      if(options.orientation!==false)await page.addLocatorHandler(page.locator('#rotate-prompt:not([hidden])'),async()=>{await page.locator('#continue-landscape').click();});
      if(options.presentation!==false)await page.addLocatorHandler(page.locator('#school-presentation[open]'),async()=>{await page.locator('.presentation-skip').click();});
    });
-   const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto(origin+'/school.html');await p.waitForFunction(()=>document.querySelectorAll('#party [data-hero]').length>=1);return p;
+   const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto(origin+'/school.html');await p.waitForFunction(()=>document.getElementById('boot-screen')?.hidden && document.querySelectorAll('#party [data-hero]').length>=1);if(options.battle!==false&&options.orientation!==false)await enterBattle(p);return p;
  }
  const saved=p=>p.evaluate(()=>JSON.parse(localStorage.getItem('school-mercenaries-v8')));
- const tab=(p,name)=>p.click(`.bottom-nav [data-tab="${name}"]`);
+ const tab=async(p,name)=>{if(name==='adventure')return enterBattle(p);if(name==='lobby')return p.click('#home-button');if(await p.locator('#app').getAttribute('data-tab')==='lobby')return p.click(`#lobby-nav [data-lobby-action="${name}"]`);return p.click(`.bottom-nav [data-tab="${name}"]`);};
  async function login(p){await p.click('#account-button');await p.click('#fixture-login');await p.waitForFunction(()=>document.getElementById('account-label').textContent==='계정 저장');}
  try{
    if(process.env.SCHOOL_SWITCH_ONLY==='1'){await runDungeonAccountSwitch({pageFor,saved,tab,t,login});assert.deepEqual(errors,[]);return;}
@@ -78,10 +78,10 @@ const {runFrameCadence}=require('./school-frame-cadence.cjs');
      await p.setViewportSize({width,height});await tab(p,'adventure');
      const box=await p.evaluate(()=>{const controls=[...document.querySelectorAll('.bottom-nav button')].map(el=>el.getBoundingClientRect()),nav={top:Math.min(...controls.map(r=>r.top)),bottom:Math.max(...controls.map(r=>r.bottom))},battle=document.getElementById('battle').getBoundingClientRect();return{scroll:document.documentElement.scrollHeight,width:document.documentElement.scrollWidth,h:innerHeight,w:innerWidth,navTop:nav.top,navBottom:nav.bottom,battleBottom:battle.bottom,battleHeight:battle.height};});
      assert.ok(box.scroll<=height+1,JSON.stringify(box));assert.ok(box.width<=width+1,JSON.stringify(box));assert.ok(box.navBottom<=height+1&&box.navTop>=0,JSON.stringify(box));assert.ok(box.battleHeight>50&&box.battleBottom<=height+1,JSON.stringify(box));
-     await p.click('#battle-stage');await p.waitForSelector('#next-stage');await p.click('#modal-close');
+     await p.click('#battle-stage');await p.waitForSelector('#map-start');await p.click('#modal-close');
      for(const name of ['recruit','supplies']){await tab(p,name);const bottoms=await p.locator('.bottom-nav button').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().bottom));assert.ok(bottoms.every(bottom=>bottom<=height+1));}
    }
-   console.log('PASS eight mobile/landscape/desktop viewports: canvas, seven-item navigation, map, recruitment and supplies');
+   console.log('PASS eight mobile/landscape/desktop viewports: canvas, six-item navigation, map, recruitment and supplies');
    await runDisplayRegressions({pageFor,tab});
    await tab(p,'recruit');await p.click('#feature-osia-button');assert.match(await p.locator('#modal-content').innerText(),/Osia · 물고기 종족 · 물 속성/);await p.click('#modal-close');
    await tab(p,'recruit');await p.click('#rates-button');assert.match(await p.locator('#modal-content').innerText(),/오시아/);assert.match(await p.locator('#modal-content').innerText(),/50%/);await p.click('#modal-close');

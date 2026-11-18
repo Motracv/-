@@ -45,7 +45,7 @@ const ROOT=path.resolve(__dirname,'..');
  const money=()=>p.evaluate(()=>({gold:document.getElementById('gold').textContent,gems:document.getElementById('gems').textContent}));
  const save=()=>JSON.parse(t.sqlite.prepare('SELECT payload FROM school_saves WHERE account_id=?').get(who.profile.id).payload);
  try{
-  await p.goto(origin+'/school.html');await p.waitForFunction(()=>document.getElementById('account-label').textContent==='계정 저장'&&window.__battleFrames?.length>2);
+  await p.goto(origin+'/school.html');await p.waitForFunction(()=>document.getElementById('boot-screen').hidden);await p.click('#lobby-resume');await p.waitForFunction(()=>document.getElementById('account-label').textContent==='계정 저장'&&window.__battleFrames?.length>2);
   assert.ok(requests.some(r=>r.path==='/api/account/me'&&r.status===200));
   const delayedState=await arm(),start=(await frames()).at(-1),confirmedMoney=await money();
   await p.waitForTimeout(2350);const waiting=(await frames()).at(-1),waitingFrames=(await frames()).filter(f=>f.wall>=delayedState.computedAt);

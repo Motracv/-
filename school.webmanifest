@@ -8,8 +8,8 @@
   "scope": "./school.html",
   "display": "fullscreen",
   "orientation": "landscape",
-  "background_color": "#f5f1e5",
-  "theme_color": "#304e40",
+  "background_color": "#152334",
+  "theme_color": "#152334",
   "icons": [
     {
       "src": "school/assets/app-192.png",

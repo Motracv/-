@@ -91,6 +91,8 @@ async function main() {
       assert.ok(sample.every(frame => frame.reduced === false), 'Test must exercise full-motion user settings');
     }
     await page.goto(origin + '/school.html');
+    await page.waitForFunction(() => document.getElementById('boot-screen').hidden);
+    await page.click('#lobby-resume');
     await page.waitForFunction(() => document.querySelector('#account-label').textContent === '계정 저장' && window.motionFrames?.length > 2 && window.motionTimerPhase > 0);
     await page.waitForTimeout(4500);
     const normal = await frames(); assertSmooth(normal, '1x / shifted 250ms HUD timer');

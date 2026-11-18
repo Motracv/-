@@ -15,10 +15,24 @@ async function installGuestSeed(context) {
     if (seed.backup) localStorage.setItem('school-mercenaries-v8-backup', JSON.stringify(seed.backup));
   });
 }
+// Existing gameplay/save regressions exercise the battlefield, while the
+// product now starts in the courtyard. Enter it through the real resume UI.
+async function enterBattle(page, { allowResult = false } = {}) {
+  await page.waitForFunction(() => document.getElementById('boot-screen')?.hidden && document.querySelectorAll('#party [data-hero]').length >= 1);
+  if (await page.locator('#app').getAttribute('data-tab') === 'adventure') return true;
+  if (allowResult && await page.locator('#modal').evaluate(dialog => dialog.open)) return false;
+  if (await page.locator('#app').getAttribute('data-tab') !== 'lobby') await page.click('#home-button');
+  await page.click('#lobby-resume');
+  await page.waitForFunction(allowResult => document.getElementById('app').dataset.tab === 'adventure' || (allowResult && (document.getElementById('modal').open || document.getElementById('app').dataset.tab === 'dungeons')), allowResult);
+  return await page.locator('#app').getAttribute('data-tab') === 'adventure';
+}
 async function seedGuest(page, state, key = SAVE, options = {}) {
   await page.evaluate(seed => sessionStorage.setItem('school-fixture-next', JSON.stringify(seed)), { key, state, backup: options.backup });
   await page.reload();
-  if (!options.corrupt) await page.waitForFunction(() => document.querySelectorAll('#party [data-hero]').length >= 1);
+  if (!options.corrupt) {
+    await page.waitForFunction(() => document.getElementById('boot-screen')?.hidden && document.querySelectorAll('#party [data-hero]').length >= 1);
+    if (options.battle !== false) await enterBattle(page, { allowResult: true });
+  }
 }
 const freeze = (gold = 700) => {
   const state = G.create(Date.now() + 60000, 26);
@@ -28,7 +42,7 @@ const freeze = (gold = 700) => {
 async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, setStateDelay, setActionBlock, failStateOnce, schoolActionLog }) {
   const p = await pageFor('save-regressions');
   assert.equal(await p.locator('.bottom-nav [data-tab="roster"]').count(), 0);
-  assert.equal(await p.locator('.bottom-nav > button').count(), 7);
+  assert.equal(await p.locator('.bottom-nav > button').count(), 6);
 
   // Wait for a real automatic reward, then reload immediately rather than
   // waiting for an arbitrary autosave interval.
@@ -87,7 +101,7 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
     const second = await p.context().newPage();
     second.on('pageerror', error => errors.push(error.message));
     await second.goto(origin + '/school.html');
-    await second.waitForFunction(() => document.querySelectorAll('#party [data-hero]').length >= 1);
+    await enterBattle(second);
     await p.click('#party [data-hero="harin"]');
     await second.click('#party [data-hero="harin"]');
     await Promise.all([p.click('#train-hero'), second.click('#train-hero')]);
@@ -199,4 +213,4 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   const stillOnce=JSON.parse(t.sqlite.prepare('SELECT payload FROM school_saves WHERE account_id=?').get(expiredAccount.profile.id).payload);assert.equal(stillOnce.pulls,1);assert.equal(stillOnce.gems,1700);
   await expired.close();console.log('PASS expired action receipt rejects a stale retry without rewriting revision or charging twice');
 }
-module.exports = { installGuestSeed, seedGuest, runSchoolRegressions };
+module.exports = { installGuestSeed, seedGuest, enterBattle, runSchoolRegressions };

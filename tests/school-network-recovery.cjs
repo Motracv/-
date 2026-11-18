@@ -43,7 +43,7 @@ const ROOT=path.resolve(__dirname,'..');
    if(missingTimeout)Object.defineProperty(AbortSignal,'timeout',{value:undefined,configurable:true});
    if(fastTimeout){const timeout=window.setTimeout;window.setTimeout=function(fn,ms,...args){return timeout.call(this,fn,ms===14000?180:ms,...args);};const abort=AbortSignal.timeout?.bind(AbortSignal);if(abort)AbortSignal.timeout=ms=>abort(ms===14000?180:ms);}
   },{origin,token:who.token,cache,cached,missingTimeout,fastTimeout});
-  const p=await context.newPage(),errors=[];p.on('pageerror',error=>errors.push(error.message));await p.goto(origin+'/school.html');await p.waitForFunction(()=>document.getElementById('boot-screen').hidden&&window.__networkFrames?.length>2);
+  const p=await context.newPage(),errors=[];p.setDefaultTimeout(12000);p.on('pageerror',error=>errors.push(error.message));await p.goto(origin+'/school.html');await p.waitForFunction(()=>document.getElementById('boot-screen').hidden);await p.click('#lobby-resume');try { await p.waitForFunction(()=>document.getElementById('boot-screen').hidden&&window.__networkFrames?.length>2); } catch (error) { console.log('render wait state', await p.evaluate(()=>({tab:document.getElementById('app').dataset.tab,boot:document.getElementById('boot-screen').hidden,modal:document.getElementById('modal').open,rotate:document.getElementById('rotate-prompt').hidden,frames:window.__networkFrames?.length,canvas:document.getElementById('battle').getBoundingClientRect().toJSON(),connection:document.getElementById('connection').textContent})));throw error; }
   return {p,context,control,who,errors};
  }
  const sim=p=>p.evaluate(()=>window.__networkFrames.at(-1)?.sim);

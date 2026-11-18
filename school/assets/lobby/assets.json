@@ -1,0 +1,293 @@
+{
+  "background": {
+    "file": "courtyard.webp",
+    "size": [
+      1821,
+      864
+    ],
+    "source": "exec-0fbf40e5-5bc5-4abb-9871-837982dd67b3.png",
+    "fountainAnchorPercent": [
+      51,
+      53
+    ]
+  },
+  "icons": [
+    {
+      "id": "recruit",
+      "file": "icon-recruit.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        0,
+        0,
+        397,
+        396
+      ],
+      "sourceContentBox": [
+        100,
+        44,
+        370,
+        363
+      ],
+      "packedContentBox": [
+        33,
+        16,
+        223,
+        240
+      ],
+      "bytes": 60188
+    },
+    {
+      "id": "supplies",
+      "file": "icon-supplies.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        397,
+        0,
+        793,
+        396
+      ],
+      "sourceContentBox": [
+        76,
+        95,
+        365,
+        346
+      ],
+      "packedContentBox": [
+        16,
+        30,
+        240,
+        225
+      ],
+      "bytes": 53628
+    },
+    {
+      "id": "codex",
+      "file": "icon-codex.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        793,
+        0,
+        1190,
+        396
+      ],
+      "sourceContentBox": [
+        28,
+        106,
+        353,
+        320
+      ],
+      "packedContentBox": [
+        16,
+        54,
+        240,
+        201
+      ],
+      "bytes": 39460
+    },
+    {
+      "id": "arena",
+      "file": "icon-arena.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        1190,
+        0,
+        1586,
+        396
+      ],
+      "sourceContentBox": [
+        34,
+        94,
+        296,
+        348
+      ],
+      "packedContentBox": [
+        16,
+        19,
+        240,
+        236
+      ],
+      "bytes": 54658
+    },
+    {
+      "id": "dungeon",
+      "file": "icon-dungeon.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        1586,
+        0,
+        1983,
+        396
+      ],
+      "sourceContentBox": [
+        3,
+        65,
+        324,
+        353
+      ],
+      "packedContentBox": [
+        16,
+        27,
+        240,
+        228
+      ],
+      "bytes": 50700
+    },
+    {
+      "id": "adventure",
+      "file": "icon-adventure.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        0,
+        396,
+        397,
+        793
+      ],
+      "sourceContentBox": [
+        70,
+        20,
+        383,
+        364
+      ],
+      "packedContentBox": [
+        26,
+        16,
+        230,
+        240
+      ],
+      "bytes": 60906
+    },
+    {
+      "id": "quests",
+      "file": "icon-quests.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        397,
+        396,
+        793,
+        793
+      ],
+      "sourceContentBox": [
+        81,
+        84,
+        353,
+        350
+      ],
+      "packedContentBox": [
+        16,
+        18,
+        240,
+        237
+      ],
+      "bytes": 44222
+    },
+    {
+      "id": "ranking",
+      "file": "icon-ranking.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        793,
+        396,
+        1190,
+        793
+      ],
+      "sourceContentBox": [
+        36,
+        85,
+        341,
+        334
+      ],
+      "packedContentBox": [
+        16,
+        36,
+        240,
+        219
+      ],
+      "bytes": 51424
+    },
+    {
+      "id": "winter",
+      "file": "icon-winter.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        1190,
+        396,
+        1586,
+        793
+      ],
+      "sourceContentBox": [
+        34,
+        71,
+        296,
+        338
+      ],
+      "packedContentBox": [
+        18,
+        16,
+        238,
+        240
+      ],
+      "bytes": 56024
+    },
+    {
+      "id": "help",
+      "file": "icon-help.webp",
+      "size": [
+        256,
+        256
+      ],
+      "sourceCell": [
+        1586,
+        396,
+        1983,
+        793
+      ],
+      "sourceContentBox": [
+        7,
+        83,
+        317,
+        338
+      ],
+      "packedContentBox": [
+        16,
+        36,
+        240,
+        220
+      ],
+      "bytes": 42954
+    }
+  ],
+  "iconSource": "exec-cce2ab91-b304-4c57-aba7-6e36c4100452.png",
+  "originalAtlasSize": [
+    1983,
+    793
+  ],
+  "transparent": true,
+  "packing": "Each cell is cropped to alpha >=4 bounds plus 3 source-pixel padding, preserving original RGBA inside the crop; nearest-neighbor fit inside 224x224 centered on transparent 256x256. No creative pixel redraw."
+}
