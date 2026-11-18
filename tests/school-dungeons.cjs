@@ -110,7 +110,7 @@ test('A challenge times out after 120 combat seconds at either speed and refunds
 
 test('Replacement coupons award their fixed amounts once and retired dungeon codes are disabled',()=>{
  for(const[code,amount]of [['THANKS_FOR_REPORTING',500],['HORAS_CELEBRATION',2000]]){
-  const s=state(),before=amounts(s);const r=act(s,{kind:'redeem',code:' '+code.toLowerCase()+' ',gold:1e12,gems:1e12});assert.equal(r.gold,amount);assert.equal(r.gems,amount);assert.equal(r.expiresAt,null);assert.equal(s.gold,before.gold+amount);assert.equal(s.gems,before.gems+amount);rejectUnchanged(s,{kind:'redeem',code});
+  const s=state(),before=amounts(s);const r=act(s,{kind:'redeem',code:' '+code.toLowerCase()+' ',gold:1e12,gems:1e12});assert.equal(r.gold,amount);assert.equal(r.gems,amount);assert.equal(r.expiresAt,G.COUPONS[code].expiresAt);assert.equal(s.gold,before.gold+amount);assert.equal(s.gems,before.gems+amount);rejectUnchanged(s,{kind:'redeem',code});
  }
  for(const code of ['LAVA_DEBUT','THANK_YOU'])rejectUnchanged(state(),{kind:'redeem',code});
 });

@@ -8,8 +8,8 @@ const claim=(s,id)=>G.action(s,{kind:'quest',quest:id},s.at);
 function reject(s,input,now=s.at){const old=G.clone(s);assert.throws(()=>G.action(s,input,now));assert.deepEqual(s,old);}
 function win(s,boss=false){s.battle.boss=boss;s.mode='farm';for(const h of s.battle.heroes){h.atk=1000000;h.hp=h.max=1000000;}for(const e of s.battle.enemies){e.hp=1;e.stunUntil=1000000;}G.advance(s,s.at+1000);assert.equal(s.battle.phase,'victory');}
 function next(s){G.action(s,{kind:'stage',stage:1,mode:'farm'},s.at);}
-test('Catalog 16 preserves only current prices and new code definitions; legacy save migration never credits currency',()=>{
-  assert.equal(G.CATALOG_VERSION,25);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
+test('Catalog preserves current prices and historical code definitions; legacy save migration never credits currency',()=>{
+  assert(G.CATALOG_VERSION>=29);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
   const s=make();delete s.quests;s.kills=500000;s.pulls=10000;s.best=60;s.captain={level:50,xp:1234};s.claimed=G.QUESTS.map(q=>q.id);s.redeemedCodes=['OSIA_DEBUT','BUG_FIX','LAVA_DEBUT','THANK_YOU','MAJORUPDATE'];
   const old=G.clone(s);assert(G.validate(s));const projected=board(s);assert.equal(projected.items.length,77);assert.equal(projected.items.filter(q=>q.category==='stage'&&q.ready).length,60);assert(projected.items.filter(q=>['repeat','daily'].includes(q.category)).every(q=>q.value===0));assert.deepEqual(s,old);
   G.advance(s,s.at);for(const key of ['gold','gems','units','captain','banners','claimed','redeemedCodes'])assert.deepEqual(s[key],old[key]);assert.deepEqual(s.quests.repeat,{kills:0,waves:0,bosses:0});assert(G.validate(s));
@@ -61,10 +61,10 @@ test('New collection and captain milestones are once-only and coexist with previ
   for(const id of ['collection-10','collection-15','captain-10','captain-25']){assert(item(s,id).ready);claim(s,id);reject(s,{kind:'quest',quest:id});}
   assert.equal(item(s,'collection').ready,false);assert.equal(item(s,'captain').ready,false);assert(G.validate(s));
 });
-test('Active codes are accepted, historical claims persist, and future redemption has no expiry',()=>{
+test('Historical code awards remain valid before expiry and claims persist',()=>{
   assert.deepEqual(Object.keys(G.COUPONS),['RANKING_FIRST_CONGRATS','RYUSION_UPDATE','THANKS_FOR_PLAYING','THANKS_FOR_REPORTING','HORAS_CELEBRATION']);const s=make();s.redeemedCodes=['OSIA_DEBUT','BUG_FIX','LAVA_DEBUT','THANK_YOU','MAJORUPDATE'];
   for(const code of s.redeemedCodes)reject(s,{kind:'redeem',code});const before=[s.gold,s.gems];
-  for(const code of Object.keys(G.COUPONS)){G.action(s,{kind:'redeem',code:' '+code.toLowerCase()+' ',gems:1e12,gold:1e12},Date.parse('2100-01-01'));reject(s,{kind:'redeem',code});}
+  for(const code of Object.keys(G.COUPONS)){G.action(s,{kind:'redeem',code:' '+code.toLowerCase()+' ',gems:1e12,gold:1e12},G.COUPONS[code].expiresAt-1);reject(s,{kind:'redeem',code});}
   assert.deepEqual([s.gold,s.gems],[before[0]+17500,before[1]+5500]);assert.equal(s.redeemedCodes.length,10);assert(G.validate(G.clone(s)));
 });
 test('Captain rewards pay 160 gems plus 500+100 per new level only, including exact multi-level offline crossings',()=>{

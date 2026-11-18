@@ -1,7 +1,11 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-bonds1',
+  version:'school-codes-expired1',
   entries:Object.freeze([
+    {version:'school-codes-expired1',date:'2026.11.19',title:'기존 보상 코드 사용 종료',items:[
+      '지금까지 발급한 보상 코드를 모두 만료 처리했어요. 재화 코드와 랭킹 1등 기념 프로필 코드 모두 새로 사용할 수 없어요.',
+      '이미 받은 코인·보석·프로필과 기존 수령 기록은 유지됩니다.'
+    ]},
     {version:'school-bonds1',date:'2026.11.19',title:'전투의 기록 · 수면 아래의 기억',items:[
       '피해·실제 회복·보호막 흡수·받은 피해를 비교하고 주요 기술과 전투불능 기록을 확인할 수 있어요. 최근 보스전·패배·던전 결과를 보관합니다.',
       '오시아 인연 이야기 4편 추가. 오시아 상세 또는 단장 프로필에서 인연 기록을 열어 보세요. 함께 전투하고 개인 임무를 완료하면 프로필·칭호·로비 대사를 해금해요. 능력치 보상은 없어요.',

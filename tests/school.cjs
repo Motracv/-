@@ -78,18 +78,18 @@ test('Training costs and level caps; team swaps start a fresh battle and never d
 test('Reward codes normalize case and spacing, grant exact rewards once, and survive a save reload',()=>{
   const now=Date.parse('2026-11-17T12:00:00+09:00'),s=G.create(now);
   const result=G.action(s,{kind:'redeem',code:'  thanks_for_reporting\n',gold:999999,gems:999999,now:0},now);
-  assert.deepEqual(result,{kind:'redeem',code:'THANKS_FOR_REPORTING',gold:500,gems:500,expiresAt:null});
+  assert.deepEqual(result,{kind:'redeem',code:'THANKS_FOR_REPORTING',gold:500,gems:500,expiresAt:G.COUPONS.THANKS_FOR_REPORTING.expiresAt});
   assert.equal(s.gold,1200);assert.equal(s.gems,2300);assert.deepEqual(s.redeemedCodes,['THANKS_FOR_REPORTING']);
   const loaded=G.clone(s),before=G.clone(loaded);assert.ok(G.validate(loaded));
   for(const code of ['THANKS_FOR_REPORTING','thanks_for_reporting',' THANKS_FOR_REPORTING ']){assert.throws(()=>G.action(loaded,{kind:'redeem',code},now),/이미 사용/);assert.deepEqual(loaded,before);}
   G.action(loaded,{kind:'redeem',code:'horas_celebration'},now);assert.equal(loaded.gold,3200);assert.equal(loaded.gems,4300);
   assert.deepEqual(loaded.redeemedCodes,['THANKS_FOR_REPORTING','HORAS_CELEBRATION']);assert.ok(G.validate(G.clone(loaded)));
 });
-test('Retired codes cannot award currency and the two replacement codes have no invented expiry',()=>{
+test('Retired and expired codes cannot award currency',()=>{
   const now=Date.parse('2100-01-01T00:00:00Z');
   for(const code of ['OSIA_DEBUT','BUG_FIX','LAVA_DEBUT','THANK_YOU','MAJORUPDATE']){const s=G.create(now),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'redeem',code,now:0},now),/사용할 수 없는/);assert.deepEqual(s,old);}
   for(const code of ['THANKS_FOR_REPORTING','HORAS_CELEBRATION']){
-    assert.equal(G.COUPONS[code].expiresAt,null);const last=G.create(now);G.action(last,{kind:'redeem',code},now);assert.deepEqual(last.redeemedCodes,[code]);
+    assert(Number.isFinite(G.COUPONS[code].expiresAt));const last=G.create(now),before=G.clone(last);assert.throws(()=>G.action(last,{kind:'redeem',code},now),/사용 기간/);assert.deepEqual(last,before);
     for(const invalid of [NaN,Infinity,-1]){const s=G.create(now),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'redeem',code,now},invalid),/사용 기간/);assert.deepEqual(s,old);}
   }
 });
