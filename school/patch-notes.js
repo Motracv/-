@@ -1,7 +1,12 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-equipment1',
+  version:'school-panels1',
   entries:Object.freeze([
+    {version:'school-panels1',date:'2026.11.18',title:'한눈에 보는 아레나와 장비',items:[
+      '아레나 메뉴를 짧게 정리하고, 내 정보와 대전 목록을 나누어 보여줘요.',
+      '장비 부위 탭을 보관함 옆으로 옮겨 설명과 능력치를 더 넓게 읽을 수 있어요.',
+      '작은 가로 화면에서도 버튼을 누르기 편하게 유지하면서 상단 여백을 줄였어요.'
+    ]},
     {version:'school-equipment1',date:'2026.11.18',title:'던전의 유물 · 장비 업데이트',items:[
       '일일 던전에서 장비 1개, 주간 던전에서 2개를 얻어요. 뫼비우스는 처음 돌파한 5층 단위 보스가 장비를 줘요.',
       '용병 육성 창에서 무기·방어구·장신구를 장착하세요. R·SR·SSR 장비 9종을 만날 수 있어요.',
