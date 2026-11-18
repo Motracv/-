@@ -27,7 +27,7 @@
   let tab = 'lobby', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
   let confirmedActivityScope = '', confirmedActivityResult = null, dismissedActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null, selectedDungeon = 'daily';
   let recruitCategory = 'heroes';
-  let selectedBanner = ['osia', 'lava', 'horas'].includes(storage.get('school-pickup')) ? storage.get('school-pickup') : 'horas';
+  let selectedBanner = Object.keys(G.BANNERS).includes(storage.get('school-pickup')) ? storage.get('school-pickup') : 'ryusion';
   let preferences; try { preferences = JSON.parse(storage.get('school-settings') || '{}'); } catch { preferences = {}; }
   preferences ||= {};
   let sound = typeof preferences.sound === 'boolean' ? preferences.sound : storage.get('school-sound') === 'on', renderKey = '', dungeonRenderKey = '', partyKey = '', lastSave = 0, lastSync = 0;
@@ -614,17 +614,17 @@
   function setupRecruitment() {
     const panel = $('tab-recruit');
     panel.classList.add('pickup-screen');
-    panel.innerHTML = `<div class="pickup-screen-top"><button class="pickup-return" data-tab="lobby" aria-label="안뜰로 돌아가기">‹ <span>모집</span></button><div class="pickup-categories" role="group" aria-label="뽑기 종류"><button type="button" data-recruit-category="heroes" aria-pressed="true">캐릭터</button><button type="button" data-recruit-category="weapons" aria-pressed="false">무기</button></div><div class="pickup-grid" role="group" aria-label="픽업 모집 선택">${['horas','osia','lava'].map(id=>`<button type="button" class="pickup-select" data-banner="${id}" aria-pressed="${selectedBanner === id}"><span class="rarity ${G.BY_ID[id].rarity}">${G.BY_ID[id].rarity}</span><span data-banner-name>${G.BY_ID[id].name}</span><small>${id === 'horas' ? '벚꽃의식' : id === 'osia' ? '상시' : '한정'}</small></button>`).join('')}</div><button class="pickup-history" id="history-button" aria-label="최근 모집 기록" title="최근 모집 기록">${icon('book')}</button></div>
+    panel.innerHTML = `<div class="pickup-screen-top"><button class="pickup-return" data-tab="lobby" aria-label="안뜰로 돌아가기">‹ <span>모집</span></button><div class="pickup-categories" role="group" aria-label="뽑기 종류"><button type="button" data-recruit-category="heroes" aria-pressed="true">캐릭터</button><button type="button" data-recruit-category="weapons" aria-pressed="false">무기</button></div><div class="pickup-grid" role="group" aria-label="픽업 모집 선택">${['ryusion','horas','osia','lava'].map(id=>`<button type="button" class="pickup-select" data-banner="${id}" aria-pressed="${selectedBanner === id}"><span class="rarity ${G.BY_ID[id].rarity}">${G.BY_ID[id].rarity}</span><span data-banner-name>${G.BY_ID[id].name}</span><small>${id === 'ryusion' ? '신규' : id === 'horas' ? '벚꽃의식' : id === 'osia' ? '상시' : '한정'}</small></button>`).join('')}</div><button class="pickup-history" id="history-button" aria-label="최근 모집 기록" title="최근 모집 기록">${icon('book')}</button></div>
       <div class="pickup-stage"><div class="pickup-copy"><span class="pickup-kicker" id="pickup-kicker">최초의 UR</span><h2>픽업뽑기</h2><div class="pickup-hero-title"><span id="pickup-grade">UR</span><strong id="pickup-name">호라스</strong></div><p id="pickup-tagline">별빛을 엮는 벚꽃의식</p><p id="pickup-element">벚꽃 · 원거리</p><div class="pickup-skill-list" id="pickup-skill-list"></div><p class="recruit-count" id="recruit-count"></p></div>
-      <div class="pickup-illustrations">${['horas','osia','lava'].map(id=>`<button type="button" class="pickup-preview" id="feature-${id}-button" data-preview="${id}" aria-label="${G.BY_ID[id].name} 캐릭터 미리보기"><img id="feature-${id}" alt="${G.BY_ID[id].name}" src="${id === 'horas' ? 'school/assets/horas/portrait.webp?v=horas1' : Art.frontPortrait ? Art.frontPortrait(id) : Art.portrait(id)}"><span>캐릭터 미리보기 ↗</span></button>`).join('')}</div><button type="button" class="weapon-spotlight" id="weapon-preview" hidden><span class="weapon-orbit" aria-hidden="true"></span><img id="weapon-pickup-art" alt=""><span>전용 패시브 · 상세 보기 ↗</span></button></div>
+      <div class="pickup-illustrations">${['ryusion','horas','osia','lava'].map(id=>`<button type="button" class="pickup-preview" id="feature-${id}-button" data-preview="${id}" aria-label="${G.BY_ID[id].name} 캐릭터 미리보기"><img id="feature-${id}" alt="${G.BY_ID[id].name}" src="${id === 'ryusion' ? 'school/assets/ryusion/portrait.png?v=ryusion1' : id === 'horas' ? 'school/assets/horas/portrait.webp?v=horas1' : Art.frontPortrait ? Art.frontPortrait(id) : Art.portrait(id)}"><span>캐릭터 미리보기 ↗</span></button>`).join('')}</div><button type="button" class="weapon-spotlight" id="weapon-preview" hidden><span class="weapon-orbit" aria-hidden="true"></span><img id="weapon-pickup-art" alt=""><span>전용 패시브 · 상세 보기 ↗</span></button></div>
       <div class="pickup-screen-bottom"><div class="pickup-progress"><div class="banner-summary"><b id="banner-status" role="status"></b><span id="banner-deadline"></span></div><div class="pity-line"><span><b id="pity-grade">UR</b> 확정까지 <b id="pity-left">80</b>회</span><span id="pity-count">0 / 80</span></div><div class="pity-track"><i id="pity-bar"></i></div><div class="pity-chance"><span id="pity-phase"></span><b id="next-ssr-chance"></b></div></div><div class="pickup-actions"><button type="button" class="pickup-rates" id="rates-button">확률 안내 ↗</button><div class="recruit-buttons"><button class="secondary" id="recruit-one"><b>1회 모집</b><span>${icon('gem')}<span id="recruit-price-one">${fmt(G.RECRUIT_COST[1])}</span></span></button><button class="primary" id="recruit-ten"><span class="button-ribbon">SR 이상 1명 확정</span><b>10회 모집</b><span>${icon('gem')}<span id="recruit-price-ten">${fmt(G.RECRUIT_COST[10])}</span></span></button></div></div></div>`;
   }
   function currentRecruitCost(count){return recruitCategory==='weapons'?G.WEAPON_COST[count]:G.recruitCost(selectedBanner,count);}
   function renderRecruitment() {
-    const weapons=recruitCategory==='weapons';setAttr($('tab-recruit'),'data-recruit-category',recruitCategory);
+    const weapons=recruitCategory==='weapons';if(weapons&&!G.WEAPON_BANNERS[selectedBanner])selectedBanner='osia';setAttr($('tab-recruit'),'data-recruit-category',recruitCategory);
     document.querySelectorAll('[data-recruit-category]').forEach(button=>{if(button.tagName==='BUTTON')setAttr(button,'aria-pressed',String(button.dataset.recruitCategory===recruitCategory));});
     setText('recruit-price-one',fmt(currentRecruitCost(1)));setText('recruit-price-ten',fmt(currentRecruitCost(10)));
-    document.querySelectorAll('[data-banner]').forEach(button=>{const id=button.dataset.banner,b=weapons?G.WEAPON_BANNERS[id]:G.BANNERS[id];button.querySelector('.rarity').textContent=weapons?'EX':G.BY_ID[id].rarity;button.querySelector('small').textContent=b.limited?'한정':'상시';});
+    document.querySelectorAll('[data-banner]').forEach(button=>{const id=button.dataset.banner,b=weapons?G.WEAPON_BANNERS[id]:G.BANNERS[id];setHidden(button,!b);if(!b)return;button.querySelector('.rarity').textContent=weapons?'EX':G.BY_ID[id].rarity;button.querySelector('small').textContent=b.limited?'한정':'상시';});
     $('recruit-ten').querySelector('.button-ribbon').textContent=weapons?'SR 이상 무기 1개 확정':'SR 이상 1명 확정';
     setHidden($('weapon-preview'),!weapons);$('tab-recruit').querySelector('.pickup-copy h2').textContent=weapons?'전용 무기':'픽업뽑기';
     if(weapons){renderWeaponRecruitment();return;}
@@ -632,11 +632,11 @@
     const banner = G.BANNERS[selectedBanner], progress = G.bannerState(state, selectedBanner), ur = selectedBanner === 'horas';
     const grade = ur ? 'UR' : 'SSR', odds = G.recruitRates(progress.pity, selectedBanner), name = G.BY_ID[banner.featured].name;
     const panel = $('tab-recruit'); setAttr(panel, 'data-pickup', selectedBanner);
-    setText('pickup-kicker', ur ? '최초의 UR' : selectedBanner === 'osia' ? '물의 용왕' : '눈내리던 날의 무당');
+    setText('pickup-kicker', selectedBanner === 'ryusion' ? '동료를 지키는 대지의 방패' : ur ? '최초의 UR' : selectedBanner === 'osia' ? '물의 용왕' : '눈내리던 날의 무당');
     setText('pickup-grade', grade); setText('pickup-name', name);
-    setText('pickup-tagline', ur ? '별빛을 엮는 벚꽃의식' : selectedBanner === 'osia' ? '네 번의 물결, 거대한 수룡' : '눈 내리던 날의 따스한 바람');
-    setText('pickup-element', ur ? '벚꽃 · 원거리' : selectedBanner === 'osia' ? '물 · 마법' : '바람 · 치유');
-    $('pickup-skill-list').innerHTML = (ur ? ['✧ 별빛 축적','❀ 벚꽃의식','✦ 기절 대상 ×1.5'] : selectedBanner === 'osia' ? ['◈ 물폭탄','≋ 용왕의 권능','✦ 수룡 · 기절'] : ['≋ 바람의 부채','✧ 신내림','✦ 긴급생존']).map(label=>`<span>${label}</span>`).join('');
+    setText('pickup-tagline', selectedBanner === 'ryusion' ? '내 뒤에 있어. 내가 지켜줄게.' : ur ? '별빛을 엮는 벚꽃의식' : selectedBanner === 'osia' ? '네 번의 물결, 거대한 수룡' : '눈 내리던 날의 따스한 바람');
+    setText('pickup-element', selectedBanner === 'ryusion' ? '대지 · 인간 · 수비' : ur ? '벚꽃 · 원거리' : selectedBanner === 'osia' ? '물 · 마법' : '바람 · 치유');
+    $('pickup-skill-list').innerHTML = (selectedBanner === 'ryusion' ? ['◈ 모든 공격 도발','◆ 돌격 · 2초 기절','⬡ 아군 전체 보호막'] : ur ? ['✧ 별빛 축적','❀ 벚꽃의식','✦ 기절 대상 ×1.5'] : selectedBanner === 'osia' ? ['◈ 물폭탄','≋ 용왕의 권능','✦ 수룡 · 기절'] : ['≋ 바람의 부채','✧ 신내림','✦ 긴급생존']).map(label=>`<span>${label}</span>`).join('');
     setText('recruit-count', ur ? '구슬 5개가 모이면 벚꽃의식 발동' : '캐릭터를 눌러 스킬과 상세 정보 확인');
     setText('pity-grade', grade); setText('pity-left', G.RECRUIT_PITY.hard - progress.pity);
     setText('pity-count', `${progress.pity} / ${G.RECRUIT_PITY.hard}`); setWidth($('pity-bar'), `${progress.pity / G.RECRUIT_PITY.hard * 100}%`);
@@ -740,13 +740,13 @@
     document.querySelectorAll('.party-card[data-hero]').forEach(el => {
       const id = el.dataset.hero, h = state.battle.heroes.find(h => h.id === id), u = state.units[id], def = G.BY_ID[id];
       const horasStatus = id === 'horas' ? G.horasInfo(state) : null;
-      const fallen = !!h && h.hp <= 0, casting = !fallen && (id === 'osia' && !!state.battle.osiaCast || !!horasStatus?.casting);
+      const fallen = !!h && h.hp <= 0, casting = !fallen && (id === 'osia' && !!state.battle.osiaCast || id === 'ryusion' && !!state.battle.ryusionCast || !!horasStatus?.casting);
       const hp = h ? Math.max(0, Math.min(100, h.hp / h.max * 100)) : 100;
       const energy = h && !fallen ? horasStatus ? horasStatus.stacks / horasStatus.maxStacks * 100 : Math.max(0, Math.min(100, h.energy / def.cooldown * 100)) : 0;
       const seconds = Math.ceil(Math.max(0, def.cooldown - (h?.energy || 0)));
-      const next = id === 'osia' ? G.osiaSkill(state) : id === 'lava' ? G.lavaSkill(state) : null;
-      const step = casting && id === 'osia' ? state.battle.osiaCast.stage : next?.stage;
-      const skill = casting && id === 'osia' ? G.OSIA_SKILLS[step - 1].name : next?.name || def.skill;
+      const next = id === 'osia' ? G.osiaSkill(state) : id === 'lava' ? G.lavaSkill(state) : id === 'ryusion' ? G.ryusionSkill(state) : null;
+      const step = casting && id === 'osia' ? state.battle.osiaCast.stage : casting && id === 'ryusion' ? state.battle.ryusionCast.stage : next?.stage;
+      const skill = casting && id === 'osia' ? G.OSIA_SKILLS[step - 1].name : casting && id === 'ryusion' ? G.RYUSION_SKILLS[step - 1].name : next?.name || def.skill;
       const charge = fallen ? '✕' : !h || state.battle.phase !== 'fight' ? '대기' : casting ? '시전' : horasStatus ? `${horasStatus.stacks}/${horasStatus.maxStacks}` : seconds ? String(seconds) : '준비';
       setText(el.querySelector('small'), `Lv.${u.level} · ${def.role}`);
       setHealthWidth(el.querySelector('.party-hp i'),hp); setAttr(el.querySelector('.party-hp'), 'aria-valuenow', String(Math.round(hp)));
@@ -905,7 +905,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-counter1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-ryusion1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -1043,7 +1043,7 @@
     const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
     const st = G.stats(id, u || {level:1, stars:0}, state);
     const skills = `<details class="hero-skills" ${u ? '' : 'open'}><summary>스킬 · 패시브</summary><div class="skill-box"><b>${h.skill} <span>· ${id === 'horas' ? '벚꽃 구슬 5개' : `${h.cooldown}초 충전`}</span></b>${h.desc}</div>${h.passive ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive}</b>${h.passiveDesc}</div>` : ''}${h.passive2 ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive2}</b>${h.passive2Desc}</div>` : ''}</details>`;
-    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : id === 'horas' ? '<p class="hero-element">Horas · 여성 · 벚꽃 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div><p class="detail-note">치명타 ${Math.round((st.critChance || .12)*100)}% · 피해 ${(st.critMultiplier || 1.5)}배</p>${u ? window.SchoolEquipment?.slotsMarkup(state,id)||'' : ''}${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">레벨업 · 꾹 누르기<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${Array.from({length:maxTeam()}, (_, i) => { const member = state.team[i]; return `<button data-slot="${i}" class="${member === id ? 'selected' : ''} ${member ? '' : 'empty'}">${member ? portrait(member) : '<span class="empty-slot-mark" aria-hidden="true">+</span>'}${slotName(i)}<br>${member ? G.BY_ID[member].name : '빈자리에 추가'}</button>`; }).join('')}</div>${state.team.includes(id) ? `<button class="text-button remove-hero-action" id="remove-hero">출전에서 빼기</button>` : ''}<p class="detail-note" id="formation-status">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">모집에서 만나기 →</button>`}</div>`, 'hero');
+    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'earth' ? '<p class="hero-element">Ryusion · 여성 · 인간 · 대지 속성</p>' : h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : id === 'horas' ? '<p class="hero-element">Horas · 여성 · 벚꽃 속성</p>' : ''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div><p class="detail-note">치명타 ${Math.round((st.critChance || .12)*100)}% · 피해 ${(st.critMultiplier || 1.5)}배</p>${u ? window.SchoolEquipment?.slotsMarkup(state,id)||'' : ''}${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">레벨업 · 꾹 누르기<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${Array.from({length:maxTeam()}, (_, i) => { const member = state.team[i]; return `<button data-slot="${i}" class="${member === id ? 'selected' : ''} ${member ? '' : 'empty'}">${member ? portrait(member) : '<span class="empty-slot-mark" aria-hidden="true">+</span>'}${slotName(i)}<br>${member ? G.BY_ID[member].name : '빈자리에 추가'}</button>`; }).join('')}</div>${state.team.includes(id) ? `<button class="text-button remove-hero-action" id="remove-hero">출전에서 빼기</button>` : ''}<p class="detail-note" id="formation-status">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">모집에서 만나기 →</button>`}</div>`, 'hero');
     if (u) {
       $('train-hero').style.touchAction = 'none'; $('train-hero').style.userSelect = 'none';
       $('train-hero').onpointerdown = event => beginTraining(event,id);
@@ -1212,7 +1212,7 @@
       if (target.dataset.ranking) rankingModal(target.dataset.ranking);
       if (target.dataset.hero) heroDetail(target.dataset.hero);
       if (target.dataset.gearSlot) equipmentUI?.open(target.dataset.gearHero,target.dataset.gearSlot);
-      if (target.dataset.recruitCategory) { recruitCategory=target.dataset.recruitCategory==='weapons'?'weapons':'heroes';renderKey='';render(); }
+      if (target.dataset.recruitCategory) { recruitCategory=target.dataset.recruitCategory==='weapons'?'weapons':'heroes';if(recruitCategory==='weapons'&&!G.WEAPON_BANNERS[selectedBanner])selectedBanner='osia';renderKey='';render(); }
       if (target.dataset.weaponDetails) weaponDetails(target.dataset.weaponDetails);
       if (target.dataset.banner && G.BANNERS[target.dataset.banner]) { selectedBanner = target.dataset.banner; storage.set('school-pickup', selectedBanner); renderKey = ''; render(); }
       if (target.dataset.activityMode) enterActivity(target);
@@ -1260,6 +1260,7 @@
     document.addEventListener('close', event => { if (event.target.id === 'school-presentation') queueMicrotask(maybeShowActivityResult); }, true);
     $('modal').addEventListener('click', e => { const r = $('modal').getBoundingClientRect(); if (e.target === $('modal') && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) closeModal(true); });
     $('stage-button').onclick = stageMap;
+    $('feature-ryusion-button').onclick = () => heroDetail('ryusion');
     $('feature-horas-button').onclick = () => heroDetail('horas');
     $('feature-osia-button').onclick = () => heroDetail('osia');
     $('feature-lava-button').onclick = () => heroDetail('lava');
@@ -1290,7 +1291,7 @@
     window.addEventListener('pagehide', () => { if (mode === 'guest') guestUpdate().catch(() => {}); });
     window.addEventListener('pageshow', () => { if (mode === 'guest') guestUpdate().catch(() => {}); else sync(true); });
     window.addEventListener('online', () => sync(true));
-    window.addEventListener('school-art-ready', () => { lobby?.invalidate(); renderKey = partyKey = ''; $('feature-osia').src = Art.portrait('osia'); $('feature-lava').src = Art.portrait('lava'); render(); if (modalKind === 'hero' && ['osia','lava','horas'].includes(selectedHero)) heroDetail(selectedHero); });
+    window.addEventListener('school-art-ready', () => { lobby?.invalidate(); renderKey = partyKey = ''; $('feature-osia').src = Art.portrait('osia'); $('feature-lava').src = Art.portrait('lava'); render(); if (modalKind === 'hero' && ['osia','lava','horas','ryusion'].includes(selectedHero)) heroDetail(selectedHero); });
     window.addEventListener('storage', e => { if (e.key === SESSION && !e.newValue) { clearLogin(); connected = mode !== 'cloud'; if (mode === 'cloud') { note('다른 창에서 로그아웃했어요. 계정 메뉴에서 다시 로그인할 수 있어요.'); renderButtons(); } } if (e.key === SAVE && mode === 'guest' && !busy) guestUpdate().catch(() => {}); });
   }
   async function boot() {
@@ -1321,7 +1322,7 @@
     showBoot('용병과 전장을 준비하고 있어요');
     await Art.ready;
     setupRecruitment();
-    $('feature-osia').src = Art.portrait('osia'); $('feature-lava').src = Art.portrait('lava'); $('recruit-count').textContent = 'UR 호라스 · 상시 오시아 · 한정 라바';
+    $('feature-osia').src = Art.portrait('osia'); $('feature-lava').src = Art.portrait('lava'); $('recruit-count').textContent = 'SSR 류시온 · UR 호라스 · 상시 오시아 · 한정 라바';
     clientReady = true; bind(); setTab('lobby', false); refreshSound(); renderButtons();
     if (!guestSaveFailed && (!wantsCloud || hasCloudState)) render();
     if (wantsCloud) {

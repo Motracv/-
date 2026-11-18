@@ -1,7 +1,14 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-counter1',
+  version:'school-ryusion1',
   entries:Object.freeze([
+    {version:'school-ryusion1',date:'2026.11.18',title:'SSR 류시온 · 대지의 방패',items:[
+      '대지 속성 SSR 수비 용병 류시온이 합류했어요. 전용 모집 일러스트와 도트 대기·평타·도발·돌격·보호막·피격 동작을 추가했어요.',
+      '5초마다 2초 동안 광역 공격까지 대신 받아요. 생존 중 아군 피해 8% 감소, 도발 중 본인 피해 추가 60% 감소.',
+      '8초마다 돌격 앞으로(전방 적 2초 기절)와 방어막 추가(아군 전체, 본인 최대 HP 8%, 6초)를 번갈아 사용해요.',
+      '류시온 픽업은 1회 100보석·10회 1,000보석. SSR 1%, 60회부터 확률 상승·80회 SSR 확정, 50:50·픽뚫 후 보장을 별도로 저장해요. 종료일은 없으며 다른 배너의 풀과 누적은 유지해요.',
+      '보급 → 코드: RYUSION_UPDATE는 보석 2,000·골드 5,000, THANKS_FOR_PLAYING은 보석 1,000·골드 10,000. 각각 한 번 받을 수 있어요.'
+    ]},
     {version:'school-counter1',date:'2026.11.18',title:'직접 누르는 반격 · 선명한 전투 피드백',items:[
       '모험·던전에서 적이 공격하면 가끔 반격 기회가 나타나요. 3.5초 안에 누르면 강한 추가 공격! 놓쳐도 자동 전투는 계속돼요.',
       '일반 적 18%·보스 32%, 기회 사이 최소 10초. 가장 강한 생존 용병의 공격력 180% 피해이며 한 기회에 한 번만 사용할 수 있어요.',

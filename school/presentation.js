@@ -154,7 +154,9 @@
     card.dataset.hero = id; card.dataset.rarity = hero.rarity;
     card.append(node('span', 'presentation-rarity', hero.rarity));
     const art = node('div', 'presentation-portrait');
-    if (id === 'horas') {
+    if (id === 'ryusion') {
+      const image=node('img','horas-illustration');image.src='school/assets/ryusion/portrait.png?v=ryusion1';image.alt='류시온';art.append(image);
+    } else if (id === 'horas') {
       const image = node('img', 'horas-illustration'); image.src = 'school/assets/horas/portrait.webp?v=horas1'; image.alt = '호라스'; art.append(image);
     } else if (job && root.SchoolArt?.recruitPortrait) {
       const canvas = node('canvas', 'recruit-live-portrait'); canvas.width = 248; canvas.height = 344; canvas.dataset.hero = id;

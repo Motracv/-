@@ -50,7 +50,7 @@ test('Ten-pulls update soft pity per slot, reset immediately on SSR, and preserv
 test('Boundary rolls use the documented 1/26/73 probabilities and every hero is obtainable', () => {
   const obtained = new Set();
   for (const [roll, rarity] of [[0,'SSR'],[.009999,'SSR'],[.01,'SR'],[.269999,'SR'],[.27,'R'],[.999999,'R']]) {
-    const pool = G.HEROES.filter(h => h.rarity === rarity && h.id!=='lava');
+    const pool = G.HEROES.filter(h => h.rarity === rarity && h.id!=='lava' && h.id!=='ryusion');
     for (let j = 0; j < pool.length; j++) { const s = G.create(1000), values = [roll,rarity==='SSR'?[.25,.625,.875][j]:(j+.5)/pool.length]; const r = G.action(s,{kind:'recruit',count:1},1000,()=>values.shift()); assert.equal(G.BY_ID[r.results[0].id].rarity,rarity); obtained.add(r.results[0].id); }
   }
   assert.equal(obtained.size,14); assert.ok(obtained.has('osia')); assert.ok(obtained.has('doyoon')); assert.ok(!obtained.has('lava'));
@@ -101,7 +101,7 @@ test('Coupon validation preserves old progress and rejects malformed code record
   for(const record of [null,'OSIA_DEBUT',{},[null],['osia_debut'],['OSIA_DEBUT','OSIA_DEBUT']]){const invalid=G.clone(s);invalid.redeemedCodes=record;assert.equal(G.validate(invalid),false);}
   const legacy=G.clone(s);legacy.redeemedCodes=['OSIA_DEBUT','BUG_FIX','MAJORUPDATE'];assert.ok(G.validate(legacy));
 });
-test('Each of fifteen heroes performs their automatic skill; damage and healing stay bounded',()=>{
+test('Each hero performs their automatic skill; damage and healing stay bounded',()=>{
   for(const hero of G.HEROES){
     const s=G.create(1000,21);s.units[hero.id]={level:1,xp:0,stars:0,shards:0};s.team=[hero.id,...['taeo','harin','sua'].filter(id=>id!==hero.id)].slice(0,3);
     G.action(s,{kind:'stage',stage:1,mode:'farm'});
@@ -109,7 +109,7 @@ test('Each of fifteen heroes performs their automatic skill; damage and healing 
     run(s,8);assert.ok(s.events.some(e=>e.kind==='skill'&&e.from===hero.id),hero.id);
     assert.ok(s.battle.heroes.every(h=>h.hp>=0&&h.hp<=h.max&&h.shield>=0));
     if(hero.role==='치유') assert.ok(s.events.some(e=>e.kind==='heal'&&e.from===hero.id));
-    if(hero.role==='수호') assert.ok(s.events.some(e=>e.kind==='guard'&&e.to===hero.id));
+    if(hero.role==='수호'&&hero.id!=='ryusion') assert.ok(s.events.some(e=>e.kind==='guard'&&e.to===hero.id));
   }
 });
 test('Osia is a permanent SSR, can be drawn by natural roll or pity, and duplicates awaken normally',()=>{
@@ -120,7 +120,7 @@ test('Osia is a permanent SSR, can be drawn by natural roll or pity, and duplica
   G.action(s,{kind:'awaken',hero:'osia'});assert.equal(s.units.osia.stars,1);assert.equal(s.units.osia.shards,10);
   setPity(s,79);const valuesAtPity=[.99,.1];const forced=G.action(s,{kind:'recruit',count:1},1000,()=>valuesAtPity.shift());assert.equal(forced.results[0].id,'osia');assert.equal(forced.results[0].pity,true);assert.equal(s.pity,0);
   G.action(s,{kind:'team',team:['taeo','osia','sua']});G.action(s,{kind:'train',hero:'osia'});assert.equal(s.units.osia.level,2);assert.ok(G.validate(G.clone(s)));
-  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,4);assert.equal(G.RECRUIT_RATES.SSR,.01);
+  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,5);assert.equal(G.RECRUIT_RATES.SSR,.01);
 });
 test('Independent pickup banners preserve legacy pity and guarantee the featured SSR after a miss',()=>{
   const legacy=G.create(UPDATE_TIME);delete legacy.banners;legacy.pity=59;const progress={gold:legacy.gold,gems:legacy.gems,units:G.clone(legacy.units)};

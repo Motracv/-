@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 18;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 19;
   const COUNTER_RULES = Object.freeze({ chance: .18, bossChance: .32, windowMs: 3500, cooldownMs: 10000, multiplier: 1.8 });
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
@@ -20,6 +20,13 @@
     { stage: 2, name: "바람의 상처", healMultiplier: 4.5 },
   ];
   const lavaSkill = s => LAVA_SKILLS[(s.units.lava?.nextSkill || 1) - 1];
+  const RYUSION_RULES = Object.freeze({ tauntEvery:5000, tauntMs:2000, tauntReduction:.6, teamReduction:.08, shieldRatio:.08, shieldMs:6000, stunMs:2000, impactDelay:500 });
+  const RYUSION_SKILLS = Object.freeze([{stage:1,name:"돌격 앞으로"},{stage:2,name:"방어막 추가"}]);
+  const ryusionSkill = s => RYUSION_SKILLS[(s.units.ryusion?.nextSkill || 1)-1];
+  function ryusionGuard(heroes,time) { const hero=heroes.find(h=>h.id==='ryusion'&&h.hp>0);return {hero,taunting:!!hero&&time>=RYUSION_RULES.tauntEvery&&time%RYUSION_RULES.tauntEvery<RYUSION_RULES.tauntMs}; }
+  function expireEarthShield(hero,time) { if(hero.earthShield&&time>=hero.earthShieldUntil){hero.shield=Math.max(0,hero.shield-hero.earthShield);hero.earthShield=0;return true;}return false; }
+  function addEarthShield(hero,amount,time) { hero.shield=Math.max(0,hero.shield-(hero.earthShield||0));hero.earthShield=Math.max(0,Math.round(amount));hero.earthShieldUntil=time+RYUSION_RULES.shieldMs;hero.shield+=hero.earthShield;return hero.earthShield; }
+  function absorbEarthShield(hero,amount) { if(hero.earthShield)hero.earthShield=Math.max(0,hero.earthShield-amount); }
   const HORAS_RULES = Object.freeze({ maxStacks: 5, basicMs: 2000, basicMotionMs: 900, hitStackMs: 1000, mergeMs: 1000, impactDelay: 1500, minCastMs: 3000, basicMultiplier: 2.2, primaryMultiplier: 13.5, splashMultiplier: 2.5, stunMultiplier: 1.5, missChance: .1, markMs: 6000, refundStacks: 2 });
   const UR_RECRUIT_RATES = Object.freeze({ UR: .003, SSR: .01, SR: .26, R: .727 });
   const RECRUIT_COST = Object.freeze({ 1: 160, 10: 1600 });
@@ -35,12 +42,15 @@
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
   const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi"]);
   const BANNERS = Object.freeze({
+    ryusion: Object.freeze({ id:"ryusion", name:"류시온 픽업 모집", featured:"ryusion", limited:false, expiresAt:null }),
     horas: Object.freeze({ id: "horas", name: "호라스 픽업뽑기", featured: "horas", rarity: "UR", limited: false, expiresAt: null }),
     osia: Object.freeze({ id: "osia", name: "오시아 상시 모집", featured: "osia", limited: false, expiresAt: null }),
     lava: Object.freeze({ id: "lava", name: "라바 한정 모집", featured: "lava", limited: true, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
   });
   // Retired code names remain valid historical records, but cannot be redeemed.
   const COUPONS = Object.freeze({
+    RYUSION_UPDATE: Object.freeze({ gold:5000, gems:2000, expiresAt:null }),
+    THANKS_FOR_PLAYING: Object.freeze({ gold:10000, gems:1000, expiresAt:null }),
     THANKS_FOR_REPORTING: Object.freeze({ gold: 500, gems: 500, expiresAt: null }),
     HORAS_CELEBRATION: Object.freeze({ gold: 2000, gems: 2000, expiresAt: null }),
   });
@@ -143,6 +153,7 @@
     { id: "lumi", name: "루미", club: "오컬트부", role: "마법", rarity: "SSR", hp: 128, atk: 21, skill: "달빛 소환", cooldown: 4, color: "#c89ed4", hair: "#b9b2db", outfit: "#5c527d", weapon: "staff", desc: "적 전체에게 공격력 170%의 달빛. 빠른 광역 공격." },
     { id: "osia", name: "오시아", latin: "Osia", club: "물의 용왕", species: "물고기", element: "water", role: "마법", rarity: "SSR", hp: 136, atk: 20, skill: "용왕의 해일", skillMultiplier: 2.2, cooldown: 5, passive: "용왕의 권능", passiveDesc: "물폭탄 평타로 싸우며 스킬을 충전합니다. 충전할 때마다 대형 물탄 → 소용돌이 → 물기둥 → 거대 수룡 순서로 하나씩 사용하고 반복합니다. 마지막 수룡은 명중한 적을 1.5초 기절시킵니다.", color: "#59bdd7", hair: "#6587bb", outfit: "#f6f3eb", weapon: "water", desc: "5초 충전마다 다음 단계 스킬 하나로 적 전체에게 공격력 220%의 물 피해. 스킬 사이에는 물폭탄 평타를 사용합니다." },
     { id: "lava", name: "라바", latin: "Lava", gender: "남성", species: "인간", club: "바람의 무당", element: "wind", role: "치유", rarity: "SSR", hp: 142, atk: 15, cooldown: 5, skill: "바람의 부채 · 바람의 상처", passive: "신내림", passiveDesc: "본인의 평타가 10회 명중하면 체력 비율이 가장 낮은 생존 아군에게 공격력 200% + 대상 최대 체력 8%의 방어막을 줍니다. 방어막은 최대 체력 60%까지 쌓입니다.", passive2: "긴급생존", passive2Desc: "라바가 살아 있으면 웨이브당 한 번, 아군의 치명적인 피해를 HP 1로 버티게 하고 2초 동안 쓰러지지 않게 합니다. 보호 중에도 회복할 수 있습니다.", color: "#81c4ab", hair: "#91d7f1", outfit: "#9caa65", skirt: "#b9564d", weapon: "wind", desc: "5초 충전마다 교대로 사용합니다. 바람의 부채: 아군 전체 공격력 160% 회복 + 공격력 90% 방어막. 바람의 상처: 체력 비율이 가장 낮은 생존 아군 한 명을 공격력 450%만큼 회복." },
+    { id:"ryusion", name:"류시온", latin:"Ryusion", gender:"여성", species:"인간", club:"대지의 수호자", element:"earth", role:"수호", rarity:"SSR", hp:245, hpGrowth:18, atk:10, atkGrowth:2.4, cooldown:8, skill:"돌격 앞으로 · 방어막 추가", passive:"내가 대신 맞아줄게", passiveDesc:"전투 5초부터 5초마다 2초 동안 모든 적 공격을 대신 받습니다. 광역 공격은 각 아군에게 향한 타격을 전부 받습니다. 도발 중 본인이 받는 피해는 추가로 60% 감소합니다. 쓰러지면 도발은 끝납니다.", passive2:"피해감소", passive2Desc:"생존 중 자신을 포함한 아군 전체가 받는 피해 8% 감소. 다른 피해 감소와 곱해서 적용됩니다.", color:"#daa456", hair:"#674b40", outfit:"#28272b", weapon:"earth-shield", desc:"8초 충전마다 교대로 사용합니다. 돌격 앞으로: 전방 적 한 명에게 공격력 100% 피해·밀쳐내기·2초 기절. 방어막 추가: 생존 아군 각각에게 류시온 최대 HP 8%의 보호막을 6초간 부여. 같은 보호막은 중첩되지 않습니다." },
   ];
   HEROES.push({ id: "horas", name: "호라스", latin: "Horas", gender: "여성", club: "벚꽃의 의식", element: "blossom", role: "사수", rarity: "UR", hp: 128, atk: 22, cooldown: 5, skill: "벚꽃의식", passive: "별빛 축적", passiveDesc: "두 손짓의 느린 평타가 적중하거나 공격을 받으면 벚꽃 구슬을 1개 쌓습니다. 피격 획득은 1초당 한 번. 5개를 합쳐 벚꽃의식을 사용합니다.", passive2: "벚꽃의 잔향", passive2Desc: "기절 중인 적에게 주는 피해 1.5배. 의식이 적중한 주 대상에게 6초간 표식을 남깁니다. 아군 누구든 표식 대상을 처치하면 2스택을 한 번 회수합니다.", color: "#f3a2d0", hair: "#f2a6d0", outfit: "#d6e5ff", weapon: "blossom", desc: "2초 간격으로 공격력 220% 평타. 5스택을 소모하여 구슬을 합친 뒤 가까운 적이 많은 한 명에게 공격력 1350%, 인접한 적에게 250% 피해. 의식은 10% 확률로 빗나갑니다. 의식 시작 간격은 최소 3초입니다." });
   const BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
@@ -488,7 +499,7 @@
   const awakeningCost = unit => 10 + unit.stars * 10;
   function stats(id, unit, state) {
     const h = BY_ID[id], factor = 1 + unit.stars * .15, gear = equipmentBonus(state, id);
-    return { hp: Math.round((h.hp + (unit.level - 1) * 14) * factor * (1 + gear.hp)), atk: Math.round((h.atk + (unit.level - 1) * 3) * factor * (1 + gear.atk)), defense: h.role === "수호" ? .28 : .05, critChance: CRITICAL.chance, critMultiplier: CRITICAL.multiplier };
+    return { hp: Math.round((h.hp + (unit.level - 1) * (h.hpGrowth || 14)) * factor * (1 + gear.hp)), atk: Math.round((h.atk + (unit.level - 1) * (h.atkGrowth || 3)) * factor * (1 + gear.atk)), defense: h.role === "수호" ? .28 : .05, critChance: CRITICAL.chance, critMultiplier: CRITICAL.multiplier };
   }
   function stageName(stage) { return `${Math.floor((stage - 1) / 5) + 1}-${(stage - 1) % 5 + 1}`; }
   function chapter(stage) { return clamp(Math.floor((stage - 1) / 5), 0, CHAPTERS.length - 1); }
@@ -628,6 +639,7 @@
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
       (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)) && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean")) &&
       (s.units.osia?.nextSkill == null || Number.isInteger(s.units.osia.nextSkill) && s.units.osia.nextSkill >= 1 && s.units.osia.nextSkill <= 4) &&
+      (s.units.ryusion?.nextSkill == null || s.units.ryusion.nextSkill === 1 || s.units.ryusion.nextSkill === 2) &&
       (s.units.lava?.nextSkill == null || s.units.lava.nextSkill === 1 || s.units.lava.nextSkill === 2) &&
       (s.units.lava?.basicHits == null || Number.isInteger(s.units.lava.basicHits) && s.units.lava.basicHits >= 0 && s.units.lava.basicHits < 10) &&
       s.battle && Array.isArray(s.battle.heroes) && s.battle.heroes.length >= 1 && s.battle.heroes.length <= MAX_TEAM && new Set(s.battle.heroes.map(h => h.id)).size === s.battle.heroes.length && Array.isArray(s.battle.enemies) && s.battle.heroes.every(h => Object.hasOwn(BY_ID, h.id) && Number.isFinite(h.hp) && (h.indomitableUntil === undefined || Number.isFinite(h.indomitableUntil) && h.indomitableUntil >= 0)) &&
@@ -730,15 +742,21 @@
     return true;
   }
   function hurt(s, from, target, raw, side, skill = false, detail = {}) {
+    let earthGuard;
+    if(side==='hero'){
+      earthGuard=ryusionGuard(s.battle.heroes,s.battle.elapsed);
+      if(earthGuard.taunting&&target.id!==earthGuard.hero.id){detail={...detail,redirectedFrom:target.id};target=earthGuard.hero;}
+    }
     if (target.hp <= 0) return 0;
     // Stun amplification is decided at the actual hit, not at cast start.
     const stunBonus = from === "horas" && side === "enemy" && s.battle.elapsed < (target.stunUntil || 0);
     let amount = Math.max(1, Math.round(raw * (stunBonus ? HORAS_RULES.stunMultiplier : 1)));
     if (stunBonus) detail = { ...detail, stunBonus: true };
     if (side === "hero") {
-      amount = Math.max(1, Math.round(amount * (1 - target.defense)));
+      amount = Math.max(1, Math.round(amount * (1 - target.defense) * (earthGuard.hero ? 1-RYUSION_RULES.teamReduction : 1) * (earthGuard.taunting&&target===earthGuard.hero ? 1-RYUSION_RULES.tauntReduction : 1)));
       const shield = Math.min(target.shield, amount); target.shield -= shield; amount -= shield;
-      if (shield) event(s, "shield", { to: target.id, amount: shield });
+      absorbEarthShield(target,shield);
+      if (shield) event(s, "shield", { to: target.id, amount: shield, ...(detail.redirectedFrom?{redirectedFrom:detail.redirectedFrom}:{}) });
       const b = s.battle;
       if (amount >= target.hp && !b.lavaRescueUsed && b.heroes.some(h => h.id === "lava" && h.hp > 0)) {
         b.lavaRescueUsed = true; target.indomitableUntil = b.elapsed + 2000;
@@ -854,6 +872,20 @@
     if(b.enemies.every(e=>e.hp<=0))victory(s);
     return {kind:'counter',amount,hero:hero.id,target:enemy.id,opportunityId:o.id};
   }
+  function ryusionStep(s) {
+    const b=s.battle,guard=ryusionGuard(b.heroes,b.elapsed);
+    for(const hero of b.heroes)expireEarthShield(hero,b.elapsed);
+    if(guard.taunting){const began=b.elapsed-b.elapsed%RYUSION_RULES.tauntEvery;if(guard.hero.lastTauntAt!==began){guard.hero.lastTauntAt=began;event(s,'ryusion-taunt',{from:'ryusion',to:'ryusion',until:began+RYUSION_RULES.tauntMs,duration:RYUSION_RULES.tauntMs,element:'earth'});}}
+    const cast=b.ryusionCast;if(!cast)return;
+    if(!guard.hero){delete b.ryusionCast;return;}
+    if(b.elapsed<cast.began+RYUSION_RULES.impactDelay)return;
+    delete b.ryusionCast;
+    if(cast.stage===1){const target=b.enemies.find(e=>e.id===cast.targetId&&e.hp>0)||b.enemies.find(e=>e.hp>0);if(!target)return;
+      event(s,'ryusion-impact',{from:'ryusion',to:target.id,stage:1,element:'earth'});
+      hurt(s,'ryusion',target,cast.power,'enemy',true,{element:'earth'});
+      if(target.hp>0){target.stunUntil=Math.max(target.stunUntil||0,b.elapsed+RYUSION_RULES.stunMs);event(s,'stun',{from:'ryusion',to:target.id,duration:RYUSION_RULES.stunMs,until:target.stunUntil,element:'earth'});}
+    }else{for(const hero of b.heroes.filter(h=>h.hp>0)){const amount=addEarthShield(hero,cast.shield,b.elapsed);event(s,'earth-guard',{from:'ryusion',to:hero.id,amount,until:hero.earthShieldUntil,element:'earth'});}}
+  }
   function tick(s) {
     const b = s.battle;
     // Old saves have no half-second clock. Keep their existing attack cadence.
@@ -874,6 +906,7 @@
     }
     b.elapsed += STEP_MS;
     if (b.activity && b.heroes.every(h => h.hp <= 0)) { settleActivity(s, false, "defeat"); return; }
+    ryusionStep(s);
     const osiaImpact = osiaStep(s);
     horasStep(s);
     if (b.enemies.every(e => e.hp <= 0)) { victory(s); return; }
@@ -897,7 +930,12 @@
       hero.energy++;
       if (hero.id === "osia" && (b.osiaCast || osiaImpact)) continue;
       const skill = hero.energy >= def.cooldown;
-      if (skill) { hero.energy = 0; event(s, "skill", { from: hero.id, name: hero.id === "osia" ? osiaSkill(s).name : hero.id === "lava" ? lavaSkill(s).name : def.skill, role: def.role, ...(def.element ? { element: def.element } : {}) }); }
+      if (skill) { hero.energy = 0; event(s, "skill", { from: hero.id, name: hero.id === "osia" ? osiaSkill(s).name : hero.id === "lava" ? lavaSkill(s).name : hero.id === "ryusion" ? ryusionSkill(s).name : def.skill, role: def.role, ...(def.element ? { element: def.element } : {}) }); }
+      if(skill&&hero.id==='ryusion'){
+        const step=ryusionSkill(s);s.units.ryusion.nextSkill=step.stage===1?2:1;
+        b.ryusionCast={began:b.elapsed,stage:step.stage,targetId:enemies[0].id,power:hero.atk*(hero.damageMultiplier||1)*(b.buff?1.3:1),shield:Math.round(hero.max*RYUSION_RULES.shieldRatio)};
+        event(s,'ryusion-skill',{from:hero.id,to:step.stage===1?enemies[0].id:hero.id,stage:step.stage,name:step.name,element:'earth',impactDelay:RYUSION_RULES.impactDelay});continue;
+      }
       if (skill && hero.id === "osia") {
         const step = osiaSkill(s);
         const cinematicDuration = step.stage === 4 ? OSIA_CINEMATIC_MS : 0;
@@ -1005,6 +1043,7 @@
     s.banners.osia ??= { pity: s.pity, guaranteed: false }; s.banners.lava ??= { pity: 0, guaranteed: false }; s.banners.horas ??= { pity: 0, guaranteed: false };
     s.pity = s.banners.osia.pity;
     if (s.team.includes("horas")) s.battle.horas ??= newHoras();
+    if (s.units.ryusion) s.units.ryusion.nextSkill ??= 1;
     if (s.units.osia) s.units.osia.nextSkill ??= 1;
     if (s.units.lava) { s.units.lava.nextSkill ??= 1; s.units.lava.basicHits ??= 0; }
     // A v4 simultaneous combo must not continue into the new per-cooldown cycle.
@@ -1277,7 +1316,7 @@
       const s = clone(source), levels = Object.fromEntries(s.team.map(id => [id, s.units[id].level]));
       s.at = WINTER_EVENT.startsAt; s.seed = seed; s.simTime = 0; s.simCredit = 0; s.seq = 0; s.events = []; s.logs = []; s.receipts = []; s.history = [];
       s.captain = { level: CAPTAIN_MAX_LEVEL, xp: 0 }; s.activities = newActivities(s.at); s.offline = { seconds: 0, gold: 0, xp: 0, captainXp: 0 };
-      for (const id of s.team) { s.units[id].xp = 0; if (id === "osia" || id === "lava") s.units[id].nextSkill = 1; if (id === "lava") s.units[id].basicHits = 0; }
+      for (const id of s.team) { s.units[id].xp = 0; if (id === "osia" || id === "lava" || id === "ryusion") s.units[id].nextSkill = 1; if (id === "lava") s.units[id].basicHits = 0; }
       action(s, { kind: "stage", stage, mode: "farm" }, s.at);
       let trialClears = 0, trialLosses = 0, previousClear = 0;
       for (let elapsed = STEP_MS; elapsed <= FARMING_ANALYSIS.seconds * 1000; elapsed += STEP_MS) {
@@ -1309,5 +1348,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

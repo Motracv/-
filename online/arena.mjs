@@ -15,7 +15,9 @@ export function simulateArena(game, saves, names, seed) {
     if(equipment&&Object.keys(equipment.equipped).length)teams[side].equipment=equipment;
   }
   const sides = teams.map((team,side) => team.units.map(u => ({...u,...(game.exclusivePassive?.(saves[side],u.id)?{exclusive:game.exclusivePassive(saves[side],u.id)}:{}),energy:0,stage:1,hits:0,stunUntil:0,protectedUntil:0})));
-  const H = game.HORAS_RULES;
+  const H = game.HORAS_RULES, R=game.RYUSION_RULES;
+  const guard=side=>game.ryusionGuard?.(sides[side],t)||{hero:null,taunting:false};
+  const redirect=(side,target)=>guard(1-side).taunting?guard(1-side).hero:target;
   // A PvP-only adjustment keeps stack generation and the 1.5x stun combo
   // intact without letting PvE ritual bursts dominate a six-unit duel.
   const horasDamageMultiplier = .78;
@@ -36,19 +38,20 @@ export function simulateArena(game, saves, names, seed) {
     return gained;
   }
   function hit(side,from,target,raw,skill,stage,detail={}) {
+    const original=target;target=redirect(side,target);
     if(target.hp<=0)return 0;
     const enemySide=1-side, crit=typeof detail.critical==='boolean'?detail.critical:random()<.12;
     const power=detail.snapshot?raw:raw*(.9+random()*.2)*(crit?1.5:1);
     const stunBonus=from==='horas'&&target.stunUntil>t;
-    let value=Math.max(1,Math.round(power*(stunBonus?H.stunMultiplier:1)*(1-target.defense)*synergy[enemySide].incomingMultiplier));
-    const absorbed=Math.min(target.shield,value);target.shield-=absorbed;value-=absorbed;
+    let value=Math.max(1,Math.round(power*(stunBonus?H.stunMultiplier:1)*(1-target.defense)*synergy[enemySide].incomingMultiplier*(guard(enemySide).hero?1-R.teamReduction:1)*(guard(enemySide).taunting&&target.id==='ryusion'?1-R.tauntReduction:1)));
+    const absorbed=Math.min(target.shield,value);target.shield-=absorbed;value-=absorbed;game.absorbEarthShield?.(target,absorbed);
     if(value>=target.hp&&!rescued[enemySide]&&alive(enemySide).some(u=>u.id==='lava')){
       rescued[enemySide]=true;target.protectedUntil=t+2000;
       emit('shield',enemySide,'lava',enemySide,target,0,{skill:'긴급생존',protectedUntil:target.protectedUntil});
     }
     if(target.protectedUntil>t)value=Math.min(value,Math.max(0,target.hp-1));
     const amount=Math.min(target.hp,value);target.hp-=amount;meter(side,from).damage+=amount;meter(enemySide,target.id).taken+=amount;if(crit&&amount>0)meter(side,from).criticals++;
-    emit(skill?'skill':'attack',side,from,enemySide,target,amount,{crit:crit&&amount>0,absorbed,...(skill?{skill}:{}),...(stage?{stage}:{}),...(stunBonus?{stunBonus:true}:{}),...(detail.castId?{castId:detail.castId,primary:detail.primary}:{})});
+    emit(skill?'skill':'attack',side,from,enemySide,target,amount,{crit:crit&&amount>0,absorbed,...(target!==original?{redirectedFrom:original.id}:{}),...(skill?{skill}:{}),...(stage?{stage}:{}),...(stunBonus?{stunBonus:true}:{}),...(detail.castId?{castId:detail.castId,primary:detail.primary}:{})});
     if(target.id==='horas'&&target.hp>0&&t>=horas[enemySide].lastHitStackAt+H.hitStackMs){horas[enemySide].lastHitStackAt=t;addHorasStack(enemySide,1,'hit',sides[side].find(u=>u.id===from));}
     if(target.hp<=0){
       emit('down',side,from,enemySide,target,0);
@@ -93,12 +96,25 @@ export function simulateArena(game, saves, names, seed) {
     emit('horas-impact',side,'horas',1-side,target,0,{castId:cast.id,targetId:target.id,missed:cast.missed,targets:cast.missed?[]:victims.map(u=>u.id),skill:'벚꽃의식'});
     if(cast.missed){emit('miss',side,'horas',1-side,target,0,{castId:cast.id});return;}
     for(const enemy of enemies)delete enemy.horasMark;
-    target.horasMark={until:t+H.markMs+(alive(side).find(u=>u.id==='horas')?.exclusive?2000:0),castId:cast.id};
-    emit('horas-mark',side,'horas',1-side,target,0,{until:target.horasMark.until,castId:cast.id});
+    const marked=redirect(side,target);
+    marked.horasMark={until:t+H.markMs+(alive(side).find(u=>u.id==='horas')?.exclusive?2000:0),castId:cast.id};
+    emit('horas-mark',side,'horas',1-side,marked,0,{until:marked.horasMark.until,castId:cast.id});
     for(const enemy of[target,...victims.filter(u=>u!==target)]){
       const saved=cast.targets.find(u=>u.id===enemy.id),primary=enemy===target;
       hit(side,'horas',enemy,primary?saved.amount:saved.splashAmount,'벚꽃의식',null,{snapshot:true,critical:saved.critical,castId:cast.id,primary});
     }
+  }
+  function ryusionStep(side){
+    const g=guard(side);
+    for(const hero of sides[side])if(game.expireEarthShield?.(hero,t))emit('shield-expire',side,'ryusion',side,hero,0);
+    if(g.taunting){const began=t-t%R.tauntEvery;if(g.hero.lastTauntAt!==began){g.hero.lastTauntAt=began;emit('ryusion-taunt',side,'ryusion',side,g.hero,0,{until:began+R.tauntMs});}}
+    const hero=sides[side].find(h=>h.id==='ryusion'),cast=hero?.earthCast;if(!cast)return;
+    if(hero.hp<=0){delete hero.earthCast;return;}
+    if(t<cast.began+R.impactDelay)return;delete hero.earthCast;
+    if(cast.stage===1){const target=alive(1-side).find(h=>h.id===cast.targetId)||alive(1-side)[0];if(!target)return;const victim=redirect(side,target);
+      hit(side,hero.id,target,cast.power,'돌격 앞으로',1,{snapshot:true,critical:false});
+      if(victim.hp>0){victim.stunUntil=Math.max(victim.stunUntil,t+R.stunMs);emit('stun',side,hero.id,1-side,victim,0,{skill:'돌격 앞으로',duration:R.stunMs});}
+    }else for(const target of alive(side)){const amount=game.addEarthShield(target,hero.max/3*R.shieldRatio,t);emit('shield',side,hero.id,side,target,amount,{skill:'방어막 추가',stage:2,earthShield:amount,earthShieldUntil:target.earthShieldUntil});}
   }
   function act(side,unit) {
     if(unit.hp<=0||unit.stunUntil>t||!alive(1-side).length)return;
@@ -106,6 +122,10 @@ export function simulateArena(game, saves, names, seed) {
     if(unit.id==='horas'){horasAct(side,unit,attack*horasDamageMultiplier*(1+(unit.exclusive?.strength||0)));return;}
     const def=game.BY_ID[unit.id];unit.energy++;const skill=unit.energy>=def.cooldown;
     if(skill)unit.energy=0;
+    if(skill&&unit.id==='ryusion'){
+      unit.earthCast={began:t,stage:unit.stage,targetId:alive(1-side)[0].id,power:attack};
+      emit('ryusion-skill',side,unit.id,unit.stage===1?1-side:side,unit.stage===1?alive(1-side)[0]:unit,0,{stage:unit.stage,skill:game.RYUSION_SKILLS[unit.stage-1].name});unit.stage=unit.stage===1?2:1;return;
+    }
     if(skill&&unit.id==='lava'){
       if(unit.stage===1)for(const target of alive(side)){heal(side,unit.id,target,unit.atk*1.6,'바람의 부채');shield(side,unit.id,target,unit.atk*.9,'바람의 부채');}
       else heal(side,unit.id,weakest(side),unit.atk*4.5,'바람의 상처');
@@ -116,7 +136,7 @@ export function simulateArena(game, saves, names, seed) {
     if(skill&&unit.role==='지원'){buffUntil[side]=t+3000;emit('shield',side,unit.id,side,unit,0,{skill:def.skill});}
     if(skill&&unit.id==='osia'){
       const stage=unit.stage, name=game.OSIA_SKILLS[stage-1].name;
-      for(const target of alive(1-side)){hit(side,unit.id,target,attack*2.2*(1+(unit.exclusive?.skill||0)),name,stage);if(stage===4&&target.hp>0){target.stunUntil=t+1500;emit('stun',side,unit.id,1-side,target,0,{skill:name,duration:1500});}}
+      for(const target of alive(1-side)){const victim=redirect(side,target);hit(side,unit.id,target,attack*2.2*(1+(unit.exclusive?.skill||0)),name,stage);if(stage===4&&victim.hp>0){victim.stunUntil=t+1500;emit('stun',side,unit.id,1-side,victim,0,{skill:name,duration:1500});}}
       if(stage===4&&unit.exclusive)shield(side,unit.id,unit,unit.atk*.2,'용왕의 해류');
       unit.stage=stage%4+1;return;
     }
@@ -130,6 +150,7 @@ export function simulateArena(game, saves, names, seed) {
   const initial=random()<.5?0:1;
   for(t=500;t<=90000&&alive(0).length&&alive(1).length;t+=500){
     const first=(Math.floor(t/1000)+initial)%2;
+    ryusionStep(first);ryusionStep(1-first);
     horasStep(first);horasStep(1-first);
     if(t%1000||!alive(0).length||!alive(1).length)continue;
     for(let index=0;index<6;index++){for(const side of[first,1-first])if(sides[side][index])act(side,sides[side][index]);}

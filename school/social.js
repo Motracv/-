@@ -420,6 +420,7 @@
     function apply(event) {
       const from = byKey.get(`${event.side}:${event.from}`), target = byKey.get(`${event.toSide}:${event.target}`);
       if (from && ['attack','skill','heal','shield'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
+      if(from?.id==='ryusion'){if(event.kind==='ryusion-skill'){from.earthCastAt=event.t;from.earthStage=event.stage;}if(event.kind==='ryusion-taunt')from.earthTauntUntil=event.until;}
       if (from?.id==='horas') {
         if(event.kind==='horas-basic'){from.horasBasicAt=event.t;from.horasBasicPose=event.pose;}
         if(event.kind==='horas-stack'||event.kind==='horas-refund')from.horasStacks=event.stacks;
@@ -471,8 +472,9 @@
         const casting=unit.id==='horas'?(!!unit.horasCast||horasCastAge>=1.5&&horasCastAge<2.1)&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<1.15&&unit.hp>0;
         const attacking=(unit.id==='horas'?horasAge>=0&&horasAge<.9:actAge>=0&&actAge<.48)&&unit.hp>0, direction=unit.side?-1:1;
         const move=attacking&&!reduced?Math.sin(actAge/.48*Math.PI)*15*direction:0;
-        const motion=casting&&['osia','lava'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
-        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='horas'?0:move),position.y,2.3,{time:clock/1000,dead:unit.hp<=0,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):null,casting,motion,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
+        const earthAge=(clock-(unit.earthCastAt??-10000))/1000;
+        const motion=unit.id==='ryusion'&&earthAge>=0&&earthAge<1.4?window.SchoolArt?.poseForSkill?.('ryusion',unit.earthStage,earthAge,reduced):casting&&['osia','lava'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
+        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:unit.id==='horas'?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{time:clock/1000,dead:unit.hp<=0,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):null,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
         c.fillStyle='#14222ce6';c.fillRect(position.x-38,position.y+8,76,8);c.fillStyle=unit.side===me?'#a4c478':'#dc8d7f';c.fillRect(position.x-37,position.y+9,74*Math.max(0,unit.hp)/Math.max(1,unit.max),6);
         if(unit.shield>0){c.fillStyle='#9dd4e2';c.fillRect(position.x-37,position.y+16,74*Math.min(1,unit.shield/Math.max(1,unit.max)),3);}
         c.font='9px Galmuri,monospace';c.textAlign='center';c.fillStyle=unit.hp>0?'#edf0e5':'#93a0a6';c.fillText(unit.name || window.SchoolRPG.BY_ID[unit.id]?.name || unit.id,position.x,position.y+30);
@@ -493,6 +495,7 @@
         if(event.kind.startsWith('horas-'))continue;
         const age=(clock-event.t)/800;if(age<0)continue;
         const p=positions.get(`${event.toSide}:${event.target}`),from=positions.get(`${event.side}:${event.from}`);if(!p)continue;
+        if(event.kind==='ryusion-taunt'||event.kind==='shield'&&event.from==='ryusion')window.SchoolRyusion?.barrier(c,p.x,p.y,1.35,1-age);
         const healing=event.kind==='heal', shield=event.kind==='shield';
         c.save();c.globalAlpha=Math.min(1,(1-age)*2);
         if(from&&event.from!=='horas'&&['attack','skill'].includes(event.kind)&&age<.28){c.strokeStyle=event.crit?'#ffe69d':event.kind==='skill'?'#b7e8ff':'#f7f1dc';c.lineWidth=event.crit?5:3;c.beginPath();c.moveTo(from.x,from.y-47);c.lineTo(p.x,p.y-48);c.stroke();}

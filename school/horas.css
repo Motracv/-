@@ -191,3 +191,13 @@ html[data-theme=dark] .app .hero-card.UR,html[data-theme=dark] .result-card.UR {
 @media(max-width:600px){.weapon-result-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.weapon-detail-card{gap:9px}.weapon-detail-card img{width:72px;height:72px}}
 html[data-motion=reduced] .weapon-spotlight img,html[data-motion=reduced] .weapon-result-card,html[data-motion=reduced] .weapon-reveal-hero img,html[data-motion=reduced] .weapon-reveal-ring{animation:none}
 @media(prefers-reduced-motion:reduce){.weapon-spotlight img,.weapon-result-card,.weapon-reveal-hero img,.weapon-reveal-ring{animation:none}}
+
+/* Earth SSR: retain the readable controls and rarity colours. */
+.app #tab-recruit[data-pickup=ryusion]{background:linear-gradient(90deg,#171c25f5 0%,#171c2580 42%,#302c2820 100%),url('assets/ryusion/portrait.png?v=ryusion1') 76% 64px/auto 96% no-repeat,linear-gradient(#252a33dd,#302c28c9),url('assets/lobby/courtyard.webp?v=lobby1') center/cover}
+.app .pickup-screen .pickup-preview[data-preview=ryusion] img{visibility:hidden;image-rendering:auto;object-fit:contain;filter:drop-shadow(0 10px 14px #100d0a88)}
+.app #tab-recruit[data-pickup=ryusion] .pickup-hero-title strong{color:#fff0d4;text-shadow:0 2px #624523,0 0 20px #d6a65633}
+.app #tab-recruit[data-pickup=ryusion] .pickup-select[aria-pressed=true]{background:#694e32;border-color:#edcc87}
+.app #tab-recruit[data-pickup=ryusion] .recruit-buttons button.primary{background:linear-gradient(125deg,#fff1c8,#e3b66d);color:#503719}
+.app .pickup-screen .pickup-select[hidden]{display:none!important}
+@media(max-width:900px) and (orientation:landscape){.app .pickup-screen .pickup-select{gap:4px;padding:4px 6px}.app .pickup-screen .pickup-select small{display:none}.pickup-screen-top{gap:6px}}
+@media(max-width:620px) and (orientation:landscape){.app .pickup-screen .pickup-select .rarity{display:none}.app .pickup-screen .pickup-grid{gap:3px}.app .pickup-screen .pickup-select{min-width:44px;padding:4px 5px}.app .pickup-return span{display:none}}

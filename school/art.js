@@ -3,6 +3,7 @@ window.SchoolArt = (() => {
   const portraits = new Map(), frontPortraits = new Map(), osiaPoses = new Map(), lavaPoses = new Map(), lavaSources = new Map(), combatLabels = new Map(), S = SchoolRPG;
   let lavaPosePixels = 0, combatLabelPixels = 0;
   const healthTrackers = new WeakMap();
+  window.addEventListener('school-art-ready',()=>{portraits.delete('ryusion');frontPortraits.delete('ryusion');});
   const osiaImage = new Image(), osiaFrontImage = new Image(), lavaImage = new Image();
   const osiaFrontSources = new Map();
   let osiaLoaded = false, osiaFrontLoaded = false, lavaLoaded = false;
@@ -56,7 +57,7 @@ window.SchoolArt = (() => {
   horasImage.src = 'school/assets/horas/combat.webp?v=horas1';
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
-  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
+  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
   osiaImage.src = "school/assets/osia-sprites.png?v=osia1";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-front1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
@@ -103,6 +104,7 @@ window.SchoolArt = (() => {
   // Movement is expressed in logical battle pixels and consumes the shared
   // simulation clock, so changing battle speed never desynchronises a pose.
   function castingMotion(id, stage, age, reduced = false) {
+    if(id==="ryusion")return window.SchoolRyusion.motion(stage,age,reduced);
     if (reduced) return {dx:0, dy:0, lean:0, stretch:1, cloth:0, pose:stage === 1 ? 2 : 1, stage, age, reduced};
     if (age < 0) return {dx:0, dy:0, lean:0, stretch:1.025, cloth:0, pose:1, stage, age, reduced};
     const progress = clamp01(age / (id === "lava" ? 1.35 : stage === 4 ? 1.65 : 1.05));
@@ -542,7 +544,8 @@ window.SchoolArt = (() => {
     const w=c.canvas.width,h=c.canvas.height;c.save();c.clearRect(0,0,w,h);c.imageSmoothingEnabled=false;
     const z=Math.min(w/62,h/86),breath=reduced?0:Math.sin(time*1.6)*.6;
     c.translate(w/2,h*.88);c.scale(z,z);
-    if(id==="horas")horasIllustration(c,0,-76+breath,62,80);
+    if(id==="ryusion")window.SchoolRyusion.illustration(c,0,-76+breath,62,80);
+    else if(id==="horas")horasIllustration(c,0,-76+breath,62,80);
     else if(id==="osia")osiaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85});
     else if(id==="lava"){c.translate(-3,0);c.scale(1.38,1.38);lavaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85},true);}
     else hero(c,id,0,breath,1.4,{blink:!reduced&&time%5>4.85});
@@ -553,7 +556,7 @@ window.SchoolArt = (() => {
     return frontPortraits.get(id);
   }
   function hero(c, id, x, y, scale = 2, frame = {}) {
-    if (id === "osia" || id === "lava" || id === "horas") { heroShape(c, id, x, y, scale, frame); return; }
+    if (id === "osia" || id === "lava" || id === "horas" || id === "ryusion") { heroShape(c, id, x, y, scale, frame); return; }
     const transform = c.getTransform(), density = Math.max(Math.hypot(transform.a, transform.b), Math.hypot(transform.c, transform.d)) * scale;
     const resolution = density > 6 ? 8 : density > 4 ? 6 : density > 2 ? 4 : 2;
     const key = `${id}:${+!!frame.attack}:${+!!frame.blink}:${resolution}`;
@@ -573,6 +576,7 @@ window.SchoolArt = (() => {
     c.drawImage(sprite, -25, -49, 56, 56); c.restore();
   }
   function heroShape(c, id, x, y, scale = 2, frame = {}) {
+    if(id==="ryusion"){window.SchoolRyusion.draw(c,x,y,scale,frame);return;}
     if (id === "osia") { osia(c, x, y, scale, frame); return; }
     if (id === "lava") { lava(c, x, y, scale, frame); return; }
     if (id === "horas") { horas(c, x, y, scale, frame); return; }
@@ -1476,6 +1480,8 @@ window.SchoolArt = (() => {
       if (event.kind === 'heal'||event.kind === 'enemy-heal') actor(event.to).heal=event;
       if (event.kind === "skill" && age < .8) actor(event.from).casting = true;
       if (event.kind === "skill-stage" && event.from === "osia" && age < (event.stage === 4 ? 1.8 : 1.1) + (event.cinematicDuration || 0) / 1000) actor("osia").combo = event;
+      if(event.kind==="ryusion-skill"&&age<1.4)actor("ryusion").combo=event;
+      if(event.kind==="ryusion-impact"&&age<.7)actor(event.to).earthImpact=event;
       if (event.kind === "lava-skill" && age < 1.8) actor("lava").combo = event;
       if (event.kind === "horas-basic" && age < 1.18) actor("horas").basic = event;
       if (event.kind === "horas-cast" && age < 1.8) actor("horas").horasCast = event;
@@ -1515,7 +1521,7 @@ window.SchoolArt = (() => {
       const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : ["lava","horas"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
-        time:sceneTime, reduced, passive:!!visual.passive,
+        time:sceneTime, reduced, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
         horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
         horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasImpact ? 1.5+time-visual.horasImpact.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
@@ -1523,7 +1529,7 @@ window.SchoolArt = (() => {
       else {
         const impact = visual.incoming, strike = visual.outgoing;
         const life = lifecycle.enemies.get(item.id), deathAge = life.diedAt == null ? undefined : time-life.diedAt;
-        monster(c, item, p.x, p.y, {hit, activity:battle.activity, time:sceneTime, reduced:reduced || !!battle.cinematic, stunned,
+        monster(c, item, p.x+(visual.earthImpact&&!reduced?Math.sin(clamp01((time-visual.earthImpact.time)/.7)*Math.PI)*16:0), p.y, {hit, activity:battle.activity, time:sceneTime, reduced:reduced || !!battle.cinematic, stunned,
           stage:battle.stage, wave:battle.wave, index:battle.enemies.findIndex(e=>e.id===item.id),
           attackAge:strike ? time-strike.time : undefined, hitAge:impact ? impact.critical && time-impact.time < .065 ? .045 : time-impact.time : undefined,
           deathAge, spawnAge:time-lifecycle.bornAt});
@@ -1543,6 +1549,7 @@ window.SchoolArt = (() => {
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy);
     lavaEffects(c, effects, visualPositions, time, reduced,economy);
     horasVisualEffects(c,battle,effects,visualPositions,time,reduced,economy,horasInterpolation,true);
+    window.SchoolRyusion?.effects(c,battle,effects,positions,time,reduced);
     monsterSkillEffects(c,effects,positions,time,reduced);
     impactEffects(c,effects,positions,time,reduced,economy);
     bossEffects(c, battle, positions, effects, time, reduced);
@@ -1621,5 +1628,5 @@ window.SchoolArt = (() => {
     if(!battle.cinematic&&battle.phase==='fight'&&battle.horasCast&&battle.heroes.some(h=>h.id==='horas'&&h.hp>0))horasCutin(c,Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation),reduced);
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();
