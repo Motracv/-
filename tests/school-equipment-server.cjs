@@ -34,8 +34,8 @@ const G = require('../school/engine.js');
     try { const result = await run(); assert.ok(lost); return result; } finally { t.db.prepare = prepare; }
   };
   try {
-    await test('Catalog16 and authentication protect all equipment changes before any write', async () => {
-      assert.equal(G.CATALOG_VERSION, 16);
+    await test('Current catalog and authentication protect all equipment changes before any write', async () => {
+      assert.equal(G.CATALOG_VERSION, 17);
       const who = await account('catalog'), before = row(who), id = item(saved(who), 'weapon');
       for (const action of [{ kind: 'gear-equip', hero: 'taeo', item: id }, { kind: 'gear-unequip', hero: 'taeo', slot: 'weapon' }, { kind: 'gear-awaken', item: id }]) {
         assert.equal((await call(null, 'action', intent(who, action))).status, 401);
@@ -228,7 +228,7 @@ const G = require('../school/engine.js');
     });
 
     await test('Gear keeps hero progression dominant and does not change critical chance, damage reduction or skill timings', async () => {
-      const baseState = G.create(now), definitions = items(baseState); assert.equal(definitions.length, 9); assert.deepEqual([...new Set(definitions.map(i => i.slot))].sort(), ['armor', 'charm', 'weapon']);
+      const baseState = G.create(now), definitions = items(baseState); assert.equal(definitions.length, 12); assert.deepEqual([...new Set(definitions.map(i => i.slot))].sort(), ['armor', 'charm', 'weapon']);
       let highestAtk = 1, highestHp = 1, highestPower = 1, grownAtk = 1, grownHp = 1, grownPower = 1;
       for (const hero of G.HEROES) for (const level of [1, 50, 100]) for (const stars of [0, 5]) {
         const s = G.create(now); s.units[hero.id] = { level, stars, xp: 0, shards: 0 }; s.team = [hero.id]; s.equipment.equipped[hero.id] = {};

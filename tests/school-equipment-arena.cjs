@@ -52,6 +52,19 @@ const G = require('../school/engine.js');
     assert.equal(JSON.stringify(match), sealed, 'source loadout changes must not mutate a completed replay');
   });
 
+  await test('Matching signatures add damage and protection in PvP without exposing unused copies', () => {
+    for (const id of ['horas','osia','lava']) {
+      const a=saved(['taeo','geonu','doyoon','nari','sua',id],100,5),b=saved(['taeo','geonu','doyoon','nari','sua','lava'],100,5),item=G.WEAPON_BANNERS[id].item;
+      a.equipment={inventory:{[item]:{count:99,stars:5}},equipped:{[id]:{weapon:item}}};
+      const actual=simulateArena(G,[a,b],['a','b'],193),withoutPassive=simulateArena({...G,exclusivePassive:()=>null},[a,b],['a','b'],193);
+      assert.equal(actual.teams[0].equipment.inventory[item].count,1);
+      const find=match=>match.events.find(e=>e.side===0&&e.from===id&&(id==='lava'?e.kind==='shield'&&e.amount>0:id==='osia'?e.kind==='skill'&&e.skill===G.OSIA_SKILLS[0].name:e.kind==='attack'));
+      const first=find(actual),plain=find(withoutPassive);assert(first&&plain,JSON.stringify({id,first,plain}));assert(first.amount>plain.amount,JSON.stringify({id,first,plain}));
+      assert.deepEqual(simulateArena(G,[a,b],['a','b'],193),actual,'deterministic signature replay');
+      assert(!JSON.stringify(actual).includes('weaponHistory'));
+    }
+  });
+
   const t = await fixture(), realNow = Date.now;
   let now = Date.parse('2026-11-19T12:00:00+09:00'); Date.now = () => now;
   const call = (who, path, data = {}) => t.call('/api/school/' + path, { catalogVersion: G.CATALOG_VERSION, ...data }, null, who ? { 'X-Account-Session': who.token } : {});

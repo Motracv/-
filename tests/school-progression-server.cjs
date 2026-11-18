@@ -22,7 +22,7 @@ const G = require('../school/engine.js');
   const prepareWin = (who, elapsed = 1000) => patch(who, s => { s.at = now - elapsed; for (const h of s.battle.heroes) { h.atk = 10000; h.energy = 0; } for (const e of s.battle.enemies) { e.hp = 1; e.atk = 0; } });
   try {
     await test('Catalog16 is required before account reads or spending; catalog15 cannot mutate a save', async () => {
-      assert.equal(G.CATALOG_VERSION, 16);
+      assert.equal(G.CATALOG_VERSION, 17);
       const who = await account('catalog'), before = row(who);
       for (const route of ['state', 'action']) {
         const data = route === 'action' ? intent(who, { kind: 'recruit', count: 1, cost: 100 }) : {};
@@ -152,11 +152,11 @@ const G = require('../school/engine.js');
       const again = (await t.login('progression-codes')).data, read = await call(again, 'state'); assert.deepEqual(read.data.state.redeemedCodes, ['THANKS_FOR_REPORTING', 'HORAS_CELEBRATION']); assert.equal(read.data.state.gems, 4300); assert.equal(read.data.state.gold, 3200);
     });
 
-    await test('All pickup banners charge160 per single and1600 per ten, ignoring client prices', async () => {
+    await test('SSR and UR banners apply their own costs, ignoring client prices', async () => {
       for (const banner of ['horas', 'osia', 'lava']) {
         const who = await account('price-' + banner), r = await act(who, { kind: 'recruit', banner, count: 1, cost: 100, gems: 1e12 });
-        assert.equal(r.status, 200); assert.equal(r.data.result.cost, 160); assert.equal(r.data.state.gems, 1640);
-        const ten = await act(who, { kind: 'recruit', banner, count: 10, cost: 900 }); assert.equal(ten.status, 200); assert.equal(ten.data.result.cost, 1600); assert.equal(ten.data.state.gems, 40);
+        assert.equal(r.status, 200); assert.equal(r.data.result.cost, G.recruitCost(banner,1)); assert.equal(r.data.state.gems, 1800-G.recruitCost(banner,1));
+        const ten = await act(who, { kind: 'recruit', banner, count: 10, cost: 900 }); assert.equal(ten.status, 200); assert.equal(ten.data.result.cost, G.recruitCost(banner,10)); assert.equal(ten.data.state.gems, 1800-G.recruitCost(banner,1)-G.recruitCost(banner,10));
       }
     });
 

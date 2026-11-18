@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-panels1';
+const RELEASE = 'school-weapons1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -17,7 +17,7 @@ const required = [
   ...['classroom','garden','snow'].map(p => `school/assets/battlefields/${p}.webp?v=battlefield1`),
   ...['combat.webp','combat.json','portrait.webp','pickup.webp','cutin.webp'].map(p => `school/assets/horas/${p}?v=horas1`),
   ...['daily','weekly','tower'].map(id => `school/assets/dungeon-${id}.png?v=${RELEASE}`),
-  ...['chalk_star','rift_baton','dawn_staff','apprentice_cape','barrier_uniform','guardian_robe','adventure_badge','wind_bell','dawn_brooch'].map(id => `school/assets/equipment/${id}.svg?v=gear1`),
+  ...['chalk_star','rift_baton','dawn_staff','apprentice_cape','barrier_uniform','guardian_robe','adventure_badge','wind_bell','dawn_brooch','osia_scepter','lava_fan','horas_orbit'].map(id => `school/assets/equipment/${id}.svg?v=gear1`),
   'school/assets/app-192.png', 'school/assets/app-512.png'
 ].map(url);
 const pictures = ['daily','weekly','tower'].map(id => url(`school/assets/dungeon-${id}.png?v=${RELEASE}`));
@@ -30,7 +30,7 @@ self.addEventListener('install', event => {
     const html = await (await cache.match(shell)).text();
     const engine = await (await cache.match(url(`school/engine.js?v=${RELEASE}`))).text();
     // A CDN rollout must not activate an old HTML with a new offline engine.
-    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*16\b/.test(engine)) {
+    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*17\b/.test(engine)) {
       await caches.delete(CACHE); throw Error('School release is not ready');
     }
   })());

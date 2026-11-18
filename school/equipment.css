@@ -83,3 +83,6 @@ html[data-motion=reduced] .gear-merge-card,html[data-motion=reduced] .gear-new-s
 .gear-detail-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-right:3px}
 .gear-detail .gear-actions{flex:none;border-top:1px solid var(--line);padding-top:7px;margin-top:7px}
 .gear-actions:has(#gear-unequip:not([hidden])) #gear-equip{display:none}
+.gear-EX{--gear-color:#e3a4d8;--gear-tint:#c788c521}
+.gear-exclusive{font-size:12px;line-height:1.7;white-space:pre-line;padding:9px;border:1px solid var(--gear-color);border-radius:5px;color:var(--ink);background:var(--gear-tint);margin:8px 0}
+.gear-exclusive[hidden]{display:none}

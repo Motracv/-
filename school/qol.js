@@ -80,7 +80,7 @@ window.SchoolQoL = (() => {
       if(!G.farmingFingerprint||!window.Worker){text($('farm-preview-status'),'이 브라우저에서는 파밍 계산을 지원하지 않아요. 모험 지도에서 지역을 직접 선택해 주세요.');$('farm-preview-progress').hidden=true;return;}
       text($('farm-preview-status'),'현재 편성으로 전투를 계산하고 있어요…');$('farm-preview-progress').hidden=false;$('farm-preview-progress').value=0;disabled($('farm-preview-retry'),true);
       try{
-        worker=new Worker('school/farming-worker.js?v=school-panels1');
+        worker=new Worker('school/farming-worker.js?v=school-weapons1');
         worker.onmessage=event=>{
           const msg=event.data;if(!active('farm-recommend')||!preview||msg.id!==id||preview.id!==id)return;
           if(owner!==scope()||key!==fingerprint()||(msg.kind!=='error'&&msg.fingerprint!==key))return invalidatePreview();
@@ -98,10 +98,10 @@ window.SchoolQoL = (() => {
       disabled($('farm-preview-retry'),!!worker||blocked());
       document.querySelectorAll('[data-farm-start]').forEach(button=>disabled(button,blocked()||ctx.activityActive()||!!state().battle.activity));
     }
-    function eventRows(){return `<div class="qol-event-list" aria-label="모집과 이벤트 기간">${['horas','osia','lava'].map(id=>`<div><span>${esc(G.BANNERS[id].name)}</span><b data-qol-countdown="${id}"></b></div>`).join('')}<div><span>겨울 이벤트</span><b data-qol-countdown="winter"></b></div></div>`;}
+    function eventRows(){return `<div class="qol-event-list" aria-label="모집과 이벤트 기간">${['horas','osia','lava'].map(id=>`<div><span>${esc(G.BANNERS[id].name)}</span><b data-qol-countdown="${id}"></b></div>`).join('')}<div><span>호라스 전용 무기</span><b data-qol-countdown="weapon-horas"></b></div><div><span>겨울 이벤트</span><b data-qol-countdown="winter"></b></div></div>`;}
     function refreshCountdowns(){
       if(document.hidden)return;const now=ctx.serverNow();
-      for(const label of document.querySelectorAll('[data-qol-countdown]')){if(!label.getClientRects().length)continue;const id=label.dataset.qolCountdown,banner=G.BANNERS[id],expiry=banner?banner.expiresAt:G.WINTER_EVENT?.endsAt??null;const remaining=countdown(expiry,now,!!banner&&!banner.limited);text(label,remaining.text);if(label.dataset.ended!==String(remaining.ended))label.dataset.ended=String(remaining.ended);}
+      for(const label of document.querySelectorAll('[data-qol-countdown]')){if(!label.getClientRects().length)continue;const id=label.dataset.qolCountdown,banner=id.startsWith('weapon-')?G.WEAPON_BANNERS[id.slice(7)]:G.BANNERS[id],expiry=banner?banner.expiresAt:G.WINTER_EVENT?.endsAt??null;const remaining=countdown(expiry,now,!!banner&&!banner.limited);text(label,remaining.text);if(label.dataset.ended!==String(remaining.ended))label.dataset.ended=String(remaining.ended);}
       const version=window.SchoolPatchNotes?.version;let read=false;try{read=localStorage.getItem('school-patch-read')===version;}catch{}
       for(const badge of document.querySelectorAll('[data-patch-unread]'))if(badge.hidden!==read)badge.hidden=read;
     }

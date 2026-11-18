@@ -333,41 +333,64 @@ window.SchoolArt = (() => {
     c.save();c.translate(x,y);c.rotate(rotation);c.fillStyle='#fff2bb';c.beginPath();
     for(let i=0;i<8;i++){const a=i*Math.PI/4,rr=i%2?r*.23:r;c.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}c.closePath();c.fill();c.restore();
   }
-  function horasPose(frame) {
-    if(frame.dead)return 0;
-    const cast=frame.horasCastAge;
-    if(Number.isFinite(cast)&&cast>=0&&cast<2.12) return frame.reduced?cast<1.5?9:10:cast<.32?7:cast<.92?8:cast<1.48?9:cast<1.85?10:6;
-    if(frame.hit)return 11;
-    const age=frame.attackAge;
-    if(Number.isFinite(age)&&age>=0&&age<1.05){const start=frame.horasBasicPose===2?4:1;return frame.reduced?start+1:age<.25?start:age<.60?start+1:start+2;}
-    return 0;
+  // Pose changes have distinct anticipation, acceleration and recovery beats.
+  // This is presentation time only: damage, cooldowns and network clocks never pause.
+  function horasMotion(frame) {
+    const m={pose:0,x:0,y:0,lean:0,sx:1,sy:1,trail:0,cloth:0};
+    if(frame.dead)return m;
+    const ease=t=>{t=clamp01(t);return 1-(1-t)*(1-t)*(1-t);};
+    const mix=(a,b,t)=>a+(b-a)*t,cast=frame.horasCastAge,age=frame.attackAge,second=frame.horasBasicPose===2;
+    if(Number.isFinite(cast)&&cast>=0&&cast<2.45){
+      let t=cast;
+      // A short held release pose gives the impact weight without dropping frames.
+      if(t>=1.5&&t<1.565)t=1.5;
+      if(t<.28){const p=ease(t/.28);Object.assign(m,{pose:7,x:-3*p,y:2*p,lean:-.075*p,sx:1+.035*p,sy:1-.045*p});}
+      else if(t<.82){const p=ease((t-.28)/.54);Object.assign(m,{pose:8,x:mix(-3,-1,p),y:mix(2,-5,p),lean:mix(-.075,-.025,p),sy:1+.025*p});}
+      else if(t<1.38){const p=ease((t-.82)/.56);Object.assign(m,{pose:9,x:mix(-1,1.5,p),y:mix(-5,-10,p),lean:-.04,sy:1.035});}
+      else if(t<1.5){const p=ease((t-1.38)/.12);Object.assign(m,{pose:10,x:mix(1.5,7,p),y:mix(-10,-1,p),lean:mix(-.04,.14,p),sx:1+.035*p,sy:1-.045*p,trail:1-p*.4});}
+      else if(t<1.9){const p=clamp01((t-1.565)/.335);Object.assign(m,{pose:10,x:mix(7,3,ease(p)),y:Math.sin(p*Math.PI)*2.1-1*(1-p),lean:.14*(1-p),sx:1+.045*Math.sin(p*Math.PI),sy:1-.07*Math.sin(p*Math.PI)});}
+      else{const p=ease((t-1.9)/.55);Object.assign(m,{pose:t<2.27?6:0,x:3*(1-p),y:-Math.sin(p*Math.PI)*.7,lean:.025*Math.sin(p*Math.PI)});}
+      m.cloth=Math.sin(t*7-.7)*(t<1.5?1:Math.max(0,(2.45-t)/.95));
+    }else if(Number.isFinite(age)&&age>=0&&age<1.18){
+      const first=second?4:1;
+      if(age<.18){const p=ease(age/.18);Object.assign(m,{pose:first,x:-2.6*p,y:1.1*p,lean:-.07*p,sx:1-.025*p,sy:1-.025*p});}
+      else if(age<.34){const p=ease((age-.18)/.16);Object.assign(m,{pose:first+1,x:mix(-2.6,second?3.5:6,p),y:mix(1.1,second?-3.5:-.8,p),lean:mix(-.07,second?-.065:.10,p),trail:Math.sin(p*Math.PI)*.55});}
+      else{const p=ease((age-.34)/.84),wave=Math.sin(p*Math.PI);Object.assign(m,{pose:age<.91?first+2:0,x:(second?3.5:6)*(1-p),y:(second?-3.5:-.8)*(1-p)-wave*.6,lean:(second?-.065:.10)*(1-p),sy:1+.018*wave});}
+      m.cloth=Math.sin(age*8-1)*(1-clamp01((age-.35)/.83));
+    }else if(frame.hit){m.pose=11;m.x=-1.5;}
+    else m.y=Math.sin((frame.time||0)*1.7)*.35;
+    if(frame.reduced)return {...m,x:0,y:0,lean:0,sx:1,sy:1,trail:0,cloth:0};
+    return m;
   }
+  function horasPose(frame) { return horasMotion(frame).pose; }
   function horas(c,x,y,scale,frame={}){
     c.save();c.translate(x,y);c.scale(scale*(frame.flip?-1:1),scale);
     if(frame.dead){c.globalAlpha*=.4;c.rotate(-Math.PI/2);}
     rect(c,'#26333b35',-9,1+(frame.shadowY||0),20,2);
-    const cast=frame.horasCastAge,active=Number.isFinite(cast)&&cast>=0&&cast<2.12,age=frame.attackAge,attack=Number.isFinite(age)&&age>=0&&age<1.05;
+    const cast=frame.horasCastAge,active=Number.isFinite(cast)&&cast>=0&&cast<2.45,age=frame.attackAge,attack=Number.isFinite(age)&&age>=0&&age<1.18;
     const wave=frame.reduced||frame.dead||!active&&!attack?0:Math.sin(clamp01((active?cast:age)/(active?1.5:1.05))*Math.PI);
     const breath=frame.reduced||active||attack||frame.dead?0:Math.sin((frame.time||0)*1.7)*.35;
-    const merge=active?clamp01((cast-.25)/.7):0,stacks=frame.dead?0:active&&cast<1?5:Math.min(5,Math.max(0,frame.horasStacks||0));
+    const merge=active?clamp01((cast-.22)/.63):0,stacks=frame.dead?0:active&&cast<1?5:Math.min(5,Math.max(0,frame.horasStacks||0));
     // The stack halo is behind her back, not a screen HUD effect. During the
     // fusion the same five visible orbs converge into her cupped hands.
     for(let i=0;i<stacks;i++){
       const p=HORAS_ORBS[i],t=active?merge*merge:0,bob=frame.reduced||active?0:Math.sin((frame.time||0)*2+i)*.65;
-      const xx=p.x+(11-p.x)*t,yy=p.y+(-27-p.y)*t+bob;
+      const spin=frame.reduced?0:active?cast*3.5:(frame.time||0)*.24,
+        orbitX=p.x+(active?Math.sin(spin+i*1.25)*7:Math.sin(spin+i)*1.3),orbitY=p.y+(active?Math.cos(spin+i*1.25)*5:0);
+      const xx=orbitX+(11-orbitX)*t,yy=orbitY+(-27-orbitY)*t+bob;
       c.save();c.globalAlpha*=active?1-merge*.4:.82;
       if(active&&!frame.reduced){c.strokeStyle='#f6c7df55';c.lineWidth=.65;c.beginPath();c.moveTo(p.x,p.y);c.quadraticCurveTo(p.x-5,p.y-12,xx,yy);c.stroke();}
       horasGlow(c,xx,yy,active?8:5.5,.72);c.strokeStyle='#ffe0d6';c.lineWidth=.55;c.beginPath();c.arc(xx,yy,active?4:3.5,0,Math.PI*2);c.stroke();
       blossom(c,xx,yy,active?3.1:2.5,(frame.reduced?0:(frame.time||0)*.2)+i);c.restore();
     }
-    const pose=horasPose(frame);let offset=frame.reduced?0:wave*(frame.horasBasicPose===2?-1.2:1.7),lift=breath,lean=0;
-    if(active&&!frame.reduced){
-      if(cast<.32){const p=clamp01(cast/.32);offset=-1.8*p;lift=1.4*p;lean=-.035*p;}
-      else if(cast<.92){const p=clamp01((cast-.32)/.6);offset=-1.8+p;lift=1.4-2.2*p;lean=-.035*(1-p);}
-      else if(cast<1.48){const p=clamp01((cast-.92)/.56);offset=-.8+2.8*p;lift=-.8-Math.sin(p*Math.PI/2)*2.7;lean=-.025;}
-      else{const p=clamp01((cast-1.48)/.64),strike=Math.sin(clamp01(p/.32)*Math.PI/2)*(1-clamp01((p-.32)/.68));offset=2*(1-p)+4*strike;lift=-3.5*(1-clamp01(p/.2))+1.2*strike;lean=.055*strike;}
+    const motion=horasMotion(frame),pose=motion.pose;
+    c.translate(motion.x,motion.y);c.rotate(motion.lean);c.scale(motion.sx,motion.sy);
+    if(!frame.reduced&&!frame.dead&&(active||attack)){
+      // Small trailing strokes sit behind the existing long ponytail and ribbons.
+      c.save();c.lineCap='round';c.strokeStyle='#db8dbd';c.lineWidth=1.6;
+      c.beginPath();c.moveTo(-7,-35);c.bezierCurveTo(-20,-34,-13-motion.cloth*3,-17,-20-motion.cloth*2,-15);c.stroke();
+      c.strokeStyle='#bfc9ee';c.lineWidth=1.2;c.beginPath();c.moveTo(-5,-20);c.bezierCurveTo(-13,-16,-16-motion.cloth*3,-8,-24-motion.cloth*2,-9);c.stroke();c.restore();
     }
-    c.translate(offset,lift);if(lean)c.rotate(lean);
     if(horasLoaded){
       const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d));
       const resolution=density>4?6:density>2?4:2,key=`${pose}:${resolution}`;
@@ -381,6 +404,7 @@ window.SchoolArt = (() => {
         while(horasPoses.size&&horasPosePixels+source.width*source.height>2*1024*1024){const k=horasPoses.keys().next().value,old=horasPoses.get(k);horasPosePixels-=old.width*old.height;horasPoses.delete(k);}
         horasPoses.set(key,source);horasPosePixels+=source.width*source.height;
       }
+      if(motion.trail&&!frame.reduced){c.save();c.globalAlpha*=motion.trail*.22;c.drawImage(source,-HORAS_ATLAS.footX*unit-3,3-HORAS_ATLAS.footY*unit+1,w,h);c.restore();}
       c.drawImage(source,-HORAS_ATLAS.footX*unit,3-HORAS_ATLAS.footY*unit,w,h);
     }else{
       // A recognisable, readable fallback while optional art is loading.
@@ -449,10 +473,10 @@ window.SchoolArt = (() => {
       const a=time-e.time;if(a<0)continue;
       if(e.kind==='horas-basic'&&a<.9){
         const to=positions[e.to];if(!to)continue;
-        const p=clamp01((a-.15)/.55),f=1-clamp01((a-.65)/.25),direction=e.pose===2?-1:1;
+        const p=clamp01((a-.18)/.4),f=1-clamp01((a-.65)/.25),direction=e.pose===2?-1:1;
         c.save();c.globalAlpha*=f;c.strokeStyle='#edacd9';c.lineWidth=2;
-        c.beginPath();c.ellipse(source.x+11,source.y-35,20,14,direction*.25,-1.8+direction*a*3,.5+direction*a*3);c.stroke();
-        if(a>.15){const x=source.x+16+(to.x-source.x-16)*p,y=source.y-36+(to.y-29-source.y+36)*p-Math.sin(p*Math.PI)*9*direction;horasStar(c,x,y,4.4,reduced?0:a*3);if(!reduced)for(let i=1;i<(economy?2:4);i++)blossom(c,x-i*5,y+Math.sin(i+a*5)*3,1.7,a+i);}
+        if(a>.15&&a<.48){c.save();c.globalAlpha*=Math.sin(clamp01((a-.15)/.33)*Math.PI);c.beginPath();c.ellipse(source.x+11,source.y-35,e.pose===2?24:20,e.pose===2?19:11,direction*.35,-1.8+direction*a*3,.5+direction*a*3);c.stroke();c.restore();}
+        if(a>.18){const x=source.x+16+(to.x-source.x-16)*p,y=source.y-36+(to.y-29-source.y+36)*p-Math.sin(p*Math.PI)*9*direction;horasStar(c,x,y,4.4,reduced?0:a*3);if(!reduced)for(let i=1;i<(economy?2:4);i++)blossom(c,x-i*5,y+Math.sin(i+a*5)*3,1.7,a+i);}
         c.restore();
       }else if(e.kind==='horas-impact'&&a<1.2){
         const p=positions[e.targetId];if(!p)continue;
@@ -460,6 +484,7 @@ window.SchoolArt = (() => {
         c.save();c.globalAlpha*=fade;
         horasSeal(c,hitX,skyY,69*scale,a+1.5,reduced);
         if(a<.46){const strength=1-clamp01(a/.46),beam=(reduced?22:e.missed?30:42+Math.sin(clamp01(a/.25)*Math.PI)*15)*scale;c.save();c.globalAlpha*=strength*(e.missed?.58:1);c.imageSmoothingEnabled=true;c.drawImage(horasFx('beam'),hitX-beam,skyY,beam*2,p.y-skyY);if(!e.missed){c.fillStyle='#fff6e4';c.fillRect(hitX-2.6*scale,skyY,5.2*scale,p.y-skyY);c.fillStyle='#ffdef0b3';c.fillRect(hitX-7*scale,skyY,1.1*scale,p.y-skyY);c.fillRect(hitX+6*scale,skyY,1.1*scale,p.y-skyY);}c.restore();}
+        if(!reduced&&a<.5){c.save();c.globalAlpha*=.5*(1-a/.5);c.strokeStyle='#e7b8db';c.lineWidth=.8;c.beginPath();c.ellipse(source.x+5,source.y+2,8+a*27,2+a*6,0,0,Math.PI*2);c.stroke();c.restore();}
         if(e.missed){
           // A miss falls in empty space. No blossom impact, splash, ground
           // shockwave or new mark may visually imply that the enemy was hit.
@@ -1447,9 +1472,9 @@ window.SchoolArt = (() => {
       if (event.kind === "skill" && age < .8) actor(event.from).casting = true;
       if (event.kind === "skill-stage" && event.from === "osia" && age < (event.stage === 4 ? 1.8 : 1.1) + (event.cinematicDuration || 0) / 1000) actor("osia").combo = event;
       if (event.kind === "lava-skill" && age < 1.8) actor("lava").combo = event;
-      if (event.kind === "horas-basic" && age < 1.1) actor("horas").basic = event;
+      if (event.kind === "horas-basic" && age < 1.18) actor("horas").basic = event;
       if (event.kind === "horas-cast" && age < 1.8) actor("horas").horasCast = event;
-      if (event.kind === "horas-impact" && age < .62) actor("horas").horasImpact = event;
+      if (event.kind === "horas-impact" && age < .95) actor("horas").horasImpact = event;
       if ((event.kind === "guard" || event.kind === "rescue") && event.from === "lava" && age < 1.45) actor("lava").passive = event;
     }
     // Only a critical impact nudges the combat layer (never the DOM or camera

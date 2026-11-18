@@ -1,7 +1,15 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-panels1',
+  version:'school-weapons1',
   entries:Object.freeze([
+    {version:'school-weapons1',date:'2026.11.18',title:'전용 무기 · 호라스 모션',items:[
+      '호라스의 두 가지 평타, 다섯 구슬 집결, 부유·내려찍기·착지 동작을 새로 다듬었어요.',
+      '오시아·라바 캐릭터 모집은 1회 100보석, 10회 1,000보석이에요. 호라스 UR은 160/1,600보석을 유지해요.',
+      '모집 → 무기에서 오시아·라바 상시 전무와 호라스 한정 전무를 만나세요. 1회 100보석, 10회 1,000보석이에요.',
+      '전무는 기본 1%, 60회부터 확률 상승, 80회 선택 전무 확정이며 픽뚫이 없어요. 상시 천장은 공유하고 한정 천장은 별도 이월돼요.',
+      '전용 캐릭터에게 장착하면 추가 패시브가 발동해요. 레벨업 없이 중복으로 5각성하며 착용한 사본은 보호해요.',
+      '호라스 전무는 한국 시간 12월 2일 23:59까지예요. 전무는 던전 일반 장비와 별개예요.'
+    ]},
     {version:'school-panels1',date:'2026.11.18',title:'한눈에 보는 아레나와 장비',items:[
       '아레나 메뉴를 짧게 정리하고, 내 정보와 대전 목록을 나누어 보여줘요.',
       '장비 부위 탭을 보관함 옆으로 옮겨 설명과 능력치를 더 넓게 읽을 수 있어요.',

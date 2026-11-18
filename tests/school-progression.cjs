@@ -9,7 +9,7 @@ function reject(s,input,now=s.at){const old=G.clone(s);assert.throws(()=>G.actio
 function win(s,boss=false){s.battle.boss=boss;s.mode='farm';for(const h of s.battle.heroes){h.atk=1000000;h.hp=h.max=1000000;}for(const e of s.battle.enemies){e.hp=1;e.stunUntil=1000000;}G.advance(s,s.at+1000);assert.equal(s.battle.phase,'victory');}
 function next(s){G.action(s,{kind:'stage',stage:1,mode:'farm'},s.at);}
 test('Catalog 16 preserves only current prices and new code definitions; legacy save migration never credits currency',()=>{
-  assert.equal(G.CATALOG_VERSION,16);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
+  assert.equal(G.CATALOG_VERSION,17);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
   const s=make();delete s.quests;s.kills=500000;s.pulls=10000;s.best=60;s.captain={level:50,xp:1234};s.claimed=G.QUESTS.map(q=>q.id);s.redeemedCodes=['OSIA_DEBUT','BUG_FIX','LAVA_DEBUT','THANK_YOU','MAJORUPDATE'];
   const old=G.clone(s);assert(G.validate(s));const projected=board(s);assert.equal(projected.items.length,77);assert.equal(projected.items.filter(q=>q.category==='stage'&&q.ready).length,60);assert(projected.items.filter(q=>['repeat','daily'].includes(q.category)).every(q=>q.value===0));assert.deepEqual(s,old);
   G.advance(s,s.at);for(const key of ['gold','gems','units','captain','banners','claimed','redeemedCodes'])assert.deepEqual(s[key],old[key]);assert.deepEqual(s.quests.repeat,{kills:0,waves:0,bosses:0});assert(G.validate(s));

@@ -17,7 +17,7 @@ const G=require('../school/engine.js');
  });
  await test('Client-supplied currency, time, account and draw results are ignored',async()=>{
    const ra=await call(a,'state',{gold:1e12,state:{gems:1e12},now:Date.now()+1e12,accountId:b.profile.id});assert.equal(ra.status,200);assert.equal(ra.data.state.gems,1800);assert.equal(ra.data.state.offline.seconds,0);
-   const r=await call(a,'action',{...action(ra.data.revision,'server-owned-action-01',{kind:'recruit',count:1,gems:1e12,results:[{id:'lumi'}]}),accountId:b.profile.id});assert.equal(r.status,200);assert.equal(r.data.state.gems,1640);assert.equal(r.data.state.pulls,1);assert.equal(JSON.parse(save(b).payload).pulls,0);
+   const r=await call(a,'action',{...action(ra.data.revision,'server-owned-action-01',{kind:'recruit',count:1,gems:1e12,results:[{id:'lumi'}]}),accountId:b.profile.id});assert.equal(r.status,200);assert.equal(r.data.state.gems,1700);assert.equal(r.data.state.pulls,1);assert.equal(JSON.parse(save(b).payload).pulls,0);
  });
  await test('Old browser catalogs are rejected before spending or exposing unfamiliar heroes',async()=>{
    const row=save(a);const old=await t.call('/api/school/action',action(row.revision,'outdated-browser-0001',{kind:'recruit',count:10}),null,{'X-Account-Session':a.token});assert.equal(old.status,426);assert.equal(save(a).payload,row.payload);assert.ok(!old.data.state);
@@ -26,8 +26,8 @@ const G=require('../school/engine.js');
  });
  await test('Simultaneous same-ID requests and lost-response retries charge once',async()=>{
    const current=await call(a,'state');const input=action(current.data.revision,'same-action-0000000002',{kind:'recruit',count:10});
-   const results=await Promise.all([call(a,'action',input),call(a,'action',input)]);results.forEach(r=>assert.equal(r.status,200));assert.equal(results[0].data.state.gems,40);assert.deepEqual(results[0].data.result,results[1].data.result);
-   const again=await call(a,'action',input);assert.equal(again.data.repeated,true);assert.equal(again.data.state.pulls,11);assert.equal(again.data.state.gems,40);
+   const results=await Promise.all([call(a,'action',input),call(a,'action',input)]);results.forEach(r=>assert.equal(r.status,200));assert.equal(results[0].data.state.gems,700);assert.deepEqual(results[0].data.result,results[1].data.result);
+   const again=await call(a,'action',input);assert.equal(again.data.repeated,true);assert.equal(again.data.state.pulls,11);assert.equal(again.data.state.gems,700);
  });
  await test('Distinct simultaneous spending actions conflict instead of overwriting',async()=>{
    const current=await call(a,'state');const rs=await Promise.all(['A','B'].map(id=>call(a,'action',action(current.data.revision,'parallel-action-000'+id,{kind:'train',hero:'harin'}))));
@@ -58,7 +58,7 @@ const G=require('../school/engine.js');
    const prepare=t.db.prepare;let drop=true;
    t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return {bind(...args){const bound=statement.bind(...args);return {...bound,async run(){const r=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return r;}};}};};
    const lost=await call(b,'action',intent);assert.equal(lost.status,503);t.db.prepare=prepare;
-   const recovered=await call(b,'action',intent);assert.equal(recovered.status,200);assert.equal(recovered.data.repeated,true);assert.equal(recovered.data.state.gems,before-160);
+   const recovered=await call(b,'action',intent);assert.equal(recovered.status,200);assert.equal(recovered.data.repeated,true);assert.equal(recovered.data.state.gems,before-100);
  });
  await test('Real persisted payload remains valid after requests and excludes personal Google claims',async()=>{
    const payload=save(b).payload;assert.ok(G.validate(JSON.parse(payload)));assert.ok(!payload.includes('never-store@example.test'));assert.ok(!payload.includes(b.token));
@@ -68,7 +68,7 @@ const G=require('../school/engine.js');
    const random=crypto.getRandomValues;let n=0;
    crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=4294967;return array;}return random.call(crypto,array);};
    let r;try{r=await call(who,'action',action(current.data.revision,'server-osia-draw-001',{kind:'recruit',count:1}));}finally{crypto.getRandomValues=random;}
-   assert.equal(r.status,200);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.gems,1640);
+   assert.equal(r.status,200);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.gems,1700);
    r=await call(who,'action',action(r.data.revision,'server-osia-team-001',{kind:'team',team:['taeo','osia','sua']}));assert.equal(r.status,200);
    const again=(await t.login('school-Osia')).data;r=await call(again,'state');assert.equal(r.data.state.team[1],'osia');assert.equal(r.data.state.units.osia.level,1);
    r=await call(again,'action',action(r.data.revision,'server-osia-train-01',{kind:'train',hero:'osia'}));assert.equal(r.status,200);assert.equal(r.data.state.units.osia.level,2);
@@ -112,7 +112,7 @@ const G=require('../school/engine.js');
      let r=await draw('osia','server-banner-miss-01',[.001,.99]);assert.ok(['ian','lumi'].includes(r.data.result.results[0].id));assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
      r=await draw('lava','server-banner-lava-01',[.001,.001]);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
      const again=(await t.login('school-banners')).data;current=await call(again,'state');assert.equal(current.data.state.banners.osia.guaranteed,true);assert.equal(current.data.state.units.lava.level,1);
-     r=await draw('osia','server-banner-guarantee',[.001,.99]);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.banners.osia.guaranteed,false);assert.equal(r.data.state.gems,9520);assert.equal(r.data.state.pity,0);assert.equal(r.data.state.banners.lava.pity,0);
+     r=await draw('osia','server-banner-guarantee',[.001,.99]);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.banners.osia.guaranteed,false);assert.equal(r.data.state.gems,9700);assert.equal(r.data.state.pity,0);assert.equal(r.data.state.banners.lava.pity,0);
      const row=save(who);assert.equal((await call(who,'action',action(row.revision,'server-banner-invalid',{kind:'recruit',banner:'constructor',count:1}))).status,400);assert.equal(save(who).payload,row.payload);
    }finally{Date.now=realNow;crypto.getRandomValues=random;}
  });
@@ -136,7 +136,7 @@ const G=require('../school/engine.js');
      t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
      const lost=await call(who,'action',intent);assert.equal(lost.status,503);t.db.prepare=prepare;now+=2;
      const retries=await Promise.all([call(who,'action',intent),call(who,'action',intent)]);
-     for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.gems,1640);assert.equal(r.data.state.pulls,1);assert.deepEqual(r.data.state.banners.lava,{pity:0,guaranteed:false});assert.deepEqual(r.data.state.banners.osia,{pity:61,guaranteed:true});}
+     for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.gems,1700);assert.equal(r.data.state.pulls,1);assert.deepEqual(r.data.state.banners.lava,{pity:0,guaranteed:false});assert.deepEqual(r.data.state.banners.osia,{pity:61,guaranteed:true});}
      const row=save(who);assert.equal((await call(who,'action',action(row.revision,'limited-guarantee-new',{kind:'recruit',banner:'lava',count:1}))).status,400);assert.equal(save(who).payload,row.payload);
    }finally{t.db.prepare=prepare;Date.now=realNow;crypto.getRandomValues=random;}
  });

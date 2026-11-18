@@ -20,6 +20,7 @@ function initialState(){
  const s=G.create(Date.now(),991);s.team=process.env.SCHOOL_CLOUD_PERF_HORAS==='1'?['taeo','horas','sua','osia','lava','ian']:['taeo','harin','sua','osia','lava','ian'];s.gold=12345;s.gems=6789;s.best=31;s.speed=1.5;
  for(const id of s.team)s.units[id]={level:60,xp:0,stars:2,shards:0,nextSkill:id==='osia'?4:1};
  if(process.env.SCHOOL_CLOUD_PERF_EQUIPMENT==='1')s.equipment={inventory:Object.fromEntries(['dawn_staff','guardian_robe','dawn_brooch'].map(id=>[id,{count:s.team.length,stars:5}])),equipped:Object.fromEntries(s.team.map(id=>[id,{weapon:'dawn_staff',armor:'guardian_robe',charm:'dawn_brooch'}]))};
+ if(process.env.SCHOOL_CLOUD_PERF_SIGNATURES==='1')for(const id of ['horas','osia','lava']){const item=G.WEAPON_BANNERS[id].item;s.equipment.inventory[item]={count:1,stars:5};s.equipment.equipped[id]={...(s.equipment.equipped[id]||{}),weapon:item};}
  G.action(s,{kind:'stage',stage:31,mode:'farm'},s.at);
  for(let i=0;i<100&&s.battle.wave<4;i++){if(s.battle.phase==='fight')s.battle.enemies.forEach(e=>e.hp=0);G.advance(s,s.at+500);}
  assert.equal(s.battle.wave,4);assert.equal(s.battle.boss,true);

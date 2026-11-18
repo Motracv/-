@@ -26,7 +26,7 @@ test('SSR pity triggers on the eightieth draw and resets; 10 pulls guarantee SR+
   assert.equal(s.pity, 79); const result = G.action(s, {kind:'recruit',count:1},1000, () => .9);
   assert.equal(G.BY_ID[result.results[0].id].rarity, 'SSR'); assert.equal(s.pity, 0);
   const t = G.create(1000), ten = G.action(t, {kind:'recruit',count:10},1000, () => .9);
-  assert.equal(ten.results.length, 10); assert.equal(t.gems, 200); assert.equal(ten.results.filter(r => G.BY_ID[r.id].rarity !== 'R').length, 1);
+  assert.equal(ten.results.length, 10); assert.equal(t.gems, 800); assert.equal(ten.results.filter(r => G.BY_ID[r.id].rarity !== 'R').length, 1);
 });
 test('Soft pity starts exactly at draw 60, rises one percentage point, and caps at an SSR on 80',()=>{
   for(const [misses,expected] of [[0,.01],[39,.01],[58,.01],[59,.02],[60,.03],[69,.12],[78,.21],[79,1]]){

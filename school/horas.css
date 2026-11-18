@@ -151,3 +151,43 @@ html[data-theme=dark] .app .hero-card.UR,html[data-theme=dark] .result-card.UR {
 .app .pickup-screen .pickup-preview>span { align-self:flex-end; }
 /* The preview label must never cover the illustrated face. */
 .app .pickup-screen .pickup-preview>span { position:absolute; top:8px; right:10px; bottom:auto; }
+
+/* Character and signature-weapon categories share a stable, compact layout. */
+.pickup-categories{display:flex;gap:3px;flex:none;background:#131627;border:1px solid #79617b;border-radius:6px;padding:2px}
+.app .pickup-categories button{min-height:44px;min-width:60px;padding:7px 12px;font-size:13px;border-radius:4px;color:#c9bad1;background:transparent}
+.app .pickup-categories button[aria-pressed=true]{background:#6c4967;color:#fff0d8}
+.app #tab-recruit[data-recruit-category=weapons]{background:radial-gradient(ellipse at 72% 40%,#5a3c7066,transparent 44%),linear-gradient(125deg,#10192c,#24253e 60%,#152c3c)}
+.app #tab-recruit[data-recruit-category=weapons][data-pickup=osia]{background:radial-gradient(ellipse at 72% 40%,#318d9c55,transparent 44%),linear-gradient(125deg,#111e30,#173c4a)}
+.app #tab-recruit[data-recruit-category=weapons][data-pickup=lava]{background:radial-gradient(ellipse at 72% 40%,#9cbfaa44,transparent 44%),linear-gradient(125deg,#14222c,#293d46)}
+.app #tab-recruit[data-recruit-category=weapons] .pickup-copy{width:50%;max-width:760px}
+.app #tab-recruit[data-recruit-category=weapons] .pickup-hero-title strong{font-size:clamp(24px,4vw,60px);letter-spacing:-1px}
+.weapon-spotlight{position:absolute;inset:0 4% 0 51%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;border:0;background:none;color:#f6dfc5;isolation:isolate}
+.weapon-spotlight[hidden]{display:none!important}.weapon-spotlight img{position:relative;max-height:75%;width:auto;height:min(70%,360px);max-width:85%;object-fit:contain;image-rendering:pixelated;z-index:1;animation:weapon-hover 5s ease-in-out infinite}
+.weapon-spotlight>span:last-child{position:relative;padding:10px 14px;min-height:44px;border:1px solid #bca2c17a;background:#171c33bd;border-radius:5px;font-size:13px;z-index:1}
+.weapon-orbit{position:absolute;top:50%;left:50%;width:min(76%,460px);aspect-ratio:1;border:1px solid #e9bdcc66;border-radius:50%;box-shadow:0 0 0 20px #cda3d00b,0 0 0 42px #cda3d008;transform:translate(-50%,-50%) rotateX(35deg);pointer-events:none}
+.weapon-detail-card{display:flex;gap:16px;align-items:center;padding:12px;border:1px solid var(--gear-color);background:var(--gear-tint);border-radius:7px;color:var(--ink)}
+.weapon-detail-card img{width:96px;height:96px;image-rendering:pixelated}.weapon-detail-card b{font-size:14px}.weapon-detail-card p{font-size:12px;line-height:1.6}
+.weapon-result-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:12px}
+.weapon-result-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:9px 5px;border:1px solid var(--gear-color);background:var(--gear-tint);border-radius:6px;color:var(--ink);min-width:0;animation:weapon-card-in .35s both;animation-delay:var(--delay,0ms)}
+.weapon-result-card img{width:52px;height:52px;image-rendering:pixelated}.weapon-result-card b{font-size:11px;line-height:1.5}.weapon-result-card small{color:var(--gear-color);font-size:11px}.weapon-result-card>span{font-size:10px;color:var(--muted)}
+.weapon-reveal-hero{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px;border:1px solid var(--gear-color);border-radius:8px;background:radial-gradient(ellipse,#68507888,var(--cream) 75%)}
+.weapon-reveal-hero img{width:125px;height:125px;image-rendering:pixelated;z-index:1;animation:weapon-arrive .75s cubic-bezier(.17,.84,.3,1.1) both}.weapon-reveal-hero>b{font-size:20px;z-index:1;color:var(--ink)}.weapon-reveal-hero>span:last-child{font-size:12px;color:var(--muted);z-index:1}
+.weapon-reveal-ring{position:absolute;width:160px;height:160px;top:2px;border:2px solid #f7dfbb;border-radius:50%;box-shadow:0 0 0 10px #d29bd52b,0 0 0 23px #e8c4ce1a;animation:weapon-ring 1s ease-out both;pointer-events:none}
+@keyframes weapon-hover{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-5px) rotate(2deg)}}
+@keyframes weapon-arrive{from{opacity:0;transform:translateY(22px) scale(.5) rotate(-12deg)}to{opacity:1;transform:none}}
+@keyframes weapon-ring{from{opacity:0;transform:scale(.3)}40%{opacity:.9}to{opacity:.3;transform:scale(1.3)}}
+@keyframes weapon-card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(max-height:500px) and (min-width:500px){
+ .pickup-screen-top{gap:7px;padding-inline:10px}.app .pickup-return span{display:none}.app .pickup-return{padding-inline:8px}
+ .app .pickup-categories button{min-width:49px;padding:6px 7px;font-size:12px}
+ .app .pickup-screen .pickup-grid{gap:4px;flex:1}.app .pickup-screen .pickup-select{gap:4px;padding:5px;min-height:44px;font-size:12px}
+ .app .pickup-screen .pickup-select small,.app .pickup-screen .pickup-select .rarity{display:none}
+ .weapon-spotlight{gap:4px}.weapon-spotlight img{height:calc(100% - 48px);max-height:none}.weapon-spotlight>span:last-child{font-size:11px;padding:8px;min-height:44px}
+ .app #tab-recruit[data-recruit-category=weapons] .pickup-hero-title strong{font-size:25px}
+ .weapon-reveal-hero{flex-direction:row;flex-wrap:wrap;justify-content:center;padding:9px}.weapon-reveal-hero img{height:70px;width:70px}.weapon-reveal-hero>b{font-size:17px}
+ .weapon-reveal-ring{top:-40px}.weapon-reveal-hero>span:last-child{font-size:11px}
+ .app .pickup-screen #banner-deadline[data-qol-countdown^=weapon-]{display:block;font-size:10px}
+}
+@media(max-width:600px){.weapon-result-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.weapon-detail-card{gap:9px}.weapon-detail-card img{width:72px;height:72px}}
+html[data-motion=reduced] .weapon-spotlight img,html[data-motion=reduced] .weapon-result-card,html[data-motion=reduced] .weapon-reveal-hero img,html[data-motion=reduced] .weapon-reveal-ring{animation:none}
+@media(prefers-reduced-motion:reduce){.weapon-spotlight img,.weapon-result-card,.weapon-reveal-hero img,.weapon-reveal-ring{animation:none}}

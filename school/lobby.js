@@ -62,7 +62,7 @@ window.SchoolLobby = (() => {
       text('lobby-battle-label', active ? (state.activities?.run?.settled ? '던전 결과 확인' : '던전 전투 보기') : `${game.stageName(state.battle.stage)} · 전투 보기`);
       const questReady = (questBoard?.readyCount ?? game.questReady(state, now)) > 0;
       show('lobby-quest-dot', questReady);
-      show('lobby-recruit-dot', state.gems >= game.RECRUIT_COST[10]);
+      show('lobby-recruit-dot', state.gems >= game.SSR_RECRUIT_COST[10]);
       show('lobby-supply-dot', !!state.offline.seconds || state.daily < game.day(now) || questReady);
     }
     function invalidate() { ready = false; captainId = ''; }

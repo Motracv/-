@@ -1,6 +1,6 @@
 {
   "name": "friends-card-table",
-  "version": "4.5.1",
+  "version": "4.6.0",
   "private": true,
   "scripts": {
     "start": "node server.cjs",
@@ -25,7 +25,9 @@
     "test:school:season": "node tests/school-presets.cjs && node tests/school-farming.cjs && node tests/school-seasons.cjs && node tests/school-seasons-security.cjs && node tests/school-season-polling.cjs",
     "test:school:season-browser": "node tests/school-season1-browser.cjs",
     "test:school:equipment": "node tests/school-equipment.cjs && node tests/school-equipment-server.cjs && node tests/school-equipment-arena.cjs",
-    "test:school:equipment-browser": "node tests/school-equipment-browser.cjs"
+    "test:school:equipment-browser": "node tests/school-equipment-browser.cjs",
+    "test:school:signatures": "node tests/school-signatures.cjs && node tests/school-signatures-server.cjs",
+    "test:school:signatures-browser": "node tests/school-signatures-browser.cjs"
   },
   "engines": {
     "node": ">=20"

@@ -14,7 +14,7 @@ export function simulateArena(game, saves, names, seed) {
     const equipment=game.snapshotEquipment?.(saves[side],saves[side].team);
     if(equipment&&Object.keys(equipment.equipped).length)teams[side].equipment=equipment;
   }
-  const sides = teams.map(team => team.units.map(u => ({...u,energy:0,stage:1,hits:0,stunUntil:0,protectedUntil:0})));
+  const sides = teams.map((team,side) => team.units.map(u => ({...u,...(game.exclusivePassive?.(saves[side],u.id)?{exclusive:game.exclusivePassive(saves[side],u.id)}:{}),energy:0,stage:1,hits:0,stunUntil:0,protectedUntil:0})));
   const H = game.HORAS_RULES;
   // A PvP-only adjustment keeps stack generation and the 1.5x stun combo
   // intact without letting PvE ritual bursts dominate a six-unit duel.
@@ -26,8 +26,8 @@ export function simulateArena(game, saves, names, seed) {
   const alive = side => sides[side].filter(u=>u.hp>0);
   const weakest = side => alive(side).sort((a,b)=>a.hp/a.max-b.hp/b.max)[0];
   const emit = (kind,side,from,targetSide,target,amount,extra={}) => events.push({t,kind,side,from,toSide:targetSide,target:target.id,amount,hp:target.hp,shield:target.shield,...extra});
-  function shield(side,from,target,raw,skill) { const amount=Math.max(0,Math.min(Math.round(raw),Math.floor(target.max*.6)-target.shield));target.shield+=amount;emit('shield',side,from,side,target,amount,{skill}); }
-  function heal(side,from,target,raw,skill) { const amount=Math.min(target.max-target.hp,Math.round(raw*synergy[side].healMultiplier*.75));target.hp+=amount;meter(side,from).healing+=amount;emit('heal',side,from,side,target,amount,{skill}); }
+  function shield(side,from,target,raw,skill) { const amount=Math.max(0,Math.min(Math.round(raw*(from==='lava'?1+(sides[side].find(u=>u.id===from)?.exclusive?.strength||0):1)),Math.floor(target.max*.6)-target.shield));target.shield+=amount;emit('shield',side,from,side,target,amount,{skill}); }
+  function heal(side,from,target,raw,skill) { const caster=sides[side].find(u=>u.id===from),bonus=from==='lava'?caster?.exclusive?.strength||0:0,healing=Math.round(raw*synergy[side].healMultiplier*.75*(1+bonus)),amount=Math.min(target.max-target.hp,healing);target.hp+=amount;meter(side,from).healing+=amount;emit('heal',side,from,side,target,amount,{skill});if(bonus&&skill==='바람의 상처'&&healing>amount)shield(side,from,target,Math.min(caster.atk*.4,(healing-amount)*.15)/(1+bonus),'풍령의 가호'); }
   function addHorasStack(side,amount,source,target) {
     const hero=alive(side).find(u=>u.id==='horas'), progress=horas[side];
     if(!hero||!progress)return 0;
@@ -93,7 +93,7 @@ export function simulateArena(game, saves, names, seed) {
     emit('horas-impact',side,'horas',1-side,target,0,{castId:cast.id,targetId:target.id,missed:cast.missed,targets:cast.missed?[]:victims.map(u=>u.id),skill:'벚꽃의식'});
     if(cast.missed){emit('miss',side,'horas',1-side,target,0,{castId:cast.id});return;}
     for(const enemy of enemies)delete enemy.horasMark;
-    target.horasMark={until:t+H.markMs,castId:cast.id};
+    target.horasMark={until:t+H.markMs+(alive(side).find(u=>u.id==='horas')?.exclusive?2000:0),castId:cast.id};
     emit('horas-mark',side,'horas',1-side,target,0,{until:target.horasMark.until,castId:cast.id});
     for(const enemy of[target,...victims.filter(u=>u!==target)]){
       const saved=cast.targets.find(u=>u.id===enemy.id),primary=enemy===target;
@@ -103,7 +103,7 @@ export function simulateArena(game, saves, names, seed) {
   function act(side,unit) {
     if(unit.hp<=0||unit.stunUntil>t||!alive(1-side).length)return;
     const attack=unit.atk*synergy[side].damageMultiplier*(buffUntil[side]>t?1.3:1)*(t>=45000?1+(t-45000)/15000:1);
-    if(unit.id==='horas'){horasAct(side,unit,attack*horasDamageMultiplier);return;}
+    if(unit.id==='horas'){horasAct(side,unit,attack*horasDamageMultiplier*(1+(unit.exclusive?.strength||0)));return;}
     const def=game.BY_ID[unit.id];unit.energy++;const skill=unit.energy>=def.cooldown;
     if(skill)unit.energy=0;
     if(skill&&unit.id==='lava'){
@@ -116,7 +116,8 @@ export function simulateArena(game, saves, names, seed) {
     if(skill&&unit.role==='지원'){buffUntil[side]=t+3000;emit('shield',side,unit.id,side,unit,0,{skill:def.skill});}
     if(skill&&unit.id==='osia'){
       const stage=unit.stage, name=game.OSIA_SKILLS[stage-1].name;
-      for(const target of alive(1-side)){hit(side,unit.id,target,attack*2.2,name,stage);if(stage===4&&target.hp>0){target.stunUntil=t+1500;emit('stun',side,unit.id,1-side,target,0,{skill:name,duration:1500});}}
+      for(const target of alive(1-side)){hit(side,unit.id,target,attack*2.2*(1+(unit.exclusive?.skill||0)),name,stage);if(stage===4&&target.hp>0){target.stunUntil=t+1500;emit('stun',side,unit.id,1-side,target,0,{skill:name,duration:1500});}}
+      if(stage===4&&unit.exclusive)shield(side,unit.id,unit,unit.atk*.2,'용왕의 해류');
       unit.stage=stage%4+1;return;
     }
     const targets=skill&&unit.role==='마법'?alive(1-side):[skill&&unit.role==='사수'?alive(1-side).sort((a,b)=>a.hp-b.hp)[0]:alive(1-side)[0]];
