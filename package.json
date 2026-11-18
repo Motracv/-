@@ -1,6 +1,6 @@
 {
   "name": "friends-card-table",
-  "version": "4.14.0",
+  "version": "4.15.0",
   "private": true,
   "scripts": {
     "start": "node server.cjs",
@@ -40,6 +40,7 @@
     "test:school:guild-projects": "node tests/school-guild-projects-server.cjs",
     "test:school:profile": "node tests/school-profile-reward.cjs && node tests/school-profile-reward-server.cjs",
     "test:school:yeti": "node tests/school-yeti.cjs && node tests/school-yeti-server.cjs",
+    "test:school:refinement": "node tests/school-refinement.cjs && node tests/school-refinement-server.cjs",
     "test:school:rescue": "node tests/school-rescue-shop.cjs && node tests/school-rescue-ui.cjs && node tests/school-rescue-shop-server.cjs",
     "test:school:winter2": "node tests/school-winter2-rules.cjs && node tests/school-winter2-combat.cjs && node tests/school-winter2-server.cjs && node tests/school-winter2-ui.cjs && node tests/school-winter2-art.cjs",
     "test:school:raid-lifecycle": "node tests/school-raid-lifecycle.cjs"

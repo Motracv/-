@@ -21,7 +21,7 @@ try{
  assert(!(await cmd(b,'state',{roomId})).data.room.battle.teams.find(t=>!t.isMe).rescue);
  assert.equal((await cmd(a,'thaw-submit',{roomId,challengeId:q.id,inputs:['Wrong']})).status,200);assert.equal(room().battle.teams[0].rescueLockUntil,15000);assert.equal(room().battle.teams[1].frozen.id,'ice-fixture');
  await cmd(a,'thaw-submit',{roomId,challengeId:q.id,inputs:q.sequence});assert.equal(room().battle.teams[0].rescueLockUntil,15000);
- now+=15250;await cmd(a,'state',{roomId});const next=await cmd(a,'thaw-start',{roomId,freezeId:'ice-fixture',mode:'touch'});assert.equal(next.status,200);const q2=next.data.room.battle.teams.find(t=>t.isMe).rescue;now+=3000;
+ now+=15250;await cmd(a,'state',{roomId});const next=await cmd(a,'thaw-start',{roomId,freezeId:'ice-fixture',mode:'touch'});assert.equal(next.status,200);const q2=next.data.room.battle.teams.find(t=>t.isMe).rescue;now+=8000;
  assert.equal((await cmd(a,'thaw-submit',{roomId,challengeId:q2.id,inputs:[0,1,2,3]})).status,200);assert.equal(room().battle.teams[0].rescue.outcome,'failed');assert(room().battle.teams[1].frozen);
  console.log('PASS legacy thaw disabled, challenge privacy, wrong-input penalty once, 15s retry lock and server deadline');
 }finally{Date.now=nativeNow;t.sqlite.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

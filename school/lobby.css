@@ -178,12 +178,12 @@ html[data-theme=dark] .app .filter.active { background:#3b526b; color:#edf5ff; b
 .lobby-unit.empty .lobby-stars { display:none; }
 .lobby-nav {
   position:absolute; z-index:4; bottom:12px; left:18px; right:18px;
-  display:grid; grid-template-columns:repeat(4,var(--menu-w)) minmax(0,1fr) repeat(2,var(--gate-w));
+  display:grid; grid-template-columns:repeat(9,minmax(0,1fr));
   align-items:end; gap:8px; pointer-events:none;
 }
 .lobby-menu { pointer-events:auto; position:relative; display:flex; align-items:center; justify-content:flex-end; flex-direction:column; gap:0; min-width:0; padding:0; color:#f7f3e9; background:transparent; border:0; text-shadow:0 2px #0a1424; }
-.lobby-menu[data-lobby-action=dungeons] { grid-column:6; }
-.lobby-menu[data-lobby-action=map] { grid-column:7; }
+
+
 .lobby-menu-art { display:block; width:100%; height:var(--menu-art); background-position:center bottom; background-size:contain; background-repeat:no-repeat; image-rendering:pixelated; pointer-events:none; }
 .lobby-menu[data-lobby-action=dungeons] .lobby-menu-art,.lobby-menu[data-lobby-action=map] .lobby-menu-art { height:var(--gate-art); }
 .lobby-menu>.lobby-menu-label { display:block; width:100%; min-height:33px; padding:5px 4px; border:1px solid #a4adb78c; border-top-color:#c2c6bca8; border-radius:3px; background:linear-gradient(#243344ed,#101b2bf5); box-shadow:0 2px #0b1322; font-size:clamp(12px,1.1vw,21px); font-weight:750; line-height:1.3; }

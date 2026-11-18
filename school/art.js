@@ -695,10 +695,46 @@ window.SchoolArt = (() => {
       const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; c.scale(2, 2); hero(c, id, id === "lava" ? (lavaLoaded ? 40 : 30) : 36, 86, 2); portraits.set(id, canvas.toDataURL()); }
     return portraits.get(id);
   }
+  function towerBoss(c, theme, time, reduced) {
+    const pulse=reduced?0:Math.sin(time*2)*2;
+    const poly=(color,points)=>{c.fillStyle=color;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fill();};
+    if(theme==='library'){
+      // A living grimoire with floating pages, not a recoloured humanoid.
+      poly('#261c40',[[-23,-40],[0,-35],[23,-40],[24,-8],[0,-3],[-24,-8]]);
+      poly('#bd8c74',[[-21,-38],[-2,-33],[-2,-6],[-21,-11]]);poly('#f0d9ac',[[2,-33],[21,-38],[21,-11],[2,-6]]);
+      rect(c,'#57435e',-2,-35,4,32);for(let i=0;i<5;i++)rect(c,'#856773',5,-30+i*4,12,1);
+      rect(c,'#16182c',-16,-24,10,5);rect(c,'#eee0ff',-14,-24,6,2);rect(c,'#56265d',6,-25,11,5);rect(c,'#db8bf5',8,-25,7,2);
+      for(const side of [-1,1]){c.save();c.translate(side*31,-25+side*pulse);c.rotate(side*.2);rect(c,'#675c91',-7,-11,14,20);rect(c,'#eee1bf',-5,-9,10,16);for(let i=0;i<3;i++)rect(c,'#8c758f',-3,-6+i*4,6,1);c.restore();}
+      poly('#c391e8',[[0,-57],[5,-49],[0,-41],[-5,-49]]);
+    }else if(theme==='garden'){
+      for(const side of [-1,1]){c.strokeStyle='#294b3d';c.lineWidth=7;c.beginPath();c.moveTo(side*7,-8);c.bezierCurveTo(side*35,-11,side*31,-35,side*20,-50);c.stroke();for(let i=0;i<4;i++)poly('#91ad68',[[side*(15+i*4),-9-i*9],[side*(31+i),-14-i*9],[side*(19+i*4),-21-i*8]]);}
+      poly('#283d3d',[[-17,-37],[0,-51],[18,-35],[15,-11],[0,1],[-16,-13]]);poly('#6b8362',[[-13,-34],[0,-46],[13,-32],[10,-13],[0,-3],[-11,-15]]);
+      poly('#e78baf',[[0,-39],[9,-29],[0,-16],[-9,-29]]);poly('#ffd1b4',[[0,-35],[4,-29],[0,-23],[-4,-29]]);
+      rect(c,'#172a30',-12,-34,6,3);rect(c,'#172a30',6,-34,6,3);for(const x of [-20,-10,8,18])rect(c,'#3b5945',x,-4,7,7);
+    }else if(theme==='clock'){
+      rect(c,'#302c39',-20,-41,40,34);rect(c,'#bf8e48',-17,-39,34,29);rect(c,'#f0d18c',-13,-36,26,23);
+      for(const [x,y] of [[-1,-34],[-1,-17],[-11,-27],[9,-27]])rect(c,'#544252',x,y,3,3);
+      c.save();c.translate(0,-25);c.rotate(reduced?.5:time*.45);rect(c,'#394455',-1,-9,2,11);rect(c,'#394455',0,-1,8,2);c.restore();
+      rect(c,'#664e45',-13,-11,9,11);rect(c,'#664e45',6,-11,9,11);rect(c,'#f1c679',-17,-2,14,5);rect(c,'#f1c679',5,-2,14,5);
+      for(const side of [-1,1]){rect(c,'#785840',side<0?-30:21,-34,10,20);rect(c,'#ddbb70',side<0?-28:23,-32,6,15);rect(c,'#4c4051',side<0?-32:22,-16,12,8);}
+      rect(c,'#715946',-5,-51,10,10);rect(c,'#e8d18c',-9,-53,18,5);rect(c,'#86d2de',-6,-44,12,3);
+    }else if(theme==='astral'){
+      c.strokeStyle='#a7a2ed';c.lineWidth=2;c.beginPath();c.ellipse(0,-28,30,12,reduced?.3:time*.4,0,Math.PI*2);c.stroke();
+      poly('#262b5b',[[0,-62],[17,-35],[11,-15],[0,-2],[-13,-17],[-18,-37]]);poly('#7979d3',[[0,-58],[13,-35],[0,-27],[-14,-36]]);poly('#b8d9ff',[[0,-58],[0,-27],[-14,-36]]);poly('#6262bb',[[0,-27],[13,-35],[9,-16],[0,-6]]);poly('#c5a9f5',[[-14,-36],[0,-27],[0,-6],[-10,-18]]);
+      rect(c,'#22224a',-7,-33,14,5);rect(c,'#fcdbfa',-5,-32,10,2);
+      for(const side of [-1,1])poly('#9faee9',[[side*29,-44+pulse],[side*35,-36+pulse],[side*29,-27+pulse],[side*24,-36+pulse]]);
+    }else{
+      rect(c,'#27384c',-20,-39,40,34);rect(c,'#8298aa',-17,-37,34,29);rect(c,'#d5ddce',-14,-35,8,25);rect(c,'#4e687e',7,-35,9,27);
+      rect(c,'#263b50',-13,-56,26,22);rect(c,'#adbfbd',-10,-53,20,17);rect(c,'#2d4256',-9,-46,18,4);rect(c,'#f9cb75',-6,-45,12,1);
+      for(const side of [-1,1]){rect(c,'#31455c',side<0?-29:20,-40,10,31);rect(c,'#c2ac72',side<0?-27:22,-38,6,5);rect(c,'#506b80',side<0?-14:6,-7,10,10);}
+      poly('#303e50',[[-39,-37],[-24,-40],[-10,-35],[-13,-13],[-25,-5],[-37,-16]]);poly('#bbaa79',[[-36,-34],[-25,-37],[-13,-33],[-16,-16],[-25,-9],[-34,-18]]);rect(c,'#6a7e83',-27,-32,4,19);
+    }
+  }
   function activityBoss(c, enemy, x, y, frame) {
     const kind = frame.activity.kind, bob = frame.reduced ? 0 : Math.sin((frame.time || 0) * 2) * 2;
     c.save(); c.translate(Math.round(x), Math.round(y + bob)); c.scale(2.45,2.45);
     rect(c,"#162b3d45",-21,1,43,3);
+    if(kind==='tower'&&enemy.towerTrait){towerBoss(c,enemy.towerTrait,frame.time||0,frame.reduced);c.restore();return;}
     if (kind === "daily") {
       // The storehouse guardian is a walking brass-bound supply chest.
       rect(c,"#3c5c62",-23,-35,46,33);rect(c,"#947a48",-20,-33,40,29);rect(c,"#c4a35e",-18,-31,36,24);
@@ -1043,6 +1079,30 @@ window.SchoolArt = (() => {
     if (snowy) { for (let i = 0; i < 16; i++) { const x = i * 33 + 5, y = 166 + i * 29 % 107; detail(c, "#f4f9ef", x, y, 9, .5); } if (!still) snow(c, time); }
     rect(c, "#27424c18", 0, 263, 480, 17);
   }
+  function towerRoom(c,activity){
+    const theme=S.towerEncounter(activity.floor),id=activity.theme||theme.id;
+    const palette={armory:['#344656','#63798b','#c5aa76'],library:['#352b49','#725476','#d5b180'],garden:['#243f43','#527575','#b3dba6'],clock:['#40383f','#8b715a','#ecd49a'],astral:['#222b50','#57679b','#bfd1f6']}[id];
+    rect(c,palette[0],0,0,480,154);
+    for(let i=0;i<5;i++){const inset=i*34;rect(c,palette[1],inset,18+i*11,6,136-i*11);rect(c,palette[1],474-inset,18+i*11,6,136-i*11);detail(c,palette[2],inset,18+i*11,480-2*inset,1);}
+    if(id==='library'){
+      for(const x of [16,92,315,391]){rect(c,'#221f35',x,44,69,106);for(let row=0;row<3;row++){rect(c,'#a18363',x,76+row*32,69,3);for(let book=0;book<8;book++){const h=18+(book*7+row)%10;rect(c,['#866674','#607c92','#8b8971','#b28c6e'][book%4],x+4+book*8,76+row*32-h,5,h);detail(c,'#e1c898',x+4+book*8,72+row*32,5,1);}}}
+      rect(c,'#6f4d72',210,65,61,85);rect(c,'#c4a878',214,69,53,3);
+    }else if(id==='garden'){
+      for(const x of [18,113,288,383]){rect(c,'#6babb2',x,42,77,101);rect(c,'#a3c8c4',x+4,46,69,54);rect(c,'#376568',x+36,42,4,100);rect(c,'#376568',x,91,77,4);rect(c,'#537253',x+4,111,69,33);for(let i=0;i<6;i++){rect(c,'#3d603e',x+i*12,117-i%3*9,11,30);rect(c,'#96b78b',x+3+i*12,114-i%3*9,6,6);}}
+      for(let i=0;i<20;i++)rect(c,i%3?'#47684c':'#8ead74',i*25,18+i%3*7,30,10);
+    }else if(id==='clock'){
+      for(const [x,y,r] of [[76,88,34],[239,91,45],[401,88,34]]){c.fillStyle='#b69a62';c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.fill();c.fillStyle='#e4d5ad';c.beginPath();c.arc(x,y,r-5,0,Math.PI*2);c.fill();c.strokeStyle='#5d4b53';c.lineWidth=3;c.beginPath();c.moveTo(x-r*.4,y);c.lineTo(x,y);c.lineTo(x+r*.3,y-r*.55);c.stroke();for(let n=0;n<12;n++)rect(c,'#655454',x+Math.sin(n*Math.PI/6)*(r-10),y+Math.cos(n*Math.PI/6)*(r-10),2,3);}
+    }else if(id==='astral'){
+      rect(c,'#192443',121,36,238,114);for(let n=0;n<42;n++){const x=130+n*43%217,y=45+n*17%95;rect(c,n%4?'#a3c4ed':'#f8e4b2',x,y,n%4?1:2,2);}
+      c.strokeStyle='#899dcc';c.lineWidth=2;c.beginPath();c.arc(240,94,42,0,Math.PI*2);c.moveTo(121,94);c.lineTo(359,94);c.moveTo(240,36);c.lineTo(240,150);c.stroke();
+      for(const side of [46,411]){rect(c,'#4c587e',side,60,24,90);rect(c,'#a2b6d8',side+8,57,8,22);}
+    }else{
+      for(const x of [32,120,302,390]){rect(c,'#202d3b',x,57,60,88);rect(c,'#8c7b60',x,61,60,5);for(let j=0;j<3;j++){rect(c,'#a3bac3',x+10+j*17,73,3,53);rect(c,'#d8bc7b',x+5+j*17,110,13,4);}rect(c,'#9a8566',x,133,60,5);}
+      rect(c,'#776744',213,71,54,74);rect(c,'#ddc086',220,78,40,56);rect(c,'#465c70',225,84,30,42);
+    }
+    rect(c,'#172536ee',142,44,196,29);c.font='9px Galmuri, monospace';c.textAlign='center';c.fillStyle='#f3e7c6';c.fillText(`${theme.name} · ${activity.floor}층`,240,57);c.font='6px Galmuri, monospace';c.fillStyle='#d3e0ed';c.fillText(theme.trait,240,68);c.textAlign='left';
+    return {armory:'#64717d',library:'#79677c',garden:'#648276',clock:'#8d7967',astral:'#596c91'}[id];
+  }
   function activityBackground(c, activity, time, reduced, still = false) {
     const kind = activity.kind;
     rect(c, kind === "daily" ? "#796b54" : kind === "weekly" ? "#414154" : "#394d5e", 0, 0, 480, 280);
@@ -1061,15 +1121,11 @@ window.SchoolArt = (() => {
       c.strokeStyle="#c2b08b88";c.lineWidth=1;for(let i=0;i<4;i++){c.beginPath();c.moveTo(308+i*33,42);c.lineTo(449-i*31,141);c.stroke();}
       rect(c,"#bca981",368,72,17,24);rect(c,"#634950",371,76,11,17);c.font="8px Galmuri, monospace";c.fillStyle="#efdaa3";c.fillText("封",372,88);
     } else {
-      // Nested doorways and a vanishing floor make the same corridor appear to
-      // fold back into itself. Floor number changes without a finite art limit.
-      for(let ring=0;ring<7;ring++){const x=18+ring*31,y=20+ring*11,w=444-ring*62,h=133-ring*11;rect(c,ring%2?"#58707c":"#47616d",x,y,w,h);rect(c,"#263e50",x+7,y+6,w-14,h-6);detail(c,"#a3b9b055",x+1,y+1,w-2,1);detail(c,"#a3b9b033",x+1,y+1,1,h-1);}
-      rect(c,"#8ba69d",232,92,33,60);rect(c,"#38596a",237,97,23,55);rect(c,"#b5d0ae",243,106,10,2);rect(c,"#d0debc",254,126,2,3);
-      for(const side of [38,419])for(let light=0;light<3;light++){const y=48+light*31;rect(c,"#1c3445",side,y,23,17);rect(c,"#c6deb5",side+5,y+3,13,9);detail(c,"#f0f4cd",side+6,y+4,11,1);}
-      c.font="10px Galmuri, monospace";c.textAlign="center";c.fillStyle="#d2e6c4";c.fillText(`뫼비우스의 복도 · ${activity.floor || 1}층`,240,52);c.textAlign="left";
+      towerRoom(c,activity);
     }
-    const floor = kind === "daily" ? "#a18b62" : kind === "weekly" ? "#676477" : "#6a8587";
-    perspectiveFloor(c,floor,{wood:kind==='daily',vanishX:kind==='weekly'?374:249});detail(c,"#c4c6a0",0,151,480,2);
+    const towerFloor={armory:'#64717d',library:'#79677c',garden:'#648276',clock:'#8d7967',astral:'#596c91'}[activity.theme||S.towerEncounter(activity.floor).id];
+    const floor = kind === "daily" ? "#a18b62" : kind === "weekly" ? "#676477" : towerFloor;
+    perspectiveFloor(c,floor,{wood:kind==='daily'||kind==='tower'&&activity.theme==='library',vanishX:kind==='weekly'?374:249});detail(c,"#c4c6a0",0,151,480,2);
     if(kind === "weekly"){c.save();c.fillStyle='#705365';c.strokeStyle='#c3a67b';c.lineWidth=1;c.beginPath();c.moveTo(340,153);c.lineTo(405,153);c.lineTo(463,280);c.lineTo(247,280);c.closePath();c.fill();c.stroke();c.restore();}
     if (!still) for(let i=0;i<15;i++){const x=(i*71+(reduced?0:Math.sin(time*.4+i)*9)+480)%480,y=(i*29+(reduced?0:time*3))%250;rect(c,kind==="weekly"?"#d3b9e73d":"#e9edba3d",x,y,1,1);}
     rect(c,"#152d3520",0,263,480,17);

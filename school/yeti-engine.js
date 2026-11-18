@@ -72,7 +72,7 @@
   if(s.ended||!t||t.withdrawn||t.frozen||t.rescueLockUntil>s.elapsed||!t.units.some(u=>u.hp>0)||!other?.frozen||other.frozen.id!==freezeId||!other.units.some(u=>u.hp>0))throw Error('현재 동료를 구출할 수 없어요.');
   if(t.rescue?.outcome==='pending')return;
   if(!['touch','keyboard'].includes(mode))throw Error('입력 방식을 확인해 주세요.');
-  t.rescue={id:freezeId+':'+(++s.seq),freezeId,mode,sequence:mode==='touch'?[0,1,2,3]:sequence,outcome:'pending',expiresAt:now+2600};
+  t.rescue={id:freezeId+':'+(++s.seq),freezeId,mode,sequence:mode==='touch'?[0,1,2,3]:sequence,outcome:'pending',expiresAt:now+7600};
  }
  function finishRescue(g,s,actor,id,inputs,now){
   const t=s.teams.find(t=>t.account===actor),q=t?.rescue;

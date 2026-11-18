@@ -1,0 +1,42 @@
+/* Stable nine-slot dock: adding an entry never changes another entry's column. */
+.app .lobby-nav{grid-template-columns:repeat(9,minmax(0,1fr));align-items:end;max-width:1680px;margin-inline:auto;gap:clamp(4px,.65vw,12px)}
+.app .lobby-nav>.lobby-menu,.app #guild-button{grid-column:auto;justify-self:stretch;width:100%;min-width:0;gap:0;min-height:60px}
+.app .lobby-nav .lobby-menu-art,.app #guild-button>svg{height:clamp(44px,11vh,132px);max-width:150px;flex:none}
+.app .lobby-menu>.lobby-menu-label{display:grid;place-items:center;min-height:34px;padding:6px 2px;color:#fff;font-size:clamp(12px,1.1vw,18px);font-weight:750;white-space:nowrap;background:linear-gradient(#33465d,#162538);border:1px solid #b5c8df;box-shadow:0 2px 0 #081322}
+.app .lobby-nav .icon-shop,.app .lobby-nav .icon-shards{width:min(100%,132px);height:auto;aspect-ratio:1;background-image:url('assets/lobby/shop-shards.webp');background-size:200% 100%;background-position:left center}
+.app .lobby-nav .icon-shards{background-position:right center}
+html[data-theme=light]{--ui-muted:#505e70;--muted:#526175}
+html[data-theme=dark]{--ui-muted:#c0cad8;--muted:#bfcbdb}
+#modal :is(.primary,.secondary,.text-button),.app .content-panel :is(.primary,.secondary,.text-button),#school-social :is(.primary,.secondary,.social-tabs button){min-height:44px;font-size:14px;font-weight:650;line-height:1.4}
+#modal .primary,.app .content-panel .primary{background:#315e89;color:#fff;border-color:#85b9e9;box-shadow:0 2px 0 #142f4b}
+#modal .secondary{border:1px solid #8b9bb0;color:var(--ink);background:var(--paper)}
+#modal .detail-note,#modal .modal-copy{color:var(--muted);font-size:13px;line-height:1.7}
+#modal .close-button{min-width:44px;min-height:44px;color:var(--ink)}
+button:focus-visible{outline:3px solid #f5c968;outline-offset:3px}
+button:disabled{cursor:not-allowed}
+.app :is(.lobby-formation,.lobby-resume){font-size:14px;color:#fff;border-color:#b6c9df}
+.shard-wallet{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.shard-wallet>span{flex:1;padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:12px;min-width:130px}
+.shard-wallet b{display:block;margin-top:6px;font-size:23px}
+.shard-sr{color:#ad76db}.shard-ssr{color:#b78020}
+html[data-theme=dark] .shard-sr{color:#d7adff}html[data-theme=dark] .shard-ssr{color:#ffcf76}
+.shard-section{padding:16px;margin-block:12px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.shard-section h3{margin:0 0 10px;font-size:16px}
+.shard-section p{font-size:13px;line-height:1.6;margin:8px 0 14px}
+.shard-section select{min-height:44px;width:100%;padding:8px;font:inherit;color:var(--ink);background:var(--cream);border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
+.shard-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.shard-choice{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;border:1px solid var(--line);border-radius:10px;min-width:0}
+.shard-choice img{width:48px;height:64px;object-fit:contain;image-rendering:pixelated}
+.shard-choice small{font-size:12px;text-align:center;color:var(--muted)}
+.shard-choice button{width:100%}
+.shard-recycle{display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:12px 0;font-size:13px}
+.shard-recycle button{flex-shrink:0}
+.tower-trait{padding:12px 14px;margin:12px 0;border:1px solid #809bb8;border-radius:10px;background:var(--paper);font-size:14px;line-height:1.7}
+.tower-trait strong{display:block;color:var(--ink)}
+.tower-trait small{display:block;color:var(--muted)}
+@media(max-height:500px){.app .lobby-nav .lobby-menu-art,.app #guild-button>svg{height:44px}.app .lobby-nav .icon-shop,.app .lobby-nav .icon-shards{width:44px;height:44px}.app .lobby-menu>.lobby-menu-label{min-height:32px;font-size:12px}.app .lobby-nav{bottom:5px}.app :is(.lobby-resume,.lobby-formation){font-size:12px}}
+@media(max-width:540px){.shard-choices{grid-template-columns:1fr}.app .lobby-menu>.lobby-menu-label{font-size:11px}.app .lobby-nav{gap:3px;left:4px;right:4px}}
+
+#modal.shards-modal{width:min(680px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
+#modal.shards-modal .modal-content{padding:16px}
+#modal button:disabled,.app .content-panel button:disabled{opacity:.55;box-shadow:none}

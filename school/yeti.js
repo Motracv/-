@@ -45,7 +45,7 @@ window.SchoolYeti=(()=>{
     let actions='';
     if(!room||status==='finished')actions='<button class="primary" data-yeti="create">2인 전투방 만들기</button><form id="yeti-join"><label for="yeti-code">초대 코드</label><input id="yeti-code" maxlength="8" placeholder="8자리 코드" autocomplete="off" autocapitalize="characters"><button class="secondary" type="submit">참가</button></form>';
     else if(status==='lobby')actions=`<div class="yeti-invite"><span>친구에게 전달할 코드 <b>${esc(room.code)}</b></span><button id="yeti-copy" class="secondary">코드 복사</button></div><button class="${me?.ready?'secondary':'primary'}" data-yeti="ready">${me?.ready?'준비 취소':'준비 완료'}</button>${host?`<button class="primary" data-yeti="start" data-unavailable="${room.members.length!==2||!room.members.every(m=>m.ready&&m.online)}">함께 도전</button>`:''}`;
-    else actions=`<p class="yeti-rescue-hint">${myTeam?.rescueLockUntil>b.elapsed?'구출 실패 · 내 용병단 15초 정지':myTeam?.frozen?'동료가 얼음을 깨는 중':canRescue?'2초 안에 입력을 완료해 동료를 구하세요':'동료가 얼면 화면에 구출 도전이 나타나요'}</p>`;
+    else actions=`<p class="yeti-rescue-hint">${myTeam?.rescueLockUntil>b.elapsed?'구출 실패 · 내 용병단 15초 정지':myTeam?.frozen?'동료가 얼음을 깨는 중':canRescue?'7초 안에 입력을 완료해 동료를 구하세요':'동료가 얼면 화면에 구출 도전이 나타나요'}</p>`;
     document.getElementById('yeti-actions').innerHTML=actions+(pending?'<button id="yeti-retry" class="secondary">요청 결과 확인</button>':'')+'<button id="yeti-back" class="secondary">'+(status==='fighting'?'도전 포기 · 나가기':'이벤트로 돌아가기')+'</button>';
     document.getElementById('yeti-rewards').innerHTML=(data.rewards||[]).map(r=>`<button class="yeti-reward" data-yeti-claim="${esc(r.roomId)}">❄ 눈송이 <b>${r.snowflakes}개</b>${r.snowmen?' · ☃ '+r.snowmen+'개':''} 받기</button>`).join('');
     const result=document.getElementById('yeti-result');result.hidden=status!=='finished';
@@ -104,7 +104,7 @@ window.SchoolYeti=(()=>{
    }
    if(!reduced&&winterUntil<=time){c.fillStyle='#d9f6ff88';for(let i=0;i<25;i++){const x=(i*173+now*.015)%1000,y=(i*67+now*.026)%560;c.fillRect(x,y,3,3);}}
    const maximum=b?.boss.max||data?.rules?.hp||Y.HP,hp=b?.boss.hp??maximum;c.fillStyle='#0b1d33cc';c.fillRect(260,26,480,40);c.fillStyle='#8ce0f4';c.fillRect(266,56,468*hp/maximum,4);c.fillStyle='#effbff';c.textAlign='center';c.font='bold 18px sans-serif';c.fillText(`만년설 예티 · ${fmt(hp)} / ${fmt(maximum)}`,500,48);c.textAlign='start';
-   const warning=document.getElementById('yeti-warning'),label=b?.teams[myIndex]?.rescueLockUntil>time?`구출 실패 · 내 용병단 ${Math.ceil((b.teams[myIndex].rescueLockUntil-time)/1000)}초 정지`:cast?Y.PATTERNS.find(p=>p.id===cast.id)?.name:live?'동료가 얼면 2초 구출 도전!':'두 단장이 함께하는 겨울 토벌';if(warning.textContent!==label)warning.textContent=label;
+   const warning=document.getElementById('yeti-warning'),label=b?.teams[myIndex]?.rescueLockUntil>time?`구출 실패 · 내 용병단 ${Math.ceil((b.teams[myIndex].rescueLockUntil-time)/1000)}초 정지`:cast?Y.PATTERNS.find(p=>p.id===cast.id)?.name:live?'동료가 얼면 7초 구출 도전!':'두 단장이 함께하는 겨울 토벌';if(warning.textContent!==label)warning.textContent=label;
    document.getElementById('yeti-clock').textContent=live?`${Math.max(0,Math.ceil(((b?.yetiRules?.duration||(b?150000:data?.rules?.duration||Y.DURATION))-time)/1000))}초`:'어려움 · 권장 Lv.70 이상';
    if(now-lastSound>150){const sound=events.findLast(e=>!e.sounded&&e.shown<=now&&now-e.shown<300&&['impact','thaw','hit'].includes(e.kind));if(sound){ctx.play?.(sound.kind==='thaw'?'reward':sound.kind==='impact'?'critical':'hit');lastSound=now;}for(const e of events)if(e.shown<=now)e.sounded=true;}
   }

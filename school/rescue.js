@@ -12,14 +12,14 @@ window.SchoolRescue=(()=>{
   }
   function key(e){if(!active||done||active.mode!=='keyboard')return;if(e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.isComposing)return;e.preventDefault();e.stopImmediatePropagation();choose(e.code);}
   function paint(){const q=active;if(!root||!q)return;const points=[[24,40],[66,31],[41,65],[79,65]],order=q.mode==='touch'?[0,1,2,3]:[inputs.length];
-   root.innerHTML='<div class="rescue-heading"><b>얼음땡!</b><small>'+ (q.mode==='touch'?'원 4개를 모두 터치':'표시된 키를 순서대로 · 마우스 불가')+' · 2초</small><span>'+inputs.length+' / 4</span><i class="rescue-time"></i></div>';
-   root.querySelector('.rescue-time').style.animationDuration=Math.max(0,q.deadline-performance.now())+'ms';root.querySelector('.rescue-time').style.width=Math.min(100,Math.max(0,(q.deadline-performance.now())/20))+'%';
+   root.innerHTML='<div class="rescue-heading"><b>얼음땡!</b><small>'+ (q.mode==='touch'?'원 4개를 모두 터치':'표시된 키를 순서대로 · 마우스 불가')+' · 7초</small><span>'+inputs.length+' / 4</span><i class="rescue-time"></i></div>';
+   root.querySelector('.rescue-time').style.animationDuration=Math.max(0,q.deadline-performance.now())+'ms';root.querySelector('.rescue-time').style.width=Math.min(100,Math.max(0,(q.deadline-performance.now())/70))+'%';
    for(const i of order){if(q.mode==='touch'&&inputs.includes(i))continue;const n=document.createElement(q.mode==='touch'?'button':'span');n.className='rescue-orb';n.style.left=points[(i+q.offset)%4][0]+'%';n.style.top=points[(i+q.offset)%4][1]+'%';n.textContent=q.mode==='touch'?'❄':q.sequence[i].slice(3);if(q.mode==='touch'){n.type='button';n.setAttribute('aria-label',`얼음 ${i+1} 깨기`);n.onpointerdown=e=>{if(!['touch','pen'].includes(e.pointerType))return;e.preventDefault();choose(i);};}root.append(n);}
   }
   function update(data){const b=data?.room?.battle,t=b?.teams.find(t=>t.isMe),other=b?.teams.find(t=>!t.isMe),q=t?.rescue,live=data?.room?.status==='fighting';
    if(!live||!other?.frozen||t?.frozen){clear();return;}
    if(q?.outcome==='pending'){
-    if(active?.id===q.id)return;clear();active={...q,offset:crypto.getRandomValues(new Uint8Array(1))[0]%4,deadline:performance.now()+Math.max(0,Math.min(2000,q.expiresAt-data.serverTime))};inputs=[];done=false;
+    if(active?.id===q.id)return;clear();active={...q,offset:crypto.getRandomValues(new Uint8Array(1))[0]%4,deadline:performance.now()+Math.max(0,Math.min(7000,q.expiresAt-data.serverTime))};inputs=[];done=false;
     root=document.createElement('div');root.className='rescue-overlay';document.querySelector('.yeti-arena')?.append(root);paint();document.addEventListener('keydown',key,true);timer=setTimeout(()=>finish(false),Math.max(0,active.deadline-performance.now()));return;
    }
    clear();const token=data.room.id+':'+other.frozen.id+':'+(t?.rescueLockUntil||0);

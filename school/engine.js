@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 26;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 27;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const PROFILE_AVATARS = Object.freeze(['knight','witch','scholar','bear','cat','bird']);
@@ -635,17 +635,33 @@
     if (s.team.includes("horas")) s.battle.horas = newHoras(previousHoras?.stacks || 0);
     event(s, "wave", { stage: s.stage, wave: s.wave, boss });
   }
+  const TOWER_THEMES=Object.freeze([
+    Object.freeze({id:'armory',name:'철갑 교실',boss:'철갑 교관',trait:'물리 피해 35% 감소',tip:'마법·치유 계열 공격 추천',physicalReduction:.35,magicReduction:0,enemyKind:4,skill:'철갑 내려찍기'}),
+    Object.freeze({id:'library',name:'금서 서고',boss:'금서의 사서',trait:'마법 피해 35% 감소',tip:'전사·사수 계열 공격 추천',physicalReduction:0,magicReduction:.35,enemyKind:1,skill:'금서 폭주'}),
+    Object.freeze({id:'garden',name:'뒤틀린 온실',boss:'가시 심장',trait:'6초마다 최대 HP 2% 회복',tip:'회복 전에 집중 공격 · 기절로 회복 지연',physicalReduction:0,magicReduction:0,enemyKind:3,skill:'가시 덩굴'}),
+    Object.freeze({id:'clock',name:'멈춘 시계실',boss:'태엽 감시자',trait:'10초마다 공격력 8% 증가',tip:'시간이 지날수록 위험 · 빠른 처치 추천',physicalReduction:0,magicReduction:0,enemyKind:2,skill:'시간 파열'}),
+    Object.freeze({id:'astral',name:'균열 천문대',boss:'균열의 핵',trait:'모든 피해 15% 감소 · 보스는 7초마다 광역 공격',tip:'보호막·전체 회복으로 광역 공격 대비',physicalReduction:.15,magicReduction:.15,enemyKind:5,skill:'별의 붕괴'})
+  ]);
+  function towerEncounter(floor){const n=Math.max(1,Math.min(MAX_TOWER_FLOOR,Math.floor(Number(floor)||1)));const theme=TOWER_THEMES[Math.floor((n-1)/5)%TOWER_THEMES.length];return {...theme,floor:n,bossFloor:n%5===0,sectionStart:Math.floor((n-1)/5)*5+1,sectionEnd:Math.ceil(n/5)*5};}
+  function damageType(id){return ['마법','치유'].includes(BY_ID[id]?.role)||['horas','spica'].includes(id)?'magic':'physical';}
   function spawnActivity(s) {
     if (s.counter) delete s.counter.opportunity;
     const run = s.activities.run, tower = run.kind === "tower", stage = tower ? Math.min(MAX_STAGE, Math.ceil(run.floor / 5)) : DUNGEONS[run.kind].stages[run.tier - 1];
     const boss = !tower || run.floor % 5 === 0, scale = campaignScale(stage), weekly = run.kind === "weekly";
     const difficulty = weekly ? 1.25 : 1.05, hp = tower ? (80 + 20 * run.floor + 2 * run.floor * run.floor) * (boss ? 3.2 : 1) : 155 * scale.hp * difficulty;
     const atk = tower ? (5 + .9 * run.floor + .012 * run.floor * run.floor) * (boss ? 1.1 : 1) : 10 * scale.atk;
-    const activity = { kind: run.kind, ...(tower ? { floor: run.floor } : { tier: run.tier }) };
+    const theme=tower?towerEncounter(run.floor):null;
+    const activity = { kind: run.kind, ...(tower ? { floor: run.floor,theme:theme.id } : { tier: run.tier }) };
     s.battle = { id: run.id, runId: run.id, stage, wave: 4, boss, activity, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false, damage: {}, synergies: partySynergies(s),
       heroes: freshHeroes(s), enemies: Array.from({ length: boss ? 1 : 3 }, (_, i) => {
-        const e = { id: `e${i}`, kind: chapter(stage), name: tower ? boss ? "뫼비우스의 감시자" : "복도의 잔영" : weekly ? "봉인의 이사장" : "보급고의 수호자", ...(boss ? {} : { variant: (stage + 2 + i) % 3 }), hp: Math.round(hp), max: Math.round(hp), atk: Math.round(atk), boss };
-        return boss && (tower || run.tier >= 3) ? bossAbility(e, 1, tower ? "뒤틀린 종소리" : weekly ? "봉인 해방" : "보급고 대격돌") : monsterAbility(e, stage);
+        const e = { id: `e${i}`, kind: tower?theme.enemyKind:chapter(stage), name: tower ? boss ? theme.boss : `${theme.name}의 잔영` : weekly ? "봉인의 이사장" : "보급고의 수호자", ...(boss ? {} : { variant: (stage + 2 + i) % 3 }), hp: Math.round(hp), max: Math.round(hp), atk: Math.round(atk), boss };
+        const enemy=boss && (tower || run.tier >= 3) ? bossAbility(e, 1, tower ? theme.skill : weekly ? "봉인 해방" : "보급고 대격돌") : monsterAbility(e, stage);
+        if(tower){Object.assign(enemy,{towerTrait:theme.id,physicalReduction:theme.physicalReduction,magicReduction:theme.magicReduction});
+          if(theme.id==='garden')Object.assign(enemy,{regenEvery:6000,nextRegenAt:6000,regenRatio:.02});
+          if(theme.id==='clock')Object.assign(enemy,{rageEvery:10000,rageStep:.08});
+          if(theme.id==='astral'&&boss)Object.assign(enemy,{aoeEvery:7000,nextAbilityAt:7000,aoeMultiplier:1.15});
+        }
+        return enemy;
       }) };
     if (s.team.includes("horas")) s.battle.horas = newHoras();
   }
@@ -677,6 +693,9 @@
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
   }
+  const SHARD_LIMIT=1000000000;
+  function shardInfo(s){return {unlocked:s.captain.level>=20,SR:s.shardExchange?.SR||0,SSR:s.shardExchange?.SSR||0,choices:[...STANDARD_SSR],recyclable:Object.entries(s.units).filter(([id,u])=>u.stars===5&&['SR','SSR'].includes(BY_ID[id].rarity)).map(([id,u])=>({id,rarity:BY_ID[id].rarity,shards:u.shards,batch:BY_ID[id].rarity==='SSR'?20:10}))};}
+  function validShards(s){return s.shardExchange===undefined||s.shardExchange&&typeof s.shardExchange==='object'&&!Array.isArray(s.shardExchange)&&Object.keys(s.shardExchange).length===2&&['SR','SSR'].every(r=>Number.isSafeInteger(s.shardExchange[r])&&s.shardExchange[r]>=0&&s.shardExchange[r]<=SHARD_LIMIT);}
   function validate(s) {
     return !!(s && s.version === 1 && Number.isFinite(s.at) && s.at >= 0 && Number.isInteger(s.seed) &&
       Number.isFinite(s.gold) && s.gold >= 0 && Number.isFinite(s.gems) && s.gems >= 0 &&
@@ -687,7 +706,7 @@
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
       s.units && Object.keys(s.units).every(id => Object.hasOwn(BY_ID, id) && Number.isInteger(s.units[id].level) && s.units[id].level >= 1 && s.units[id].level <= MAX_LEVEL && Number.isFinite(s.units[id].xp) && Number.isInteger(s.units[id].stars) && s.units[id].stars >= 0 && s.units[id].stars <= 5 && Number.isFinite(s.units[id].shards)) &&
       Array.isArray(s.team) && s.team.length >= 1 && s.team.length <= MAX_TEAM && new Set(s.team).size === s.team.length && s.team.every(id => typeof id === "string" && Object.hasOwn(BY_ID, id) && Object.hasOwn(s.units, id)) &&
-      validShop(s) && validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
+      validShards(s) && validShop(s) && validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
       (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)) && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean")) &&
@@ -805,6 +824,7 @@
     // Stun amplification is decided at the actual hit, not at cast start.
     const stunBonus = from === "horas" && side === "enemy" && s.battle.elapsed < (target.stunUntil || 0);
     let amount = Math.max(1, Math.round(raw * (stunBonus ? HORAS_RULES.stunMultiplier : 1)));
+    if(side==='enemy'&&target.towerTrait){const type=damageType(from),reduction=target[type==='magic'?'magicReduction':'physicalReduction']||0;amount=Math.max(1,Math.round(amount*(1-reduction)));detail={...detail,damageType:type,reduction};}
     if (stunBonus) detail = { ...detail, stunBonus: true };
     if (side === "hero") {
       amount = Math.max(1, Math.round(amount * (1 - target.defense) * (earthGuard.hero ? 1-RYUSION_RULES.teamReduction : 1) * (earthGuard.taunting&&target===earthGuard.hero ? 1-ryusionDefense(earthGuard.hero).tauntReduction : 1)));
@@ -1005,6 +1025,10 @@
     horasStep(s);
     if (b.enemies.every(e => e.hp <= 0)) { victory(s); return; }
     for (const enemy of b.enemies) {
+      if(enemy.hp>0&&enemy.regenEvery&&b.elapsed>=enemy.nextRegenAt&&b.elapsed>=(enemy.stunUntil||0)){
+        const amount=Math.min(enemy.max-enemy.hp,Math.round(enemy.max*enemy.regenRatio));enemy.nextRegenAt=b.elapsed+enemy.regenEvery;enemy.hp+=amount;
+        if(amount)event(s,'enemy-heal',{from:enemy.id,to:enemy.id,side:'enemy',amount,hpBefore:enemy.hp-amount,hpAfter:enemy.hp});
+      }
       if (enemy.hp <= 0 || !enemy.ability || enemy.warnedFor === enemy.nextAbilityAt || b.elapsed < enemy.nextAbilityAt - 1000) continue;
       enemy.warnedFor = enemy.nextAbilityAt;
       event(s, "boss-warning", { from: enemy.id, name: enemy.ability, targets: b.heroes.filter(h => h.hp > 0).map(h => h.id), atElapsed: enemy.nextAbilityAt, duration: Math.max(0, enemy.nextAbilityAt - b.elapsed) });
@@ -1169,6 +1193,8 @@
     fail(typeof banner === "string" && Object.hasOwn(BANNERS, banner), "모집할 배너를 선택하세요.");
     fail(bannerAvailable(banner, now), "이 모집 배너는 종료되었습니다.");
     const cost = recruitCost(banner,count); fail(s.gems >= cost, "보석이 부족합니다.");
+    const shardWallet=shardInfo(s);
+    fail(shardWallet.SR<=SHARD_LIMIT-count*10&&shardWallet.SSR<=SHARD_LIMIT-count*10,"공용 조각을 먼저 교환해 주세요.");
     const progress = bannerState(s, banner), featured = BANNERS[banner].featured;
     const otherSSR = STANDARD_SSR.filter(id => id !== featured);
     const nextBanners = Object.fromEntries(Object.keys(BANNERS).map(id => [id, bannerState(s, id)]));
@@ -1197,8 +1223,11 @@
       }
       progress.pity = rarity === (banner === "horas" ? "UR" : "SSR") ? 0 : progress.pity + 1;
       const fresh = !s.units[h.id], shards = rarity === "UR" ? 30 : rarity === "SSR" ? 20 : rarity === "SR" ? 10 : 5;
-      if (fresh) {s.units[h.id] = { level: 1, xp: 0, stars: 0, shards: s.heroShards?.[h.id]||0 };if(s.heroShards)delete s.heroShards[h.id];} else s.units[h.id].shards += shards;
-      results.push({ id: h.id, fresh, shards: fresh ? 0 : shards, pity, ssrChance: odds.SSR, ...(banner === "horas" ? { urChance: odds.UR } : {}), banner, featured: h.id === featured, guaranteed, lostFeatured: banner !== "horas" && rarity === "SSR" && h.id !== featured });
+      const converted=!fresh&&s.units[h.id].stars===5&&shardWallet.unlocked&&['SR','SSR'].includes(rarity)?{rarity,count:10}:null;
+      if (fresh) {s.units[h.id] = { level: 1, xp: 0, stars: 0, shards: s.heroShards?.[h.id]||0 };if(s.heroShards)delete s.heroShards[h.id];}
+      else if(converted){s.shardExchange||={SR:0,SSR:0};s.shardExchange[rarity]+=10;}
+      else s.units[h.id].shards += shards;
+      results.push({ id: h.id, fresh, shards: fresh || converted ? 0 : shards, ...(converted?{converted}:{}), pity, ssrChance: odds.SSR, ...(banner === "horas" ? { urChance: odds.UR } : {}), banner, featured: h.id === featured, guaranteed, lostFeatured: banner !== "horas" && rarity === "SSR" && h.id !== featured });
     }
     nextBanners[banner] = progress; s.banners = nextBanners; s.pity = nextBanners.osia.pity;
     s.gems -= cost; s.pulls += count; s.history = results.concat(s.history).slice(0, 30);
@@ -1222,6 +1251,31 @@
   function actionCore(s, input, now, rng) {
     fail(input && typeof input === "object" && !Array.isArray(input), "잘못된 행동입니다.");
     const kind = input.kind;
+    if(['shard-refine','shard-select','shard-recycle'].includes(kind)){
+      const w=shardInfo(s),count=input.count??1;
+      fail(w.unlocked,'단장 Lv.20부터 조각 교환소가 열려요.');
+      fail(Number.isSafeInteger(count)&&count>=1&&count<=100,'교환 수량은 1~100회로 선택해 주세요.');
+      let source,cost,reward,rarity,hero;
+      if(kind==='shard-refine'){
+        source='SR';cost=count*50;reward=count*5;rarity='SSR';
+        fail(w.SR>=cost,'공용 SR 조각이 부족해요.');fail(w.SSR+reward<=SHARD_LIMIT,'공용 조각 보유 한도입니다.');
+      }else if(kind==='shard-select'){
+        hero=input.hero;fail(STANDARD_SSR.includes(hero),'상시 SSR만 선택할 수 있어요.');
+        source='SSR';cost=count*10;reward=count*5;rarity='character';
+        fail(w.SSR>=cost,'공용 SSR 조각이 부족해요.');
+        fail(Number.isSafeInteger((s.units[hero]?.shards||s.heroShards?.[hero]||0)+reward),'캐릭터 조각 보유량을 확인해 주세요.');
+      }else{
+        hero=input.hero;const u=s.units[hero];rarity=BY_ID[hero]?.rarity;
+        fail(u?.stars===5&&['SR','SSR'].includes(rarity),'풀각성 SR·SSR만 변환할 수 있어요.');
+        source='character';cost=count*(rarity==='SSR'?20:10);reward=count*10;
+        fail(u.shards>=cost,'변환할 캐릭터 조각이 부족해요.');fail(w[rarity]+reward<=SHARD_LIMIT,'공용 조각 보유 한도입니다.');
+      }
+      s.shardExchange||={SR:0,SSR:0};
+      if(source==='character')s.units[hero].shards-=cost;else s.shardExchange[source]-=cost;
+      if(rarity==='character'){if(s.units[hero])s.units[hero].shards+=reward;else{s.heroShards||={};s.heroShards[hero]=(s.heroShards[hero]||0)+reward;}}
+      else s.shardExchange[rarity]+=reward;
+      return {kind,hero,source,cost,rarity,reward,count};
+    }
     if(kind==='shop-buy'){
       const item=shopInfo(s,now).find(i=>i.id===input.item);
       fail(item?.available,'구매 한도·판매 기간 또는 열쇠 보유량을 확인해 주세요.');fail(s.gems>=item.price,'보석이 부족해요.');
@@ -1473,5 +1527,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

@@ -72,6 +72,18 @@ for(const stage of [1,16,31,41,60]){
  }
 }
 console.log('PASS real painted/procedural stages, standard/wide layouts, Spica cast geometry; no steady-state scenery allocations or state mutation');
+const bosses=[];
+for(const floor of [5,10,15,20,25]){
+ const t=G.clone(s);t.activities.towerBest=floor-1;G.action(t,{kind:'activity',mode:'tower',floor},t.at);
+ c.records.length=0;A.monster(c,t.battle.enemies[0],375,210,{activity:t.battle.activity,time:2,reduced:true});bosses.push(JSON.stringify(c.records));assert.equal(c.stack.length,0);
+ for(const layout of ['', 'panorama']){
+  canvas.dataset.layout=layout;const before=JSON.stringify(t);A.draw(c,t,0,[],false);A.draw(c,t,1,[],false);for(let i=0;i<50;i++)A.draw(c,t,1+i/60,[],false);const count=allocated,g=gradients;
+  for(let i=0;i<300;i++)A.draw(c,t,1+(i%50)/60,[],false);
+  assert.equal(allocated,count,'Tower scenery cache stays bounded');assert.equal(gradients,g);assert.equal(c.stack.length,0);assert.equal(JSON.stringify(t),before);
+ }
+}
+assert.equal(new Set(bosses).size,5);
+console.log('PASS five distinct tower bosses, normal/panoramic scenes, finite geometry, stable scenery cache and read-only rendering');
 const units=s.battle.heroes.map(u=>({...u,hasteUntil:16000,stunUntil:0}));
 window.SchoolRaidFX.draw(c,{w:960,h:400,now:10000,dt:16,battle:{elapsed:10000,boss:{slowUntil:15000}},received:10000,focus:0,events:[{kind:'spica-wind',team:0,id:'spica',shown:9600},{kind:'cast',team:0,id:'spica',stage:1,shown:9600}],bg:{complete:false},atlas:{complete:false},bars:new Map(),reduced:false,units,hp:1000,live:true});assert.equal(c.stack.length,0);
 console.log('PASS guild raid Spica cast/haste effects render with balanced canvas state');

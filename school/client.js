@@ -518,6 +518,7 @@
       }else{play('reward');social?.refresh();}
     }
     else if(result.kind==='shop-buy'){toast('구매를 완료했어요.');if(modalKind==='shop')shopModal();}
+    else if(result.kind.startsWith('shard-')){toast(`${result.rarity==='character'?G.BY_ID[result.hero].name:result.rarity+' 공용'} 조각 +${result.reward}`);play('reward');if(modalKind==='shards')shardsModal();}
     else if (result.kind === 'profile') { rankingCache.clear(); toast('프로필을 저장했어요.'); captainModal(); }
     else if(result.kind==='raid-claim'||result.kind==='guild-project-claim'){toast(`${result.kind==='raid-claim'?'길드전':'협동 퀘스트'} 보상 · 보석 +${result.gems} · 골드 +${fmt(result.gold)}`);play('reward');}
     else if (result.kind === 'guild-checkin') { toast('길드 출석 · 보석 +30'); play('reward'); }
@@ -807,6 +808,7 @@
     worldMap?.update(state, blocked || !!state.battle.activity);
     qol?.refresh(); equipmentUI?.refresh();
     if(modalKind==='shop')for(const i of G.shopInfo(state,serverNow())){const b=document.querySelector(`[data-shop-item="${i.id}"]`);if(b)b.dataset.unavailable=String(!i.available||state.gems<i.price);}
+    if(modalKind==='shards')refreshShards();
     document.querySelectorAll('[data-battle-mode]').forEach(button => {
       setDisabled(button, blocked || !!state.battle.activity);
       setAttr(button, 'aria-pressed', String(button.dataset.battleMode === state.mode));
@@ -909,6 +911,20 @@
       dialog.querySelector('.inspector-content').innerHTML=`<header>${window.SchoolGuild.avatar({...p,name:undefined},p.hero)}<div><h2>${esc(p.name)}</h2>${window.SchoolGuild.title(p)}<p>단장 Lv.${fmt(p.level)}</p></div></header><div class="inspect-stats"><span>전투력<b>${fmt(p.power)}</b></span><span>최고 지역<b>${esc(G.stageName(Math.max(1,p.best)))}</b></span><span>뫼비우스<b>${fmt(p.tower)}층</b></span></div><h3>출전 용병</h3><div class="inspect-team">${p.team.map(u=>`<article data-rarity="${esc(u.rarity)}"><img src="${esc(window.SchoolArt.portrait(u.id))}" alt=""><b>${esc(u.name)}</b><small>Lv.${fmt(u.level)} · ${'★'.repeat(u.stars)||'기본'}</small></article>`).join('')}</div>`;
     }catch(e){if(dialog.open)dialog.querySelector('.inspector-content').textContent=e.message;}
   }
+  function shardResult(r){return r.fresh?'NEW · 첫 만남':r.converted?`풀각 → 공용 ${r.converted.rarity} 조각 +${r.converted.count}`:`조각 +${r.shards}`;}
+  function refreshShards(){
+    const w=G.shardInfo(state);setText($('shard-sr'),fmt(w.SR));setText($('shard-ssr'),fmt(w.SSR));
+    document.querySelectorAll('[data-shard-action]').forEach(b=>{const n=Number(b.dataset.count||1),kind=b.dataset.shardAction,u=state.units[b.dataset.hero];
+      b.dataset.unavailable=String(!w.unlocked||(kind==='shard-refine'?w.SR<50*n:kind==='shard-select'?w.SSR<10*n:!u||u.stars!==5||u.shards<Number(b.dataset.cost)));
+    });
+  }
+  function shardsModal(count=1){
+    const w=G.shardInfo(state);
+    const button=(kind,label,extra='')=>`<button class="primary" data-action="${kind}" data-shard-action="${kind}" data-count="${count}" ${extra}>${label}</button>`;
+    openModal('조각 교환소',`<div class="shard-wallet"><span class="shard-sr">◆ 공용 SR 조각<b id="shard-sr">${fmt(w.SR)}</b></span><span class="shard-ssr">◆ 공용 SSR 조각<b id="shard-ssr">${fmt(w.SSR)}</b></span></div>${!w.unlocked?`<div class="shard-section"><h3>단장 Lv.20에 개방</h3><p>현재 Lv.${state.captain.level} · 개방 후 풀각성 SR·SSR 중복 영입이 공용 조각으로 바뀌어요. 지금 모은 캐릭터 조각은 그대로 보관됩니다.</p></div>`:''}<p class="detail-note">풀각 SR 중복 → 공용 SR 10개 · 풀각 SSR 중복 → 공용 SSR 10개<br>R·UR 조각은 기존 방식으로 지급됩니다. 교환에는 보석과 코인이 들지 않아요.</p><section class="shard-section"><h3>교환 수량</h3><select id="shard-batch" aria-label="교환 횟수">${[1,5,10].map(n=>`<option value="${n}" ${count===n?'selected':''}>${n}회 묶음</option>`).join('')}</select><p>공용 SR ${50*count}개 → 공용 SSR ${5*count}개</p>${button('shard-refine',`SR ${50*count}개 소모 · SSR ${5*count}개 받기`)}</section><section class="shard-section"><h3>상시 SSR 캐릭터 조각 선택</h3><p>공용 SSR ${10*count}개 → 선택 캐릭터 조각 ${5*count}개<br>미보유 캐릭터는 조각만 보관되며, 모집으로 처음 영입하면 합쳐집니다.</p><div class="shard-choices">${w.choices.map(id=>`<article class="shard-choice">${portrait(id)}<b>${G.BY_ID[id].name}</b><small>${state.units[id]?`각성 ${state.units[id].stars}/5 · 조각 ${fmt(state.units[id].shards)}`:`미영입 · 보관 조각 ${fmt(state.heroShards?.[id]||0)}`}</small>${button('shard-select',`SSR ${10*count}개 → ${5*count}조각`,`data-hero="${id}" aria-label="${G.BY_ID[id].name} 조각 ${5*count}개 교환"`)}</article>`).join('')}</div><p class="detail-note">UR·한정 SSR·이벤트 전용 캐릭터는 선택 대상에서 제외됩니다.</p></section><section class="shard-section"><h3>기존 풀각 조각 변환</h3><p>SR 캐릭터 조각 10개 → 공용 SR 10개<br>SSR 캐릭터 조각 20개 → 공용 SSR 10개<br>선택한 묶음만 소모하며 남는 조각은 보관됩니다.</p>${w.recyclable.length?w.recyclable.map(u=>`<div class="shard-recycle"><span><b>${G.BY_ID[u.id].name}</b><br>보유 ${fmt(u.shards)}개</span>${button('shard-recycle',`${u.batch*count}개 → ${count*10}개`,`data-hero="${u.id}" data-cost="${u.batch*count}"`)}</div>`).join(''):'<p class="detail-note">풀각성 SR·SSR을 보유하면 이곳에 표시됩니다.</p>'}</section>`,'shards');
+    $('shard-batch').onchange=e=>shardsModal(Number(e.target.value));renderButtons();
+  }
+  function towerTraitMarkup(floor){const t=G.towerEncounter(floor);return `<strong>${esc(t.name)} · ${t.sectionStart}~${t.sectionEnd}층</strong>${t.bossFloor?'보스: '+esc(t.boss)+' · ':''}${esc(t.trait)}<small>${esc(t.tip)} · 5층마다 구역 변경</small>`;}
   function shopModal(){
     const items=G.shopInfo(state,serverNow());
     openModal('교내 상점',`<div class="shop-wallet">${icon('gem')} <b>${fmt(state.gems)}</b><span>보석으로 구매</span></div><p class="detail-note">최고 클리어 지역에 따라 코인 수량 증가 · 구매 한도는 한국 시간 매일 00시 갱신</p><div class="school-shop-grid">${items.map(i=>`<article class="school-shop-card ${i.regular?'sale':''}"><span class="shop-art">${icon(i.type==='gold'?'coin':'dungeon')}</span>${i.regular?`<small class="shop-sale">${Math.round((1-i.price/i.regular)*100)}% 할인</small>`:''}<h3>${esc(i.name)}</h3><strong>${i.gold?fmt(i.gold)+' 코인':'열쇠 1개 재충전'}</strong><p>${i.endsAt?'12월 2일 23:59까지 · ':''}오늘 ${i.remaining} / ${i.limit}회</p>${i.type!=='gold'?'<small>열쇠를 사용한 뒤 구매 가능 · 도전 중 구매 불가</small>':''}<button class="primary" data-action="shop-buy" data-shop-item="${i.id}" data-unavailable="${!i.available||state.gems<i.price}">${i.regular?`<s>${i.regular}</s>`:''}${icon('gem')} ${i.price} · 구매</button></article>`).join('')}</div>`,'shop');renderButtons();
@@ -953,7 +969,7 @@
     }).join('');
     const floor = Number.isSafeInteger(selectedTowerFloor) && selectedTowerFloor >= 1 && selectedTowerFloor <= info.tower.nextFloor ? selectedTowerFloor : info.tower.nextFloor;
     selectedTowerFloor = floor;
-    cards += `<article class="dungeon-card tower-card" ${selectedDungeon === 'tower' ? '' : 'hidden'}><h3>${esc(info.tower.name)}</h3><p>한 층씩 올라가는 무한 도전</p><div class="dungeon-meta"><b>최고 ${fmt(info.tower.best)}층</b><small>열쇠 없이 무제한 도전</small></div><label class="tower-floor" for="tower-floor">도전할 층<input id="tower-floor" type="number" inputmode="numeric" min="1" max="${info.tower.nextFloor}" value="${floor}" step="1"></label><div class="dungeon-reward">${floor > info.tower.best ? `첫 클리어 · ${rewardText(info.tower.reward)}` : '클리어한 층은 골드·보석·경험치를 다시 지급하지 않아요.'}</div>${window.SchoolEquipment?.dropDetails('tower',floor,floor>info.tower.best)||''}<div class="dungeon-actions"><button class="primary" id="tower-enter" data-activity-mode="tower" data-floor="${floor}">${fmt(floor)}층 도전</button></div></article>`;
+    cards += `<article class="dungeon-card tower-card" ${selectedDungeon === 'tower' ? '' : 'hidden'}><h3>${esc(info.tower.name)}</h3><p>한 층씩 올라가는 무한 도전</p><div class="dungeon-meta"><b>최고 ${fmt(info.tower.best)}층</b><small>열쇠 없이 무제한 도전</small></div><div class="tower-trait" id="tower-trait">${towerTraitMarkup(floor)}</div><label class="tower-floor" for="tower-floor">도전할 층<input id="tower-floor" type="number" inputmode="numeric" min="1" max="${info.tower.nextFloor}" value="${floor}" step="1"></label><div class="dungeon-reward">${floor > info.tower.best ? `첫 클리어 · ${rewardText(info.tower.reward)}` : '클리어한 층은 골드·보석·경험치를 다시 지급하지 않아요.'}</div>${window.SchoolEquipment?.dropDetails('tower',floor,floor>info.tower.best)||''}<div class="dungeon-actions"><button class="primary" id="tower-enter" data-activity-mode="tower" data-floor="${floor}">${fmt(floor)}층 도전</button></div></article>`;
     $('dungeon-cards').innerHTML = cards;
   }
   function enterActivity(button) {
@@ -1070,6 +1086,7 @@
     worldMap?.destroy(); worldMap = null;
     if(kind!=='yeti')yeti?.destroy(); $('modal').classList.toggle('yeti-modal',kind==='yeti');$('modal').classList.toggle('winter-modal',kind==='social-winter');
     if(kind!=='raid')raid?.destroy(); $('modal').classList.toggle('raid-modal',kind==='raid'); $('modal').classList.toggle('world-map-modal', kind === 'map'); $('modal').classList.toggle('guild-modal',kind==='guild'); $('modal').classList.toggle('captain-modal',kind==='captain');
+    $('modal').classList.toggle('shards-modal',kind==='shards');
     loginGeneration++; modalKind = kind; delete $('modal').dataset.activityResult; $('modal-title').textContent = title; $('modal-content').innerHTML = html;
     if (!$('modal').open) $('modal').showModal(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
@@ -1122,7 +1139,7 @@
     renderButtons();
   }
   function reveal(results) {
-    openModal('새로운 만남', `<p class="reveal-caption">${results.some(r => r.fresh) ? '용병단에 새로운 친구가 찾아왔어요.' : '동료의 조각을 모아 더 강하게 각성하세요.'}</p><div class="result-grid ${results.length === 1 ? 'single' : ''}">${results.map((r, i) => `<div class="result-card ${G.BY_ID[r.id].rarity}" style="animation-delay:${reduced ? 0 : i * .085}s">${rarity(r.id)}<img src="${Art.frontPortrait ? Art.frontPortrait(r.id) : Art.portrait(r.id)}" alt="${esc(G.BY_ID[r.id].name)}"><b>${G.BY_ID[r.id].name}</b><small>${r.fresh ? 'NEW · 첫 만남' : `조각 +${r.shards}`}</small></div>`).join('')}</div><button class="primary full result-close" id="reveal-done">용병 확인하기 →</button><p class="detail-note" style="text-align:center">결과는 이미 저장되었어요. 창을 닫아도 사라지지 않아요.</p>`, 'reveal');
+    openModal('새로운 만남', `<p class="reveal-caption">${results.some(r => r.fresh) ? '용병단에 새로운 친구가 찾아왔어요.' : '동료의 조각을 모아 더 강하게 각성하세요.'}</p><div class="result-grid ${results.length === 1 ? 'single' : ''}">${results.map((r, i) => `<div class="result-card ${G.BY_ID[r.id].rarity}" style="animation-delay:${reduced ? 0 : i * .085}s">${rarity(r.id)}<img src="${Art.frontPortrait ? Art.frontPortrait(r.id) : Art.portrait(r.id)}" alt="${esc(G.BY_ID[r.id].name)}"><b>${G.BY_ID[r.id].name}</b><small>${shardResult(r)}</small></div>`).join('')}</div><button class="primary full result-close" id="reveal-done">용병 확인하기 →</button><p class="detail-note" style="text-align:center">결과는 이미 저장되었어요. 창을 닫아도 사라지지 않아요.</p>`, 'reveal');
     $('reveal-done').onclick = () => { closeModal(); setTab('roster'); };
     $('modal-content').querySelector('.result-grid').onclick = e => e.currentTarget.classList.add('skip');
   }
@@ -1247,6 +1264,8 @@
       const target = e.target.closest('button'); if (!target || target.disabled) return;
       if(target.dataset.inspectName){inspectCommander(target.dataset.inspectName);return;}
       if(target.hasAttribute('data-open-shop')){shopModal();return;}
+      if(target.hasAttribute('data-open-shards')){shardsModal();return;}
+      if(target.dataset.shardAction){act({kind:target.dataset.shardAction,hero:target.dataset.hero,count:Number(target.dataset.count||1)});return;}
       if(target.dataset.action==='shop-buy'){act({kind:'shop-buy',item:target.dataset.shopItem});return;}
       if (target.dataset.tab) { setTab(target.dataset.tab); if (!['adventure','lobby'].includes(target.dataset.tab)) boardJump('party'); }
       if (target.dataset.lobbyAction) lobbyAction(target.dataset.lobbyAction);
@@ -1282,6 +1301,7 @@
         if (!Number.isSafeInteger(floor) || floor < 1 || floor > info.tower.nextFloor) { toast(`1~${fmt(info.tower.nextFloor)}층을 선택해 주세요.`); target.value = selectedTowerFloor || info.tower.nextFloor; return; }
         selectedTowerFloor = floor; renderKey = '';
         $('tower-enter').dataset.floor = String(floor); $('tower-enter').textContent = `${fmt(floor)}층 도전`;
+        $('tower-trait').innerHTML=towerTraitMarkup(floor);
         document.querySelector('.tower-card .dungeon-reward').textContent = floor > info.tower.best ? `첫 클리어 · ${rewardText(info.tower.reward)}` : '클리어한 층은 골드·보석·경험치를 다시 지급하지 않아요.';
         const gearRates=document.querySelector('.tower-card [data-gear-drop-source]');if(gearRates)gearRates.outerHTML=window.SchoolEquipment?.dropDetails('tower',floor,floor>info.tower.best)||'';
       }
@@ -1333,7 +1353,7 @@
     });
     $('log-button').onclick = damageModal; $('log-button').setAttribute('aria-label','전투 딜량 확인'); $('log-button').title = '전투 기여도';
     $('weapon-preview').onclick=()=>weaponDetails(G.WEAPON_BANNERS[selectedBanner].item);
-    $('history-button').onclick = () => recruitCategory==='weapons'?revealWeapons(state.weaponHistory||[],true):openModal('최근 모집 기록', state.history.length ? state.history.map(r => `<div class="history-row">${portrait(r.id)}${rarity(r.id)}<b>${G.BY_ID[r.id].name}</b><small>${r.fresh ? '첫 만남' : `조각 +${r.shards}`}</small></div>`).join('') : '<p class="modal-copy">아직 모집한 용병이 없어요.</p>', 'history');
+    $('history-button').onclick = () => recruitCategory==='weapons'?revealWeapons(state.weaponHistory||[],true):openModal('최근 모집 기록', state.history.length ? state.history.map(r => `<div class="history-row">${portrait(r.id)}${rarity(r.id)}<b>${G.BY_ID[r.id].name}</b><small>${shardResult(r)}</small></div>`).join('') : '<p class="modal-copy">아직 모집한 용병이 없어요.</p>', 'history');
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) stopTraining();
       if (mode === 'guest') guestUpdate().catch(() => {});
