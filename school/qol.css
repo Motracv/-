@@ -1,10 +1,10 @@
 /* Shared, compact panels: large touch targets without widening the battle HUD. */
-#modal.qol-modal{width:min(94vw,940px);max-height:calc(100dvh - 18px);color:var(--ink);overflow:auto}
+#modal.qol-modal{width:min(720px,calc(100vw - 20px));max-height:calc(100dvh - 18px);color:var(--ink);overflow:auto}
 .qol-modal button,.qol-modal input{min-height:44px;touch-action:manipulation}.qol-modal button:focus-visible,.qol-modal input:focus-visible{outline:2px solid #b294d4;outline-offset:2px}
 .qol-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px}.qol-heading p{margin:0 0 8px;font-size:12px;color:var(--muted)}
 .qol-heading>button{flex-shrink:0}.qol-note{font-size:12px;line-height:1.6;color:var(--muted);margin:10px 0}.qol-team{display:flex;gap:5px;align-items:center;min-width:0}.qol-team img,.qol-team>span{width:38px;height:43px;object-fit:contain;image-rendering:pixelated;border:1px solid #a5aab34d;border-radius:5px;background:#6172890c}.qol-team>span{display:grid;place-items:center;color:#9ba2ac;font-size:18px}
-.preset-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.preset-card{min-width:0;padding:14px;border:1px solid #9ca5af55;border-radius:9px;background:#8794ac08}.preset-top{display:flex;align-items:center;gap:7px;min-height:30px}.qol-number{font-size:10px;color:#9d7baf;font-weight:800;letter-spacing:1px}.preset-top strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.preset-state{margin-left:auto;font-size:10px;color:#8b819e;white-space:nowrap}.preset-card .qol-team{gap:3px;margin:12px 0}.preset-card .qol-team img,.preset-card .qol-team>span{width:calc((100% - 15px)/6);height:43px;min-width:0}.preset-name-row{display:flex;gap:6px}.preset-name-row input{min-width:0;width:100%;padding:8px;border:1px solid #99a0ae66;border-radius:5px;background:var(--paper,#fffdf7);color:inherit;font:inherit;font-size:12px}.preset-name-row button{flex:0 0 69px;padding:6px;font-size:11px}.preset-actions{display:grid;grid-template-columns:1fr 68px;gap:7px;margin-top:8px}.preset-actions>[data-preset-save]{grid-column:1/-1;font-size:12px}.preset-actions button{font-size:12px;padding:7px}.qol-roster-presets{margin-left:auto;min-height:44px;font-size:12px;white-space:nowrap}
-.farm-recommendations{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.farm-recommendation{padding:16px;border:1px solid #889da755;border-radius:9px;background:#81a7a00a;min-width:0}.farm-recommendation:first-child{border-color:#c4ab77}.farm-rank{font-size:10px;letter-spacing:1px;color:#9c8049;font-weight:800}.farm-recommendation h3{margin:8px 0 14px;font-size:15px}.farm-estimate{display:flex;align-items:center;justify-content:space-between;gap:8px}.farm-estimate>strong{font-size:25px;color:#a37a36}.farm-estimate small{display:block;font-size:10px;color:var(--muted);font-weight:400;margin-top:4px}.farm-estimate>span{font-size:12px}.farm-recommendation p{font-size:10px;color:var(--muted);margin:15px 0}.farm-recommendation button{width:100%;font-size:12px;padding:8px}.qol-details{padding:12px 0;border-top:1px solid #99a2ad44}.qol-details summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:12px;font-weight:700}.qol-details summary::before{content:'›';margin-right:8px}.qol-details[open] summary::before{content:'⌄'}.qol-details p{font-size:12px;line-height:1.7;color:var(--muted)}#farm-preview-progress{width:100%;height:7px;accent-color:#9f85bc;margin:0 0 15px}
+.preset-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.preset-card{min-width:0;padding:14px;border:1px solid #9ca5af55;border-radius:9px;background:#8794ac08}.preset-top{display:flex;align-items:center;gap:7px;min-height:30px}.qol-number{font-size:10px;color:#9d7baf;font-weight:800;letter-spacing:1px}.preset-top strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.preset-state{margin-left:auto;font-size:10px;color:#8b819e;white-space:nowrap}.preset-card .qol-team{gap:3px;margin:12px 0}.preset-card .qol-team img,.preset-card .qol-team>span{width:calc((100% - 15px)/6);height:43px;min-width:0}.preset-name-row{display:flex;gap:6px}.preset-name-row input{min-width:0;width:100%;padding:8px;border:1px solid #99a0ae66;border-radius:5px;background:var(--paper,#fffdf7);color:inherit;font:inherit;font-size:12px}.preset-name-row button{flex:0 0 69px;padding:6px;font-size:11px}.preset-actions{display:grid;grid-template-columns:1fr 68px;gap:7px;margin-top:8px}.preset-actions>[data-preset-save]{grid-column:1/-1;font-size:12px}.preset-actions button{font-size:12px;padding:7px}.qol-roster-presets{margin-left:auto;min-height:44px;font-size:12px;white-space:nowrap}
+.farm-recommendations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.farm-recommendation{padding:16px;border:1px solid #889da755;border-radius:9px;background:#81a7a00a;min-width:0}.farm-recommendation:first-child{border-color:#c4ab77}.farm-rank{font-size:10px;letter-spacing:1px;color:#9c8049;font-weight:800}.farm-recommendation h3{margin:8px 0 14px;font-size:15px}.farm-estimate{display:flex;align-items:center;justify-content:space-between;gap:8px}.farm-estimate>strong{font-size:25px;color:#a37a36}.farm-estimate small{display:block;font-size:10px;color:var(--muted);font-weight:400;margin-top:4px}.farm-estimate>span{font-size:12px}.farm-recommendation p{font-size:10px;color:var(--muted);margin:15px 0}.farm-recommendation button{width:100%;font-size:12px;padding:8px}.qol-details{padding:12px 0;border-top:1px solid #99a2ad44}.qol-details summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:12px;font-weight:700}.qol-details summary::before{content:'›';margin-right:8px}.qol-details[open] summary::before{content:'⌄'}.qol-details p{font-size:12px;line-height:1.7;color:var(--muted)}#farm-preview-progress{width:100%;height:7px;accent-color:#9f85bc;margin:0 0 15px}
 .patch-note{padding:17px 0;border-bottom:1px solid #949ead44}.patch-note:first-child{padding-top:5px}.patch-note header{display:flex;align-items:center;justify-content:space-between;gap:10px}.patch-note header>span{font-size:11px;color:#9970a3}.patch-note header>small{font-size:10px;color:var(--muted)}.patch-note h3{font-size:18px;margin:9px 0 12px}.patch-note ul{padding-left:18px;margin:0}.patch-note li{font-size:13px;line-height:1.7;margin:6px 0}.qol-event-list{display:grid;gap:0;margin:4px 0 12px}.qol-event-list>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #9aa5af33;font-size:12px}.qol-event-list b{font-variant-numeric:tabular-nums;font-size:11px;font-weight:600;color:#a68d65}.qol-event-list b[data-ended=true]{color:var(--muted)}
 [data-patch-unread]{display:inline-block;width:6px;height:6px;border-radius:50%;background:#e6b77f;margin-left:4px;box-shadow:0 0 0 2px #60463133}[data-patch-unread][hidden]{display:none}.lobby-patch-notes{position:relative}.lobby-patch-notes [data-patch-unread]{position:absolute;top:3px;right:3px}#banner-deadline[data-qol-countdown]{font-variant-numeric:tabular-nums;white-space:nowrap}
 html[data-theme=dark] .preset-name-row input{background:#263143}html[data-theme=dark] .farm-estimate>strong{color:#e5c493}html[data-theme=dark] .qol-event-list b{color:#dec198}html[data-theme=dark] .patch-note header>span{color:#d4adde}html[data-theme=dark] .qol-number{color:#d0abe4}
@@ -13,15 +13,41 @@ html[data-theme=dark] .preset-name-row input{background:#263143}html[data-theme=
 @media(max-height:370px) and (orientation:landscape){.app .pickup-screen #banner-deadline[data-qol-countdown=lava]{display:block;font-size:9px;line-height:1.2;color:#f3ceab}}
 
 /* Reading panels need a comfortable line length, not the entire landscape screen. */
-#modal.qol-modal{width:min(860px,calc(100vw - 20px))}
-#modal.qol-modal:has(#patch-notes-list){width:min(680px,calc(100vw - 20px))}
+#modal.qol-modal{width:min(720px,calc(100vw - 20px))}
+#modal.qol-modal:has(#patch-notes-list){width:min(620px,calc(100vw - 20px))}
+/* Reading windows follow the viewport, independently of the landscape battlefield.
+   One scroll area keeps the close button available on both tall and short screens. */
+#modal:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))){
+ width:min(540px,calc(100vw - 20px));box-sizing:border-box;
+ max-width:calc(100vw - 20px);max-height:min(850px,calc(100dvh - 20px));
+ padding:14px 16px;overflow:hidden
+}
+#modal[open]:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))){display:flex;flex-direction:column}
+#modal:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))) .modal-top{
+ position:relative;top:auto;flex:0 0 auto;min-height:44px;margin:0 0 10px;padding:0 0 7px
+}
+#modal:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))) #modal-content{
+ min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;
+ padding:0 3px 5px 0;scroll-padding-block:8px
+}
+#modal:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))) .close-button{
+ width:44px;height:44px;min-height:44px;flex:0 0 44px
+}
+#modal:where(:not(.world-map-modal):not(.equipment-modal)) :is(button,input,select){min-height:44px}
+#modal :is(.modal-copy,.detail-note,.skill-box,.qol-note){overflow-wrap:anywhere}
+#modal .hero-wallet{gap:5px 8px}#modal .slot-buttons button{font-size:12px}
+@media(max-width:499px){
+ #modal:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))){padding:10px 12px;max-height:calc(100dvh - 16px)}
+ #modal .hero-detail-header{gap:10px;padding:10px}.hero-detail-header h3{font-size:22px}
+ #modal .hero-stat-grid{gap:5px}#modal .detail-actions{gap:7px}
+ #modal .account-box{align-items:flex-start;flex-wrap:wrap;gap:10px}
+ #modal .account-actions{display:grid;grid-template-columns:1fr 1fr}
+ #modal .qol-heading{align-items:flex-start;flex-wrap:wrap}
+ #modal .qol-event-list>div{align-items:flex-start;flex-direction:column;gap:5px}
+ #modal .preset-actions{grid-template-columns:1fr 1fr}.preset-actions>[data-preset-save]{grid-column:1/-1}
+ #modal .history-row{flex-wrap:wrap;gap:6px}#modal .history-row small{margin-left:44px;flex-basis:calc(100% - 44px)}
+}
 @media(max-height:500px) and (min-width:500px){
- #modal:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social)){
-  padding:7px 12px;max-height:calc(100dvh - 12px)
- }
- #modal:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social)) .modal-top{
-  top:-7px;min-height:44px;margin:0 0 8px;padding:0
- }
- #modal:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social)) .modal-top h2{font-size:17px;margin:0}
- #modal:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social)) .close-button{width:44px;height:44px;min-height:44px}
+ #modal:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))){padding:7px 12px;max-height:calc(100dvh - 12px)}
+ #modal:where(:not(.world-map-modal):not(.equipment-modal):not(:has(#school-social))) .modal-top{margin-bottom:6px;padding-bottom:0}
 }

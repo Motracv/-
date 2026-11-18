@@ -164,11 +164,12 @@
       viewport:[innerWidth,innerHeight,devicePixelRatio], canvas:canvas ? [canvas.width,canvas.height,Math.round(box.width),Math.round(box.height)] : null,
       app:matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches, hidden:document.hidden,
       account:{mode,connected,busy,pending:!!pending}, battle:state ? {stage:state.stage,wave:state.wave,phase:state.battle.phase,elapsed:state.battle.elapsed,simTime:state.simTime,cutin:state.battle.cinematic?.remaining || 0} : null,
+      equipment:state&&G.equipmentInfo ? G.equipmentInfo(state).items.filter(item=>item.count||item.wearers.length).map(item=>({id:item.id,count:item.count,free:item.free,stars:item.stars,wearers:item.wearers})) : null,
       graphics:{...graphics,lastFrame:age(graphics.lastFrame),lastDraw:age(graphics.lastDraw),modal:modalKind,view:tab,covered:tab !== 'adventure' || resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden},
       timing:frameTimingReport(),
       support:{findLast:typeof Array.prototype.findLast==='function',abortTimeout:typeof window.AbortSignal?.timeout==='function',contextLost:typeof canvas?.getContext('2d')?.isContextLost==='function'}
     };
-    openModal('문제 정보', `<p class="modal-copy">멈춤이 반복되면 아래 정보를 복사해서 알려주세요. 로그인 토큰과 계정 이름은 포함하지 않아요.</p><textarea id="diagnostic-report" class="diagnostic-report" readonly aria-label="게임 문제 정보">${esc(JSON.stringify(report,null,2))}</textarea><button class="primary" id="copy-diagnostics">문제 정보 복사</button>`, 'diagnostics');
+    openModal('문제 정보', `<p class="modal-copy">문제가 반복되면 아래 정보를 복사해서 알려주세요. 로그인 토큰과 계정 이름은 포함하지 않아요.</p><textarea id="diagnostic-report" class="diagnostic-report" readonly aria-label="게임 문제 정보">${esc(JSON.stringify(report,null,2))}</textarea><button class="primary" id="copy-diagnostics">문제 정보 복사</button>`, 'diagnostics');
     $('copy-diagnostics').onclick = async () => {
       const input = $('diagnostic-report');
       try { await navigator.clipboard.writeText(input.value); toast('문제 정보를 복사했어요.'); }
@@ -888,7 +889,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-weapons1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-bag1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;

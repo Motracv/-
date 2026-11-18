@@ -40,21 +40,34 @@ window.SchoolEquipment = (() => {
     const text=(id,value)=>{const node=typeof id==='string'?$(id):id;if(node&&node.textContent!==String(value))node.textContent=String(value);};
     const disable=(node,value)=>{if(node&&node.disabled!==!!value)node.disabled=!!value;};
     const definition=id=>G.GEAR_BY_ID?.[id];
-    function close(){clearTimeout(effectTimer);effectTimer=null;current=false;hero=null;key='';slotKey='';}
-    function choose(info,slot) { return info.loadout[slot]||info.items.find(item=>item.slot===slot&&item.count>0)?.id||info.items.find(item=>item.slot===slot)?.id; }
+    function close(){clearTimeout(effectTimer);effectTimer=null;$('modal')?.querySelector('.modal-top .gear-heading')?.remove();current=false;hero=null;key='';slotKey='';}
+    function choose(info,slot) { return info.loadout[slot]||info.items.find(item=>item.slot===slot&&item.free>0)?.id||info.items.find(item=>item.slot===slot&&item.count>0)?.id||null; }
     function open(id,slot='weapon') {
       if(!state().units[id]||!G.equipmentInfo)return;
       const initial=G.equipmentInfo(state(),id);slot=slots[slot]?slot:'weapon';
-      ctx.openModal('용병 장비',`<section id="gear-inventory" class="gear-inventory"><div class="gear-heading"><button type="button" class="secondary" id="gear-back">‹ ${esc(G.BY_ID[id].name)}</button><span>장비 레벨·골드 비용 없음</span></div><div class="gear-workspace"><div class="gear-library"><div class="gear-filters" role="group" aria-label="장비 부위">${Object.entries(slots).map(([value,label])=>`<button type="button" data-gear-filter="${value}" aria-pressed="${slot===value}">${label}</button>`).join('')}</div><div class="gear-items" id="gear-items" aria-label="보유 장비">${G.GEAR.map(item=>`<button type="button" class="gear-item gear-${item.rarity}" data-gear-item="${item.id}" data-gear-kind="${item.slot}" aria-pressed="false">${image(item.id)}<span><small class="gear-rarity">${item.rarity}</small><b>${esc(item.name)}</b><i data-gear-stars aria-hidden="true"></i><small data-gear-count></small></span><em data-gear-equipped hidden>착용</em></button>`).join('')}</div></div><section class="gear-detail" id="gear-detail" aria-label="선택한 장비"><div class="gear-detail-scroll"><div class="gear-selected-heading"><div id="gear-selected-icon"></div><div><span class="gear-rarity" id="gear-selected-rarity"></span><h3 id="gear-selected-name"></h3><p id="gear-selected-stars"></p></div></div><p id="gear-bonus" class="gear-bonus"></p><p id="gear-exclusive" class="gear-exclusive" hidden></p><div class="gear-preview"><span>착용 시 능력치</span><div><small>공격</small><b id="gear-preview-atk"></b><small>체력</small><b id="gear-preview-hp"></b></div></div><p id="gear-owned" class="gear-small"></p><p id="gear-wearers" class="gear-small"></p><p id="gear-awaken-next" class="gear-small"></p><p class="gear-shared-note">같은 종류의 모든 장비가 별을 공유해요. 착용 중인 장비는 각성 재료로 쓰지 않아요.</p><p class="gear-apply-note">다음 웨이브부터 적용 · 현재 체력 유지<br>시즌 방어 편성은 별도 갱신</p></div><div class="gear-actions"><button type="button" class="primary" id="gear-equip">착용</button><button type="button" class="secondary" id="gear-unequip">해제</button><button type="button" class="secondary gear-awaken" id="gear-awaken">각성</button></div><div id="gear-awaken-fx" aria-hidden="true"></div></section></div><p id="gear-lock-note" class="gear-status" role="status"></p></section>`,'equipment');
+      ctx.openModal('장비 가방',`<section id="gear-inventory" class="gear-inventory"><div class="gear-heading"><button type="button" class="secondary" id="gear-back">‹ ${esc(G.BY_ID[id].name)}</button></div><div class="gear-workspace"><section class="gear-library" aria-label="장비 가방"><div class="gear-filters" role="group" aria-label="장비 부위">${Object.entries(slots).map(([value,label])=>`<button type="button" data-gear-filter="${value}" aria-pressed="${slot===value}">${label}</button>`).join('')}</div><div class="gear-bag-heading"><b>가방 <span id="gear-bag-count">0</span></b><small>사용 가능한 장비</small></div><div class="gear-bag-scroll"><div class="gear-items" id="gear-items" aria-label="가방에 남은 장비">${G.GEAR.map(item=>`<button type="button" class="gear-item gear-${item.rarity}" data-gear-item="${item.id}" data-gear-kind="${item.slot}" aria-pressed="false" hidden><small class="gear-rarity">${item.rarity}</small>${image(item.id)}<b>${esc(item.name)}</b><i data-gear-stars aria-hidden="true"></i><strong data-gear-count></strong></button>`).join('')}</div><div class="gear-bag-empty" id="gear-bag-empty" hidden><span aria-hidden="true">◇</span><b>가방이 비어 있어요</b><p>착용한 장비는 아래에 표시돼요.<br>던전이나 무기 모집에서 장비를 얻을 수 있어요.</p></div><section class="gear-worn-section" id="gear-worn-section" hidden><div class="gear-bag-heading"><b>착용 중 <span id="gear-worn-count">0</span></b><small>해제하면 가방으로</small></div><div id="gear-worn-items" class="gear-worn-items">${G.GEAR.map(item=>`<button type="button" class="gear-worn-item gear-${item.rarity}" data-gear-worn="${item.id}" aria-pressed="false" hidden>${image(item.id)}<span><b>${esc(item.name)}</b><small data-gear-worn-by></small></span><em data-gear-worn-count></em></button>`).join('')}</div></section></div></section><section class="gear-detail" id="gear-detail" aria-label="선택한 장비"><div class="gear-detail-scroll" id="gear-detail-scroll"><div id="gear-selected-content"><div class="gear-selected-heading"><div id="gear-selected-icon"></div><div><span class="gear-rarity" id="gear-selected-rarity"></span><h3 id="gear-selected-name"></h3><p id="gear-selected-stars"></p></div></div><p id="gear-bonus" class="gear-bonus"></p><p id="gear-owned" class="gear-owned"></p><p id="gear-wearers" class="gear-small"></p><p id="gear-exclusive" class="gear-exclusive" hidden></p><div class="gear-preview"><span>착용 시 능력치</span><div><small>공격</small><b id="gear-preview-atk"></b><small>체력</small><b id="gear-preview-hp"></b></div></div><p id="gear-awaken-next" class="gear-small"></p><details class="gear-rules"><summary>각성·적용 안내</summary><p class="gear-shared-note">같은 종류는 별을 공유해요. 각성은 남는 같은 장비만 소모하며 착용한 장비와 원본 1개는 보호해요.</p><p class="gear-apply-note">다음 웨이브부터 적용 · 현재 체력 유지<br>시즌 방어 편성은 별도 갱신</p></details></div><div id="gear-detail-empty" class="gear-detail-empty" hidden><span aria-hidden="true">✧</span><b>장비를 선택하세요</b><p>가방 또는 착용 중인 장비를 누르면<br>능력치와 전용 효과를 볼 수 있어요.</p></div></div><div id="gear-awaken-fx" aria-hidden="true"></div></section></div><footer class="gear-footer"><p id="gear-lock-note" class="gear-status" role="status"></p><div class="gear-actions" id="gear-actions"><button type="button" class="primary" id="gear-equip">착용</button><button type="button" class="secondary" id="gear-unequip" hidden>해제</button><button type="button" class="secondary gear-awaken" id="gear-awaken">각성</button></div></footer></section>`,'equipment');
       current=true;hero=id;filter=slot;selected=choose(initial,slot);scope=ctx.accountScope();key='';$('modal').classList.add('equipment-modal');
+      // The header is outside the scrollable content; an absolute child inside
+      // that content would be clipped above its overflow boundary.
+      const heading=$('gear-back').closest('.gear-heading');
+      $('modal-close').before(heading);
+      $('gear-back').setAttribute('aria-label',`${G.BY_ID[id].name} 육성으로 돌아가기`);
       $('gear-back').onclick=()=>ctx.openHero(id);
       $('gear-inventory').addEventListener('click',event=>{
         const button=event.target.closest('button');if(!button||button.disabled||!active())return;
         if(button.dataset.gearFilter){filter=button.dataset.gearFilter;selected=choose(G.equipmentInfo(state(),hero),filter);key='';refresh();}
-        else if(button.dataset.gearItem){selected=button.dataset.gearItem;key='';refresh();}
+        else if(button.dataset.gearItem||button.dataset.gearWorn){selected=button.dataset.gearItem||button.dataset.gearWorn;key='';refresh();$('gear-detail-scroll').scrollTop=0;}
         else if(['gear-equip','gear-unequip','gear-awaken'].includes(button.id)){
-          const info=G.equipmentInfo(state(),hero);if(ctx.isBlocked()||info.locked)return;
-          const action=button.id==='gear-equip'?{kind:'gear-equip',hero,item:selected}:button.id==='gear-unequip'?{kind:'gear-unequip',hero,slot:filter}:{kind:'gear-awaken',item:selected};ctx.dispatch(action);
+          const live=state();
+          if(scope!==ctx.accountScope()||!live.units[hero]){ctx.closeModal();return;}
+          const info=G.equipmentInfo(live,hero),item=info.items.find(entry=>entry.id===selected&&entry.slot===filter&&entry.count>0);
+          // Recheck the current inventory at the click, not just the last drawn button.
+          const denied=ctx.isBlocked()||info.locked||!item||
+            button.id==='gear-equip'&&(item.free<1||info.loadout[filter]===item.id)||
+            button.id==='gear-unequip'&&info.loadout[filter]!==item.id||
+            button.id==='gear-awaken'&&!item.canAwaken;
+          if(denied){refresh();return;}
+          const action=button.id==='gear-equip'?{kind:'gear-equip',hero,item:item.id}:button.id==='gear-unequip'?{kind:'gear-unequip',hero,slot:filter}:{kind:'gear-awaken',item:item.id};ctx.dispatch(action);
         }
       });refresh();
     }
@@ -66,7 +79,7 @@ window.SchoolEquipment = (() => {
     function refreshHeroSlots() {
       if(ctx.modalKind()!=='hero'||!$('hero-gear-slots'))return;
       const id=$('hero-gear-slots').querySelector('[data-gear-hero]')?.dataset.gearHero;if(!id)return;
-      const s=state(),info=G.equipmentInfo(s,id),stamp=JSON.stringify([ctx.accountScope(),info.loadout,info.items.map(item=>[item.id,item.stars])]);
+      const s=state(),info=G.equipmentInfo(s,id),stamp=JSON.stringify([ctx.accountScope(),id,info.loadout,info.items.map(item=>[item.id,item.stars])]);
       if(stamp===slotKey)return;slotKey=stamp;
       for(const slot of Object.keys(slots)){
         const button=$('hero-gear-slots').querySelector(`[data-gear-slot="${slot}"]`),item=info.items.find(item=>item.id===info.loadout[slot]);
@@ -79,25 +92,42 @@ window.SchoolEquipment = (() => {
       if(!G.equipmentInfo)return;
       refreshHeroSlots();if(!active())return;
       const s=state();if(scope!==ctx.accountScope()||!s.units[hero]){ctx.closeModal();return;}
-      const info=G.equipmentInfo(s,hero),item=info.items.find(item=>item.id===selected)||info.items.find(item=>item.slot===filter);if(!item)return;
+      const info=G.equipmentInfo(s,hero);
+      if(!info.items.some(entry=>entry.id===selected&&entry.slot===filter&&entry.count>0))selected=choose(info,filter);
+      const item=info.items.find(entry=>entry.id===selected&&entry.count>0);
       const stamp=JSON.stringify([scope,hero,filter,selected,s.units[hero].level,s.units[hero].stars,info.loadout,info.items.map(entry=>[entry.count,entry.stars,entry.wearers])]);
       if(stamp!==key){key=stamp;
         $('gear-inventory').querySelectorAll('[data-gear-filter]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.gearFilter===filter)));
-        for(const entry of info.items){const button=$('gear-items').querySelector(`[data-gear-item="${entry.id}"]`);button.hidden=entry.slot!==filter;button.classList.toggle('gear-unowned',entry.count<1);button.setAttribute('aria-pressed',String(entry.id===selected));button.setAttribute('aria-label',`${entry.name} ${entry.rarity} ${entry.stars}성 · 보유 ${entry.count} · 남는 장비 ${entry.free}`);text(button.querySelector('[data-gear-stars]'),stars(entry.stars));text(button.querySelector('[data-gear-count]'),`보유 ${fmt(entry.count)} · 여유 ${fmt(entry.free)}`);button.querySelector('[data-gear-equipped]').hidden=info.loadout[entry.slot]!==entry.id;}
-        $('gear-selected-icon').innerHTML=image(item.id);$('gear-detail').className=`gear-detail gear-${item.rarity}`;
-        text('gear-selected-rarity',`${item.rarity} · ${slots[item.slot]}`);text('gear-selected-name',item.name);text('gear-selected-stars',`${stars(item.stars)} · ${item.stars}성`);text('gear-bonus',bonusText(G.gearBonus(item.id,item.stars)));
-        const exclusive=G.weaponPassive(item.id,item.stars);$('gear-exclusive').hidden=!exclusive; if(exclusive)text('gear-exclusive',`${exclusive.owner===hero?'전용 패시브 활성':'전용 패시브 비활성 · '+G.BY_ID[exclusive.owner].name+' 전용'} · ${exclusive.name}\n${exclusive.description}`);
-        const st=preview(s,item,info);text('gear-preview-atk',`${fmt(st.before.atk)} → ${fmt(st.after.atk)}`);text('gear-preview-hp',`${fmt(st.before.hp)} → ${fmt(st.after.hp)}`);
-        text('gear-owned',`보유 ${fmt(item.count)} · 착용 ${item.wearers.length} · 남는 장비 ${fmt(item.free)}`);text('gear-wearers',`착용 중: ${item.wearers.map(id=>G.BY_ID[id]?.name||id).join(', ')||'없음'}`);
-        text('gear-equip',info.loadout[filter]===item.id?'착용 중':item.count<1?'미보유':item.free<1?'남는 장비 없음':'착용');
-        text('gear-awaken',item.stars>=5?'최대 5성':`각성 · 동일 장비 ${item.awakenCost}개`);
-        text('gear-awaken-next',item.stars>=5?'최대 각성 상태예요.':`다음 ${item.stars+1}성: ${bonusText(G.gearBonus(item.id,item.stars+1))} · 재료 ${fmt(item.materials)} / ${item.awakenCost}`);
+        const visible=info.items.filter(entry=>entry.slot===filter),bagCount=visible.reduce((sum,entry)=>sum+entry.free,0),wornCount=visible.reduce((sum,entry)=>sum+entry.wearers.length,0);
+        text('gear-bag-count',fmt(bagCount));text('gear-worn-count',fmt(wornCount));$('gear-bag-empty').hidden=bagCount>0;$('gear-worn-section').hidden=wornCount===0;
+        for(const entry of info.items){
+          const button=$('gear-items').querySelector(`[data-gear-item="${entry.id}"]`),worn=$('gear-worn-items').querySelector(`[data-gear-worn="${entry.id}"]`);
+          button.hidden=entry.slot!==filter||entry.free<1;button.setAttribute('aria-pressed',String(entry.id===selected));button.setAttribute('aria-label',`${entry.name} ${entry.rarity} ${entry.stars}성 · 가방 ${entry.free}개 · 착용 ${entry.wearers.length}개 · 총 보유 ${entry.count}개`);
+          text(button.querySelector('[data-gear-stars]'),stars(entry.stars));text(button.querySelector('[data-gear-count]'),`×${fmt(entry.free)}`);
+          worn.hidden=entry.slot!==filter||entry.wearers.length===0;worn.setAttribute('aria-pressed',String(entry.id===selected));
+          const names=entry.wearers.map(id=>G.BY_ID[id]?.name||id).join(' · ');
+          text(worn.querySelector('[data-gear-worn-by]'),names);text(worn.querySelector('[data-gear-worn-count]'),`${entry.wearers.length}개`);worn.setAttribute('aria-label',`${entry.name} · 착용 ${entry.wearers.length}개 · ${names}`);
+        }
+        $('gear-selected-content').hidden=!item;$('gear-detail-empty').hidden=!!item;
+        $('gear-detail').className=`gear-detail${item?' gear-'+item.rarity:''}`;$('gear-actions').className=`gear-actions${item?' gear-'+item.rarity:''}`;
+        if(item){
+          $('gear-selected-icon').innerHTML=image(item.id);
+          text('gear-selected-rarity',`${item.rarity} · ${slots[item.slot]}`);text('gear-selected-name',item.name);text('gear-selected-stars',`${stars(item.stars)} · ${item.stars}성`);text('gear-bonus',bonusText(G.gearBonus(item.id,item.stars)));
+          const exclusive=G.weaponPassive(item.id,item.stars);$('gear-exclusive').hidden=!exclusive;
+          if(exclusive){const status=exclusive.owner!==hero?'비활성 · '+G.BY_ID[exclusive.owner].name+' 전용':info.loadout[filter]===item.id?'전용 패시브 활성':'착용 시 전용 패시브 활성';text('gear-exclusive',`${status} · ${exclusive.name}\n${exclusive.description}`);}
+          const st=preview(s,item,info);text('gear-preview-atk',`${fmt(st.before.atk)} → ${fmt(st.after.atk)}`);text('gear-preview-hp',`${fmt(st.before.hp)} → ${fmt(st.after.hp)}`);
+          text('gear-owned',`총 ${fmt(item.count)}개 = 가방 ${fmt(item.free)} + 착용 ${item.wearers.length}`);
+          text('gear-wearers',item.wearers.length?`착용: ${item.wearers.map(id=>G.BY_ID[id]?.name||id).join(', ')}`:'착용 중인 용병 없음');
+          text('gear-equip',info.loadout[filter]===item.id?'착용 중':item.free<1?'가방에 없음':'착용');
+          text('gear-awaken',item.stars>=5?'최대 5성':`각성 · ${item.awakenCost}개`);
+          text('gear-awaken-next',item.stars>=5?'최대 각성 상태예요.':`다음 ${item.stars+1}성 · ${bonusText(G.gearBonus(item.id,item.stars+1))}\n각성 재료 ${fmt(item.materials)} / ${item.awakenCost}개 (착용분·원본 제외)`);
+        }else{text('gear-equip','장비 선택');text('gear-awaken','각성');}
       }
       const blocked=ctx.isBlocked()||info.locked;
-      disable($('gear-equip'),blocked||item.count<1||item.free<1||info.loadout[filter]===item.id);
-      $('gear-unequip').hidden=info.loadout[filter]!==item.id;disable($('gear-unequip'),blocked||!info.loadout[filter]);
-      disable($('gear-awaken'),blocked||!item.canAwaken);
-      text('gear-lock-note',info.locked?'던전 도전을 마친 뒤 장비를 바꾸거나 각성할 수 있어요.':ctx.isBlocked()?'저장 상태를 확인하고 있어요.':'착용·해제·각성에는 골드나 보석이 들지 않아요.');
+      disable($('gear-equip'),blocked||!item||item.free<1||info.loadout[filter]===item.id);
+      $('gear-unequip').hidden=!item||info.loadout[filter]!==item.id;disable($('gear-unequip'),blocked||!item||!info.loadout[filter]);
+      disable($('gear-awaken'),blocked||!item||!item.canAwaken);
+      text('gear-lock-note',info.locked?'던전 도전 중에는 장비를 바꿀 수 없어요.':ctx.isBlocked()?'저장 상태 확인 중…':!item?'가방 또는 착용 중인 장비를 선택해 주세요.':item.free<1&&info.loadout[filter]!==item.id?`${item.wearers.map(id=>G.BY_ID[id]?.name||id).join(', ')} 착용 중 · 먼저 해제해 주세요.`:item&&info.loadout[filter]===item.id?`${G.BY_ID[hero].name} 착용 중 · 해제하면 가방으로 이동`: `${G.BY_ID[hero].name}에게 착용 · 가방에서 1개 이동`);
     }
     function handleResult(result,requestKey) {
       if(!result?.kind?.startsWith('gear-'))return;

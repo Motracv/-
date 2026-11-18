@@ -113,7 +113,7 @@ const finances=s=>({gold:s.gold,gems:s.gems,pity:s.pity,banners:s.banners,team:s
   console.log('PASS exact catalog15 save migration preserves wallet, pity, heroes, presets and pending paid dungeon result without retroactive gear');
 
   const guest=await open(rich),p=guest.p;
-  await gear(p);assert.equal(await p.locator('[data-gear-item]').count(),9);
+  await gear(p);assert.equal(await p.locator('#gear-items [data-gear-item]:visible').count(),G.GEAR.filter(item=>item.slot==='weapon').length);
   for(const viewport of SIZES){
     await p.setViewportSize(viewport);
     for(const slot of G.GEAR_SLOTS){await p.click(`[data-gear-filter="${slot}"]`);for(const item of G.GEAR.filter(item=>item.slot===slot))await within(p,`[data-gear-item="${item.id}"]`);await within(p,'#gear-equip');await within(p,'#gear-awaken');}
@@ -138,13 +138,13 @@ const finances=s=>({gold:s.gold,gems:s.gems,pity:s.pity,banners:s.banners,team:s
   s=await saved(p);assert.equal(Object.keys(s.equipment.equipped.taeo).length,3);
   await close(p);await p.click('#battle-settings');await p.check('#setting-theme');await close(p);await gear(p);
   const colors=await p.locator('[data-gear-kind="weapon"]').evaluateAll(nodes=>nodes.map(node=>({rarity:node.className,color:getComputedStyle(node).getPropertyValue('--gear-color')||getComputedStyle(node).borderColor})));
-  assert.equal(new Set(colors.map(x=>x.color)).size,3);await p.screenshot({path:path.join(OUT,'equipment-dark-rarity.png')});
+  assert.equal(new Set(colors.map(x=>x.color)).size,4);await p.screenshot({path:path.join(OUT,'equipment-dark-rarity.png')});
   await close(p);await p.clock.setFixedTime(new Date(NOW+20000));await p.waitForFunction(({key,atk,hp})=>{const h=JSON.parse(localStorage.getItem(key)).battle.heroes.find(h=>h.id==='taeo');return h.atk===atk&&h.max===hp;},{key:SAVE,...G.stats('taeo',s.units.taeo,s)});
   s=await saved(p);const preservedGear=G.clone(s.equipment);await p.click('#formation-button');await p.click('[data-preset-save="0"]');await p.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).presets[0].team.length===6,SAVE);await close(p);
   await p.click('#party [data-hero="taeo"]');await p.click('[data-slot="1"]');await p.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).team[1]==='taeo',SAVE);
   await p.click('#formation-button');await p.click('[data-preset-apply="0"]');await p.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).team[0]==='taeo',SAVE);assert.deepEqual((await saved(p)).equipment,preservedGear);
   await p.reload();await ready(p);assert.deepEqual((await saved(p)).equipment,preservedGear);await guest.context.close();
-  console.log('PASS nine equipment items and 44px controls fit three viewports; dark rarity colors remain distinct; shared five-star awakening costs only unused copies, slots persist, next-wave stats and presets preserve gear');
+  console.log('PASS owned equipment bag and 44px controls fit three viewports; dark rarity colors remain distinct; shared five-star awakening costs only unused copies, slots persist, next-wave stats and presets preserve gear');
   const active=G.clone(rich);active.best=60;for(const u of Object.values(active.units))u.level=1;G.action(active,{kind:'activity',mode:'weekly',tier:3},NOW);
   const locked=await open(active);await gear(locked.p);assert(await locked.p.locator('#gear-equip').isDisabled());assert(await locked.p.locator('#gear-awaken').isDisabled());assert.match(await locked.p.locator('#gear-lock-note').innerText(),/던전/);assert.deepEqual((await saved(locked.p)).equipment,active.equipment);await locked.context.close();
   console.log('PASS active dungeon disables equipment changes and duplicate awakening before battle settlement');
@@ -166,9 +166,9 @@ const finances=s=>({gold:s.gold,gems:s.gems,pity:s.pity,banners:s.banners,team:s
   await a.reload();await ready(a);await a.waitForSelector('[data-gear-drop="chalk_star"]');await api(alice,'/api/school/state');assert.deepEqual(readCloud(alice).activities.lastResult,paidResult);assert.equal(readCloud(alice).equipment.inventory.chalk_star.count,1);assert.deepEqual({gold:readCloud(alice).gold,gems:readCloud(alice).gems},paidWallet);
   await gear(a);control.holdAction=true;await a.locator('#gear-equip').evaluate(el=>{el.click();el.click();});await a.waitForTimeout(200);assert(control.committed?.status===200);assert(await a.locator('#gear-equip').isDisabled());await equipped(a,'taeo','chalk_star',true);
   const retry=await api(alice,'/api/school/action',control.committed.request);assert.equal(retry.status,200);assert.equal(retry.data.repeated,true);assert.equal(readCloud(alice).equipment.inventory.chalk_star.count,1);
-  await gear(a,'geonu');assert(await a.locator('#gear-equip').isDisabled());assert.match(await a.locator('#gear-equip').innerText(),/남는 장비 없음/);
+  await gear(a,'geonu');assert(await a.locator('#gear-equip').isDisabled());assert.match(await a.locator('#gear-equip').innerText(),/가방에 없음/);assert.equal(await a.locator('#gear-items [data-gear-item]:visible').count(),0);assert.equal(await a.locator('#gear-worn-items [data-gear-worn="chalk_star"]:visible').count(),1);assert.match(await a.locator('#gear-lock-note').innerText(),/착용 중.*해제/);assert.match(await a.locator('#gear-owned').innerText(),/총 1개 = 가방 0 \+ 착용 1/);
   assert.equal((await action(alice,{kind:'gear-equip',hero:'geonu',item:'chalk_star'})).status,400);
-  await gear(b);assert(await b.locator('#gear-equip').isDisabled());assert.equal((await action(bob,{kind:'gear-equip',hero:'taeo',item:'chalk_star',accountId:alice.profile.id})).status,400);assert.deepEqual(readCloud(bob).equipment,{inventory:{},equipped:{}});
+  await gear(b);assert(await b.locator('#gear-equip').isDisabled());assert(await b.locator('#gear-bag-empty').isVisible());assert(await b.locator('#gear-detail-empty').isVisible());assert.equal(await b.locator('#gear-items [data-gear-item]:visible').count(),0);assert.equal(await b.locator('#gear-worn-items [data-gear-worn]:visible').count(),0);assert.equal((await action(bob,{kind:'gear-equip',hero:'taeo',item:'chalk_star',accountId:alice.profile.id})).status,400);assert.deepEqual(readCloud(bob).equipment,{inventory:{},equipped:{}});
   console.log('PASS actual signed server dungeon victory confirms one secure drop; cloud preview exposes no fake loot; reload and receipt retry award once, first-copy ownership and cross-account isolation enforced');
 
   await enter(a);await finish(a);assert.equal(readCloud(alice).equipment.inventory.chalk_star.count,2);await gear(a,'geonu');await a.click('#gear-equip');await equipped(a,'geonu','chalk_star',true);assert(await a.locator('#gear-awaken').isDisabled());
@@ -203,7 +203,7 @@ const finances=s=>({gold:s.gold,gems:s.gems,pity:s.pity,banners:s.banners,team:s
   console.log('PASS real season defense locks equipped bonuses at registration; actual persisted replay uses that snapshot, then manual refresh updates the defense');
 
   await close(a);await a.click('#account-button');await a.waitForSelector('#logout-account');await a.click('#logout-account');await a.waitForFunction(()=>document.querySelector('#account-label').textContent==='게스트');
-  assert.deepEqual((await saved(a)).equipment,{inventory:{},equipped:{}});await gear(a);assert(await a.locator('#gear-equip').isDisabled());
+  assert.deepEqual((await saved(a)).equipment,{inventory:{},equipped:{}});await gear(a);assert(await a.locator('#gear-equip').isDisabled());assert(await a.locator('#gear-bag-empty').isVisible());assert.equal(await a.locator('#gear-items [data-gear-item]:visible').count(),0);assert.equal(await a.locator('#gear-worn-items [data-gear-worn]:visible').count(),0);
   await aSession.context.close();await bSession.context.close();
   const full=await open(rich,{motion:'full'});await gear(full.p);await full.p.click('#gear-awaken');await full.p.waitForSelector('#gear-awaken-fx.gear-fx-playing');await full.p.screenshot({path:path.join(OUT,'equipment-awaken-full.png')});await full.p.waitForFunction(()=>!document.querySelector('#gear-awaken-fx').classList.contains('gear-fx-playing'));assert.equal((await saved(full.p)).equipment.inventory.chalk_star.stars,1);await full.context.close();
   assert.deepEqual(errors,[]);assert.deepEqual(badAssets,[]);

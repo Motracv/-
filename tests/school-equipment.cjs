@@ -15,6 +15,19 @@ test('Three slots share copies correctly, swapping frees the previous item, and 
  act(s,{kind:'gear-equip',hero:'harin',item:'chalk_star'});act(s,{kind:'gear-equip',hero:'taeo',item:'chalk_star'});assert.deepEqual(G.equipmentInfo(s).items.find(i=>i.id==='chalk_star').wearers,['harin','taeo']);reject(s,{kind:'gear-equip',hero:'sua',item:'chalk_star'});reject(s,{kind:'gear-equip',hero:'harin',item:'chalk_star'});
  act(s,{kind:'gear-equip',hero:'harin',item:'rift_baton'});assert.equal(G.equipmentInfo(s).items.find(i=>i.id==='chalk_star').free,1);act(s,{kind:'gear-equip',hero:'sua',item:'chalk_star'});act(s,{kind:'gear-equip',hero:'harin',item:'apprentice_cape'});assert.deepEqual(s.battle,battle);assert.deepEqual([s.gold,s.gems],money);act(s,{kind:'gear-unequip',hero:'harin',slot:'weapon'});assert(!s.equipment.equipped.harin.weapon);assert.equal(G.equipmentInfo(s).items.find(i=>i.id==='rift_baton').free,1);assert(G.validate(s));
 });
+test('Every item and hero pair conserves a single physical copy across rejected duplication and explicit transfer',()=>{
+ let pairs=0;
+ for(const item of G.GEAR)for(const owner of G.HEROES){
+  const s=make();for(const hero of G.HEROES)s.units[hero.id]={level:1,xp:0,stars:0,shards:0};add(s,item.id);act(s,{kind:'gear-equip',hero:owner.id,item:item.id});
+  const held=G.equipmentInfo(s).items.find(entry=>entry.id===item.id);assert.equal(held.count,1);assert.equal(held.free,0);assert.equal(held.materials,0);assert.deepEqual(held.wearers,[owner.id]);reject(s,{kind:'gear-awaken',item:item.id});
+  for(const receiver of G.HEROES){if(receiver.id===owner.id)continue;pairs++;
+   reject(s,{kind:'gear-equip',hero:receiver.id,item:item.id});assert(G.validate(s));assert.equal(s.equipment.inventory[item.id].count,1);assert.deepEqual(s.equipment.equipped,{[owner.id]:{[item.slot]:item.id}});
+   const moved=G.clone(s);act(moved,{kind:'gear-unequip',hero:owner.id,slot:item.slot});assert.equal(G.equipmentInfo(moved).items.find(entry=>entry.id===item.id).free,1);act(moved,{kind:'gear-equip',hero:receiver.id,item:item.id});
+   assert.equal(moved.equipment.inventory[item.id].count,1);assert.deepEqual(moved.equipment.equipped,{[receiver.id]:{[item.slot]:item.id}});reject(moved,{kind:'gear-equip',hero:owner.id,item:item.id});reject(moved,{kind:'gear-awaken',item:item.id});assert(G.validate(moved));
+  }
+ }
+ assert.equal(pairs,G.GEAR.length*G.HEROES.length*(G.HEROES.length-1));console.log('Single-copy coverage:',G.GEAR.length,'items;',G.HEROES.length,'heroes;',pairs,'ordered pairs');
+});
 test('Global type awakening uses only unused identical copies and keeps every equipped copy plus one unworn base',()=>{
  const s=make();add(s,'dawn_staff',11);act(s,{kind:'gear-equip',hero:'taeo',item:'dawn_staff'});act(s,{kind:'gear-equip',hero:'harin',item:'dawn_staff'});let count=11;
  for(const cost of [1,1,2,2,3]){const info=G.equipmentInfo(s).items.find(i=>i.id==='dawn_staff');assert.equal(info.awakenCost,cost);const result=act(s,{kind:'gear-awaken',item:'dawn_staff',cost:0});count-=cost;assert.equal(result.cost,cost);assert.equal(result.count,count);assert.equal(s.equipment.inventory.dawn_staff.count,count);assert.equal(G.equipmentInfo(s).items.find(i=>i.id==='dawn_staff').wearers.length,2);}

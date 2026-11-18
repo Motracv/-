@@ -1,7 +1,14 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-weapons1',
+  version:'school-bag1',
   entries:Object.freeze([
+    {version:'school-bag1',date:'2026.11.18',title:'장비 가방 · 읽기 편한 창',items:[
+      '가방에 남은 장비와 용병이 착용한 장비를 나누어 보여줘요. 장착한 사본을 가방 수량에 다시 표시하지 않아요.',
+      '전체 소유 수량, 가방 수량, 착용자와 각성 재료를 구분해서 확인할 수 있어요.',
+      '미장착 전무가 패시브 활성으로 표시되던 문제를 수정했어요. 착용 시 발동 여부를 따로 안내해요.',
+      '장비 창을 격자형 가방으로 바꾸고, 작은 화면과 세로 화면에서도 설명과 행동 버튼을 읽고 누르기 쉽게 정리했어요.',
+      '일반 정보 창과 아레나 메뉴의 가로 폭을 줄이고 세로 화면에서는 내용을 아래로 나누어 보여줘요.'
+    ]},
     {version:'school-weapons1',date:'2026.11.18',title:'전용 무기 · 호라스 모션',items:[
       '호라스의 두 가지 평타, 다섯 구슬 집결, 부유·내려찍기·착지 동작을 새로 다듬었어요.',
       '오시아·라바 캐릭터 모집은 1회 100보석, 10회 1,000보석이에요. 호라스 UR은 160/1,600보석을 유지해요.',
