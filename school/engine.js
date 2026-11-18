@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 10;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 11;
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
   const OSIA_SKILLS = [
@@ -19,10 +19,13 @@
     { stage: 2, name: "바람의 상처", healMultiplier: 4.5 },
   ];
   const lavaSkill = s => LAVA_SKILLS[(s.units.lava?.nextSkill || 1) - 1];
+  const HORAS_RULES = Object.freeze({ maxStacks: 5, basicMs: 2000, basicMotionMs: 900, hitStackMs: 1000, mergeMs: 1000, impactDelay: 1500, minCastMs: 3000, basicMultiplier: 2, primaryMultiplier: 12, splashMultiplier: .7, stunMultiplier: 1.5, missChance: .1, markMs: 6000, refundStacks: 2 });
+  const UR_RECRUIT_RATES = Object.freeze({ UR: .003, SSR: .01, SR: .26, R: .727 });
   const RECRUIT_RATES = { SSR: .01, SR: .26, R: .73 };
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
   const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi"]);
   const BANNERS = Object.freeze({
+    horas: Object.freeze({ id: "horas", name: "호라스 픽업뽑기", featured: "horas", rarity: "UR", limited: false, expiresAt: null }),
     osia: Object.freeze({ id: "osia", name: "오시아 상시 모집", featured: "osia", limited: false, expiresAt: null }),
     lava: Object.freeze({ id: "lava", name: "라바 한정 모집", featured: "lava", limited: true, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
   });
@@ -51,7 +54,13 @@
     shop: Object.freeze({ gold: Object.freeze({ cost: 10, limit: 30, gold: 1000, gems: 0 }), gems: Object.freeze({ cost: 20, limit: 15, gold: 0, gems: 100 }) }) });
   // Use integer percentages so 1400 × 35% is exactly 490, not 489.999… .
   const scaledXp = (amount, multiplier) => amount > 0 ? Math.max(1, Math.floor(amount * Math.round(multiplier * 100) / 100)) : 0;
-  function recruitRates(misses) {
+  function recruitRates(misses, banner = "osia") {
+    if (banner === "horas") {
+      const next = misses + 1;
+      if (next >= RECRUIT_PITY.hard) return { UR: 1, SSR: 0, SR: 0, R: 0 };
+      const ur = (3 + Math.max(0, next - RECRUIT_PITY.soft + 1) * 10) / 1000;
+      return { UR: ur, SSR: UR_RECRUIT_RATES.SSR, SR: UR_RECRUIT_RATES.SR, R: 1 - ur - UR_RECRUIT_RATES.SSR - UR_RECRUIT_RATES.SR };
+    }
     const next = misses + 1;
     if (next >= RECRUIT_PITY.hard) return { SSR: 1, SR: 0, R: 0 };
     const ssrPercent = RECRUIT_RATES.SSR * 100 + Math.max(0, next - RECRUIT_PITY.soft + 1) * RECRUIT_PITY.stepPercent;
@@ -70,12 +79,17 @@
   }
   function bannerHeroRates(s, id = "osia") {
     const progress = bannerState(s, id); if (!progress) return {};
-    const rates = recruitRates(progress.pity), featured = BANNERS[id].featured;
+    const rates = recruitRates(progress.pity, id), featured = BANNERS[id].featured;
     const otherSSR = STANDARD_SSR.filter(hero => hero !== featured);
     const result = Object.fromEntries(HEROES.map(hero => [hero.id, 0]));
     for (const grade of ["R", "SR"]) {
       const pool = HEROES.filter(hero => hero.rarity === grade);
       for (const hero of pool) result[hero.id] = rates[grade] / pool.length;
+    }
+    if (id === "horas") {
+      result.horas = rates.UR;
+      for (const hero of STANDARD_SSR) result[hero] = rates.SSR / STANDARD_SSR.length;
+      return result;
     }
     result[featured] = rates.SSR * (progress.guaranteed ? 1 : .5);
     for (const hero of otherSSR) result[hero] = progress.guaranteed ? 0 : rates.SSR * .5 / otherSSR.length;
@@ -98,6 +112,7 @@
     { id: "osia", name: "오시아", latin: "Osia", club: "물의 용왕", species: "물고기", element: "water", role: "마법", rarity: "SSR", hp: 136, atk: 20, skill: "용왕의 해일", skillMultiplier: 2.2, cooldown: 5, passive: "용왕의 권능", passiveDesc: "물폭탄 평타로 싸우며 스킬을 충전합니다. 충전할 때마다 대형 물탄 → 소용돌이 → 물기둥 → 거대 수룡 순서로 하나씩 사용하고 반복합니다. 마지막 수룡은 명중한 적을 1.5초 기절시킵니다.", color: "#59bdd7", hair: "#6587bb", outfit: "#f6f3eb", weapon: "water", desc: "5초 충전마다 다음 단계 스킬 하나로 적 전체에게 공격력 220%의 물 피해. 스킬 사이에는 물폭탄 평타를 사용합니다." },
     { id: "lava", name: "라바", latin: "Lava", gender: "남성", species: "인간", club: "바람의 무당", element: "wind", role: "치유", rarity: "SSR", hp: 142, atk: 15, cooldown: 5, skill: "바람의 부채 · 바람의 상처", passive: "신내림", passiveDesc: "본인의 평타가 10회 명중하면 체력 비율이 가장 낮은 생존 아군에게 공격력 200% + 대상 최대 체력 8%의 방어막을 줍니다. 방어막은 최대 체력 60%까지 쌓입니다.", passive2: "긴급생존", passive2Desc: "라바가 살아 있으면 웨이브당 한 번, 아군의 치명적인 피해를 HP 1로 버티게 하고 2초 동안 쓰러지지 않게 합니다. 보호 중에도 회복할 수 있습니다.", color: "#81c4ab", hair: "#91d7f1", outfit: "#9caa65", skirt: "#b9564d", weapon: "wind", desc: "5초 충전마다 교대로 사용합니다. 바람의 부채: 아군 전체 공격력 160% 회복 + 공격력 90% 방어막. 바람의 상처: 체력 비율이 가장 낮은 생존 아군 한 명을 공격력 450%만큼 회복." },
   ];
+  HEROES.push({ id: "horas", name: "호라스", latin: "Horas", gender: "여성", club: "벚꽃의 의식", element: "blossom", role: "사수", rarity: "UR", hp: 128, atk: 22, cooldown: 5, skill: "벚꽃의식", passive: "별빛 축적", passiveDesc: "두 손짓의 느린 평타가 적중하거나 공격을 받으면 벚꽃 구슬을 1개 쌓습니다. 피격 획득은 1초당 한 번. 5개를 합쳐 벚꽃의식을 사용합니다.", passive2: "벚꽃의 잔향", passive2Desc: "기절 중인 적에게 주는 피해 1.5배. 의식이 적중한 주 대상에게 6초간 표식을 남깁니다. 아군 누구든 표식 대상을 처치하면 2스택을 한 번 회수합니다.", color: "#f3a2d0", hair: "#f2a6d0", outfit: "#d6e5ff", weapon: "blossom", desc: "2초 간격으로 공격력 200% 평타. 5스택을 소모하여 구슬을 합친 뒤 한 명에게 공격력 1200%, 인접한 적에게 70% 피해. 의식은 10% 확률로 빗나갑니다. 의식 시작 간격은 최소 3초입니다." });
   const BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
   const CHAPTERS = ["오래된 교실", "방과 후 복도", "비밀의 도서관", "뒤뜰의 정원", "체육관 결계", "별이 내리는 옥상", "눈 내린 운동장", "잊혀진 별관", "마력 실험실", "지하 통로", "학교의 경계", "바람의 성소"];
   const ENEMIES = ["분필 슬라임", "낙서 유령", "종이 박쥐", "덩굴 정령", "체육관 골렘", "별가루 망령", "눈송이 정령", "종이 갑옷", "마력 실험체", "그림자 박쥐", "경계 파수꾼", "폭풍 정령"];
@@ -287,6 +302,7 @@
     // Existing in-progress battles keep their saved stats. New late-game waves
     // accommodate six units, while the first ten areas retain their old curve.
     const scale = campaignScale(s.stage);
+    const previousHoras = carry && s.battle?.phase === "victory" && s.battle.heroes.some(h => h.id === "horas" && h.hp > 0) ? s.battle.horas : null;
     const previousOsia = carry && s.battle?.phase === "victory" && s.battle.heroes.find(h => h.id === "osia" && h.hp > 0);
     s.battle = { id: s.seq + 1, stage: s.stage, wave: s.wave, boss, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false, damage: {}, synergies: partySynergies(s),
       heroes: freshHeroes(s, previousOsia),
@@ -296,6 +312,7 @@
         return boss && s.stage > 30 ? bossAbility(e, .65 + (s.stage - 30) / 30 * .35) : monsterAbility(e, s.stage);
       }),
     };
+    if (s.team.includes("horas")) s.battle.horas = newHoras(previousHoras?.stacks || 0);
     event(s, "wave", { stage: s.stage, wave: s.wave, boss });
   }
   function spawnActivity(s) {
@@ -309,6 +326,7 @@
         const e = { id: `e${i}`, kind: chapter(stage), name: tower ? boss ? "뫼비우스의 감시자" : "복도의 잔영" : weekly ? "봉인의 이사장" : "보급고의 수호자", ...(boss ? {} : { variant: (stage + 2 + i) % 3 }), hp: Math.round(hp), max: Math.round(hp), atk: Math.round(atk), boss };
         return boss && (tower || run.tier >= 3) ? bossAbility(e, 1, tower ? "뒤틀린 종소리" : weekly ? "봉인 해방" : "보급고 대격돌") : monsterAbility(e, stage);
       }) };
+    if (s.team.includes("horas")) s.battle.horas = newHoras();
   }
   function settleActivity(s, won, reason) {
     const a = refreshActivities(s, s.at), run = a.run;
@@ -323,7 +341,7 @@
     if (won && (run.kind !== "tower" || firstClear)) winterDrop(s);
     if (reward.xp) for (const id of s.team) addUnitXp(s, id, reward.xp);
     a.lastResult = { runId: run.id, kind: run.kind, ...(run.kind === "tower" ? { floor: run.floor } : { tier: run.tier }), won, reason, firstClear, reward, refunded };
-    s.battle.phase = won ? "victory" : "defeat"; s.battle.wait = 0; delete s.battle.osiaCast; delete s.battle.cinematic;
+    s.battle.phase = won ? "victory" : "defeat"; s.battle.wait = 0; delete s.battle.osiaCast; delete s.battle.horasCast; delete s.battle.cinematic;
     event(s, "activity-result", { ...a.lastResult, kind: "activity-result", activityKind: run.kind }); log(s, `${DUNGEONS[run.kind].name} ${won ? "승리" : reason === "exit" ? "도전 종료" : "패배"}${refunded ? " · 열쇠 반환" : ""}`);
     return a.lastResult;
   }
@@ -332,7 +350,7 @@
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
       gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
-      banners: { osia: { pity: 0, guaranteed: false }, lava: { pity: 0, guaranteed: false } },
+      banners: { osia: { pity: 0, guaranteed: false }, lava: { pity: 0, guaranteed: false }, horas: { pity: 0, guaranteed: false } },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], activities: newActivities(now) };
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
@@ -356,6 +374,7 @@
       s.battle && Array.isArray(s.battle.heroes) && s.battle.heroes.length >= 1 && s.battle.heroes.length <= MAX_TEAM && new Set(s.battle.heroes.map(h => h.id)).size === s.battle.heroes.length && Array.isArray(s.battle.enemies) && s.battle.heroes.every(h => Object.hasOwn(BY_ID, h.id) && Number.isFinite(h.hp) && (h.indomitableUntil === undefined || Number.isFinite(h.indomitableUntil) && h.indomitableUntil >= 0)) &&
       (s.battle.lavaRescueUsed === undefined || typeof s.battle.lavaRescueUsed === "boolean") &&
       (s.battle.cinematic === undefined || s.battle.cinematic && s.battle.cinematic.from === "osia" && [STEP_MS, OSIA_CINEMATIC_MS].includes(s.battle.cinematic.duration) && Number.isFinite(s.battle.cinematic.remaining) && s.battle.cinematic.remaining > 0 && s.battle.cinematic.remaining <= s.battle.cinematic.duration && Number.isInteger(s.battle.cinematic.resumeIndex) && s.battle.cinematic.resumeIndex >= 1 && s.battle.cinematic.resumeIndex <= s.battle.heroes.length) &&
+      validHoras(s.battle) &&
       validActivities(s.activities) &&
       (s.battle.activity === undefined || s.activities?.run && s.battle.runId === s.activities.run.id && s.battle.activity.kind === s.activities.run.kind) &&
       (!s.activities?.run || s.battle.activity && (s.activities.run.settled ? s.activities.lastResult?.runId === s.activities.run.id && ["victory", "defeat"].includes(s.battle.phase) : s.battle.phase === "fight")) &&
@@ -365,9 +384,94 @@
       (s.offline.captainXp === undefined || Number.isFinite(s.offline.captainXp) && s.offline.captainXp >= 0) &&
       s.captain && Number.isInteger(s.captain.level) && s.captain.level >= 1 && s.captain.level <= CAPTAIN_MAX_LEVEL && Number.isFinite(s.captain.xp) && s.captain.xp >= 0);
   }
+  function newHoras(stacks = 0) {
+    return { stacks, nextBasicAt: HORAS_RULES.basicMs, basicPose: 1, lastHitStackAt: -HORAS_RULES.hitStackMs, lastCastAt: -HORAS_RULES.minCastMs };
+  }
+  function horasInfo(s) {
+    const b = s.battle, h = b?.heroes?.find(h => h.id === "horas"), progress = b?.horas || newHoras();
+    const cast = b?.horasCast;
+    return { stacks: progress.stacks, maxStacks: HORAS_RULES.maxStacks, casting: !!cast && !!h && h.hp > 0 && b.phase === "fight", cast: cast || null,
+      nextBasicMs: Math.max(0, progress.nextBasicAt - (b?.elapsed || 0)), basicPose: progress.basicPose, skill: "벚꽃의식" };
+  }
+  function validHoras(b) {
+    const h = b.horas, c = b.horasCast;
+    const finite = value => Number.isFinite(value) && value >= 0;
+    if (h !== undefined && (!h || !Number.isInteger(h.stacks) || h.stacks < 0 || h.stacks > HORAS_RULES.maxStacks || ![1, 2].includes(h.basicPose) || !finite(h.nextBasicAt) || !Number.isFinite(h.lastHitStackAt) || h.lastHitStackAt < -HORAS_RULES.hitStackMs || !Number.isFinite(h.lastCastAt) || h.lastCastAt < -HORAS_RULES.minCastMs)) return false;
+    if (c !== undefined && (!c || !h || !Number.isSafeInteger(c.id) || c.id < 0 || !finite(c.began) || !finite(c.simBegan) || typeof c.targetId !== "string" || typeof c.missed !== "boolean" || c.impactDelay !== HORAS_RULES.impactDelay || c.mergeMs !== HORAS_RULES.mergeMs || !Array.isArray(c.targets) || !c.targets.length || c.targets.length > b.enemies.length || new Set(c.targets.map(t => t.id)).size !== c.targets.length || !c.targets.every(t => t && typeof t.id === "string" && finite(t.amount) && finite(t.splashAmount) && typeof t.critical === "boolean" && typeof t.primary === "boolean") || !c.targets.some(t => t.id === c.targetId && t.primary))) return false;
+    return b.enemies.every(e => e.horasMark === undefined || e.horasMark && finite(e.horasMark.until) && Number.isSafeInteger(e.horasMark.castId) && e.horasMark.castId >= 0);
+  }
+  function horasStack(s, amount, source, to) {
+    const b = s.battle;
+    if (!b.heroes.some(h => h.id === "horas" && h.hp > 0)) return 0;
+    const hs = b.horas ||= newHoras(), before = hs.stacks;
+    hs.stacks = Math.min(HORAS_RULES.maxStacks, hs.stacks + amount);
+    const gained = hs.stacks - before;
+    if (gained) event(s, "horas-stack", { from: "horas", ...(to ? { to } : {}), stacks: hs.stacks, amount: gained, source, element: "blossom" });
+    return gained;
+  }
+  function horasTurn(s, hero, enemies) {
+    const b = s.battle, hs = b.horas ||= newHoras();
+    // Her gauge is stacks, never the generic elapsed-time energy skill.
+    hero.energy = 0;
+    if (b.horasCast) return;
+    if (hs.stacks >= HORAS_RULES.maxStacks && b.elapsed >= hs.lastCastAt + HORAS_RULES.minCastMs) {
+      hs.stacks = 0; hs.lastCastAt = b.elapsed;
+      hs.nextBasicAt = b.elapsed + HORAS_RULES.impactDelay + HORAS_RULES.basicMs;
+      const target = enemies[0], missed = random(s) < HORAS_RULES.missChance;
+      const start = event(s, "skill", { from: "horas", name: "벚꽃의식", role: "사수", element: "blossom" });
+      b.horasCast = { id: start.seq, began: b.elapsed, simBegan: s.simTime, targetId: target.id, missed, mergeMs: HORAS_RULES.mergeMs, impactDelay: HORAS_RULES.impactDelay,
+        targets: enemies.map(enemy => {
+          const critical = random(s) < (hero.critChance ?? CRITICAL.chance);
+          const power = hero.atk * (hero.damageMultiplier || 1) * (b.buff ? 1.3 : 1) * (.9 + random(s) * .2) * (critical ? hero.critMultiplier || CRITICAL.multiplier : 1);
+          return { id: enemy.id, primary: enemy.id === target.id, critical, amount: Math.round(power * HORAS_RULES.primaryMultiplier), splashAmount: Math.round(power * HORAS_RULES.splashMultiplier) };
+        }) };
+      event(s, "horas-cast", { from: "horas", castId: start.seq, targetId: target.id, targets: [target.id], name: "벚꽃의식", mergeMs: HORAS_RULES.mergeMs, impactDelay: HORAS_RULES.impactDelay, element: "blossom" });
+      return;
+    }
+    if (b.elapsed < hs.nextBasicAt) return;
+    hs.nextBasicAt = b.elapsed + HORAS_RULES.basicMs;
+    const target = enemies[0], pose = hs.basicPose;
+    hs.basicPose = pose === 1 ? 2 : 1;
+    event(s, "horas-basic", { from: "horas", to: target.id, pose, duration: HORAS_RULES.basicMotionMs, element: "blossom" });
+    const critical = random(s) < (hero.critChance ?? CRITICAL.chance);
+    hurt(s, "horas", target, hero.atk * HORAS_RULES.basicMultiplier * (hero.damageMultiplier || 1) * (b.buff ? 1.3 : 1) * (.9 + random(s) * .2) * (critical ? hero.critMultiplier || CRITICAL.multiplier : 1), "enemy", false, { critical, pose });
+    horasStack(s, 1, "basic", target.id);
+  }
+  function horasStep(s) {
+    const b = s.battle;
+    for (const enemy of b.enemies) if (enemy.horasMark && b.elapsed >= enemy.horasMark.until) delete enemy.horasMark;
+    const cast = b.horasCast;
+    if (!cast) return false;
+    if (!b.heroes.some(h => h.id === "horas" && h.hp > 0)) { delete b.horasCast; return false; }
+    if (b.elapsed < cast.began + cast.impactDelay) return false;
+    const previousIndex = b.enemies.findIndex(e => e.id === cast.targetId);
+    const candidates = b.enemies.filter(e => e.hp > 0 && cast.targets.some(t => t.id === e.id));
+    // If an ally defeated the original target during the ritual, reacquire the
+    // nearest surviving saved target without rerolling damage, critical or miss.
+    const target = candidates.find(e => e.id === cast.targetId) || candidates.reduce((a, e) => !a || Math.abs(b.enemies.indexOf(e) - previousIndex) < Math.abs(b.enemies.indexOf(a) - previousIndex) ? e : a, null);
+    delete b.horasCast;
+    if (!target) return true;
+    const index = b.enemies.indexOf(target);
+    const victims = candidates.filter(e => e === target || Math.abs(b.enemies.indexOf(e) - index) <= 1);
+    event(s, "horas-impact", { from: "horas", castId: cast.id, targetId: target.id, missed: cast.missed, targets: cast.missed ? [] : victims.map(e => e.id), name: "벚꽃의식", element: "blossom" });
+    if (cast.missed) { event(s, "miss", { from: "horas", to: target.id, castId: cast.id, element: "blossom" }); return true; }
+    // At most one mark remains. Mark before damage so a killing blow refunds it.
+    for (const enemy of b.enemies) delete enemy.horasMark;
+    target.horasMark = { until: b.elapsed + HORAS_RULES.markMs, castId: cast.id };
+    event(s, "horas-mark", { from: "horas", to: target.id, until: target.horasMark.until, duration: HORAS_RULES.markMs, castId: cast.id, element: "blossom" });
+    // Main target first, then low-damage neighbours: each death is settled once.
+    for (const enemy of [target, ...victims.filter(e => e !== target)]) {
+      const hit = cast.targets.find(t => t.id === enemy.id), primary = enemy === target;
+      hurt(s, "horas", enemy, primary ? hit.amount : hit.splashAmount, "enemy", true, { castId: cast.id, primary, critical: hit.critical });
+    }
+    return true;
+  }
   function hurt(s, from, target, raw, side, skill = false, detail = {}) {
     if (target.hp <= 0) return 0;
-    let amount = Math.max(1, Math.round(raw));
+    // Stun amplification is decided at the actual hit, not at cast start.
+    const stunBonus = from === "horas" && side === "enemy" && s.battle.elapsed < (target.stunUntil || 0);
+    let amount = Math.max(1, Math.round(raw * (stunBonus ? HORAS_RULES.stunMultiplier : 1)));
+    if (stunBonus) detail = { ...detail, stunBonus: true };
     if (side === "hero") {
       amount = Math.max(1, Math.round(amount * (1 - target.defense)));
       const shield = Math.min(target.shield, amount); target.shield -= shield; amount -= shield;
@@ -383,7 +487,20 @@
     if (side === "enemy") { meter(s, from, "damage", amount); if (detail.critical && amount > 0) meter(s, from, "criticals", 1); }
     else meter(s, target.id, "taken", amount);
     event(s, "hit", { from, to: target.id, side, amount, skill, critical: !!detail.critical, impact: detail.critical ? "critical" : skill ? "heavy" : "normal", ...(BY_ID[from]?.element ? { element: BY_ID[from].element } : {}), ...detail });
-    if (target.hp <= 0 && side === "enemy") s.kills++;
+    if (side === "hero" && target.id === "horas" && target.hp > 0) {
+      const hs = s.battle.horas ||= newHoras();
+      if (s.battle.elapsed >= hs.lastHitStackAt + HORAS_RULES.hitStackMs) {
+        hs.lastHitStackAt = s.battle.elapsed; horasStack(s, 1, "hit", from);
+      }
+    }
+    if (target.hp <= 0 && side === "enemy") {
+      s.kills++;
+      if (target.horasMark && s.battle.elapsed < target.horasMark.until) {
+        delete target.horasMark;
+        const credited = horasStack(s, HORAS_RULES.refundStacks, "mark", target.id);
+        if (credited) event(s, "horas-refund", { from: "horas", to: target.id, amount: credited, stacks: s.battle.horas.stacks, element: "blossom" });
+      }
+    }
     return amount;
   }
   function lowestAlive(b) {
@@ -413,7 +530,7 @@
       if (s.stage === MAX_STAGE && s.best === MAX_STAGE) s.mode = "farm";
       s.wave = 1;
     } else s.wave++;
-    b.phase = "victory"; b.wait = b.boss ? 4 : 2; delete b.osiaCast; delete b.cinematic;
+    b.phase = "victory"; b.wait = b.boss ? 4 : 2; delete b.osiaCast; delete b.horasCast; delete b.cinematic;
   }
   function osiaStep(s) {
     const b = s.battle, cast = b.osiaCast;
@@ -455,6 +572,7 @@
     b.elapsed += STEP_MS;
     if (b.activity && b.heroes.every(h => h.hp <= 0)) { settleActivity(s, false, "defeat"); return; }
     const osiaImpact = osiaStep(s);
+    horasStep(s);
     if (b.enemies.every(e => e.hp <= 0)) { victory(s); return; }
     for (const enemy of b.enemies) {
       if (enemy.hp <= 0 || !enemy.ability || enemy.warnedFor === enemy.nextAbilityAt || b.elapsed < enemy.nextAbilityAt - 1000) continue;
@@ -471,7 +589,9 @@
     for (let index = startIndex; index < b.heroes.length; index++) {
       const hero = b.heroes[index]; if (hero.hp <= 0) continue;
       const enemies = b.enemies.filter(e => e.hp > 0); if (!enemies.length) break;
-      const def = BY_ID[hero.id]; hero.energy++;
+      const def = BY_ID[hero.id];
+      if (hero.id === "horas") { horasTurn(s, hero, enemies); continue; }
+      hero.energy++;
       if (hero.id === "osia" && (b.osiaCast || osiaImpact)) continue;
       const skill = hero.energy >= def.cooldown;
       if (skill) { hero.energy = 0; event(s, "skill", { from: hero.id, name: hero.id === "osia" ? osiaSkill(s).name : hero.id === "lava" ? lavaSkill(s).name : def.skill, role: def.role, ...(def.element ? { element: def.element } : {}) }); }
@@ -562,7 +682,7 @@
     }
     if (b.heroes.every(h => h.hp <= 0) || b.tick >= 120) {
       if (b.activity) { settleActivity(s, false, b.tick >= 120 ? "timeout" : "defeat"); return; }
-      b.phase = "defeat"; b.wait = 5; s.wave = 1; s.losses++; delete b.osiaCast; delete b.cinematic;
+      b.phase = "defeat"; b.wait = 5; s.wave = 1; s.losses++; delete b.osiaCast; delete b.horasCast; delete b.cinematic;
       event(s, "defeat", { boss: b.boss, stage: b.stage, reason: b.tick >= 120 ? "timeout" : "defeat", report: damageReport(s) }); log(s, "잠시 쉬어 갑니다. 용병을 훈련하거나 편성을 바꿔보세요.");
       if (s.losses >= 3 && s.best >= 1) { s.mode = "farm"; s.stage = s.best; s.losses = 0; log(s, "클리어한 지역에서 자동으로 성장합니다. 도전 버튼으로 다시 출발하세요."); }
     }
@@ -574,8 +694,9 @@
     s.offline.captainXp ??= Math.floor(s.offline.xp / 4);
     refreshActivities(s, Number.isFinite(now) && now >= 0 ? Math.max(now, s.at) : s.at);
     s.banners ??= { osia: bannerState(s, "osia"), lava: bannerState(s, "lava") };
-    s.banners.osia ??= { pity: s.pity, guaranteed: false }; s.banners.lava ??= { pity: 0, guaranteed: false };
+    s.banners.osia ??= { pity: s.pity, guaranteed: false }; s.banners.lava ??= { pity: 0, guaranteed: false }; s.banners.horas ??= { pity: 0, guaranteed: false };
     s.pity = s.banners.osia.pity;
+    if (s.team.includes("horas")) s.battle.horas ??= newHoras();
     if (s.units.osia) s.units.osia.nextSkill ??= 1;
     if (s.units.lava) { s.units.lava.nextSkill ??= 1; s.units.lava.basicHits ??= 0; }
     // A v4 simultaneous combo must not continue into the new per-cooldown cycle.
@@ -610,34 +731,38 @@
     const cost = count === 10 ? 900 : 100; fail(s.gems >= cost, "보석이 부족합니다.");
     const progress = bannerState(s, banner), featured = BANNERS[banner].featured;
     const otherSSR = STANDARD_SSR.filter(id => id !== featured);
-    const nextBanners = { osia: bannerState(s, "osia"), lava: bannerState(s, "lava") };
+    const nextBanners = Object.fromEntries(Object.keys(BANNERS).map(id => [id, bannerState(s, id)]));
     const results = []; let premium = false;
     for (let i = 0; i < count; i++) {
-      const odds = recruitRates(progress.pity), roll = rng(); let rarity = roll < odds.SSR ? "SSR" : roll < odds.SSR + odds.SR ? "SR" : "R";
+      const odds = recruitRates(progress.pity, banner), roll = rng();
+      const ur = odds.UR || 0;
+      let rarity = roll < ur ? "UR" : roll < Math.round((ur + odds.SSR) * 1e9) / 1e9 ? "SSR" : roll < Math.round((ur + odds.SSR + odds.SR) * 1e9) / 1e9 ? "SR" : "R";
       const pity = progress.pity >= RECRUIT_PITY.hard - 1;
-      if (pity) rarity = "SSR";
+      if (pity) rarity = banner === "horas" ? "UR" : "SSR";
       if (count === 10 && i === 9 && !premium && rarity === "R") rarity = "SR";
       if (rarity !== "R") premium = true;
       // One grade roll and one character roll per slot, including a guaranteed
       // featured SSR, keeps replay and ten-pull sequencing deterministic.
       const pick = Math.max(0, Math.min(1 - Number.EPSILON, rng()));
-      const guaranteed = rarity === "SSR" && progress.guaranteed;
+      const guaranteed = banner === "horas" ? rarity === "UR" && pity : rarity === "SSR" && progress.guaranteed;
       let h;
-      if (rarity === "SSR") {
+      if (rarity === "UR") h = BY_ID.horas;
+      else if (rarity === "SSR" && banner === "horas") h = BY_ID[STANDARD_SSR[Math.min(STANDARD_SSR.length - 1, Math.floor(pick * STANDARD_SSR.length))]];
+      else if (rarity === "SSR") {
         const chosen = guaranteed || pick < .5 ? featured : otherSSR[Math.min(otherSSR.length - 1, Math.floor((pick - .5) * 2 * otherSSR.length))];
         h = BY_ID[chosen]; progress.guaranteed = chosen !== featured;
       } else {
         const candidates = HEROES.filter(hero => hero.rarity === rarity);
         h = candidates[Math.min(candidates.length - 1, Math.floor(pick * candidates.length))];
       }
-      progress.pity = rarity === "SSR" ? 0 : progress.pity + 1;
-      const fresh = !s.units[h.id], shards = rarity === "SSR" ? 20 : rarity === "SR" ? 10 : 5;
+      progress.pity = rarity === (banner === "horas" ? "UR" : "SSR") ? 0 : progress.pity + 1;
+      const fresh = !s.units[h.id], shards = rarity === "UR" ? 30 : rarity === "SSR" ? 20 : rarity === "SR" ? 10 : 5;
       if (fresh) s.units[h.id] = { level: 1, xp: 0, stars: 0, shards: 0 }; else s.units[h.id].shards += shards;
-      results.push({ id: h.id, fresh, shards: fresh ? 0 : shards, pity, ssrChance: odds.SSR, banner, featured: rarity === "SSR" && h.id === featured, guaranteed, lostFeatured: rarity === "SSR" && h.id !== featured });
+      results.push({ id: h.id, fresh, shards: fresh ? 0 : shards, pity, ssrChance: odds.SSR, ...(banner === "horas" ? { urChance: odds.UR } : {}), banner, featured: h.id === featured, guaranteed, lostFeatured: banner !== "horas" && rarity === "SSR" && h.id !== featured });
     }
     nextBanners[banner] = progress; s.banners = nextBanners; s.pity = nextBanners.osia.pity;
     s.gems -= cost; s.pulls += count; s.history = results.concat(s.history).slice(0, 30);
-    event(s, "recruit", { count, banner, ssr: results.some(r => BY_ID[r.id].rarity === "SSR") });
+    event(s, "recruit", { count, banner, ssr: results.some(r => BY_ID[r.id].rarity === "SSR"), ur: results.some(r => BY_ID[r.id].rarity === "UR") });
     log(s, `${BANNERS[banner].name} · ${count}명의 지원서가 도착했습니다.`); return { kind: "recruit", results, cost, banner };
   }
   function action(s, input, now = Date.now(), rng = Math.random) {
@@ -761,5 +886,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { HEROES, BY_ID, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

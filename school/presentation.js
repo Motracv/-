@@ -45,6 +45,15 @@
       [196, 246.94, 293.66, 392, 523.25, 659.25, 783.99].forEach((hz, i) => tone(hz, i * .075, .19, .034, 'triangle', owner));
       [783.99, 987.77, 1174.66].forEach(hz => tone(hz, .63, .55, .022, 'sine', owner)); return;
     }
+    if (kind === 'UR') {
+      [261.63,392,523.25,659.25,783.99,1046.5,1318.51,1567.98].forEach((hz,i)=>tone(hz,i*.09,.4,.032,'sine',owner));
+      [523.25,659.25,783.99].forEach(hz=>tone(hz,.75,1,.025,'triangle',owner));
+      tone(1567.98,1.02,.7,.022,'sine',owner); return;
+    }
+    if (kind === 'blossom-charge') { [392,523.25,659.25,783.99,1046.5].forEach((hz,i)=>tone(hz,i*.12,.25,.019,'sine',owner)); return; }
+    if (kind === 'blossom') { tone(130.81,0,.25,.045,'triangle',owner); [523.25,783.99,1046.5].forEach((hz,i)=>tone(hz,i*.045,.35,.025,'sine',owner)); return; }
+    if (kind === 'blossom-refund') { tone(783.99,0,.15,.018,'sine',owner); tone(1046.5,.1,.25,.018,'sine',owner); return; }
+    if (kind === 'blossom-miss') { tone(659.25,0,.14,.013,'sine',owner); tone(392,.08,.2,.012,'sine',owner); return; }
     if (kind === 'SSR' || kind === 'rare') {
       [261.63, 392, 523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((hz, i) => tone(hz, i * .085, .25, .038, i < 3 ? 'triangle' : 'sine', owner));
       [523.25, 659.25, 783.99].forEach(hz => tone(hz, .72, .7, .027, 'triangle', owner)); return;
@@ -144,7 +153,9 @@
     card.dataset.hero = id; card.dataset.rarity = hero.rarity;
     card.append(node('span', 'presentation-rarity', hero.rarity));
     const art = node('div', 'presentation-portrait');
-    if (job && root.SchoolArt?.recruitPortrait) {
+    if (id === 'horas') {
+      const image = node('img', 'horas-illustration'); image.src = 'school/assets/horas/portrait.webp?v=horas1'; image.alt = '호라스'; art.append(image);
+    } else if (job && root.SchoolArt?.recruitPortrait) {
       const canvas = node('canvas', 'recruit-live-portrait'); canvas.width = 248; canvas.height = 344; canvas.dataset.hero = id;
       const context = canvas.getContext('2d'); art.append(canvas);
       let nextDraw = 0;
@@ -217,23 +228,24 @@
   async function recruitSequence(job) {
     const results = Array.isArray(job.data.results) ? job.data.results : [];
     if (!results.length) return;
-    const ranking = { SSR: 3, SR: 2, R: 1 };
+    const ranking = { UR: 4, SSR: 3, SR: 2, R: 1 };
     const lead = results.reduce((best, entry) => (ranking[info(entry.id).rarity] || 1) > (ranking[info(best.id).rarity] || 1) ? entry : best, results[0]);
-    const hero = info(lead.id), grade = ['SSR', 'SR'].includes(hero.rarity) ? hero.rarity : 'R';
-    const ui = shell(job, grade === 'SSR' ? '눈부신 운명의 만남' : grade === 'SR' ? '특별한 동료의 등장' : '새로운 만남', `${grade} · ${hero.name}`, grade);
-    const gate = node('div', 'presentation-gate'); gate.append(node('span', 'gate-seal', grade === 'SSR' ? '✦' : grade === 'SR' ? '◇' : '✧'));
+    const hero = info(lead.id), grade = ['UR', 'SSR', 'SR'].includes(hero.rarity) ? hero.rarity : 'R';
+    const ui = shell(job, grade === 'UR' ? '벚꽃이 이끈 운명' : grade === 'SSR' ? '눈부신 운명의 만남' : grade === 'SR' ? '특별한 동료의 등장' : '새로운 만남', `${grade} · ${hero.name}`, grade);
+    const gate = node('div', 'presentation-gate'); gate.append(node('span', 'gate-seal', grade === 'UR' ? '❀' : grade === 'SSR' ? '✦' : grade === 'SR' ? '◇' : '✧'));
+    if (grade === 'UR') for (let i=0;i<5;i++) { const orb=node('i','ur-gate-orb','❀'); orb.style.setProperty('--orb-angle', `${i*72-90}deg`); gate.append(orb); }
     const heroCard = portraitCard(lead.id, 0, 'recruit-featured', job); heroCard.hidden = true;
     const gradeBadge = node('div', 'presentation-grade', grade); gradeBadge.hidden = true; ui.scene.append(gate, heroCard, gradeBadge);
     play('pull', 4, job.id);
-    const intro = grade === 'SSR' ? 720 : grade === 'SR' ? 480 : 220;
-    await move(job, gate, grade === 'SSR' ? [{ opacity: 0, transform: 'translate(-50%,-50%) perspective(500px) rotateY(80deg) scale(.25)' }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(500px) rotateY(-15deg) scale(1.1)', offset: .7 }, { opacity: .3, transform: 'translate(-50%,-50%) perspective(500px) rotateY(0) scale(1.6)' }] : [{ opacity: 0, transform: 'translate(-50%,-50%) rotate(-90deg) scale(.2)' }, { opacity: 1, transform: 'translate(-50%,-50%) rotate(0) scale(1)', offset: .65 }, { opacity: 0, transform: 'translate(-50%,-50%) rotate(35deg) scale(1.4)' }], intro);
+    const intro = grade === 'UR' ? 1100 : grade === 'SSR' ? 720 : grade === 'SR' ? 480 : 220;
+    await move(job, gate, grade === 'UR' ? [{opacity:0,transform:'translate(-50%,-50%) rotate(-18deg) scale(.4)'},{opacity:1,transform:'translate(-50%,-50%) rotate(0) scale(1)',offset:.45},{opacity:1,transform:'translate(-50%,-50%) rotate(12deg) scale(.72)',offset:.83},{opacity:0,transform:'translate(-50%,-50%) rotate(18deg) scale(1.8)'}] : grade === 'SSR' ? [{ opacity: 0, transform: 'translate(-50%,-50%) perspective(500px) rotateY(80deg) scale(.25)' }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(500px) rotateY(-15deg) scale(1.1)', offset: .7 }, { opacity: .3, transform: 'translate(-50%,-50%) perspective(500px) rotateY(0) scale(1.6)' }] : [{ opacity: 0, transform: 'translate(-50%,-50%) rotate(-90deg) scale(.2)' }, { opacity: 1, transform: 'translate(-50%,-50%) rotate(0) scale(1)', offset: .65 }, { opacity: 0, transform: 'translate(-50%,-50%) rotate(35deg) scale(1.4)' }], intro);
     if (!alive(job)) return;
     gate.remove(); heroCard.hidden = false; gradeBadge.hidden = false; ui.dialog.dataset.phase = 'revealed';
     play(grade === 'R' ? 'reward' : grade, 4, job.id);
-    if (grade !== 'R') particles(job, ui.scene, grade === 'SSR' ? '#ffdf83' : '#c8afff', grade === 'SSR' ? 28 : 18);
+    if (grade !== 'R') particles(job, ui.scene, grade === 'UR' ? '#ffb7da' : grade === 'SSR' ? '#ffdf83' : '#c8afff', grade === 'UR' ? 24 : grade === 'SSR' ? 28 : 18);
     await Promise.all([move(job, heroCard, [{ opacity: 0, transform: 'translate(-50%,-50%) perspective(600px) rotateY(-90deg) scale(.4)' }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(600px) rotateY(8deg) scale(1.1)', offset: .65 }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(600px) rotateY(0deg) scale(1)' }], grade === 'SSR' ? 620 : 440), move(job, gradeBadge, [{ opacity: 0, transform: 'translate(-50%,0) scale(2.2)' }, { opacity: 1, transform: 'translate(-50%,0) scale(1)' }], 480)]);
     if (!alive(job)) return;
-    await delay(job, grade === 'SSR' ? 1300 : grade === 'SR' ? 850 : 320);
+    await delay(job, grade === 'UR' ? 1700 : grade === 'SSR' ? 1300 : grade === 'SR' ? 850 : 320);
   }
   async function defeatSequence(job) {
     const ui = shell(job, '패배', String(job.data.description || '이번 전투는 여기까지'), 'defeat');

@@ -1,0 +1,43 @@
+{
+  "version": "horas1",
+  "hero": "horas",
+  "assets": [
+    {
+      "file": "combat.webp",
+      "source": "exec-69ab8f9e-0825-4e09-9f0e-3323a49b6df7.png",
+      "width": 1536,
+      "height": 1056,
+      "alpha": true,
+      "bytes": 1104770,
+      "sha256": "7fda1de49292d85b46f0e8717e81cceff08e68050e2a7285ccd7037acdd80332"
+    },
+    {
+      "file": "portrait.webp",
+      "source": "exec-0939fc62-abc8-4fd5-9f80-f8b8620531bc.png",
+      "width": 768,
+      "height": 1152,
+      "alpha": true,
+      "bytes": 220934,
+      "sha256": "c2b0e5404e6ece301b718ecefe3d7eb1735a714bb68b6899b5058314c9fecf9d"
+    },
+    {
+      "file": "cutin.webp",
+      "source": "exec-0939fc62-abc8-4fd5-9f80-f8b8620531bc.png",
+      "width": 640,
+      "height": 640,
+      "alpha": true,
+      "bytes": 129588,
+      "sha256": "46173640d1e656f0ddb599e41196293205d39335f701c2bd0088458ea705b3bf"
+    },
+    {
+      "file": "pickup.webp",
+      "source": "exec-b87cdc51-42bf-4067-b0bd-ff08b3f55910.png",
+      "width": 1672,
+      "height": 941,
+      "alpha": false,
+      "bytes": 368954,
+      "sha256": "d8db916c488d4b0ec27ddf10654ecb2476ba06262166c23700878770c5b947db"
+    }
+  ],
+  "totalBytes": 1824246
+}

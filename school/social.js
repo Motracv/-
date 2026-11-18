@@ -59,7 +59,7 @@
       const arena = view === 'arena';
       let inner = header() + nameGate();
       if (arena) {
-        inner += `<div class="arena-banner"><div class="arena-banner-ring" aria-hidden="true"></div><span>방과 후 결투장</span><b>우리 용병단의 실력을 겨룰 시간</b><small>현재 편성으로 초대 · 보유 용병의 성장 반영</small></div><details class="arena-rules"><summary>친선전 규칙</summary><p>체력 3배 · 회복량 75% · 최대 90초. 45초부터 피해가 점점 강해지며, 시간 종료 시 남은 체력 비율로 승패를 정해요. 방어막은 기존 체력을 기준으로 계산해요.</p><p>친선 점수는 승리 +10, 패배 −5. 재화 보상은 없고 모험 중인 용병단은 영향을 받지 않아요.</p></details>`;
+        inner += `<div class="arena-banner"><div class="arena-banner-ring" aria-hidden="true"></div><span>방과 후 결투장</span><b>우리 용병단의 실력을 겨룰 시간</b><small>현재 편성으로 초대 · 보유 용병의 성장 반영</small></div><details class="arena-rules"><summary>친선전 규칙</summary><p>체력 3배 · 회복량 75% · 최대 90초. 45초부터 피해가 점점 강해지며, 시간 종료 시 남은 체력 비율로 승패를 정해요. 방어막은 기존 체력을 기준으로 계산해요.</p><p>호라스는 아레나에서 기본 공격과 의식 피해가 모험의 75%로 적용돼요. 기절 대상 1.5배와 스택·표식 효과는 유지돼요.</p><p>친선 점수는 승리 +10, 패배 −5. 재화 보상은 없고 모험 중인 용병단은 영향을 받지 않아요.</p></details>`;
       } else if (!data?.me?.canName) {
         inner += `<form id="social-add-friend" class="social-add"><label class="social-input-label" for="social-friend-name">친구의 단장 이름</label><div><input id="social-friend-name" maxlength="24" autocomplete="off" placeholder="정확한 이름을 입력하세요" value="${escape(draft)}" required><button class="primary" type="submit">친구 요청</button></div></form>`;
       }
@@ -198,7 +198,7 @@
     let cancelled = false, finished = false, frame = 0, clock = 0, previous = 0, lastDraw = 0, lastDom = -1000, cursor = 0;
     let events = [...(match.events || [])].sort((a,b) => a.t - b.t), effects = [];
     const duration = Math.max(1, Number(match.durationMs) || Number(events.at(-1)?.t) || 1000);
-    const units = match.teams.map((team,side) => team.units.map((unit,index) => ({...unit,hp:unit.max || unit.hp,shield:0,side,index,actAt:-10000,hitAt:-10000,actKind:'attack',skill:''})));
+    const units = match.teams.map((team,side) => team.units.map((unit,index) => ({...unit,hp:unit.max || unit.hp,shield:0,side,index,actAt:-10000,hitAt:-10000,actKind:'attack',skill:'',horasStacks:0,horasBasicAt:-10000,horasBasicPose:1,horasCastAt:-10000,horasCast:null})));
     const byKey = new Map(units.flat().map(unit => [`${unit.side}:${unit.id}`,unit]));
     const positions = new Map(units.flat().map(unit => {
       const column = unit.index < 3 ? 1 : 0, row = unit.index % 3;
@@ -228,7 +228,13 @@
     }
     function apply(event) {
       const from = byKey.get(`${event.side}:${event.from}`), target = byKey.get(`${event.toSide}:${event.target}`);
-      if (from) {from.actAt = event.t;from.actKind=event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
+      if (from && ['attack','skill','heal','shield'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
+      if (from?.id==='horas') {
+        if(event.kind==='horas-basic'){from.horasBasicAt=event.t;from.horasBasicPose=event.pose;}
+        if(event.kind==='horas-stack'||event.kind==='horas-refund')from.horasStacks=event.stacks;
+        if(event.kind==='horas-cast'){from.horasStacks=0;from.horasCastAt=event.t;from.horasCast={id:event.castId,began:event.t,simBegan:event.t,targetId:event.targetId,impactDelay:event.impactDelay,mergeMs:event.mergeMs};}
+        if(event.kind==='horas-impact')from.horasCast=null;
+      }
       if (target) {
         if (Number.isFinite(event.hp)) target.hp = Math.max(0,event.hp);
         else if (['attack','skill'].includes(event.kind)) target.hp = Math.max(0,target.hp-(event.amount || 0));
@@ -236,9 +242,14 @@
         else if (event.kind==='down') target.hp = 0;
         if (Number.isFinite(event.shield)) target.shield=Math.max(0,event.shield);
         if (['attack','skill'].includes(event.kind)) target.hitAt=event.t;
+        if(event.kind==='horas-mark'){
+          for(const unit of units[event.toSide])delete unit.horasMark;
+          target.horasMark={until:event.until,castId:event.castId};
+        }
+        if(event.kind==='down'||event.kind==='horas-refund')delete target.horasMark;
       }
-      if (!reduced) effects.push(event);
-      if (effects.length>28) effects.splice(0,effects.length-28);
+      if (!reduced || event.kind.startsWith('horas-') || event.kind==='miss') effects.push(event);
+      if (effects.length>80) effects.splice(0,effects.length-80);
     }
     function complete() {
       if (finished) return; finished=true;clock=duration;
@@ -256,25 +267,40 @@
       scenery();c.setTransform(1,0,0,1,0,0);c.drawImage(background,0,0);c.setTransform(scale,0,0,scale,0,0);c.imageSmoothingEnabled=false;
       units.flat().sort((a,b)=>positions.get(`${a.side}:${a.id}`).y-positions.get(`${b.side}:${b.id}`).y).forEach(unit=>{
         const position=positions.get(`${unit.side}:${unit.id}`),actAge=(clock-unit.actAt)/1000,hitAge=clock-unit.hitAt;
-        const casting=['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<1.15&&unit.hp>0;
-        const attacking=actAge>=0&&actAge<.48&&unit.hp>0, direction=unit.side?-1:1;
+        const horasAge=(clock-unit.horasBasicAt)/1000,horasCastAge=(clock-unit.horasCastAt)/1000;
+        const casting=unit.id==='horas'?!!unit.horasCast&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<1.15&&unit.hp>0;
+        const attacking=(unit.id==='horas'?horasAge>=0&&horasAge<.9:actAge>=0&&actAge<.48)&&unit.hp>0, direction=unit.side?-1:1;
         const move=attacking&&!reduced?Math.sin(actAge/.48*Math.PI)*15*direction:0;
         const motion=casting&&['osia','lava'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
-        window.SchoolArt?.hero(c,unit.id,position.x+move,position.y,2.3,{time:clock/1000,dead:unit.hp<=0,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?actAge:null,casting,motion,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(attacking?2:0),reduced});
+        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='horas'?0:move),position.y,2.3,{time:clock/1000,dead:unit.hp<=0,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):null,casting,motion,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
         c.fillStyle='#14222ce6';c.fillRect(position.x-38,position.y+8,76,8);c.fillStyle=unit.side===me?'#a4c478':'#dc8d7f';c.fillRect(position.x-37,position.y+9,74*Math.max(0,unit.hp)/Math.max(1,unit.max),6);
         if(unit.shield>0){c.fillStyle='#9dd4e2';c.fillRect(position.x-37,position.y+16,74*Math.min(1,unit.shield/Math.max(1,unit.max)),3);}
         c.font='9px Galmuri,monospace';c.textAlign='center';c.fillStyle=unit.hp>0?'#edf0e5':'#93a0a6';c.fillText(unit.name || window.SchoolRPG.BY_ID[unit.id]?.name || unit.id,position.x,position.y+30);
       });
-      effects=effects.filter(event=>clock-event.t<800);
+      effects=effects.filter(event=>clock-event.t<(event.kind.startsWith('horas-')?2600:800));
+      for(let side=0;side<2;side++){
+        const caster=byKey.get(`${side}:horas`);if(!caster)continue;
+        const p={}, mirror=point=>({x:side?960-point.x:point.x,y:point.y});
+        p.horas=mirror(positions.get(`${side}:horas`));
+        for(const target of units[1-side])p[`enemy:${target.id}`]=mirror(positions.get(`${1-side}:${target.id}`));
+        const cast=caster.horasCast?{...caster.horasCast,targetId:`enemy:${caster.horasCast.targetId}`}:null;
+        const recent=effects.filter(event=>event.side===side&&event.from==='horas').map(event=>({...event,time:event.t/1000,from:'horas',to:event.toSide===side?'horas':`enemy:${event.target}`,targetId:event.targetId?`enemy:${event.targetId}`:undefined,targets:event.targets?.map(id=>`enemy:${id}`)}));
+        const battle={elapsed:clock,skipHorasCutin:true,horas:{stacks:caster.horasStacks},horasCast:caster.hp>0?cast:null,heroes:[{...caster,id:'horas'}],enemies:units[1-side].map(unit=>({...unit,id:`enemy:${unit.id}`}))};
+        c.save();if(side){c.translate(960,0);c.scale(-1,1);}
+        window.SchoolArt?.horasVisualEffects?.(c,battle,recent,p,clock/1000,reduced,false);c.restore();
+      }
       for(const event of effects){
+        if(event.kind.startsWith('horas-'))continue;
         const age=(clock-event.t)/800;if(age<0)continue;
         const p=positions.get(`${event.toSide}:${event.target}`),from=positions.get(`${event.side}:${event.from}`);if(!p)continue;
         const healing=event.kind==='heal', shield=event.kind==='shield';
         c.save();c.globalAlpha=Math.min(1,(1-age)*2);
-        if(from&&['attack','skill'].includes(event.kind)&&age<.28){c.strokeStyle=event.crit?'#ffe69d':event.kind==='skill'?'#b7e8ff':'#f7f1dc';c.lineWidth=event.crit?5:3;c.beginPath();c.moveTo(from.x,from.y-47);c.lineTo(p.x,p.y-48);c.stroke();}
+        if(from&&event.from!=='horas'&&['attack','skill'].includes(event.kind)&&age<.28){c.strokeStyle=event.crit?'#ffe69d':event.kind==='skill'?'#b7e8ff':'#f7f1dc';c.lineWidth=event.crit?5:3;c.beginPath();c.moveTo(from.x,from.y-47);c.lineTo(p.x,p.y-48);c.stroke();}
         if(event.amount){c.textAlign='center';c.font=`${event.crit?20:15}px Galmuri,monospace`;c.fillStyle=healing?'#b8efb5':shield?'#acdbf0':event.crit?'#ffcf71':'#fff1df';c.strokeStyle='#233244';c.lineWidth=3;const label=(healing?'+':shield?'+':'')+number(event.amount),y=p.y-79-age*24;c.strokeText(label,p.x,y);c.fillText(label,p.x,y);if(event.crit){c.fillStyle='#ffe49a';c.fillRect(p.x-6,y-29,12,5);c.fillRect(p.x-2,y-33,4,13);c.fillRect(p.x-12,y-26,4,4);c.fillRect(p.x+8,y-26,4,4);}}
         c.restore();
       }
+      const cutin=units.flat().find(unit=>unit.id==='horas'&&unit.hp>0&&unit.horasCast&&clock-unit.horasCastAt>=400&&clock-unit.horasCastAt<1100);
+      if(cutin){c.save();c.scale(2,1.5);window.SchoolArt?.horasCutin?.(c,(clock-cutin.horasCastAt)/1000,reduced);c.restore();}
       if(clock-lastDom>=200||finished){lastDom=clock;const seconds=Math.floor(clock/1000),label=document.getElementById('arena-clock'),progress=document.getElementById('arena-progress');if(label)label.textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;if(progress)progress.value=clock;}
     }
     function tick(now){

@@ -54,13 +54,14 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.deepEqual(await savedProgress(offline),beforeProgress,'Updating the installed shell preserves existing v8 currency, characters, levels, formation and campaign');
   const lobbyPaths=[...['courtyard','icon-recruit','icon-supplies','icon-codex','icon-arena','icon-dungeon','icon-adventure','icon-quests','icon-ranking','icon-winter','icon-help'].map(name=>`school/assets/lobby/${name}.webp?v=lobby1`),...['lobby.js','lobby.css','world-map.js','world-map.css'].map(name=>`school/${name}?v=${currentRelease}`)];
   const adventurePaths=[`school/battle.css?v=${currentRelease}`,...Array.from({length:12},(_,i)=>`school/assets/adventure/region-${String(i+1).padStart(2,'0')}.webp?v=adventure1`),...['classroom','garden','snow'].map(name=>`school/assets/battlefields/${name}.webp?v=battlefield1`)];
+  const horasPaths=[`school/horas.css?v=${currentRelease}`,...['combat.webp','combat.json','portrait.webp','pickup.webp','cutin.webp'].map(name=>`school/assets/horas/${name}?v=horas1`)];
   const lobbyCache=await offline.evaluate(async({release,paths})=>{
    const key=(await caches.keys()).find(key=>key.endsWith(release));if(!key)throw Error('Updated cache is missing');const cache=await caches.open(key),assets=[];
    for(const path of paths){const response=await cache.match(new URL(path,location.href).href);if(!response){assets.push({path,missing:true});continue;}const bytes=await response.arrayBuffer(),sha256=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(x=>x.toString(16).padStart(2,'0')).join('');let decoded=null;if(path.includes('.webp')){const img=new Image();img.src=new URL(path,location.href).href;await img.decode();decoded=[img.naturalWidth,img.naturalHeight];}assets.push({path,status:response.status,bytes:bytes.byteLength,sha256,decoded});}
    return assets;
-  },{release:currentRelease,paths:[...lobbyPaths,...adventurePaths]});
-  assert.equal(lobbyCache.length,31);
-  assert.equal(lobbyCache.filter(asset=>asset.decoded).length,26);
+  },{release:currentRelease,paths:[...lobbyPaths,...adventurePaths,...horasPaths]});
+  assert.equal(lobbyCache.length,37);
+  assert.equal(lobbyCache.filter(asset=>asset.decoded).length,30);
   for(const asset of lobbyCache){assert.equal(asset.missing,undefined,asset.path+' must have been installed before going offline');assert.equal(asset.status,200,asset.path);const local=fs.readFileSync(path.join(root,asset.path.split('?')[0]));assert.equal(asset.sha256,crypto.createHash('sha256').update(local).digest('hex'),asset.path+' cached bytes must match the new local release');if(asset.decoded)assert(asset.decoded.every(n=>n>0),asset.path+' must decode offline');}
   await offline.click('#modal-close');
   assert.equal(await offline.locator('#app').getAttribute('data-tab'),'lobby');
@@ -93,12 +94,21 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   await offline.click('#battle-back');
   await offline.waitForFunction(()=>document.querySelector('#app').dataset.tab==='lobby');
   assert.deepEqual(await savedProgress(offline),beforeProgress,'Offline map entry and return must preserve existing character and currency progress');
+  await offline.click('.lobby-nav [data-lobby-action="recruit"]');
+  await offline.click('[data-banner="horas"]');
+  assert.match(await offline.locator('#pickup-name').textContent(),/호라스/);
+  assert.match(await offline.locator('#next-ssr-chance').textContent(),/UR 0\.3%/);
+  assert(await offline.locator('#recruit-one').isEnabled());
+  await offline.click('#rates-button');assert.match(await offline.locator('#modal').textContent(),/SSR이 나와도 UR 누적은 유지/);await offline.click('#modal-close');
+  await offline.screenshot({path:'/tmp/school-install-offline-horas.png'});
+  assert.deepEqual(await savedProgress(offline),beforeProgress,'Viewing offline UR pickup never spends or resets saved progression');
   assert.deepEqual(errors,[]);
   const updateEvidence={baselineCommit,baselineRelease,currentRelease,assets:lobbyCache,progressPreserved:true,offlineLobby:true,offlineMap:true,offlineBattle,scope:'Real Chromium service-worker update/offline execution; no native Android installation'};
   fs.writeFileSync('/tmp/school-install-lobby-cache.json',JSON.stringify(updateEvidence,null,2));
   fs.writeFileSync('/tmp/school-install-adventure-cache.json',JSON.stringify(updateEvidence,null,2));
+  fs.writeFileSync('/tmp/school-install-horas-cache.json',JSON.stringify(updateEvidence,null,2));
   console.log(`PASS real ${baselineRelease} worker waits without reloading, activates ${currentRelease} after game windows close, clears old cache and serves the updated retry button offline with saved gold intact`);console.log('PASS restored Osia front and Lava fan atlas both exist as WebP responses in the new cache and decode successfully offline');console.log('PASS real Chromium manifest installability and direct school start URL; no native OS installation was performed');
-  console.log('PASS all 11 lobby images, 12 region cards and 3 battlefield backgrounds decode offline; five lobby/map/battle modules match cached release bytes');
+  console.log('PASS all 11 lobby images, 12 region cards and 3 battlefield backgrounds decode offline; Horas sprite/illustration/background decode offline and six UI modules plus atlas metadata match cached release bytes');
   console.log('PASS actual offline lobby → illustrated map → full viewport panorama with source background draws → lobby preserves the original v8 save');
  }finally{for(const c of contexts)await c.close().catch(()=>{});await persistent?.close();await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));fs.rmSync(baseline,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

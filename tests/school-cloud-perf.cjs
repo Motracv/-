@@ -17,7 +17,7 @@ instrumentedClient=instrumentedClient.replace("'use strict';","'use strict';\n"+
 const percent=(a,q)=>a.length?[...a].sort((a,b)=>a-b)[Math.min(a.length-1,Math.floor(a.length*q))]:0;
 const stats=a=>({count:a.length,mean:a.reduce((a,b)=>a+b,0)/Math.max(1,a.length),p95:percent(a,.95),max:a.length?Math.max(...a):0});
 function initialState(){
- const s=G.create(Date.now(),991);s.team=['taeo','harin','sua','osia','lava','ian'];s.gold=12345;s.gems=6789;s.best=31;s.speed=1.5;
+ const s=G.create(Date.now(),991);s.team=process.env.SCHOOL_CLOUD_PERF_HORAS==='1'?['taeo','horas','sua','osia','lava','ian']:['taeo','harin','sua','osia','lava','ian'];s.gold=12345;s.gems=6789;s.best=31;s.speed=1.5;
  for(const id of s.team)s.units[id]={level:60,xp:0,stars:2,shards:0,nextSkill:id==='osia'?4:1};
  G.action(s,{kind:'stage',stage:31,mode:'farm'},s.at);
  for(let i=0;i<100&&s.battle.wave<4;i++){if(s.battle.phase==='fight')s.battle.enemies.forEach(e=>e.hp=0);G.advance(s,s.at+500);}
@@ -46,7 +46,7 @@ function initialState(){
   await p.goto(origin+'/school.html?app=1');await p.waitForFunction(()=>document.getElementById('boot-screen').hidden&&document.getElementById('account-label').textContent==='계정 저장');await p.click('#lobby-resume');await p.evaluate(()=>document.fonts.ready);
   await p.evaluate(()=>{
    const s=window.cloudPerf={capture:true,start:performance.now(),draw:[],raf:[],spans:[],long:[],events:[],contextEvents:[]};
-   const draw=SchoolArt.draw;let lastSeq=0,lastRaf;SchoolArt.draw=function(...args){const at=performance.now(),state=args[1],result=draw.apply(this,args);s.draw.push({at,duration:performance.now()-at,time:args[2],reduced:args[4],stateAt:state.at,sim:state.simTime,simCredit:state.simCredit,stage:state.stage,wave:state.battle.wave,phase:state.battle.phase,cutin:state.battle.cinematic?.remaining||0,effects:args[3].length});for(const e of state.events)if(e.seq>lastSeq&&['skill-stage','lava-skill','cinematic'].includes(e.kind))s.events.push({kind:e.kind,from:e.from,stage:e.stage});lastSeq=state.seq;return result;};
+   const draw=SchoolArt.draw;let lastSeq=0,lastRaf;SchoolArt.draw=function(...args){const at=performance.now(),state=args[1],result=draw.apply(this,args);s.draw.push({at,duration:performance.now()-at,time:args[2],reduced:args[4],stateAt:state.at,sim:state.simTime,simCredit:state.simCredit,stage:state.stage,wave:state.battle.wave,phase:state.battle.phase,cutin:state.battle.cinematic?.remaining||0,effects:args[3].length});for(const e of state.events)if(e.seq>lastSeq&&['skill-stage','lava-skill','cinematic','horas-basic','horas-cast','horas-impact','horas-refund'].includes(e.kind))s.events.push({kind:e.kind,from:e.from,stage:e.stage});lastSeq=state.seq;return result;};
    const advance=SchoolRPG.advance;SchoolRPG.advance=function(...args){const at=performance.now();try{return advance.apply(this,args);}finally{s.spans.push({kind:'engineAdvance',at,duration:performance.now()-at});}};
    const frame=at=>{if(!s.capture)return;if(lastRaf)s.raf.push(at-lastRaf);lastRaf=at;requestAnimationFrame(frame);};requestAnimationFrame(frame);new PerformanceObserver(list=>s.long.push(...list.getEntries().map(e=>({at:e.startTime,duration:e.duration})))).observe({entryTypes:['longtask']});
    for(const type of ['contextlost','contextrestored'])document.getElementById('battle').addEventListener(type,e=>s.contextEvents.push({type,trusted:e.isTrusted,at:performance.now()}));

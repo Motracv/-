@@ -27,6 +27,31 @@ window.SchoolArt = (() => {
     lavaFanImage.onload = () => { lavaFanLoaded = true; clearTimeout(timer); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
     lavaFanImage.onerror = () => { clearTimeout(timer); resolve(false); };
   });
+  // Horas sources are optional at boot and independently recover after a slow
+  // request. The combat atlas has fixed feet across twelve authored key poses.
+  const horasImage = new Image(), horasPortraitImage = new Image(), horasCutinImage = new Image();
+  const horasPoses = new Map(), horasPortraitSources = new Map();
+  let horasLoaded = false, horasPortraitLoaded = false, horasCutinLoaded = false, horasPosePixels = 0;
+  const horasReady = Promise.all([
+    new Promise(resolve => {
+      const timer = setTimeout(() => resolve(false), 5000);
+      horasImage.onload = () => { horasLoaded = true; clearTimeout(timer); horasPoses.clear(); horasPosePixels = 0; portraits.delete('horas'); resolve(true); window.dispatchEvent(new Event('school-art-ready')); };
+      horasImage.onerror = () => { clearTimeout(timer); resolve(false); };
+    }),
+    new Promise(resolve => {
+      const timer = setTimeout(() => resolve(false), 5000);
+      horasPortraitImage.onload = () => { horasPortraitLoaded = true; clearTimeout(timer); horasPortraitSources.clear(); frontPortraits.delete('horas'); resolve(true); window.dispatchEvent(new Event('school-art-ready')); };
+      horasPortraitImage.onerror = () => { clearTimeout(timer); resolve(false); };
+    }),
+    new Promise(resolve => {
+      const timer = setTimeout(() => resolve(false), 5000);
+      horasCutinImage.onload = () => { horasCutinLoaded = true; clearTimeout(timer); resolve(true); window.dispatchEvent(new Event('school-art-ready')); };
+      horasCutinImage.onerror = () => { clearTimeout(timer); resolve(false); };
+    }),
+  ]);
+  horasImage.src = 'school/assets/horas/combat.webp?v=horas1';
+  horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
+  horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
   const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady]).then(([osia, lava]) => osia && lava);
   osiaImage.src = "school/assets/osia-sprites.png?v=osia1";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-front1";
@@ -237,6 +262,154 @@ window.SchoolArt = (() => {
     c.drawImage(sprite,-anchorX,-anchorY,width,height);
     c.restore();
   }
+  const HORAS_ATLAS = Object.freeze({columns:4, rows:3, width:384, height:352, footX:192, footY:328, bodyHeight:300});
+  const HORAS_ORBS = Array.from({length:5}, (_, i) => { const a=-1.1+i*.55; return {x:-13-Math.cos(a)*13,y:-25+Math.sin(a)*19}; });
+  function blossom(c,x,y,r=4,rotation=0,bright=false) {
+    c.save();c.translate(x,y);c.rotate(rotation);
+    c.fillStyle=bright?'#fff5ee':'#ffc2e6';
+    for(let i=0;i<5;i++){const a=i*Math.PI*2/5-Math.PI/2;c.beginPath();c.ellipse(Math.cos(a)*r*.48,Math.sin(a)*r*.48,r*.39,r*.6,a-Math.PI/2,0,Math.PI*2);c.fill();}
+    rect(c,'#ffe7a3',-r*.14,-r*.14,r*.28,r*.28);c.restore();
+  }
+  function horasStar(c,x,y,r,rotation=0){
+    c.save();c.translate(x,y);c.rotate(rotation);c.fillStyle='#fff2bb';c.beginPath();
+    for(let i=0;i<8;i++){const a=i*Math.PI/4,rr=i%2?r*.23:r;c.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}c.closePath();c.fill();c.restore();
+  }
+  function horasPose(frame) {
+    if(frame.dead || frame.hit) return frame.dead ? 0 : 11;
+    const cast=frame.horasCastAge;
+    if(Number.isFinite(cast)&&cast>=0) return frame.reduced?9:cast<.48?7:cast<1?8:cast<1.35?9:10;
+    const age=frame.attackAge;
+    if(Number.isFinite(age)&&age>=0&&age<1.05){const start=frame.horasBasicPose===2?4:1;return frame.reduced?start+1:age<.25?start:age<.60?start+1:start+2;}
+    return 0;
+  }
+  function horas(c,x,y,scale,frame={}){
+    c.save();c.translate(x,y);c.scale(scale*(frame.flip?-1:1),scale);
+    if(frame.dead){c.globalAlpha*=.4;c.rotate(-Math.PI/2);}
+    rect(c,'#26333b35',-9,1+(frame.shadowY||0),20,2);
+    const cast=frame.horasCastAge,active=Number.isFinite(cast)&&cast>=0,age=frame.attackAge,attack=Number.isFinite(age)&&age>=0&&age<1.05;
+    const wave=frame.reduced||frame.dead||!active&&!attack?0:Math.sin(clamp01((active?cast:age)/(active?1.5:1.05))*Math.PI);
+    const breath=frame.reduced||active||attack||frame.dead?0:Math.sin((frame.time||0)*1.7)*.35;
+    const merge=active?clamp01(cast):0,stacks=frame.dead?0:active&&cast<1?5:Math.min(5,Math.max(0,frame.horasStacks||0));
+    // The stack halo is behind her back, not a screen HUD effect. During the
+    // fusion the same five visible orbs converge into her cupped hands.
+    for(let i=0;i<stacks;i++){
+      const p=HORAS_ORBS[i],t=active?merge*merge:0,bob=frame.reduced||active?0:Math.sin((frame.time||0)*2+i)*.65;
+      const xx=p.x+(11-p.x)*t,yy=p.y+(-27-p.y)*t+bob;
+      c.save();c.globalAlpha*=active?1-merge*.4:.82;
+      c.strokeStyle='#ed8ed3';c.lineWidth=.6;c.beginPath();c.arc(xx,yy,3.5,0,Math.PI*2);c.stroke();
+      blossom(c,xx,yy,2.5,(frame.reduced?0:(frame.time||0)*.2)+i);c.restore();
+    }
+    const pose=horasPose(frame),offset=frame.reduced?0:wave*(active?1.1:frame.horasBasicPose===2?-1.2:1.7);
+    c.translate(offset,breath-(active?wave*1.1:0));
+    if(horasLoaded){
+      const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d));
+      const resolution=density>4?6:density>2?4:2,key=`${pose}:${resolution}`;
+      let source=horasPoses.get(key);
+      const unit=44/HORAS_ATLAS.bodyHeight,w=HORAS_ATLAS.width*unit,h=HORAS_ATLAS.height*unit;
+      if(!source){
+        source=document.createElement('canvas');source.width=Math.ceil(w*resolution);source.height=Math.ceil(h*resolution);
+        const sc=source.getContext('2d');sc.imageSmoothingEnabled=false;
+        const cw=horasImage.naturalWidth/HORAS_ATLAS.columns,ch=horasImage.naturalHeight/HORAS_ATLAS.rows;
+        sc.drawImage(horasImage,pose%4*cw,Math.floor(pose/4)*ch,cw,ch,0,0,source.width,source.height);
+        while(horasPoses.size&&horasPosePixels+source.width*source.height>2*1024*1024){const k=horasPoses.keys().next().value,old=horasPoses.get(k);horasPosePixels-=old.width*old.height;horasPoses.delete(k);}
+        horasPoses.set(key,source);horasPosePixels+=source.width*source.height;
+      }
+      c.drawImage(source,-HORAS_ATLAS.footX*unit,3-HORAS_ATLAS.footY*unit,w,h);
+    }else{
+      // A recognisable, readable fallback while optional art is loading.
+      rect(c,'#a45591',-11,-38,13,30);rect(c,'#f1a3d2',-10,-39,11,28);
+      rect(c,'#d28ab8',-8,-41,17,16);rect(c,'#ffe5e1',-3,-36,12,11);rect(c,'#f7b4df',-7,-41,15,9);
+      polygon(c,'#f1abd5',[[-8,-39],[-10,-47],[-1,-42]]);polygon(c,'#f1abd5',[[3,-41],[10,-46],[9,-36]]);
+      rect(c,'#654764',5,-32,2,3);rect(c,'#c4d5ff',5,-32,1,1);
+      polygon(c,'#b9c5f3',[[-5,-25],[8,-25],[13,-9],[-10,-9]]);rect(c,'#e4ecff',-4,-24,11,10);
+      polygon(c,'#d6ddff',[[-1,-24],[-10,-29],[-11,-20],[-1,-21],[9,-27],[12,-19],[-1,-21]]);
+      const hand=attack?7+wave*8:7;rect(c,'#cbd7ff',hand,-24,8,9);rect(c,'#ffe8e7',hand+5,-25,4,3);
+      rect(c,'#f5efff',-5,-9,4,10);rect(c,'#f5efff',4,-9,4,10);rect(c,'#a5cfce',-6,0,7,3);rect(c,'#a5cfce',3,0,8,3);
+    }
+    if(active){c.save();c.globalAlpha*=.5+.4*Math.sin(Math.min(1,cast)*Math.PI/2);blossom(c,11,-27,2+merge*4,frame.reduced?0:cast, true);c.restore();}
+    c.restore();
+  }
+  function horasIllustration(c,x,y,w,h){
+    if(!horasPortraitLoaded){horas(c,x,y+h-3,Math.min(w/50,h/48),{reduced:true});return;}
+    const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d)),resolution=density>4?6:density>2?4:2;
+    const ratio=horasPortraitImage.naturalWidth/horasPortraitImage.naturalHeight,height=Math.min(h,w/ratio),width=height*ratio;
+    const key=`${Math.ceil(width*resolution)}:${Math.ceil(height*resolution)}`;
+    let image=horasPortraitSources.get(key);
+    if(!image){image=document.createElement('canvas');image.width=Math.ceil(width*resolution);image.height=Math.ceil(height*resolution);const sc=image.getContext('2d');sc.imageSmoothingEnabled=true;sc.imageSmoothingQuality='high';sc.drawImage(horasPortraitImage,0,0,image.width,image.height);if(horasPortraitSources.size>=5)horasPortraitSources.delete(horasPortraitSources.keys().next().value);horasPortraitSources.set(key,image);}
+    c.save();c.imageSmoothingEnabled=true;c.drawImage(image,x-width/2,y+(h-height),width,height);c.restore();
+  }
+  function horasSeal(c,x,y,r,age,reduced=false){
+    c.save();c.translate(x,y);c.rotate(reduced?0:age*.22);c.strokeStyle='#f6a8db';c.lineWidth=.9;
+    c.beginPath();c.arc(0,0,r,0,Math.PI*2);c.stroke();c.beginPath();c.arc(0,0,r*.82,0,Math.PI*2);c.stroke();
+    c.beginPath();for(let i=0;i<=5;i++){const a=-Math.PI/2+(i*2%5)*Math.PI*2/5;const xx=Math.cos(a)*r*.84,yy=Math.sin(a)*r*.84;i?c.lineTo(xx,yy):c.moveTo(xx,yy);}c.stroke();
+    blossom(c,0,0,r*.38,0,true);
+    for(let i=0;i<5;i++){const a=-Math.PI/2+i*Math.PI*2/5;blossom(c,Math.cos(a)*r,Math.sin(a)*r,r*.13,0);}
+    c.restore();
+  }
+  function horasCutin(c,age,reduced=false){
+    if(reduced||age<.46||age>1.22)return;
+    const enter=clamp01((age-.46)/.18),leave=clamp01((1.22-age)/.2);
+    c.save();c.globalAlpha*=Math.min(enter,leave)*.96;
+    const bounds=sceneBounds(c.canvas);rect(c,'#1a102a4d',bounds.x,bounds.y,bounds.width,bounds.height);
+    c.beginPath();c.rect(25,37,282,66);c.clip();
+    c.translate((1-enter)*-18,0);rect(c,'#241933ef',25,37,282,66);rect(c,'#54314d',25,39,282,62);
+    for(let i=0;i<5;i++){c.strokeStyle='#f4b3dd33';c.lineWidth=1;c.beginPath();c.moveTo(25,46+i*11);c.lineTo(308,35+i*11);c.stroke();}
+    // Anime source remains a real illustration rather than enlarging a sprite.
+    if(horasCutinLoaded){c.save();c.imageSmoothingEnabled=true;c.drawImage(horasCutinImage,30,16,126,126);c.restore();}
+    else horasIllustration(c,78,40,117,196);
+    c.textAlign='left';c.font='8px Galmuri, monospace';c.fillStyle='#f6badf';c.fillText('UR · 호라스',142,56);
+    c.font='17px Galmuri, monospace';c.fillStyle='#fff1db';c.fillText('벚꽃의식',140,79);
+    c.font='7px Galmuri, monospace';c.fillStyle='#f7d4e8';c.fillText('다섯 별빛이 하나의 꽃으로',142,93);
+    detail(c,'#f4d294',25,38,282,1);detail(c,'#f4d294',25,101,282,1);c.restore();
+  }
+  function horasVisualEffects(c,battle,effects,positions,time,reduced=false,economy=false,interpolation=0){
+    const source=positions.horas;if(!source)return;
+    const pending=battle.horasCast,castEvent=lastEffect(effects,e=>e.kind==='horas-cast'&&(!pending||e.castId===pending.id));
+    const impact=lastEffect(effects,e=>e.kind==='horas-impact'),cast=pending||castEvent;
+    const age=pending?Math.max(0,(battle.elapsed-pending.began)/1000+(battle.cinematic?0:interpolation)):castEvent?time-castEvent.time:-1;
+    const targetId=cast?.targetId||impact?.targetId,target=positions[targetId];
+    if(cast&&target&&age>=0&&age<1.5){
+      const t=clamp01(age/1.5),r=10+t*25;
+      c.save();c.globalAlpha*=Math.min(1,age*4);
+      c.strokeStyle='#f7a9dc';c.lineWidth=1;c.beginPath();c.ellipse(target.x,target.y+1,r,r*.24,0,0,Math.PI*2);c.stroke();
+      if(age>.55){const rise=clamp01((age-.55)/.6);horasSeal(c,target.x,target.y-115,12+rise*24,age,reduced);}
+      if(!reduced&&!economy)for(let i=0;i<5;i++){const p=clamp01((age-.55+i*.05)/.8);if(p>0&&p<1){const x=source.x+17+(target.x-source.x-17)*p,y=source.y-40+(target.y-115-source.y+40)*p-Math.sin(p*Math.PI)*27;blossom(c,x,y,2.1,age+i);}}
+      c.restore();
+    }
+    for(const e of effects){
+      const a=time-e.time;if(a<0)continue;
+      if(e.kind==='horas-basic'&&a<.9){
+        const to=positions[e.to];if(!to)continue;
+        const p=clamp01((a-.15)/.55),f=1-clamp01((a-.65)/.25),direction=e.pose===2?-1:1;
+        c.save();c.globalAlpha*=f;c.strokeStyle='#edacd9';c.lineWidth=2;
+        c.beginPath();c.ellipse(source.x+11,source.y-35,20,14,direction*.25,-1.8+direction*a*3,.5+direction*a*3);c.stroke();
+        if(a>.15){const x=source.x+16+(to.x-source.x-16)*p,y=source.y-36+(to.y-29-source.y+36)*p-Math.sin(p*Math.PI)*9*direction;horasStar(c,x,y,4.4,reduced?0:a*3);if(!reduced)for(let i=1;i<(economy?2:4);i++)blossom(c,x-i*5,y+Math.sin(i+a*5)*3,1.7,a+i);}
+        c.restore();
+      }else if(e.kind==='horas-impact'&&a<1.0){
+        const p=positions[e.targetId];if(!p)continue;
+        const hitX=p.x+(e.missed?24:0),fade=1-clamp01(a),spread=reduced?23:7+a*50;
+        c.save();c.globalAlpha*=fade;
+        horasSeal(c,hitX,p.y-115,35,a,reduced);
+        if(a<.55){const beam=reduced?10:7+Math.sin(clamp01(a/.55)*Math.PI)*14;c.fillStyle=e.missed?'#e9a5d966':'#f08acb88';c.fillRect(hitX-beam,p.y-115,beam*2,115);c.fillStyle='#ffd7edcc';c.fillRect(hitX-beam*.4,p.y-115,beam*.8,115);c.fillStyle='#fff6dc';c.fillRect(hitX-1.5,p.y-115,3,115);}
+        c.strokeStyle='#fbb5e0';c.lineWidth=2;c.beginPath();c.ellipse(hitX,p.y,spread,spread*.28,0,0,Math.PI*2);c.stroke();
+        blossom(c,hitX,p.y-27,Math.max(4,18*(1-a)),a*.3,true);
+        if(!reduced)for(let i=0,n=economy?5:10;i<n;i++){const angle=i*Math.PI*2/n,radius=10+a*42;blossom(c,hitX+Math.cos(angle)*radius,p.y-25+Math.sin(angle)*radius*.6-a*12,2.4,a+i);}
+        if(!e.missed)for(const entry of e.targets||[]){const id=typeof entry==='string'?entry:entry.id;if(id===e.targetId)continue;const q=positions[id];if(q){c.lineWidth=1;c.beginPath();c.ellipse(q.x,q.y,8+a*15,3+a*4,0,0,Math.PI*2);c.stroke();blossom(c,q.x,q.y-24,4,a);}}
+        if(e.missed){c.font='9px Galmuri, monospace';c.textAlign='center';c.fillStyle='#ffe4ed';c.fillText('빗나감',p.x,p.y-79-a*6);}
+        c.restore();
+      }else if(e.kind==='hit'&&e.from==='horas'&&e.stunBonus&&a<.7){
+        const p=positions[e.to];if(!p)continue;c.save();c.globalAlpha*=1-a/.7;
+        c.font='8px Galmuri, monospace';c.textAlign='left';rect(c,'#48253ce8',p.x+10,p.y-53,33,13);blossom(c,p.x+15,p.y-47,2.4);c.fillStyle='#ffe9cd';c.fillText('×1.5',p.x+20,p.y-43);c.restore();
+      }else if(e.kind==='horas-refund'&&a<.9){
+        const from=positions[e.to];if(!from)continue;
+        c.save();c.globalAlpha*=1-clamp01((a-.6)/.3);
+        for(let i=0;i<Math.min(2,e.amount??2);i++){const p=reduced?1:clamp01((a-i*.09)/.65),x=from.x+(source.x-20-from.x)*p,y=from.y-45+(source.y-44-from.y+45)*p-Math.sin(p*Math.PI)*(18+i*9);blossom(c,x,y,4,a+i);}
+        c.restore();
+      }
+    }
+    for(const enemy of battle.enemies||[]){if(enemy.hp<=0||!enemy.horasMark||(enemy.horasMark.until||0)<=battle.elapsed)continue;const p=positions[enemy.id];if(!p)continue;c.save();const y=p.y-(enemy.boss?122:84)-((enemy.stunUntil||0)>battle.elapsed?23:0);c.globalAlpha=.9;blossom(c,p.x,y,7,reduced?0:time*.25);c.restore();}
+    if(!battle.skipHorasCutin&&(pending||castEvent))horasCutin(c,age,reduced);
+  }
   function osiaFigure(c, time = 0, frame = {}) {
     const reduced = !!frame.reduced, breath = reduced ? 0 : Math.sin(time * 1.6) * .4;
     if (frame.charge !== undefined) {
@@ -266,7 +439,8 @@ window.SchoolArt = (() => {
     const w=c.canvas.width,h=c.canvas.height;c.save();c.clearRect(0,0,w,h);c.imageSmoothingEnabled=false;
     const z=Math.min(w/62,h/86),breath=reduced?0:Math.sin(time*1.6)*.6;
     c.translate(w/2,h*.88);c.scale(z,z);
-    if(id==="osia")osiaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85});
+    if(id==="horas")horasIllustration(c,0,-76+breath,62,80);
+    else if(id==="osia")osiaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85});
     else if(id==="lava"){c.translate(-3,0);c.scale(1.38,1.38);lavaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85},true);}
     else hero(c,id,0,breath,1.4,{blink:!reduced&&time%5>4.85});
     c.restore();
@@ -276,7 +450,7 @@ window.SchoolArt = (() => {
     return frontPortraits.get(id);
   }
   function hero(c, id, x, y, scale = 2, frame = {}) {
-    if (id === "osia" || id === "lava") { heroShape(c, id, x, y, scale, frame); return; }
+    if (id === "osia" || id === "lava" || id === "horas") { heroShape(c, id, x, y, scale, frame); return; }
     const transform = c.getTransform(), density = Math.max(Math.hypot(transform.a, transform.b), Math.hypot(transform.c, transform.d)) * scale;
     const resolution = density > 6 ? 8 : density > 4 ? 6 : density > 2 ? 4 : 2;
     const key = `${id}:${+!!frame.attack}:${+!!frame.blink}:${resolution}`;
@@ -298,6 +472,7 @@ window.SchoolArt = (() => {
   function heroShape(c, id, x, y, scale = 2, frame = {}) {
     if (id === "osia") { osia(c, x, y, scale, frame); return; }
     if (id === "lava") { lava(c, x, y, scale, frame); return; }
+    if (id === "horas") { horas(c, x, y, scale, frame); return; }
     const h = S.BY_ID[id], index = S.HEROES.indexOf(h), dead = frame.dead;
     c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale * (frame.flip ? -1 : 1), scale);
     if (dead) { c.globalAlpha = .4; c.rotate(-Math.PI / 2); }
@@ -851,8 +1026,8 @@ window.SchoolArt = (() => {
   // Rebuild their pixels lazily; decoded source images and portrait URLs stay.
   function resetRenderCache() {
     backgrounds = new WeakMap();
-    osiaPoses.clear(); osiaFrontSources.clear(); lavaPoses.clear(); lavaSources.clear(); sprites.clear(); combatLabels.clear();
-    lavaPosePixels = spritePixels = combatLabelPixels = 0;
+    osiaPoses.clear(); osiaFrontSources.clear(); lavaPoses.clear(); lavaSources.clear(); sprites.clear(); combatLabels.clear(); horasPoses.clear(); horasPortraitSources.clear();
+    lavaPosePixels = spritePixels = combatLabelPixels = horasPosePixels = 0;
     dragon = null;
   }
   function waterOrb(c, x, y, radius) {
@@ -1184,7 +1359,8 @@ window.SchoolArt = (() => {
     else scenery(c, battle, extendedParty, sceneTime, reduced);
     effects = effects.filter(e => (!e.battleId || e.battleId === battle.id) && time >= e.time);
     const landedCasts = new Set(effects.filter(e => e.kind === "skill-impact").map(e => e.castId));
-    effects = effects.filter(e => e.kind !== "skill-stage" || battle.osiaCast?.id === e.castId || landedCasts.has(e.castId));
+    const landedHorasCasts = new Set(effects.filter(e => e.kind === "horas-impact").map(e => e.castId));
+    effects = effects.filter(e => (e.kind !== "skill-stage" || battle.osiaCast?.id === e.castId || landedCasts.has(e.castId)) && (e.kind !== "horas-cast" || battle.horasCast?.id === e.castId || landedHorasCasts.has(e.castId)));
     // A single pass replaces repeated event scans for every combatant.
     const actors = new Map(), actor = id => { if (!actors.has(id)) actors.set(id, {}); return actors.get(id); };
     for (const event of effects) {
@@ -1193,12 +1369,15 @@ window.SchoolArt = (() => {
       if (event.kind === "skill" && age < .8) actor(event.from).casting = true;
       if (event.kind === "skill-stage" && event.from === "osia" && age < (event.stage === 4 ? 1.8 : 1.1) + (event.cinematicDuration || 0) / 1000) actor("osia").combo = event;
       if (event.kind === "lava-skill" && age < 1.8) actor("lava").combo = event;
+      if (event.kind === "horas-basic" && age < 1.1) actor("horas").basic = event;
+      if (event.kind === "horas-cast" && age < 1.8) actor("horas").horasCast = event;
       if ((event.kind === "guard" || event.kind === "rescue") && event.from === "lava" && age < 1.45) actor("lava").passive = event;
     }
     // Only a critical impact nudges the combat layer (never the DOM or camera
     // layout). Ordinary attack traffic cannot continuously shake the screen.
     const strongHit=lastEffect(effects,e=>e.kind==="hit"&&e.critical&&e.amount>0&&time-e.time<.16);
     if(strongHit&&!reduced&&!battle.cinematic){const age=time-strongHit.time,decay=1-age/.16;c.translate(Math.sin(age*75)*1.4*decay,Math.cos(age*65)*.7*decay);}
+    const horasInterpolation = battle.cinematic ? 0 : Math.max(0, Math.min(.5, time - (state.simTime || 0) / 1000));
     const lifecycle = sceneLife(c.canvas, battle, time, effects);
     const positions = {};
     const partyPositions = extendedParty ? partyFront : partySmall;
@@ -1210,7 +1389,7 @@ window.SchoolArt = (() => {
     for (const item of items) {
       const p = positions[item.id], visual = actors.get(item.id) || {}, hit = !!visual.incoming && time - visual.incoming.time < .15, attacking = !!visual.outgoing && time - visual.outgoing.time < .25;
       const stunned = item.hp > 0 && (item.stunUntil || 0) > battle.elapsed;
-      const bounce = reduced || item.hp <= 0 || stunned || battle.cinematic ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
+      const bounce = reduced || item.hp <= 0 || stunned || battle.cinematic || item.id === "horas" ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
       const attackAge = visual.outgoing ? time - visual.outgoing.time : -1;
       // Ease the same attack distance out and back instead of snapping eight
       // pixels in one frame. Combat timing, attack poses and casts stay intact.
@@ -1220,12 +1399,14 @@ window.SchoolArt = (() => {
       const motion = combo && item.hp > 0 ? castingMotion(item.id, combo.stage, castAge, reduced || !!battle.cinematic) : null;
       const recoilAge=visual.incoming?time-visual.incoming.time:1;
       const recoil=reduced?0:Math.sin(clamp01(recoilAge/.24)*Math.PI)*(visual.incoming?.critical?5:2);
-      const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : item.id === "lava" ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
+      const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : ["lava","horas"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
         time:sceneTime, reduced, passive:!!visual.passive,
+        horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
+        horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasCast ? time-visual.horasCast.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
-        attackAge:visual.passive ? time-visual.passive.time : visual.outgoing && !visual.outgoing.skill && time-visual.outgoing.time<(item.id === "lava" ? 1 : .85) ? time-visual.outgoing.time : undefined });
+        attackAge:item.id === "horas" ? visual.basic ? sceneTime-visual.basic.time : undefined : visual.passive ? time-visual.passive.time : visual.outgoing && !visual.outgoing.skill && time-visual.outgoing.time<(item.id === "lava" ? 1 : .85) ? time-visual.outgoing.time : undefined });
       else {
         const impact = visual.incoming, strike = visual.outgoing;
         const life = lifecycle.enemies.get(item.id), deathAge = life.diedAt == null ? undefined : time-life.diedAt;
@@ -1240,11 +1421,12 @@ window.SchoolArt = (() => {
       const w = item.boss ? 62 : item.side === "hero" && extendedParty ? 31 : 37, by = p.y + 9;
       rect(c, "#28362f", p.x - w / 2 - 1, by - 1, w + 2, 6); rect(c, "#4d5146", p.x - w / 2, by, w, 4);
       rect(c, item.side === "hero" ? "#9dbd7b" : "#d99c73", p.x - w / 2, by, Math.max(0, w * item.hp / item.max), 4);
-      if (item.side === "hero") { rect(c, "#536270", p.x - w / 2, by + 7, w, 2); rect(c, "#e2c679", p.x - w / 2, by + 7, w * item.energy / S.BY_ID[item.id].cooldown, 2); }
+      if (item.side === "hero") { rect(c, "#536270", p.x - w / 2, by + 7, w, 2); rect(c, item.id === "horas" ? "#eda8d5" : "#e2c679", p.x - w / 2, by + 7, w * (item.id === "horas" ? (battle.horas?.stacks || 0) / 5 : item.energy / S.BY_ID[item.id].cooldown), 2); }
       c.restore();
     }
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy);
     lavaEffects(c, effects, visualPositions, time, reduced,economy);
+    horasVisualEffects(c,battle,effects,visualPositions,time,reduced,economy,horasInterpolation);
     monsterSkillEffects(c,effects,positions,time,reduced);
     impactEffects(c,effects,positions,time,reduced,economy);
     bossEffects(c, battle, positions, effects, time, reduced);
@@ -1261,7 +1443,7 @@ window.SchoolArt = (() => {
         const color=e.kind === "heal" || e.kind === "enemy-heal" ? "#dbffac" : e.kind === "shield" ? "#bbdded" : e.critical ? "#ffd274" : e.bossSkill ? "#ffbd9a" : e.skill ? "#ffe5a1" : "#fff6dd";
         combatNumber(c,text,p.x,y,size,color,!!e.critical);
       }
-      if (e.kind === "skill" && e.from !== "osia") { c.font = "9px Galmuri, monospace"; c.textAlign = "center"; const width = c.measureText(e.name).width + 14; rect(c, "#2b3d37dc", p.x - width / 2, p.y - 89 - age * 9, width, 16); c.fillStyle = "#f6df9b"; c.fillText(e.name, p.x, p.y - 77 - age * 9); }
+      if (e.kind === "skill" && e.from !== "osia" && e.from !== "horas") { c.font = "9px Galmuri, monospace"; c.textAlign = "center"; const width = c.measureText(e.name).width + 14; rect(c, "#2b3d37dc", p.x - width / 2, p.y - 89 - age * 9, width, 16); c.fillStyle = "#f6df9b"; c.fillText(e.name, p.x, p.y - 77 - age * 9); }
       if (e.kind === "hit" && (e.skill || e.bossSkill) && age < .3) { c.strokeStyle = e.element === "water" ? "#bafaff" : e.bossSkill ? "#ffc3a1" : "#fff3bb"; c.lineWidth = 3; c.beginPath(); c.moveTo(p.x - 18, p.y - 60); c.lineTo(p.x + 17, p.y - 19); c.stroke(); }
       c.restore();
     }
@@ -1310,5 +1492,5 @@ window.SchoolArt = (() => {
     }
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

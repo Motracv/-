@@ -148,3 +148,17 @@ button.school-press-active.school-press-reduced, [role="button"].school-press-ac
  .school-presentation[data-kind=defeat] .presentation-scene{height:46px}.defeat-crest{width:44px;height:44px}
 }
 @media(max-width:480px) and (orientation:portrait){.school-presentation[data-kind=recruit] .presentation-grade{left:50%;top:auto;bottom:-28px;font-size:23px}.school-presentation[data-kind=recruit] .presentation-footer{margin-top:25px}}
+
+/* UR is a separate, confirmed-result blossom reveal in both themes. */
+.school-presentation[data-grade=UR],html[data-theme=dark] .school-presentation[data-grade=UR] { --present-paper:#21162e; --present-ink:#fff0ec; --present-muted:#d5bed9; --present-accent:#ffd3df; --present-glow:#e99cc9; --present-line:#eec4a2; border-color:#f1c4a3; background:radial-gradient(ellipse at 50% 43%,#563152,#21162e 72%); box-shadow:0 0 0 3px #ffdeb52b,0 0 75px #d67fb63b; }
+.school-presentation[data-grade=UR] .presentation-gate { width:175px; height:175px; border-radius:50%; border:2px solid #ffddbb; background:radial-gradient(circle,#fff1d1,#ecacd699 35%,#512944 69%,#171327); box-shadow:0 0 30px #eea6cd77,inset 0 0 25px #ffedcf66; }
+.school-presentation[data-grade=UR] .gate-seal { color:#ffede9; font-size:85px; }
+.ur-gate-orb { position:absolute; top:50%; left:50%; width:32px; height:32px; display:grid; place-items:center; font-style:normal; border:1px solid #ffe0bf; border-radius:50%; background:#d870ac; color:#fff2ed; font-size:24px; transform:translate(-50%,-50%) rotate(var(--orb-angle)) translateX(113px); box-shadow:0 0 12px #f4b0d6; }
+.school-presentation[data-grade=UR] .presentation-hero-card { border-color:#f1c8b4; background:radial-gradient(ellipse at 50% 28%,#b86c9d44,transparent 65%),#241b35; box-shadow:4px 6px 0 #693954,0 0 30px #d78fb157; }
+.school-presentation[data-grade=UR] .presentation-portrait>img { image-rendering:auto; filter:drop-shadow(0 3px 7px #110d22); }
+.school-presentation[data-grade=UR][open][data-motion=full] .horas-illustration { animation:horas-portrait-breathe 4s ease-in-out infinite; transform-origin:50% 100%; }
+.school-presentation[data-grade=UR] .presentation-rarity { color:#ffdcba; text-shadow:none; }
+.school-presentation[data-grade=UR] .presentation-spark { border-radius:60% 10% 60% 10%; }
+.school-presentation[data-grade=UR] .presentation-kicker { color:#f7c4db; }
+@keyframes horas-portrait-breathe { 0%,100%{transform:translateY(0) rotate(-.25deg)}50%{transform:translateY(-2px) rotate(.25deg)} }
+@media(max-height:500px) and (orientation:landscape) { .school-presentation[data-grade=UR] .presentation-gate { width:110px; height:110px; } .ur-gate-orb { width:23px; height:23px; font-size:17px; transform:translate(-50%,-50%) rotate(var(--orb-angle)) translateX(75px); } }
