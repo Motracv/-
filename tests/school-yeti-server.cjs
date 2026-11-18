@@ -23,8 +23,8 @@ try{
  const start=now;let firstFreeze=null;
  while(now-start<210000&&!room(id).battle.ended){now+=1000;const views=await Promise.all([cmd(a,'state',{roomId:id}),cmd(b,'state',{roomId:id})]);for(const v of views)assert.equal(v.status,200);assert.equal(views[0].data.room.battle.boss.hp,views[1].data.room.battle.boss.hp);
   const battle=room(id).battle,ti=battle.teams.findIndex(t=>t.frozen);if(ti>=0&&!battle.ended){const target=users[ti],partner=users[1-ti],freezeId=battle.teams[ti].frozen.id;
-   if(!firstFreeze){firstFreeze=freezeId;assert.equal((await cmd(target,'thaw',{roomId:id,freezeId})).status,400);assert.equal((await cmd(c,'thaw',{roomId:id,freezeId})).status,403);assert.equal((await cmd(partner,'thaw',{roomId:id,freezeId:'forged'})).status,400);}
-   const thawId=crypto.randomUUID();const rs=await race(()=>Promise.all([cmd(partner,'thaw',{roomId:id,freezeId,requestId:thawId}),cmd(partner,'thaw',{roomId:id,freezeId,requestId:thawId})]));assert(rs.every(r=>r.status===200));assert.equal(room(id).battle.teams[ti].frozen,null);
+   if(!firstFreeze){firstFreeze=freezeId;assert.equal((await cmd(target,'thaw',{roomId:id,freezeId})).status,400);assert.equal((await cmd(c,'thaw-start',{roomId:id,freezeId,mode:'keyboard'})).status,403);assert.equal((await cmd(partner,'thaw',{roomId:id,freezeId:'forged'})).status,400);}
+   const challenge=await cmd(partner,'thaw-start',{roomId:id,freezeId,mode:'keyboard'});assert.equal(challenge.status,200);const q=challenge.data.room.battle.teams.find(t=>t.isMe).rescue;const thawId=crypto.randomUUID();const rs=await race(()=>Promise.all([cmd(partner,'thaw-submit',{roomId:id,challengeId:q.id,inputs:q.sequence,requestId:thawId}),cmd(partner,'thaw-submit',{roomId:id,challengeId:q.id,inputs:q.sequence,requestId:thawId})]));assert(rs.every(r=>r.status===200));assert.equal(room(id).battle.teams[ti].frozen,null);
    assert.equal((await cmd(partner,'thaw',{roomId:id,freezeId})).status,400);
   }
  }

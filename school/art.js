@@ -910,7 +910,22 @@ window.SchoolArt = (() => {
     // A few restrained motes link mundane school objects to their enchantment.
     for(let i=0;i<2;i++){const xx=21+Math.sin(t*1.7+i*3)*4,yy=-33+((t*5+i*11)%24);detail(c,accent,xx,yy,i?1:1.5,1);}
   }
-  function monster(c, enemy, x, y, frame = {}) {
+  let damageSurface=null;
+  const tintedSprites=new WeakMap();
+  function hitSprite(c,image,args,age){
+    c.drawImage(image,...args);if(!(age>=0&&age<.2)||!image.naturalWidth)return;
+    let tint=tintedSprites.get(image);if(!tint){tint=document.createElement('canvas');tint.width=image.naturalWidth;tint.height=image.naturalHeight;const p=tint.getContext('2d');p.drawImage(image,0,0);p.globalCompositeOperation='source-atop';p.fillStyle='#ff5266';p.fillRect(0,0,tint.width,tint.height);tintedSprites.set(image,tint);}
+    c.save();c.globalAlpha*=.38*(1-age/.2);c.drawImage(tint,...args);c.restore();
+  }
+  function monster(c,enemy,x,y,frame={}){
+    const age=frame.hitAge??(frame.hit?.06:1);
+    if(!(age>=0&&age<.2)){monsterBody(c,enemy,x,y,frame);return;}
+    if(!damageSurface){damageSurface=document.createElement('canvas');damageSurface.width=damageSurface.height=512;}
+    const p=damageSurface.getContext('2d');p.setTransform(1,0,0,1,0,0);p.clearRect(0,0,512,512);p.save();p.scale(2,2);monsterBody(p,enemy,128,225,frame);p.restore();
+    p.globalCompositeOperation='source-atop';p.fillStyle=`rgba(255,70,90,${.32*(1-age/.2)})`;p.fillRect(0,0,512,512);p.globalCompositeOperation='source-over';
+    c.drawImage(damageSurface,x-128,y-225,256,256);
+  }
+  function monsterBody(c, enemy, x, y, frame = {}) {
     const zone = Math.max(0, Math.min(11, Number.isInteger(enemy.kind) ? enemy.kind : 0));
     const variant = enemyVariant(enemy, frame.stage, frame.wave, frame.index);
     const type = ENEMY_APPEARANCES[zone][variant], reduced=!!frame.reduced;
@@ -1792,5 +1807,5 @@ window.SchoolArt = (() => {
     if(!battle.cinematic&&battle.phase==='fight'&&battle.horasCast&&battle.heroes.some(h=>h.id==='horas'&&h.hp>0))horasCutin(c,Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation),reduced);
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { hitSprite, hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

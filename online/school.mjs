@@ -51,6 +51,13 @@ export function createSchool() {
   return {
     async request(path, request, env, data, accounts) {
       try {
+      if(path==='/api/school/profile'){
+        const name=game.normalizeCommanderName(data.name);requireSchool(name,'단장 이름을 확인해 주세요.');
+        const row=await env.DB.prepare('SELECT n.display_name AS name,s.payload FROM school_names n JOIN school_saves s ON s.account_id=n.account_id WHERE n.name_key=?').bind(nameKey(name)).first();
+        requireSchool(row,'단장을 찾지 못했어요.',404);let saved;try{saved=JSON.parse(row.payload);}catch{}requireSchool(game.validate(saved),'프로필을 불러올 수 없어요.',409);
+        const appearance=game.publicProfile(saved),info=game.profileInfo(saved);
+        return {name:row.name,...appearance,title:info.title,level:saved.captain.level,power:game.power(saved),best:saved.best,tower:game.activityInfo(saved).tower.best,team:saved.team.map(id=>({id,name:game.BY_ID[id].name,rarity:game.BY_ID[id].rarity,level:saved.units[id].level,stars:saved.units[id].stars}))};
+      }
       if (path === '/api/school/yeti') return await yeti.request(request, env, data, accounts);
       if (path === '/api/school/raid') return await raids.request(request, env, data, accounts);
       if (path === '/api/school/guild') return await guilds.request(request, env, data, accounts);

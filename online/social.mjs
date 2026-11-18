@@ -35,7 +35,7 @@ export function createSocial(game) {
   async function state(db,id,now){
     const ownSave=await saved(db,id), name=await ensureSchoolName(db,id,ownSave,game,now);
     const rows=(await db.prepare(`SELECT f.*, n.display_name AS name,
-      json_object('team',json_extract(s.payload,'$.team'),'units',json_extract(s.payload,'$.units'),'captain',json_extract(s.payload,'$.captain'),'equipment',json_extract(s.payload,'$.equipment')) AS save,
+      json_object('profile',json_extract(s.payload,'$.profile'),'redeemedCodes',json_extract(s.payload,'$.redeemedCodes'),'team',json_extract(s.payload,'$.team'),'units',json_extract(s.payload,'$.units'),'captain',json_extract(s.payload,'$.captain'),'equipment',json_extract(s.payload,'$.equipment')) AS save,
       (SELECT MAX(0,1000+COALESCE(SUM(CASE WHEN CAST(json_extract(a.payload,'$.winner') AS INTEGER) = -1 THEN 0 WHEN (a.challenger = n.account_id AND CAST(json_extract(a.payload,'$.winner') AS INTEGER) = 0) OR (a.target = n.account_id AND CAST(json_extract(a.payload,'$.winner') AS INTEGER) = 1) THEN 10 ELSE -5 END),0)) FROM school_arena a WHERE a.status = 'done' AND (a.challenger = n.account_id OR a.target = n.account_id)) AS rating
       FROM school_friends f
       JOIN school_names n ON n.account_id = CASE WHEN f.requester = ? THEN f.target ELSE f.requester END
@@ -43,7 +43,7 @@ export function createSocial(game) {
     const friends=[],incoming=[],outgoing=[];
     for(const row of rows){
       if(row.status==='accepted'){
-        const other=JSON.parse(row.save);friends.push({id:row.id,name:row.name,level:other.captain.level,power:game.power(other),rating:row.rating});
+        const other=JSON.parse(row.save);friends.push({id:row.id,name:row.name,level:other.captain.level,power:game.power(other),rating:row.rating,...game.publicProfile(other)});
       }else(row.target===id?incoming:outgoing).push({id:row.id,name:row.name,createdAt:row.created_at});
     }
     const arena=(await db.prepare(`SELECT a.id,a.challenger,a.target,a.status,a.created_at,a.expires_at,json_extract(a.payload,'$.winner') AS winner,n.display_name AS name

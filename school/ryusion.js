@@ -33,6 +33,13 @@ window.SchoolRyusion = (() => {
     c.imageSmoothingEnabled=false;
     if(atlasLoaded)c.drawImage(source(poseFor(frame)),-24,-55,48,64);
     else{c.fillStyle='#28272b';c.fillRect(-7,-24,13,19);c.fillStyle='#694b3f';c.fillRect(-8,-37,16,16);c.fillStyle='#e8c7ab';c.fillRect(-4,-31,11,9);c.fillStyle='#b28a56';c.fillRect(6,-32,11,32);}
+    if(frame.taunting&&!frame.dead){
+      const pulse=frame.reduced?0:Math.sin((frame.time||0)*8),top=-66-pulse*1.3;
+      c.fillStyle='#37261ee8';c.beginPath();c.moveTo(0,top-13);c.lineTo(11,top);c.lineTo(0,top+13);c.lineTo(-11,top);c.closePath();c.fill();c.strokeStyle='#ffdd8a';c.lineWidth=1.4;c.stroke();
+      c.fillStyle='#fff1ae';c.fillRect(-2,top-7,4,9);c.fillRect(-2,top+5,4,3);
+      c.strokeStyle='#ffcf7288';c.lineWidth=1;c.beginPath();for(let i=0;i<6;i++){const a=i*Math.PI/3;c.moveTo(Math.cos(a)*15,top+Math.sin(a)*15);c.lineTo(Math.cos(a)*(19+pulse),top+Math.sin(a)*(19+pulse));}c.stroke();
+      barrier(c,0,-2,.85,.75);
+    }
     c.restore();
   }
   function illustration(c,x,y,w,h){
@@ -47,7 +54,7 @@ window.SchoolRyusion = (() => {
   function effects(c,battle,events,positions,time,reduced=false){
     const source=positions.ryusion,unit=battle.heroes.find(h=>h.id==='ryusion'&&h.hp>0);if(!source)return;
     const g=window.SchoolRPG.ryusionGuard(battle.heroes,battle.elapsed);
-    if(unit&&g.taunting){c.save();c.translate(source.x,source.y+3);c.scale(1,.28);c.strokeStyle='#f9c56e';c.lineWidth=3;c.beginPath();c.arc(0,0,35+(reduced?0:Math.sin(time*6)*2),0,Math.PI*2);c.stroke();c.restore();barrier(c,source.x,source.y,1,.5);c.save();c.font='bold 10px Galmuri,monospace';c.textAlign='center';c.lineWidth=3;c.strokeStyle='#302621';c.strokeText('도발',source.x,source.y-69);c.fillStyle='#ffdd8a';c.fillText('도발',source.x,source.y-69);c.restore();}
+    if(unit&&g.taunting){c.save();c.translate(source.x,source.y+3);c.scale(1,.28);c.strokeStyle='#f9c56e';c.lineWidth=3;c.beginPath();c.arc(0,0,35+(reduced?0:Math.sin(time*6)*2),0,Math.PI*2);c.stroke();c.restore();barrier(c,source.x,source.y,1,.5);}
     for(const h of battle.heroes){const p=positions[h.id];if(p&&h.hp>0&&h.earthShield>0&&battle.elapsed<h.earthShieldUntil)barrier(c,p.x,p.y,.85,.35);}
     for(const e of events){const age=time-e.time;if(age<0||age>1.2)continue;const p=positions[e.to]||source;
       if(e.kind==='ryusion-impact'){c.save();c.globalAlpha=1-clamp(age/.7);c.strokeStyle='#ffd990';c.lineWidth=3;c.beginPath();c.arc(p.x,p.y-30,8+age*44,-1.4,1.4);c.stroke();if(!reduced)for(let i=0;i<8;i++){c.fillStyle=i%2?'#b68a5b':'#f0c785';const dx=Math.cos(i*2.4)*age*34,dy=-Math.sin(i*2.4)*age*35+age*age*35;c.fillRect(p.x+dx,p.y-22+dy,3,3);}c.restore();}

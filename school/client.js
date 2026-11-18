@@ -517,6 +517,7 @@
         if(!shown?.cancelled){toast('설원의 동료 스피카가 합류했어요!');heroDetail('spica');}
       }else{play('reward');social?.refresh();}
     }
+    else if(result.kind==='shop-buy'){toast('구매를 완료했어요.');if(modalKind==='shop')shopModal();}
     else if (result.kind === 'profile') { rankingCache.clear(); toast('프로필을 저장했어요.'); captainModal(); }
     else if(result.kind==='raid-claim'||result.kind==='guild-project-claim'){toast(`${result.kind==='raid-claim'?'길드전':'협동 퀘스트'} 보상 · 보석 +${result.gems} · 골드 +${fmt(result.gold)}`);play('reward');}
     else if (result.kind === 'guild-checkin') { toast('길드 출석 · 보석 +30'); play('reward'); }
@@ -805,6 +806,7 @@
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
     worldMap?.update(state, blocked || !!state.battle.activity);
     qol?.refresh(); equipmentUI?.refresh();
+    if(modalKind==='shop')for(const i of G.shopInfo(state,serverNow())){const b=document.querySelector(`[data-shop-item="${i.id}"]`);if(b)b.dataset.unavailable=String(!i.available||state.gems<i.price);}
     document.querySelectorAll('[data-battle-mode]').forEach(button => {
       setDisabled(button, blocked || !!state.battle.activity);
       setAttr(button, 'aria-pressed', String(button.dataset.battleMode === state.mode));
@@ -898,6 +900,18 @@
       act({kind:'rename',name});
     };
     renderButtons();
+  }
+  let inspectDialog=null,inspectVersion=0;
+  async function inspectCommander(name){
+    inspectDialog?.remove();const dialog=document.createElement('dialog'),version=++inspectVersion;inspectDialog=dialog;dialog.className='commander-inspector';dialog.innerHTML='<button class="inspector-close" aria-label="닫기">×</button><div class="inspector-content">프로필을 불러오는 중…</div>';document.body.append(dialog);dialog.showModal();
+    dialog.querySelector('button').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());dialog.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();dialog.close();}},true);
+    try{const p=await request('/api/school/profile',{name},'public');if(!dialog.open||version!==inspectVersion)return;
+      dialog.querySelector('.inspector-content').innerHTML=`<header>${window.SchoolGuild.avatar({...p,name:undefined},p.hero)}<div><h2>${esc(p.name)}</h2>${window.SchoolGuild.title(p)}<p>단장 Lv.${fmt(p.level)}</p></div></header><div class="inspect-stats"><span>전투력<b>${fmt(p.power)}</b></span><span>최고 지역<b>${esc(G.stageName(Math.max(1,p.best)))}</b></span><span>뫼비우스<b>${fmt(p.tower)}층</b></span></div><h3>출전 용병</h3><div class="inspect-team">${p.team.map(u=>`<article data-rarity="${esc(u.rarity)}"><img src="${esc(window.SchoolArt.portrait(u.id))}" alt=""><b>${esc(u.name)}</b><small>Lv.${fmt(u.level)} · ${'★'.repeat(u.stars)||'기본'}</small></article>`).join('')}</div>`;
+    }catch(e){if(dialog.open)dialog.querySelector('.inspector-content').textContent=e.message;}
+  }
+  function shopModal(){
+    const items=G.shopInfo(state,serverNow());
+    openModal('교내 상점',`<div class="shop-wallet">${icon('gem')} <b>${fmt(state.gems)}</b><span>보석으로 구매</span></div><p class="detail-note">최고 클리어 지역에 따라 코인 수량 증가 · 구매 한도는 한국 시간 매일 00시 갱신</p><div class="school-shop-grid">${items.map(i=>`<article class="school-shop-card ${i.regular?'sale':''}"><span class="shop-art">${icon(i.type==='gold'?'coin':'dungeon')}</span>${i.regular?`<small class="shop-sale">${Math.round((1-i.price/i.regular)*100)}% 할인</small>`:''}<h3>${esc(i.name)}</h3><strong>${i.gold?fmt(i.gold)+' 코인':'열쇠 1개 재충전'}</strong><p>${i.endsAt?'12월 2일 23:59까지 · ':''}오늘 ${i.remaining} / ${i.limit}회</p>${i.type!=='gold'?'<small>열쇠를 사용한 뒤 구매 가능 · 도전 중 구매 불가</small>':''}<button class="primary" data-action="shop-buy" data-shop-item="${i.id}" data-unavailable="${!i.available||state.gems<i.price}">${i.regular?`<s>${i.regular}</s>`:''}${icon('gem')} ${i.price} · 구매</button></article>`).join('')}</div>`,'shop');renderButtons();
   }
   async function rankingModal(next = 'level', refresh = false) {
     rankingMode = next === 'tower' ? 'tower' : 'level'; const requestedMode = rankingMode, generation = ++rankingGeneration;
@@ -1231,6 +1245,9 @@
     document.addEventListener('pointermove', event => { if (!trainingHold) return; const rect = $('train-hero')?.getBoundingClientRect(); if (!rect || event.clientX<rect.left || event.clientX>rect.right || event.clientY<rect.top || event.clientY>rect.bottom) stopTraining(); });
     document.addEventListener('click', e => {
       const target = e.target.closest('button'); if (!target || target.disabled) return;
+      if(target.dataset.inspectName){inspectCommander(target.dataset.inspectName);return;}
+      if(target.hasAttribute('data-open-shop')){shopModal();return;}
+      if(target.dataset.action==='shop-buy'){act({kind:'shop-buy',item:target.dataset.shopItem});return;}
       if (target.dataset.tab) { setTab(target.dataset.tab); if (!['adventure','lobby'].includes(target.dataset.tab)) boardJump('party'); }
       if (target.dataset.lobbyAction) lobbyAction(target.dataset.lobbyAction);
       if (target.dataset.battleMode) changeBattleMode(target.dataset.battleMode);

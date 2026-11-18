@@ -33,7 +33,7 @@ export function createYeti(game){
   for(let attempt=0;attempt<8;attempt++){
    const row=await queryRoom(db,roomId);if(!row){if(data.kind==='leave')return null;throw Object.assign(Error('전투방이 종료됐어요.'),{status:404});}
    const s=JSON.parse(row.payload),before=game.clone(s),key=id+':'+data.requestId;
-   if(s.status==='fighting'){Y.advance(game,s.battle,now);if(s.battle.ended){s.status='finished';s.outcome=s.battle.outcome;}}
+   if(s.status==='fighting'){Y.advance(game,s.battle,now);Y.expireRescues(s.battle,now);if(s.battle.ended){s.status='finished';s.outcome=s.battle.outcome;}}
    if(s.status==='lobby'){
     s.members=s.members.filter(m=>now-m.seen<120000);
     const arriving=s.members.find(m=>m.account===id);if(arriving&&now-arriving.seen>=5000)arriving.seen=now;
@@ -62,10 +62,14 @@ export function createYeti(game){
       yetiRequire(s.members.length===2&&s.members.every(m=>m.ready&&now-m.seen<30000),'두 단장 모두 접속하여 준비해야 해요.',409);
       const parties=[];for(const m of s.members)parties.push({account:m.account,save:await saved(db,m.account)});
       s.battle=Y.create(game,parties,now,crypto.getRandomValues(new Uint32Array(1))[0]);s.status='fighting';
-     }else if(data.kind==='thaw'){
+     }else if(data.kind==='thaw-start'||data.kind==='thaw-submit'){
       yetiRequire(s.status==='fighting','진행 중인 전투에서만 구할 수 있어요.',409);
-      yetiRequire(typeof data.freezeId==='string'&&data.freezeId.length<80,'얼음 상태를 확인해 주세요.');
-      try{Y.thaw(game,s.battle,id,data.freezeId,now);}catch(error){throw Object.assign(error,{status:400});}
+      try{if(data.kind==='thaw-start'){
+       yetiRequire(typeof data.freezeId==='string'&&data.freezeId.length<80,'얼음 상태를 확인해 주세요.');
+       const keys=['KeyQ','KeyW','KeyE','KeyR','KeyA','KeyS','KeyD','KeyF'],sequence=Array.from(crypto.getRandomValues(new Uint32Array(4)),n=>keys[n%keys.length]);
+       Y.startRescue(s.battle,id,data.freezeId,data.mode,sequence,now);
+      }else Y.finishRescue(game,s.battle,id,data.challengeId,data.inputs,now);
+      }catch(error){throw Object.assign(error,{status:400});}
      }
     }
     s.receipts.push(key);s.receipts=s.receipts.slice(-80);
@@ -83,7 +87,7 @@ export function createYeti(game){
   if(s&&s.members.some(m=>m.account===id)){
    const members=[];
    for(const m of s.members){const name=await db.prepare('SELECT display_name FROM school_names WHERE account_id=?').bind(m.account).first();const save=await saved(db,m.account);members.push({name:name?.display_name||'단장',isMe:m.account===id,host:m.account===s.host,ready:m.ready,online:now-m.seen<15000,...game.publicProfile(save),heroes:save.team.slice(0,6)});}
-   const battle=s.battle&&game.clone(s.battle);if(battle){delete battle.seed;battle.events=battle.events.filter(e=>e.t>=battle.elapsed-2400).slice(-100);for(const t of battle.teams){t.isMe=t.account===id;delete t.account;delete t.synergy;for(const u of t.units)delete u.exclusive;}}
+   const battle=s.battle&&game.clone(s.battle);if(battle){delete battle.seed;battle.events=battle.events.filter(e=>e.t>=battle.elapsed-2400).slice(-100);for(const t of battle.teams){t.isMe=t.account===id;if(!t.isMe)delete t.rescue;delete t.account;delete t.synergy;for(const u of t.units)delete u.exclusive;}}
    room={id:s.id,code:s.code,status:s.status,outcome:s.outcome,members,battle};
   }
   const rules=s?.battle?Y.encounterRules(s.battle):Y.RULES;
@@ -93,7 +97,7 @@ export function createYeti(game){
   const now=Date.now(),signed=await accounts.identity(request,env,now);
   yetiRequire(signed,'Google 계정으로 로그인한 뒤 친구와 도전하세요.',401);
   yetiRequire(data.catalogVersion===game.CATALOG_VERSION,'게임을 새로고침해 주세요.',426);
-  yetiRequire(['state','create','join','ready','start','leave','thaw'].includes(data.kind),'지원하지 않는 행동이에요.');
+   yetiRequire(['state','create','join','ready','start','leave','thaw-start','thaw-submit'].includes(data.kind),'지원하지 않는 행동이에요.');
   if(data.kind!=='state')yetiRequire(typeof data.requestId==='string'&&/^[\w-]{16,80}$/.test(data.requestId),'요청 번호를 확인하세요.');
   if(!['state','leave'].includes(data.kind))yetiRequire(game.winterInfo(await saved(env.DB,signed.id),now).active,'겨울 이벤트 기간이 아니에요.');
   const db=env.DB;let row=await current(db,signed.id),s;

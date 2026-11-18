@@ -100,7 +100,7 @@ const duoCanvas=new Canvas();duoCanvas.getBoundingClientRect=()=>({width:800,hei
 let nextFrame=null,rafId=0,now=0,reducedMotion=false;const fieldCalls=[];
 const nodes={'arena-canvas':replayCanvas,'yeti-canvas':duoCanvas,'yeti-view':{closest:()=>({open:true})},'yeti-warning':{},'yeti-clock':{}};
 const portDocument={...document,documentElement:{dataset:{}},getElementById:id=>nodes[id]||null};
-const portWindow={...window,SchoolArt:{...A,spicaBlizzard(...args){const count=A.spicaBlizzard(...args);fieldCalls.push({elapsed:args[2],until:args[3],count});return count;}},SchoolYetiRules:{HP:800000,DURATION:210000,PATTERNS:[]}};
+const portWindow={...window,SchoolArt:{...A,spicaBlizzard(...args){const count=A.spicaBlizzard(...args);fieldCalls.push({elapsed:args[2],until:args[3],count});return count;}},SchoolRescue:{create:()=>({update(){},destroy(){}})},SchoolYetiRules:{HP:800000,DURATION:210000,PATTERNS:[]}};
 const port={...sandbox,window:portWindow,document:portDocument,devicePixelRatio:1,performance:{now:()=>now},matchMedia:()=>({matches:reducedMotion}),requestAnimationFrame:f=>{nextFrame=f;return ++rafId;},cancelAnimationFrame(){nextFrame=null;}};
 const replaySource=fs.readFileSync('school/social.js','utf8');assert(replaySource.includes('Object.freeze({create})'));
 vm.runInNewContext(replaySource.replace('Object.freeze({create})','Object.freeze({create,replay})'),port,{filename:'school/social.js'});

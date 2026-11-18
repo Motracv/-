@@ -44,6 +44,7 @@
   if(!b.cast&&s.elapsed>=b.nextBasicAt){b.nextBasicAt=(b.nextBasicAt>s.elapsed-250?b.nextBasicAt:s.elapsed)+2000/(basicRate?.(b,true)||1);emit('impact',{pattern:'basic'});s.teams.forEach((t,ti)=>hurt(ti,living(t)[0],.55,'basic'));}
  }
  function tick({s,emit,hurt,living}){
+  expireRescues(s,s.startedAt+s.elapsed);
   for(let ti=0;ti<s.teams.length;ti++){
    const t=s.teams[ti];if(t.frozen&&s.elapsed-t.frozen.at>=3000&&s.elapsed%3000===0){for(const u of living(t))hurt(ti,u,.3,'frostbite');}
   }
@@ -60,5 +61,26 @@
   return s;
  }
  function withdraw(s,account){const t=s.teams.find(t=>t.account===account);if(t){t.withdrawn=true;t.frozen=null;for(const u of t.units)u.hp=0;}s.ended=true;s.outcome='abandoned';s.events.push({seq:++s.seq,t:s.elapsed,kind:'end',outcome:s.outcome});}
- return {HP,DURATION,MAX_PLAYERS,RECOMMENDED_LEVEL,DIFFICULTY,RULES,LEGACY_RULES,encounterRules,PATTERNS,create,advance,thaw,withdraw};
+ function rescueFail(s,t,challenge){
+  challenge.outcome='failed';t.rescueLockUntil=s.elapsed+15000;
+  for(const u of t.units)if(u.hp>0)u.stunUntil=Math.max(u.stunUntil||0,t.rescueLockUntil);
+  s.events.push({seq:++s.seq,t:s.elapsed,kind:'rescue-failed',team:s.teams.indexOf(t),until:t.rescueLockUntil});
+ }
+ function expireRescues(s,now){for(const t of s.teams){const q=t.rescue;if(q?.outcome==='pending'&&now>q.expiresAt){if(s.ended)q.outcome='cancelled';else rescueFail(s,t,q);}}}
+ function startRescue(s,actor,freezeId,mode,sequence,now){
+  const i=s.teams.findIndex(t=>t.account===actor),t=s.teams[i],other=s.teams[1-i];
+  if(s.ended||!t||t.withdrawn||t.frozen||t.rescueLockUntil>s.elapsed||!t.units.some(u=>u.hp>0)||!other?.frozen||other.frozen.id!==freezeId||!other.units.some(u=>u.hp>0))throw Error('현재 동료를 구출할 수 없어요.');
+  if(t.rescue?.outcome==='pending')return;
+  if(!['touch','keyboard'].includes(mode))throw Error('입력 방식을 확인해 주세요.');
+  t.rescue={id:freezeId+':'+(++s.seq),freezeId,mode,sequence:mode==='touch'?[0,1,2,3]:sequence,outcome:'pending',expiresAt:now+2600};
+ }
+ function finishRescue(g,s,actor,id,inputs,now){
+  const t=s.teams.find(t=>t.account===actor),q=t?.rescue;
+  if(!q||q.id!==id)throw Error('구출 도전이 바뀌었어요.');
+  if(q.outcome!=='pending')return;
+  const correct=Array.isArray(inputs)&&inputs.length===4&&(q.mode==='touch'?new Set(inputs).size===4&&inputs.every(k=>q.sequence.includes(k)):inputs.every((k,i)=>k===q.sequence[i]));
+  if(now>q.expiresAt||!correct){rescueFail(s,t,q);return;}
+  thaw(g,s,actor,q.freezeId,now);q.outcome='success';
+ }
+ return {HP,DURATION,MAX_PLAYERS,RECOMMENDED_LEVEL,DIFFICULTY,RULES,LEGACY_RULES,encounterRules,PATTERNS,create,advance,thaw,withdraw,startRescue,finishRescue,expireRescues};
 });

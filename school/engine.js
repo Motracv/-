@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 25;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 26;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const PROFILE_AVATARS = Object.freeze(['knight','witch','scholar','bear','cat','bird']);
@@ -687,7 +687,7 @@
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
       s.units && Object.keys(s.units).every(id => Object.hasOwn(BY_ID, id) && Number.isInteger(s.units[id].level) && s.units[id].level >= 1 && s.units[id].level <= MAX_LEVEL && Number.isFinite(s.units[id].xp) && Number.isInteger(s.units[id].stars) && s.units[id].stars >= 0 && s.units[id].stars <= 5 && Number.isFinite(s.units[id].shards)) &&
       Array.isArray(s.team) && s.team.length >= 1 && s.team.length <= MAX_TEAM && new Set(s.team).size === s.team.length && s.team.every(id => typeof id === "string" && Object.hasOwn(BY_ID, id) && Object.hasOwn(s.units, id)) &&
-      validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
+      validShop(s) && validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
       (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)) && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean")) &&
@@ -1206,9 +1206,31 @@
     log(s, `${BANNERS[banner].name} · ${count}명의 지원서가 도착했습니다.`); return { kind: "recruit", results, cost, banner };
   }
   function action(s, input, now = Date.now(), rng = Math.random, options) { return withGearContext(s, options, () => actionCore(s, input, now, rng)); }
+  const SHOP_ITEMS=Object.freeze([
+    {id:'coins',name:'코인 주머니',price:100,limit:20,type:'gold'},
+    {id:'daily-coins',name:'오늘의 코인 특가',price:60,regular:100,limit:1,type:'gold'},
+    {id:'daily-key',name:'일일 던전 열쇠 재충전',price:200,limit:1,type:'daily'},
+    {id:'weekly-key',name:'주간 던전 열쇠 재충전',price:1500,limit:1,type:'weekly'},
+    {id:'winter-pack',name:'겨울 한정 코인 묶음',price:240,regular:300,limit:1,type:'gold',multiplier:3,endsAt:Date.UTC(2026,11,2,14,59,59,999)}
+  ]);
+  function shopInfo(s,now=Date.now()){
+    const current=day(now),counts=s.shop?.day===current?s.shop.counts:{},activities=activityInfo(s,now);
+    return SHOP_ITEMS.map(item=>{const remaining=Math.max(0,item.limit-(counts[item.id]||0)),gold=item.type==='gold'?(26000+s.best*650)*(item.multiplier||1):0;
+      return {...item,gold,remaining,available:(!item.endsAt||now<=item.endsAt)&&remaining>0&&(item.type==='gold'||!s.activities?.run&&activities[item.type].keys<activities[item.type].cap)};});
+  }
+  function validShop(s){return s.shop===undefined||s.shop&&Number.isSafeInteger(s.shop.day)&&s.shop.day>=0&&s.shop.counts&&typeof s.shop.counts==='object'&&!Array.isArray(s.shop.counts)&&Object.entries(s.shop.counts).every(([id,n])=>SHOP_ITEMS.some(i=>i.id===id&&Number.isSafeInteger(n)&&n>=0&&n<=i.limit));}
   function actionCore(s, input, now, rng) {
     fail(input && typeof input === "object" && !Array.isArray(input), "잘못된 행동입니다.");
     const kind = input.kind;
+    if(kind==='shop-buy'){
+      const item=shopInfo(s,now).find(i=>i.id===input.item);
+      fail(item?.available,'구매 한도·판매 기간 또는 열쇠 보유량을 확인해 주세요.');fail(s.gems>=item.price,'보석이 부족해요.');
+      fail(Number.isSafeInteger(s.gold+item.gold),'코인 보유 한도를 확인해 주세요.');
+      if(item.type!=='gold')refreshActivities(s,now);
+      s.gems-=item.price;s.gold+=item.gold;if(item.type!=='gold')s.activities[item.type].used--;
+      if(s.shop?.day!==day(now))s.shop={day:day(now),counts:{}};s.shop.counts[item.id]=(s.shop.counts[item.id]||0)+1;
+      return {kind,item:item.id,gold:item.gold,price:item.price};
+    }
     if (kind === 'profile') {
       const current = profileInfo(s), avatar = input.avatar ?? current.avatar, title = input.title ?? current.title;
       fail(ownsProfileAvatar(s,avatar), '해금한 프로필 그림만 사용할 수 있어요.');
@@ -1451,5 +1473,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });
