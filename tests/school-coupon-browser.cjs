@@ -3,8 +3,7 @@ const G=require('../school/engine.js');
 const {seedGuest}=require('./school-ui-regressions.cjs');
 
 async function runCouponRegressions({pageFor,saved,tab,t,login,dropNextAction}){
-  // Coupons are deliberately time-limited. Keep browser and fixture-server
-  // clocks inside the campaign so these regressions also work after it ends.
+  // Keep browser and fixture clocks aligned; the active codes have no expiry.
   const realNow=Date.now,now=Date.parse('2026-11-18T03:00:00Z'),pages=[];
   Date.now=()=>now;
   async function page(person,width=390,height=844){const p=await pageFor(person,width,height);pages.push(p);await p.clock.setFixedTime(now);return p;}
@@ -17,14 +16,14 @@ async function runCouponRegressions({pageFor,saved,tab,t,login,dropNextAction}){
     const guest=await page('coupon-guest');await seedGuest(guest,initial());await tab(guest,'supplies');
     await guest.fill('#coupon-code','   ');assert.ok(await guest.locator('#redeem-code').isDisabled());
     await submit(guest,'NOT_A_CODE');await message(guest,'error','사용할 수 없는');assert.deepEqual(wallet(await saved(guest)),{gold:700,gems:1800,redeemedCodes:[]});
-    await submit(guest,'  osia_debut  ');await message(guest,'success','OSIA_DEBUT');
-    assert.deepEqual(wallet(await saved(guest)),{gold:1700,gems:2800,redeemedCodes:['OSIA_DEBUT']});
-    assert.equal(await guest.locator('#gold').textContent(),'1,700');assert.equal(await guest.locator('#gems').textContent(),'2,800');
-    await submit(guest,'BUG_FIX');await message(guest,'success','BUG_FIX');
-    assert.deepEqual(wallet(await saved(guest)),{gold:3200,gems:4300,redeemedCodes:['OSIA_DEBUT','BUG_FIX']});
+    await submit(guest,'  thanks_for_reporting  ');await message(guest,'success','THANKS_FOR_REPORTING');
+    assert.deepEqual(wallet(await saved(guest)),{gold:1200,gems:2300,redeemedCodes:['THANKS_FOR_REPORTING']});
+    assert.equal(await guest.locator('#gold').textContent(),'1,200');assert.equal(await guest.locator('#gems').textContent(),'2,300');
+    await submit(guest,'HORAS_CELEBRATION');await message(guest,'success','HORAS_CELEBRATION');
+    assert.deepEqual(wallet(await saved(guest)),{gold:3200,gems:4300,redeemedCodes:['THANKS_FOR_REPORTING','HORAS_CELEBRATION']});
     await guest.reload();await tab(guest,'supplies');
-    for(const code of['OSIA_DEBUT',' bug_fix ']){await submit(guest,code);await message(guest,'error','이미 사용');}
-    assert.deepEqual(wallet(await saved(guest)),{gold:3200,gems:4300,redeemedCodes:['OSIA_DEBUT','BUG_FIX']});
+    for(const code of['THANKS_FOR_REPORTING',' horas_celebration ']){await submit(guest,code);await message(guest,'error','이미 사용');}
+    assert.deepEqual(wallet(await saved(guest)),{gold:3200,gems:4300,redeemedCodes:['THANKS_FOR_REPORTING','HORAS_CELEBRATION']});
     console.log('PASS guest coupon form: blank/invalid rejection, lowercase/space normalization, both exact rewards and no duplicate after reload');
 
     // Test the real responsive scroll containers, including the feedback text
@@ -45,24 +44,24 @@ async function runCouponRegressions({pageFor,saved,tab,t,login,dropNextAction}){
     await t.call('/api/school/state',{catalogVersion:G.CATALOG_VERSION},null,{'X-Account-Session':identity.token});
     t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(initial()),identity.profile.id);
     const cloud=await page('coupon-cloud');await login(cloud);await tab(cloud,'supplies');
-    await submit(cloud,'OSIA_DEBUT');await message(cloud,'success','OSIA_DEBUT');
-    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:1700,gems:2800,redeemedCodes:['OSIA_DEBUT']});
+    await submit(cloud,'THANKS_FOR_REPORTING');await message(cloud,'success','THANKS_FOR_REPORTING');
+    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:1200,gems:2300,redeemedCodes:['THANKS_FOR_REPORTING']});
     await cloud.reload();await cloud.waitForFunction(()=>document.getElementById('account-label').textContent==='계정 저장');
-    assert.equal(await cloud.locator('#gold').textContent(),'1,700');assert.equal(await cloud.locator('#gems').textContent(),'2,800');
+    assert.equal(await cloud.locator('#gold').textContent(),'1,200');assert.equal(await cloud.locator('#gems').textContent(),'2,300');
     const other=await page('coupon-cloud',844,390);await login(other);await tab(other,'supplies');
-    await submit(other,' osia_debut ');await message(other,'error','이미 사용');
-    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:1700,gems:2800,redeemedCodes:['OSIA_DEBUT']});
+    await submit(other,' thanks_for_reporting ');await message(other,'error','이미 사용');
+    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:1200,gems:2300,redeemedCodes:['THANKS_FOR_REPORTING']});
     console.log('PASS cloud coupon reward persists in real SQLite and the same account in another browser cannot claim twice');
 
-    await tab(cloud,'supplies');dropNextAction();await submit(cloud,'BUG_FIX');
+    await tab(cloud,'supplies');dropNextAction();await submit(cloud,'HORAS_CELEBRATION');
     await message(cloud,'pending','확인');assert.ok(await cloud.locator('#redeem-code').isDisabled());
-    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:3200,gems:4300,redeemedCodes:['OSIA_DEBUT','BUG_FIX']});
-    await cloud.reload();await tab(cloud,'supplies');await message(cloud,'success','BUG_FIX');
-    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:3200,gems:4300,redeemedCodes:['OSIA_DEBUT','BUG_FIX']});
+    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:3200,gems:4300,redeemedCodes:['THANKS_FOR_REPORTING','HORAS_CELEBRATION']});
+    await cloud.reload();await tab(cloud,'supplies');await message(cloud,'success','HORAS_CELEBRATION');
+    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:3200,gems:4300,redeemedCodes:['THANKS_FOR_REPORTING','HORAS_CELEBRATION']});
     assert.equal(await cloud.locator('#gold').textContent(),'3,200');assert.equal(await cloud.locator('#gems').textContent(),'4,300');
     assert.equal(await cloud.evaluate(()=>sessionStorage.getItem('school-pending-action')),null);
-    await submit(cloud,'BUG_FIX');await message(cloud,'error','이미 사용');
-    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:3200,gems:4300,redeemedCodes:['OSIA_DEBUT','BUG_FIX']});
+    await submit(cloud,'HORAS_CELEBRATION');await message(cloud,'error','이미 사용');
+    assert.deepEqual(wallet(readCloud(identity.profile.id)),{gold:3200,gems:4300,redeemedCodes:['THANKS_FOR_REPORTING','HORAS_CELEBRATION']});
     console.log('PASS committed coupon with lost response resumes the same receipt after reload and never grants the reward twice');
   }finally{for(const p of pages)await p.context().close();Date.now=realNow;}
 }

@@ -13,7 +13,7 @@ test('Offline rewards cap at eight hours, never skip stages, and cannot be claim
   const s = G.create(1000); const best = s.best; G.advance(s, 1000 + 48 * 3600000);
   assert.equal(s.offline.seconds, 28800); assert.equal(s.offline.gold, 9600); assert.equal(s.best, best);
   G.advance(s, s.at + 9 * 3600000); assert.equal(s.offline.seconds, 28800);
-  const before = s.gold, reward = G.action(s, {kind:'offline'}); assert.equal(s.gold, before + reward.reward.gold);
+  const before = s.gold, reward = G.action(s, {kind:'offline'}); assert.equal(s.gold, before + reward.reward.gold + 700); assert.equal(s.captain.level,2);
   const snapshot = G.clone(s); assert.throws(() => G.action(s, {kind:'offline'})); assert.deepEqual(s, snapshot);
 });
 test('Exactly 90 seconds simulate battle; longer absences bank rewards; backward clocks give nothing', () => {
@@ -22,7 +22,7 @@ test('Exactly 90 seconds simulate battle; longer absences bank rewards; backward
   const old = G.clone(b); G.advance(b, 0); assert.deepEqual(b, old);
 });
 test('SSR pity triggers on the eightieth draw and resets; 10 pulls guarantee SR+', () => {
-  const s = G.create(1000); s.gems = 10000; for (let i = 0; i < 79; i++) G.action(s, {kind:'recruit',count:1}, 1000, () => .9);
+  const s = G.create(1000); s.gems = 20000; for (let i = 0; i < 79; i++) G.action(s, {kind:'recruit',count:1}, 1000, () => .9);
   assert.equal(s.pity, 79); const result = G.action(s, {kind:'recruit',count:1},1000, () => .9);
   assert.equal(G.BY_ID[result.results[0].id].rarity, 'SSR'); assert.equal(s.pity, 0);
   const t = G.create(1000), ten = G.action(t, {kind:'recruit',count:10},1000, () => .9);
@@ -77,28 +77,29 @@ test('Training costs and level caps; team swaps start a fresh battle and never d
 });
 test('Reward codes normalize case and spacing, grant exact rewards once, and survive a save reload',()=>{
   const now=Date.parse('2026-11-17T12:00:00+09:00'),s=G.create(now);
-  const result=G.action(s,{kind:'redeem',code:'  osia_debut\n',gold:999999,gems:999999,now:0},now);
-  assert.deepEqual(result,{kind:'redeem',code:'OSIA_DEBUT',gold:1000,gems:1000,expiresAt:Date.parse('2026-11-21T00:00:00+09:00')});
-  assert.equal(s.gold,1700);assert.equal(s.gems,2800);assert.deepEqual(s.redeemedCodes,['OSIA_DEBUT']);
+  const result=G.action(s,{kind:'redeem',code:'  thanks_for_reporting\n',gold:999999,gems:999999,now:0},now);
+  assert.deepEqual(result,{kind:'redeem',code:'THANKS_FOR_REPORTING',gold:500,gems:500,expiresAt:null});
+  assert.equal(s.gold,1200);assert.equal(s.gems,2300);assert.deepEqual(s.redeemedCodes,['THANKS_FOR_REPORTING']);
   const loaded=G.clone(s),before=G.clone(loaded);assert.ok(G.validate(loaded));
-  for(const code of ['OSIA_DEBUT','osia_debut',' OSIA_DEBUT ']){assert.throws(()=>G.action(loaded,{kind:'redeem',code},now),/이미 사용/);assert.deepEqual(loaded,before);}
-  G.action(loaded,{kind:'redeem',code:'bug_fix'},now);assert.equal(loaded.gold,3200);assert.equal(loaded.gems,4300);
-  assert.deepEqual(loaded.redeemedCodes,['OSIA_DEBUT','BUG_FIX']);assert.ok(G.validate(G.clone(loaded)));
+  for(const code of ['THANKS_FOR_REPORTING','thanks_for_reporting',' THANKS_FOR_REPORTING ']){assert.throws(()=>G.action(loaded,{kind:'redeem',code},now),/이미 사용/);assert.deepEqual(loaded,before);}
+  G.action(loaded,{kind:'redeem',code:'horas_celebration'},now);assert.equal(loaded.gold,3200);assert.equal(loaded.gems,4300);
+  assert.deepEqual(loaded.redeemedCodes,['THANKS_FOR_REPORTING','HORAS_CELEBRATION']);assert.ok(G.validate(G.clone(loaded)));
 });
-test('Coupon expiry includes all of November 20 in Korea and never trusts an input timestamp',()=>{
-  const cutoff=Date.parse('2026-11-20T15:00:00Z');
-  for(const code of ['OSIA_DEBUT','BUG_FIX']){
-    assert.equal(G.COUPONS[code].expiresAt,cutoff);
-    const last=G.create(cutoff-1);G.action(last,{kind:'redeem',code,now:cutoff+100000},cutoff-1);assert.deepEqual(last.redeemedCodes,[code]);
-    for(const now of [cutoff,cutoff+1,NaN,Infinity,-1]){const s=G.create(cutoff),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'redeem',code,now:cutoff-100000},now),/사용 기간/);assert.deepEqual(s,old);}
+test('Retired codes cannot award currency and the two replacement codes have no invented expiry',()=>{
+  const now=Date.parse('2100-01-01T00:00:00Z');
+  for(const code of ['OSIA_DEBUT','BUG_FIX','LAVA_DEBUT','THANK_YOU','MAJORUPDATE']){const s=G.create(now),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'redeem',code,now:0},now),/사용할 수 없는/);assert.deepEqual(s,old);}
+  for(const code of ['THANKS_FOR_REPORTING','HORAS_CELEBRATION']){
+    assert.equal(G.COUPONS[code].expiresAt,null);const last=G.create(now);G.action(last,{kind:'redeem',code},now);assert.deepEqual(last.redeemedCodes,[code]);
+    for(const invalid of [NaN,Infinity,-1]){const s=G.create(now),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'redeem',code,now},invalid),/사용 기간/);assert.deepEqual(s,old);}
   }
 });
 test('Coupon validation preserves old progress and rejects malformed code records without inventing rewards',()=>{
   const now=Date.parse('2026-11-17T00:00:00+09:00'),s=G.create(now);delete s.redeemedCodes;s.gold=5860;s.gems=290;s.pity=59;s.units.harin.level=40;
   const battle=G.clone(s.battle),units=G.clone(s.units);assert.ok(G.validate(s));
   for(const code of [undefined,null,12,{},'','   ','NO_SUCH_CODE','constructor','__proto__','OSIA DEBUT','ＯＳＩＡ_DEBUT','OSIA_DEBUT'.repeat(20)]){const old=G.clone(s);assert.throws(()=>G.action(s,{kind:'redeem',code},now));assert.deepEqual(s,old);}
-  G.action(s,{kind:'redeem',code:'OSIA_DEBUT'},now);assert.equal(s.gold,6860);assert.equal(s.gems,1290);assert.equal(s.pity,59);assert.deepEqual(s.battle,battle);assert.deepEqual(s.units,units);
+  G.action(s,{kind:'redeem',code:'THANKS_FOR_REPORTING'},now);assert.equal(s.gold,6360);assert.equal(s.gems,790);assert.equal(s.pity,59);assert.deepEqual(s.battle,battle);assert.deepEqual(s.units,units);
   for(const record of [null,'OSIA_DEBUT',{},[null],['osia_debut'],['OSIA_DEBUT','OSIA_DEBUT']]){const invalid=G.clone(s);invalid.redeemedCodes=record;assert.equal(G.validate(invalid),false);}
+  const legacy=G.clone(s);legacy.redeemedCodes=['OSIA_DEBUT','BUG_FIX','MAJORUPDATE'];assert.ok(G.validate(legacy));
 });
 test('Each of fifteen heroes performs their automatic skill; damage and healing stay bounded',()=>{
   for(const hero of G.HEROES){
@@ -321,7 +322,7 @@ test('The new growth curve preserves existing levels, raw XP, currencies, guaran
   const s=G.create(UPDATE_TIME);delete s.commanderName;s.captain={level:50,xp:1234};s.gold=123456;s.gems=5432;s.banners.osia={pity:79,guaranteed:true};s.pity=79;s.activities.towerBest=234;s.activities.daily.used=2;
   for(const u of Object.values(s.units))Object.assign(u,{level:60,xp:999,stars:3,shards:17});s.offline={seconds:600,gold:400,xp:480};const old=G.clone(s);assert.ok(G.validate(s));G.advance(s,s.at);
   assert.equal(s.commanderName,'새내기 단장');assert.deepEqual(s.captain,old.captain);assert.deepEqual(s.units,old.units);assert.equal(s.gold,old.gold);assert.equal(s.gems,old.gems);assert.deepEqual(s.banners,old.banners);assert.deepEqual(s.activities,old.activities);assert.deepEqual(s.battle,old.battle);assert.deepEqual(s.offline,{...old.offline,captainXp:120});assert.equal(G.CAPTAIN_MAX_LEVEL,200);
-  s.captain.xp=G.captainNeed(50)-1;for(const e of s.battle.enemies)e.hp=0;G.advance(s,s.at+500);assert.equal(s.captain.level,51);assert.equal(s.gems,old.gems+30);
+  s.captain.xp=G.captainNeed(50)-1;for(const e of s.battle.enemies)e.hp=0;G.advance(s,s.at+500);assert.equal(s.captain.level,51);assert.equal(s.gems,old.gems+160);
   s.captain={level:G.CAPTAIN_MAX_LEVEL,xp:0};G.action(s,{kind:'stage',stage:1,mode:'farm'},s.at);for(const e of s.battle.enemies)e.hp=0;const gems=s.gems;G.advance(s,s.at+500);assert.deepEqual(s.captain,{level:200,xp:0});assert.equal(s.gems,gems);assert.ok(G.validate(s));
 });
 test('Legacy offline captain XP is preserved separately from slower future deposits and claimed only once',()=>{

@@ -5,8 +5,8 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
 (async()=>{
   let passed=0;
   const test=async(name,run)=>{await run();passed++;console.log('PASS',name);};
-  await test('All three banners charge exactly 1600 for ten, reject 1599 atomically, and keep single price 100',()=>{
-    assert.equal(G.CATALOG_VERSION,12);assert.deepEqual(G.RECRUIT_COST,{1:100,10:1600});
+  await test('All three banners charge exactly 1600 for ten, reject 1599 atomically, and keep single price 160',()=>{
+    assert.equal(G.CATALOG_VERSION,13);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
     for(const banner of ['horas','osia','lava']){
       assert(G.bannerAvailable(banner,NOW));
       const s=G.create(NOW);s.gems=1599;const before=G.clone(s);let rolls=0;
@@ -15,8 +15,8 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
       s.gems=1600;const result=G.action(s,{kind:'recruit',banner,count:10,cost:900},NOW,()=>.99);
       assert.equal(result.cost,1600);assert.equal(result.results.length,10);assert.equal(s.gems,0);assert.equal(s.pulls,10);assert.equal(s.history.length,10);
       assert(result.results.some(r=>G.BY_ID[r.id].rarity!=='R'));assert(G.validate(s));
-      s.gems=99;const low=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner,count:1},NOW),/보석/);assert.deepEqual(s,low);
-      s.gems=100;const single=G.action(s,{kind:'recruit',banner,count:1,cost:1600},NOW,()=>.99);assert.equal(single.cost,100);assert.equal(s.gems,0);assert.equal(s.pulls,11);
+      s.gems=159;const low=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner,count:1},NOW),/보석/);assert.deepEqual(s,low);
+      s.gems=160;const single=G.action(s,{kind:'recruit',banner,count:1,cost:1600},NOW,()=>.99);assert.equal(single.cost,160);assert.equal(s.gems,0);assert.equal(s.pulls,11);
     }
   });
   const realNow=Date.now;Date.now=()=>NOW;
@@ -33,9 +33,9 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
         const result=await call(who,'action',{revision:before.revision,requestId:`price-${banner}-insufficient1`,action:{kind:'recruit',banner,count:10,cost:900,gems:1e12}});
         assert.equal(result.status,400);assert.equal(row(who).payload,before.payload);assert.equal(row(who).revision,before.revision);assert(!result.data.result);
       });
-      await test(`${banner}: catalog 11 cannot spend at the old price or receive a roll`,async()=>{
+      await test(`${banner}: catalog 12 cannot spend at the old price or receive a roll`,async()=>{
         patch(who,1600);const before=row(who);
-        const result=await call(who,'action',{catalogVersion:11,revision:before.revision,requestId:`price-${banner}-stale-catalog1`,action:{kind:'recruit',banner,count:10,cost:900}});
+        const result=await call(who,'action',{catalogVersion:12,revision:before.revision,requestId:`price-${banner}-stale-catalog1`,action:{kind:'recruit',banner,count:10,cost:900}});
         assert.equal(result.status,426);assert.equal(row(who).payload,before.payload);assert.equal(row(who).revision,before.revision);assert(!result.data.result);assert(!result.data.state);
       });
       await test(`${banner}: exactly 1600 buys ten once under concurrent requests and persisted duplicate retries`,async()=>{
@@ -47,10 +47,10 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
         const secondLogin=(await t.login(`recruit-price-${banner}`)).data,loaded=await call(secondLogin,'state');
         assert.equal(loaded.status,200);assert.equal(loaded.data.state.gems,0);assert.equal(loaded.data.state.pulls,10);assert.deepEqual(loaded.data.state.history,both[0].data.state.history);
       });
-      await test(`${banner}: signed single draw still charges 100 and cannot use an invented client cost`,async()=>{
-        patch(who,100);const before=row(who);
+      await test(`${banner}: signed single draw still charges 160 and cannot use an invented client cost`,async()=>{
+        patch(who,160);const before=row(who);
         const result=await call(who,'action',{revision:before.revision,requestId:`price-${banner}-single-confirm1`,action:{kind:'recruit',banner,count:1,cost:0}});
-        assert.equal(result.status,200);assert.equal(result.data.result.cost,100);assert.equal(result.data.result.results.length,1);assert.equal(result.data.state.gems,0);assert.equal(result.data.state.pulls,11);
+        assert.equal(result.status,200);assert.equal(result.data.result.cost,160);assert.equal(result.data.result.results.length,1);assert.equal(result.data.state.gems,0);assert.equal(result.data.state.pulls,11);
       });
     }
     console.log(`${passed} recruitment price boundary and SQLite transaction checks passed`);

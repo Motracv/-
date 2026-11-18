@@ -17,7 +17,7 @@ const G=require('../school/engine.js');
  });
  await test('Client-supplied currency, time, account and draw results are ignored',async()=>{
    const ra=await call(a,'state',{gold:1e12,state:{gems:1e12},now:Date.now()+1e12,accountId:b.profile.id});assert.equal(ra.status,200);assert.equal(ra.data.state.gems,1800);assert.equal(ra.data.state.offline.seconds,0);
-   const r=await call(a,'action',{...action(ra.data.revision,'server-owned-action-01',{kind:'recruit',count:1,gems:1e12,results:[{id:'lumi'}]}),accountId:b.profile.id});assert.equal(r.status,200);assert.equal(r.data.state.gems,1700);assert.equal(r.data.state.pulls,1);assert.equal(JSON.parse(save(b).payload).pulls,0);
+   const r=await call(a,'action',{...action(ra.data.revision,'server-owned-action-01',{kind:'recruit',count:1,gems:1e12,results:[{id:'lumi'}]}),accountId:b.profile.id});assert.equal(r.status,200);assert.equal(r.data.state.gems,1640);assert.equal(r.data.state.pulls,1);assert.equal(JSON.parse(save(b).payload).pulls,0);
  });
  await test('Old browser catalogs are rejected before spending or exposing unfamiliar heroes',async()=>{
    const row=save(a);const old=await t.call('/api/school/action',action(row.revision,'outdated-browser-0001',{kind:'recruit',count:10}),null,{'X-Account-Session':a.token});assert.equal(old.status,426);assert.equal(save(a).payload,row.payload);assert.ok(!old.data.state);
@@ -26,8 +26,8 @@ const G=require('../school/engine.js');
  });
  await test('Simultaneous same-ID requests and lost-response retries charge once',async()=>{
    const current=await call(a,'state');const input=action(current.data.revision,'same-action-0000000002',{kind:'recruit',count:10});
-   const results=await Promise.all([call(a,'action',input),call(a,'action',input)]);results.forEach(r=>assert.equal(r.status,200));assert.equal(results[0].data.state.gems,100);assert.deepEqual(results[0].data.result,results[1].data.result);
-   const again=await call(a,'action',input);assert.equal(again.data.repeated,true);assert.equal(again.data.state.pulls,11);assert.equal(again.data.state.gems,100);
+   const results=await Promise.all([call(a,'action',input),call(a,'action',input)]);results.forEach(r=>assert.equal(r.status,200));assert.equal(results[0].data.state.gems,40);assert.deepEqual(results[0].data.result,results[1].data.result);
+   const again=await call(a,'action',input);assert.equal(again.data.repeated,true);assert.equal(again.data.state.pulls,11);assert.equal(again.data.state.gems,40);
  });
  await test('Distinct simultaneous spending actions conflict instead of overwriting',async()=>{
    const current=await call(a,'state');const rs=await Promise.all(['A','B'].map(id=>call(a,'action',action(current.data.revision,'parallel-action-000'+id,{kind:'train',hero:'harin'}))));
@@ -42,7 +42,7 @@ const G=require('../school/engine.js');
    const row=save(b),state=JSON.parse(row.payload);state.at=Date.now()-48*3600000;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),b.profile.id);
    const current=await call(b,'state');assert.equal(current.data.state.offline.seconds,28800);const before=current.data.state.gold;
    const rs=await Promise.all(['1','2'].map(id=>call(b,'action',action(current.data.revision,'offline-claim-00000'+id,{kind:'offline'}))));assert.deepEqual(rs.map(r=>r.status).sort(),[200,409]);
-   const saved=JSON.parse(save(b).payload);assert.equal(saved.gold,before+9600);assert.equal(saved.offline.seconds,0);
+   const saved=JSON.parse(save(b).payload);assert.equal(saved.gold,before+9600+700);assert.equal(saved.captain.level,2);assert.equal(saved.offline.seconds,0);
    assert.equal((await call(b,'action',action(save(b).revision,'offline-claim-again1',{kind:'offline'}))).status,400);
  });
  await test('Daily reset and quest eligibility are enforced by server, not browser flags',async()=>{
@@ -58,7 +58,7 @@ const G=require('../school/engine.js');
    const prepare=t.db.prepare;let drop=true;
    t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return {bind(...args){const bound=statement.bind(...args);return {...bound,async run(){const r=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return r;}};}};};
    const lost=await call(b,'action',intent);assert.equal(lost.status,503);t.db.prepare=prepare;
-   const recovered=await call(b,'action',intent);assert.equal(recovered.status,200);assert.equal(recovered.data.repeated,true);assert.equal(recovered.data.state.gems,before-100);
+   const recovered=await call(b,'action',intent);assert.equal(recovered.status,200);assert.equal(recovered.data.repeated,true);assert.equal(recovered.data.state.gems,before-160);
  });
  await test('Real persisted payload remains valid after requests and excludes personal Google claims',async()=>{
    const payload=save(b).payload;assert.ok(G.validate(JSON.parse(payload)));assert.ok(!payload.includes('never-store@example.test'));assert.ok(!payload.includes(b.token));
@@ -68,7 +68,7 @@ const G=require('../school/engine.js');
    const random=crypto.getRandomValues;let n=0;
    crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=4294967;return array;}return random.call(crypto,array);};
    let r;try{r=await call(who,'action',action(current.data.revision,'server-osia-draw-001',{kind:'recruit',count:1}));}finally{crypto.getRandomValues=random;}
-   assert.equal(r.status,200);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.gems,1700);
+   assert.equal(r.status,200);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.gems,1640);
    r=await call(who,'action',action(r.data.revision,'server-osia-team-001',{kind:'team',team:['taeo','osia','sua']}));assert.equal(r.status,200);
    const again=(await t.login('school-Osia')).data;r=await call(again,'state');assert.equal(r.data.state.team[1],'osia');assert.equal(r.data.state.units.osia.level,1);
    r=await call(again,'action',action(r.data.revision,'server-osia-train-01',{kind:'train',hero:'osia'}));assert.equal(r.status,200);assert.equal(r.data.state.units.osia.level,2);
@@ -112,7 +112,7 @@ const G=require('../school/engine.js');
      let r=await draw('osia','server-banner-miss-01',[.001,.99]);assert.ok(['ian','lumi'].includes(r.data.result.results[0].id));assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
      r=await draw('lava','server-banner-lava-01',[.001,.001]);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
      const again=(await t.login('school-banners')).data;current=await call(again,'state');assert.equal(current.data.state.banners.osia.guaranteed,true);assert.equal(current.data.state.units.lava.level,1);
-     r=await draw('osia','server-banner-guarantee',[.001,.99]);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.banners.osia.guaranteed,false);assert.equal(r.data.state.gems,9700);assert.equal(r.data.state.pity,0);assert.equal(r.data.state.banners.lava.pity,0);
+     r=await draw('osia','server-banner-guarantee',[.001,.99]);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.banners.osia.guaranteed,false);assert.equal(r.data.state.gems,9520);assert.equal(r.data.state.pity,0);assert.equal(r.data.state.banners.lava.pity,0);
      const row=save(who);assert.equal((await call(who,'action',action(row.revision,'server-banner-invalid',{kind:'recruit',banner:'constructor',count:1}))).status,400);assert.equal(save(who).payload,row.payload);
    }finally{Date.now=realNow;crypto.getRandomValues=random;}
  });
@@ -136,7 +136,7 @@ const G=require('../school/engine.js');
      t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
      const lost=await call(who,'action',intent);assert.equal(lost.status,503);t.db.prepare=prepare;now+=2;
      const retries=await Promise.all([call(who,'action',intent),call(who,'action',intent)]);
-     for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.gems,1700);assert.equal(r.data.state.pulls,1);assert.deepEqual(r.data.state.banners.lava,{pity:0,guaranteed:false});assert.deepEqual(r.data.state.banners.osia,{pity:61,guaranteed:true});}
+     for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.gems,1640);assert.equal(r.data.state.pulls,1);assert.deepEqual(r.data.state.banners.lava,{pity:0,guaranteed:false});assert.deepEqual(r.data.state.banners.osia,{pity:61,guaranteed:true});}
      const row=save(who);assert.equal((await call(who,'action',action(row.revision,'limited-guarantee-new',{kind:'recruit',banner:'lava',count:1}))).status,400);assert.equal(save(who).payload,row.payload);
    }finally{t.db.prepare=prepare;Date.now=realNow;crypto.getRandomValues=random;}
  });
@@ -201,14 +201,14 @@ const G=require('../school/engine.js');
      await win('tower-repeat-enter01');assert.equal(current.data.state.activities.lastResult.firstClear,false);assert.deepEqual(current.data.state.activities.lastResult.reward,{gold:0,gems:0,xp:0});assert.equal(current.data.state.gold,paid.gold);assert.equal(current.data.state.gems,paid.gems);assert.deepEqual(current.data.state.units,paid.units);assert.deepEqual(current.data.state.captain,paid.captain);assert.equal(current.data.state.activities.daily.used,0);assert.equal(current.data.state.activities.weekly.used,0);
    }finally{Date.now=realNow;}
  });
- await test('The new Lava and thank-you coupons use fixed server amounts, persist claims and reject expiry-clock forgery',async()=>{
-   const realNow=Date.now;let now=Date.parse('2026-11-21T00:00:00+09:00')-1;Date.now=()=>now;
+ await test('New coupons use fixed server amounts and retired coupon names remain disabled',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-21T00:00:00+09:00');
    try{
-     const who=(await t.login('school-new-coupons')).data;let current=await call(who,'state');for(const[code,amount]of [['LAVA_DEBUT',1000],['THANK_YOU',500]]){
+     const who=(await t.login('school-new-coupons')).data;let current=await call(who,'state');for(const[code,amount]of [['THANKS_FOR_REPORTING',500],['HORAS_CELEBRATION',2000]]){
        const before=current.data.state;current=await call(who,'action',action(current.data.revision,'new-coupon-'+code+'001',{kind:'redeem',code:code.toLowerCase(),gold:1e12,gems:1e12}));assert.equal(current.status,200);assert.equal(current.data.state.gold,before.gold+amount);assert.equal(current.data.state.gems,before.gems+amount);const row=save(who);assert.equal((await call(who,'action',action(row.revision,'new-coupon-duplicate-'+code,{kind:'redeem',code}))).status,400);assert.equal(save(who).payload,row.payload);
      }
-     const again=(await t.login('school-new-coupons')).data;current=await call(again,'state');assert.ok(current.data.state.redeemedCodes.includes('LAVA_DEBUT'));assert.ok(current.data.state.redeemedCodes.includes('THANK_YOU'));
-     now++;const expired=(await t.login('school-new-coupons-expired')).data;const fresh=await call(expired,'state');for(const code of ['LAVA_DEBUT','THANK_YOU'])assert.equal((await call(expired,'action',action(fresh.data.revision,'expired-new-coupon-'+code,{kind:'redeem',code,now:now-1000}))).status,400);assert.equal(JSON.parse(save(expired).payload).gold,700);
+     const again=(await t.login('school-new-coupons')).data;current=await call(again,'state');assert.deepEqual(current.data.state.redeemedCodes,['THANKS_FOR_REPORTING','HORAS_CELEBRATION']);
+     const retired=(await t.login('school-new-coupons-retired')).data;const fresh=await call(retired,'state');for(const code of ['OSIA_DEBUT','BUG_FIX','LAVA_DEBUT','THANK_YOU','MAJORUPDATE'])assert.equal((await call(retired,'action',action(fresh.data.revision,'retired-coupon-'+code,{kind:'redeem',code,now:0}))).status,400);assert.equal(JSON.parse(save(retired).payload).gold,700);
    }finally{Date.now=realNow;}
  });
  const couponEnd=Date.parse('2026-11-21T00:00:00+09:00');let couponAccount;
@@ -216,38 +216,36 @@ const G=require('../school/engine.js');
    const realNow=Date.now;Date.now=()=>couponEnd-60000;
    try{
      couponAccount=(await t.login('school-coupon')).data;const current=await call(couponAccount,'state');
-     const forged={kind:'redeem',code:'  osia_debut  ',gold:1e12,gems:1e12,now:couponEnd+1e12,expiresAt:1e15,redeemedCodes:[]};
+     const forged={kind:'redeem',code:'  thanks_for_reporting  ',gold:1e12,gems:1e12,now:couponEnd+1e12,expiresAt:1e15,redeemedCodes:[]};
      const attempts=await Promise.all(['A','B'].map(id=>call(couponAccount,'action',{...action(current.data.revision,'coupon-parallel-0000'+id,forged),now:couponEnd+1e12,gold:1e12,gems:1e12})));
      assert.deepEqual(attempts.map(r=>r.status).sort(),[200,409]);
-     const won=attempts.find(r=>r.status===200);assert.equal(won.data.result.kind,'redeem');assert.equal(won.data.result.code,'OSIA_DEBUT');assert.equal(won.data.result.gold,1000);assert.equal(won.data.result.gems,1000);
-     let row=save(couponAccount),s=JSON.parse(row.payload);assert.equal(s.gold,1700);assert.equal(s.gems,2800);assert.deepEqual(s.redeemedCodes,['OSIA_DEBUT']);
-     const duplicate=await call(couponAccount,'action',action(row.revision,'coupon-duplicate-0001',{kind:'redeem',code:'OSIA_DEBUT',redeemedCodes:[]}));
+     const won=attempts.find(r=>r.status===200);assert.equal(won.data.result.kind,'redeem');assert.equal(won.data.result.code,'THANKS_FOR_REPORTING');assert.equal(won.data.result.gold,500);assert.equal(won.data.result.gems,500);
+     let row=save(couponAccount),s=JSON.parse(row.payload);assert.equal(s.gold,1200);assert.equal(s.gems,2300);assert.deepEqual(s.redeemedCodes,['THANKS_FOR_REPORTING']);
+     const duplicate=await call(couponAccount,'action',action(row.revision,'coupon-duplicate-0001',{kind:'redeem',code:'THANKS_FOR_REPORTING',redeemedCodes:[]}));
      assert.equal(duplicate.status,400);assert.equal(save(couponAccount).payload,row.payload);
-     const reloaded=await call(couponAccount,'state',{state:{redeemedCodes:[]}});assert.deepEqual(reloaded.data.state.redeemedCodes,['OSIA_DEBUT']);assert.equal(reloaded.data.state.gems,2800);
+     const reloaded=await call(couponAccount,'state',{state:{redeemedCodes:[]}});assert.deepEqual(reloaded.data.state.redeemedCodes,['THANKS_FOR_REPORTING']);assert.equal(reloaded.data.state.gems,2300);
    }finally{Date.now=realNow;}
  });
  await test('A committed coupon with a lost response is replayed safely and a new request cannot claim it again',async()=>{
    const realNow=Date.now;Date.now=()=>couponEnd-60000;const prepare=t.db.prepare;
    try{
-     const current=await call(couponAccount,'state'),intent=action(current.data.revision,'coupon-response-lost01',{kind:'redeem',code:'bug_fix'});let drop=true;
+     const current=await call(couponAccount,'state'),intent=action(current.data.revision,'coupon-response-lost01',{kind:'redeem',code:'horas_celebration'});let drop=true;
      t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
      const lost=await call(couponAccount,'action',intent);assert.equal(lost.status,503);t.db.prepare=prepare;
      const retries=await Promise.all([call(couponAccount,'action',intent),call(couponAccount,'action',intent)]);
-     for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(r.data.result.code,'BUG_FIX');assert.equal(r.data.result.gems,1500);assert.equal(r.data.result.gold,1500);assert.equal(r.data.state.gold,3200);assert.equal(r.data.state.gems,4300);}
-     const row=save(couponAccount),s=JSON.parse(row.payload);assert.deepEqual(s.redeemedCodes,['OSIA_DEBUT','BUG_FIX']);assert.ok(G.validate(s));
-     assert.equal((await call(couponAccount,'action',action(row.revision,'coupon-new-duplicate01',{kind:'redeem',code:'  BUG_FIX  '}))).status,400);assert.equal(save(couponAccount).payload,row.payload);
+     for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(r.data.result.code,'HORAS_CELEBRATION');assert.equal(r.data.result.gems,2000);assert.equal(r.data.result.gold,2000);assert.equal(r.data.state.gold,3200);assert.equal(r.data.state.gems,4300);}
+     const row=save(couponAccount),s=JSON.parse(row.payload);assert.deepEqual(s.redeemedCodes,['THANKS_FOR_REPORTING','HORAS_CELEBRATION']);assert.ok(G.validate(s));
+     assert.equal((await call(couponAccount,'action',action(row.revision,'coupon-new-duplicate01',{kind:'redeem',code:'  HORAS_CELEBRATION  '}))).status,400);assert.equal(save(couponAccount).payload,row.payload);
    }finally{t.db.prepare=prepare;Date.now=realNow;}
  });
- await test('Coupon expiry includes November 20 KST and ignores forged client clocks at the exact cutoff',async()=>{
-   const realNow=Date.now;let now=couponEnd-1;Date.now=()=>now;
+ await test('Replacement coupons remain valid after the former expiry and old codes cannot be revived by a forged date',async()=>{
+   const realNow=Date.now;Date.now=()=>couponEnd+86400000;
    try{
-     const who=(await t.login('school-coupon-expiry')).data;let current=await call(who,'state');
-     const valid=await call(who,'action',action(current.data.revision,'coupon-last-millisecond',{kind:'redeem',code:'OSIA_DEBUT',now:couponEnd+100000}));
-     assert.equal(valid.status,200);assert.equal(valid.data.state.gems,2800);assert.equal(valid.data.state.gold,1700);
-     now=couponEnd;const before=save(who);
-     const expired=await call(who,'action',{...action(before.revision,'coupon-expired-00001',{kind:'redeem',code:'BUG_FIX',now:couponEnd-86400000}),now:couponEnd-86400000});
-     assert.equal(expired.status,400);assert.equal(save(who).payload,before.payload);
-     current=await call(who,'state');assert.deepEqual(current.data.state.redeemedCodes,['OSIA_DEBUT']);
+     const who=(await t.login('school-coupon-retired-date')).data;const current=await call(who,'state');
+     const valid=await call(who,'action',action(current.data.revision,'coupon-no-expiry-001',{kind:'redeem',code:'THANKS_FOR_REPORTING',now:0}));
+     assert.equal(valid.status,200);assert.equal(valid.data.state.gems,2300);assert.equal(valid.data.state.gold,1200);
+     const before=save(who),retired=await call(who,'action',{...action(before.revision,'coupon-retired-00001',{kind:'redeem',code:'BUG_FIX',now:couponEnd-86400000}),now:couponEnd-86400000});
+     assert.equal(retired.status,400);assert.equal(save(who).payload,before.payload);
    }finally{Date.now=realNow;}
  });
  await test('Commander renames are normalized, validated and confirmed once across simultaneous sessions and lost responses',async()=>{

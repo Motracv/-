@@ -54,13 +54,13 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.deepEqual(await savedProgress(offline),beforeProgress,'Updating the installed shell preserves existing v8 currency, characters, levels, formation and campaign');
   const lobbyPaths=[...['courtyard','icon-recruit','icon-supplies','icon-codex','icon-arena','icon-dungeon','icon-adventure','icon-quests','icon-ranking','icon-winter','icon-help'].map(name=>`school/assets/lobby/${name}.webp?v=lobby1`),...['lobby.js','lobby.css','world-map.js','world-map.css'].map(name=>`school/${name}?v=${currentRelease}`)];
   const adventurePaths=[`school/battle.css?v=${currentRelease}`,...Array.from({length:12},(_,i)=>`school/assets/adventure/region-${String(i+1).padStart(2,'0')}.webp?v=adventure1`),...['classroom','garden','snow'].map(name=>`school/assets/battlefields/${name}.webp?v=battlefield1`)];
-  const horasPaths=[`school/horas.css?v=${currentRelease}`,...['combat.webp','combat.json','portrait.webp','pickup.webp','cutin.webp'].map(name=>`school/assets/horas/${name}?v=horas1`)];
+  const horasPaths=[`school/quests.css?v=${currentRelease}`,`school/horas.css?v=${currentRelease}`,...['combat.webp','combat.json','portrait.webp','pickup.webp','cutin.webp'].map(name=>`school/assets/horas/${name}?v=horas1`)];
   const lobbyCache=await offline.evaluate(async({release,paths})=>{
    const key=(await caches.keys()).find(key=>key.endsWith(release));if(!key)throw Error('Updated cache is missing');const cache=await caches.open(key),assets=[];
    for(const path of paths){const response=await cache.match(new URL(path,location.href).href);if(!response){assets.push({path,missing:true});continue;}const bytes=await response.arrayBuffer(),sha256=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(x=>x.toString(16).padStart(2,'0')).join('');let decoded=null;if(path.includes('.webp')){const img=new Image();img.src=new URL(path,location.href).href;await img.decode();decoded=[img.naturalWidth,img.naturalHeight];}assets.push({path,status:response.status,bytes:bytes.byteLength,sha256,decoded});}
    return assets;
   },{release:currentRelease,paths:[...lobbyPaths,...adventurePaths,...horasPaths]});
-  assert.equal(lobbyCache.length,37);
+  assert.equal(lobbyCache.length,38);
   assert.equal(lobbyCache.filter(asset=>asset.decoded).length,30);
   for(const asset of lobbyCache){assert.equal(asset.missing,undefined,asset.path+' must have been installed before going offline');assert.equal(asset.status,200,asset.path);const local=fs.readFileSync(path.join(root,asset.path.split('?')[0]));assert.equal(asset.sha256,crypto.createHash('sha256').update(local).digest('hex'),asset.path+' cached bytes must match the new local release');if(asset.decoded)assert(asset.decoded.every(n=>n>0),asset.path+' must decode offline');}
   await offline.click('#modal-close');

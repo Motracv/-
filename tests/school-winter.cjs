@@ -101,10 +101,10 @@ test('Winter save counters reject negative, fractional, infinite and over-limit 
   const s=make();s.winter.exchanges.gems=16;assert.equal(G.validate(s),false);
   const a=make();a.winter.earned=-1;assert.equal(G.validate(a),false);
 });
-test('MAJORUPDATE grants 3000 gems exactly once, has no invented expiry and preserves other resources',()=>{
-  const s=make(),before=G.clone(s);const r=G.action(s,{kind:'redeem',code:' majorupdate ',gold:1e9,gems:1e9},Date.parse('2100-01-01T00:00:00Z'));
-  assert.equal(r.expiresAt,null);assert.equal(s.gems,before.gems+3000);assert.equal(s.gold,before.gold);assert.deepEqual(s.units,before.units);
-  reject(s,{kind:'redeem',code:'MAJORUPDATE'});assert.ok(G.validate(G.clone(s)));
+test('The previous update code is disabled and HORAS_CELEBRATION grants 2000 of each currency without expiry',()=>{
+  const s=make(),before=G.clone(s);reject(s,{kind:'redeem',code:'MAJORUPDATE'});const r=G.action(s,{kind:'redeem',code:' horas_celebration ',gold:1e9,gems:1e9},Date.parse('2100-01-01T00:00:00Z'));
+  assert.equal(r.expiresAt,null);assert.equal(s.gems,before.gems+2000);assert.equal(s.gold,before.gold+2000);assert.deepEqual(s.units,before.units);
+  reject(s,{kind:'redeem',code:'HORAS_CELEBRATION'});assert.ok(G.validate(G.clone(s)));
 });
 test('Legacy claimed names cost 3000 gems and first name choice remains free',()=>{
   const s=make();delete s.nameChanges;s.commanderName='기존 단장';s.gems=2999;assert.equal(G.commanderNameInfo(s).cost,3000);reject(s,{kind:'rename',name:'새로운 단장',cost:0});

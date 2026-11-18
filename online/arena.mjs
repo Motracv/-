@@ -12,7 +12,7 @@ export function simulateArena(game, saves, names, seed) {
   const H = game.HORAS_RULES;
   // A PvP-only adjustment keeps stack generation and the 1.5x stun combo
   // intact without letting PvE ritual bursts dominate a six-unit duel.
-  const horasDamageMultiplier = .75;
+  const horasDamageMultiplier = .78;
   const horas = sides.map(units => units.some(u=>u.id==='horas') ? {stacks:0,nextBasicAt:H.basicMs,basicPose:1,lastHitStackAt:-H.hitStackMs,lastCastAt:-H.minCastMs,cast:null} : null);
   const damage = sides.map(units => units.map(u=>({id:u.id,damage:0,healing:0,taken:0,criticals:0})));
   const meter = (side,id) => damage[side].find(u=>u.id===id);
@@ -58,7 +58,10 @@ export function simulateArena(game, saves, names, seed) {
     if(progress.cast)return;
     if(progress.stacks>=H.maxStacks&&t>=progress.lastCastAt+H.minCastMs){
       progress.stacks=0;progress.lastCastAt=t;progress.nextBasicAt=t+H.impactDelay+H.basicMs;
-      const target=enemies[0],missed=random()<H.missChance;
+      // Choose a living target with the most living adjacent slots. Ties keep
+      // formation order; this remains one main target plus weaker neighbours.
+      const formation=sides[1-side],nearby=candidate=>enemies.filter(enemy=>Math.abs(formation.indexOf(enemy)-formation.indexOf(candidate))<=1).length;
+      const target=enemies.reduce((best,candidate)=>nearby(candidate)>nearby(best)?candidate:best,enemies[0]),missed=random()<H.missChance;
       progress.cast={id:events.length+1,began:t,targetId:target.id,missed,mergeMs:H.mergeMs,impactDelay:H.impactDelay,targets:enemies.map(enemy=>{
         const critical=random()<.12,power=attack*(.9+random()*.2)*(critical?1.5:1);
         return{id:enemy.id,critical,amount:Math.round(power*H.primaryMultiplier),splashAmount:Math.round(power*H.splashMultiplier)};

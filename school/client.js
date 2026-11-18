@@ -39,6 +39,8 @@
   let social, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
   let lobby = null, worldMap = null;
+  let questCategory = 'daily', questChapter = null, questRowsKey = '', questCacheKey = '', questCache = null;
+  const questCategories = {daily:'일일',repeat:'반복',stage:'지역',milestone:'업적'};
   const graphics = {frames:0, lastFrame:0, lastDraw:0, failures:0, lastError:'', losses:0, recoveries:0, lost:false};
   // A fixed ring keeps frame diagnostics cheap and excludes time in menus.
   const frameTimings = new Float64Array(300 * 4);
@@ -124,7 +126,7 @@
     confirmedSeq = Math.max(confirmedSeq, source.seq || 0);
     for (const event of fresh) {
       if (event.kind === 'defeat' && event.boss && !document.hidden && serverNow() - event.at < 6000) Presentation?.defeat({key:`${scope}:defeat:${event.seq}`,description:'보스에게 패배했어요. 딜량을 확인하고 편성을 바꿔 보세요.'});
-      if (event.kind === 'captain') Presentation?.captain({level:event.level, reward:30, key:`${scope}:captain:${event.seq}`});
+      if (event.kind === 'captain') Presentation?.captain({level:event.level, gems:event.gems, gold:event.gold, key:`${scope}:captain:${event.seq}`});
       if (event.kind === 'clear') { toast(`${G.stageName(event.stage)} 클리어! 보석 +60`); play('reward'); }
     }
   }
@@ -487,6 +489,7 @@
       const message = `${result.code} · 보석 +${fmt(result.gems)} · 코인 +${fmt(result.gold)} 수령 완료!`;
       $('coupon-code').value = ''; couponMessage(message, 'success'); toast(message); play('reward');
     }
+    else if (result.kind === 'quest' || result.kind === 'quest-all') { toast(`임무 ${result.claimed?.length || 1}개 보상 · 보석 +${fmt(result.gems)} · 골드 +${fmt(result.gold)}`); play('reward'); }
     else if (result.kind === 'train') { if (!trainingHold) toast(`${G.BY_ID[result.hero].name} Lv.${result.level}!`); renderButtons(); play('level'); }
     else if (result.kind === 'awaken') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.awaken({hero:result.hero,stars:result.stars,key:`${accountScope()}:awaken:${completedActionKey}`}); if (!shown?.cancelled) { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); } }
     else if (result.kind === 'winter-exchange') { play('reward'); social?.refresh(); }
@@ -576,9 +579,17 @@
     if (tab === 'roster') return [tab, filter, state.team.join(','), ...Object.entries(state.units).map(([id,u]) => `${id}:${u.level}:${u.stars}`)].join('|');
     if (tab === 'recruit') { const banner = G.bannerState(state, selectedBanner); return [tab, selectedBanner, banner.pity, banner.guaranteed, G.bannerAvailable(selectedBanner, serverNow())].join('|'); }
     if (tab === 'dungeons') return tab;
-    const quests = G.QUESTS.map(q => G.questValue(state,q)).join(',');
-    if (tab === 'supplies') return [tab, state.best, state.stage, state.mode, state.offline.seconds, state.offline.gold, state.offline.xp, state.offline.captainXp, state.daily, day, state.claimed.join(','), quests].join('|');
-    return [tab, state.best, state.stage, state.claimed.join(','), quests].join('|');
+    questSnapshot();
+    if (tab === 'supplies') return [tab, questCategory, questChapter, questCacheKey, state.stage, state.mode, state.offline.seconds, state.offline.gold, state.offline.xp, state.offline.captainXp, state.daily, day].join('|');
+    return [tab, state.best, state.stage, questCacheKey].join('|');
+  }
+  // Quest projection is shared by the HUD, lobby and board and is rebuilt only
+  // when a relevant counter/claim/day changes, never by the animation loop.
+  function questSnapshot() {
+    const q = state.quests, now = serverNow();
+    const key = [accountScope(),G.day(Math.max(state.at,now)),state.best,state.pulls,state.kills,state.captain.level,Object.keys(state.units).length,state.claimed.join(','),q?.repeat?.kills,q?.repeat?.waves,q?.repeat?.bosses,q?.daily?.day,q?.daily?.kills,q?.daily?.waves,q?.daily?.bosses,q?.daily?.claimed?.join(',')].join('|');
+    if (!questCache || questCacheKey !== key) { questCache = G.questBoard(state, now); questCacheKey = key; }
+    return questCache;
   }
   // Build the recruitment controls once. Banner changes only update text and
   // visibility, so an in-flight request cannot replace its pressed button.
@@ -615,9 +626,15 @@
   }
   function render() {
     if (!state) return;
-    lobby?.render(state, serverNow());
+    const quests = questSnapshot();
+    lobby?.render(state, serverNow(), quests);
     setText($('gold'), fmt(state.gold)); setText($('gems'), fmt(state.gems));
     setText($('captain-level'), `Lv.${state.captain.level}`);
+    if (modalKind === 'captain' && $('captain-level-rewards')) {
+      const maxed = state.captain.level >= G.CAPTAIN_MAX_LEVEL, reward = G.captainReward(state.captain.level+1);
+      setText('captain-modal-level', `Lv.${state.captain.level}`); setText('captain-reward-heading', maxed ? '단장 최대 레벨 달성' : `다음 Lv.${state.captain.level+1} 보상`);
+      setHidden($('captain-next-reward'), maxed); setText('captain-next-gems', fmt(reward.gems)); setText('captain-next-gold', fmt(reward.gold));
+    }
     setText($('captain-name-label'), state.commanderName === '새내기 단장' ? '이름 정하기' : state.commanderName || '단장');
     setAttr($('captain-button'), 'aria-label', `${state.commanderName || '단장'} Lv.${state.captain.level} · 이름과 랭킹`);
     setWidth($('captain-xp'), `${state.captain.level >= G.CAPTAIN_MAX_LEVEL ? 100 : state.captain.xp / G.captainNeed(state.captain.level) * 100}%`);
@@ -696,13 +713,13 @@
       if (dungeonKey !== dungeonRenderKey && renderDungeons() !== false) dungeonRenderKey = dungeonContentKey();
     }
     setHidden($('recruit-dot'), state.gems < G.RECRUIT_COST[10]);
-    setHidden($('supply-dot'), !(state.offline.seconds || state.daily < G.day(serverNow()) || G.QUESTS.some(q => !state.claimed.includes(q.id) && G.questValue(state, q) >= q.goal)));
+    setHidden($('supply-dot'), !(state.offline.seconds || state.daily < G.day(serverNow()) || quests.readyCount > 0));
     renderButtons();
     maybeShowActivityResult();
   }
   function renderButtons() {
     setHidden($('operation-status'), !operation || !busy);
-    setText($('operation-message'), ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중'})[operation] || '저장 확인 중');
+    setText($('operation-message'), ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중',quest:'임무 보상 저장 중','quest-all':'임무 보상 모으는 중'})[operation] || '저장 확인 중');
     setAttr($('app'), 'aria-busy', String(busy));
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
     worldMap?.update(state, blocked || !!state.battle.activity);
@@ -773,8 +790,8 @@
     return `${next}<button class="secondary" data-activity-mode="${mode}" ${level} data-unavailable="${unavailable}">${unavailable ? '열쇠 충전 대기' : '재도전'}</button><button class="secondary" data-activity-exit>모험 복귀</button>`;
   }
   function captainModal() {
-    const captain = state.captain, maxed = captain.level >= G.CAPTAIN_MAX_LEVEL, need = G.captainNeed(captain.level);
-    openModal('내 단장', `<section class="captain-profile"><span class="crest" aria-hidden="true">校</span><div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3><p>단장 <strong>Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">${G.commanderNameInfo?.(state).cost ? '3,000 보석으로 변경' : '이름 확정'}</button></div><p id="name-message" role="status">첫 이름은 무료 · 변경은 보석 3,000개. 계정 이름은 중복될 수 없어요. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><p class="detail-note">전투와 방치 보상으로 단장 경험치를 얻어요. 레벨업마다 보석 30개!</p>`, 'captain');
+    const captain = state.captain, maxed = captain.level >= G.CAPTAIN_MAX_LEVEL, need = G.captainNeed(captain.level), nextReward = G.captainReward(captain.level + 1);
+    openModal('내 단장', `<section class="captain-profile"><span class="crest" aria-hidden="true">校</span><div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3><p>단장 <strong id="captain-modal-level">Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">${G.commanderNameInfo?.(state).cost ? '3,000 보석으로 변경' : '이름 확정'}</button></div><p id="name-message" role="status">첫 이름은 무료 · 변경은 보석 3,000개. 계정 이름은 중복될 수 없어요. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><section id="captain-level-rewards" class="captain-level-rewards"><b id="captain-reward-heading">${maxed ? '단장 최대 레벨 달성' : `다음 Lv.${captain.level + 1} 보상`}</b><div id="captain-next-reward" class="quest-rewards" ${maxed ? 'hidden' : ''}><span class="quest-gems">${icon('gem')}<strong id="captain-next-gems">${fmt(nextReward.gems)}</strong></span><span class="quest-gold">${icon('coin')}<strong id="captain-next-gold">${fmt(nextReward.gold)}</strong></span></div><p class="detail-note">새 단장 레벨마다 보석 160개와 골드를 받아요. 전투·방치 보상으로 성장합니다.</p></section>`, 'captain');
     $('captain-name-form').onsubmit = event => {
       event.preventDefault(); const name = G.normalizeCommanderName($('commander-name').value);
       if (!name) { $('name-message').textContent = '이름은 2~12글자로 입력해 주세요. 특수문자는 _와 -만 사용할 수 있어요.'; return; }
@@ -814,7 +831,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-price1600" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-quests1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -874,10 +891,7 @@
       const complete = Math.min(5, Math.max(0, state.best - i * 5)), unlocked = state.best >= i * 5;
       return `<button class="chapter-item ${G.chapter(state.stage) === i ? 'current' : ''} ${unlocked ? '' : 'locked'}" data-map="${i}"><span class="chapter-num">0${i + 1}</span><span class="chapter-copy"><b>${name}</b><small>${unlocked ? `${complete} / 5 지역 클리어` : `${i}-5 클리어 후 개방`}</small></span><span class="chapter-end">${complete === 5 ? '✓' : unlocked ? '→' : '잠김'}</span></button>`;
     }).join('');
-    if ($('adventure-quests')) $('adventure-quests').innerHTML = G.QUESTS.filter(q => !state.claimed.includes(q.id)).slice(0, 2).map(q => {
-      const value = Math.min(q.goal, G.questValue(state, q));
-      return `<button class="adventure-quest" data-tab="supplies"><span>${q.name}<small>${value} / ${q.goal}</small></span><progress value="${value}" max="${q.goal}" aria-label="${q.name}"></progress></button>`;
-    }).join('') || '<p class="detail-note">모든 모험 목표를 달성했어요.</p>';
+    if ($('adventure-quests')) $('adventure-quests').innerHTML = questSnapshot().items.filter(q => !q.claimed).sort((a,b)=>Number(b.ready)-Number(a.ready)).slice(0,2).map(q => `<button class="adventure-quest" data-lobby-action="quests"><span>${esc(q.name)}<small>${q.ready ? '보상 받기' : `${fmt(q.progress)} / ${fmt(q.goal)}`}</small></span><progress value="${q.progress}" max="${q.goal}" aria-label="${esc(q.name)}"></progress></button>`).join('') || '<p class="detail-note">오늘의 모험을 이어가 보세요.</p>';
   }
   function renderRoster() {
     $('roster-count').textContent = `${Object.keys(state.units).length} / ${G.HEROES.length}`;
@@ -885,11 +899,58 @@
     $('roster').innerHTML = list.map(h => { const u = state.units[h.id]; return `<button class="hero-card ${h.rarity} ${u ? '' : 'unowned'}" data-hero="${h.id}">${rarity(h.id)}${state.team.includes(h.id) ? '<span class="equipped">출전</span>' : ''}${portrait(h.id, 'portrait')}<b>${h.name}</b><small>${u ? `Lv.${u.level} · ` : ''}${h.role}</small><span class="stars">${u ? '★'.repeat(u.stars) + '☆'.repeat(5 - u.stars) : '미보유'}</span></button>`; }).join('');
   }
   function renderSupplies() {
-    $('coupon-announcement').textContent = '새 코드: LAVA_DEBUT · 보석/골드 각 1,000 / THANK_YOU · 각 500. 11월 20일 23:59 한국 시간까지.';
+    setText('coupon-announcement', 'THANKS_FOR_REPORTING · 보석/골드 각 500 | HORAS_CELEBRATION · 각 2,000');
+    setText('coupon-note', '코드당 1회 · 별도 만료일 없음');
     $('offline-detail').innerHTML = state.offline.seconds ? `<b>${duration(state.offline.seconds)}의 모험</b><br>골드 ${fmt(state.offline.gold)} · 용병마다 경험치 ${fmt(state.offline.xp)}` : '90초 넘게 자리를 비우면<br>다시 돌아올 때 보상을 모아 드려요.';
     const rate = G.rates(state); $('offline-rate').textContent = `분당 골드 ${rate.gold} · 용병 경험치 ${rate.xp} / 최고 클리어 지역 기준`;
     $('claim-daily').textContent = state.daily >= G.day(serverNow()) ? '수령 완료' : '받기';
-    $('quests').innerHTML = G.QUESTS.map(q => { const value = Math.min(q.goal, G.questValue(state, q)), done = state.claimed.includes(q.id); return `<div class="quest ${done ? 'done' : ''}"><div class="quest-info"><b>${q.name}</b><small>${q.desc} · 골드 ${fmt(q.gold)} / 보석 ${q.gems}</small><div class="quest-progress">${value} / ${q.goal}</div></div><button class="secondary" data-action="quest" data-quest="${q.id}" data-unavailable="${done || value < q.goal}">${done ? '완료' : '받기'}</button></div>`; }).join('');
+    renderQuestBoard();
+  }
+  function renderQuestBoard() {
+    const board = questSnapshot(), root = $('quests');
+    if (!$('quest-cards')) {
+      root.classList.add('quest-board');
+      const heading = root.previousElementSibling;
+      if (heading?.classList.contains('subheading')) { heading.querySelector('h3').textContent = '모험 임무'; const caption = heading.querySelector('span'); if (caption) caption.textContent = '매일, 한 걸음씩'; }
+      root.innerHTML = `<div class="quest-board-summary"><div><b>받을 수 있는 보상 <span id="quest-ready-count">0</span></b><div class="quest-rewards"><span class="quest-gems" aria-label="수령 가능한 보석">${icon('gem')}<strong id="quest-ready-gems">0</strong></span><span class="quest-gold" aria-label="수령 가능한 골드">${icon('coin')}<strong id="quest-ready-gold">0</strong></span></div></div><button class="primary" id="quest-claim-all" data-action="quest-all" data-unavailable="true">모두 받기</button></div><div class="quest-tabs" role="group" aria-label="임무 분류">${Object.entries(questCategories).map(([id,label])=>`<button type="button" data-quest-category="${id}" aria-pressed="${questCategory === id}">${icon(id === 'daily' ? 'clock' : id === 'repeat' ? 'sword' : id === 'stage' ? 'book' : 'trophy')}<span>${label}</span><b data-quest-badge="${id}" hidden>0</b></button>`).join('')}</div><div class="quest-board-caption"><p id="quest-category-description"></p><label id="quest-chapter-label" for="quest-chapter" hidden>구역<select id="quest-chapter">${G.CHAPTERS.map((name,i)=>`<option value="${i}">${String(i+1).padStart(2,'0')} · ${esc(name)}</option>`).join('')}</select></label></div><div id="quest-cards" class="quest-cards"></div>`;
+      questRowsKey = '';
+    }
+    if (questChapter === null) questChapter = G.chapter(Math.min(G.MAX_STAGE,Math.max(1,state.best+1)));
+    setText('quest-ready-count', board.readyCount); setText('quest-ready-gems', fmt(board.readyGems)); setText('quest-ready-gold', fmt(board.readyGold));
+    setAttr($('quest-claim-all'), 'data-unavailable', String(!board.readyCount));
+    setAttr($('quest-claim-all'), 'aria-label', board.readyCount ? `모든 분류의 임무 ${board.readyCount}개 보상 받기 · 보석 ${fmt(board.readyGems)} · 골드 ${fmt(board.readyGold)}` : '수령 가능한 임무 보상이 없습니다');
+    setText('quest-claim-all', '모두 받기');
+    document.querySelectorAll('[data-quest-category]').forEach(button => {
+      const category = button.dataset.questCategory, count = board.items.filter(q=>q.category === category && q.ready).length;
+      setAttr(button,'aria-pressed',String(questCategory === category));
+      const badge = button.querySelector('[data-quest-badge]'); setText(badge,count); setHidden(badge,!count);
+    });
+    const descriptions = {
+      daily:`한국 시간 매일 00:00 갱신 · 다음 갱신 ${resetTime(board.resetsAt)}`,
+      repeat:'달성할 때마다 다시 받기 · 남은 횟수는 계속 누적돼요',
+      stage:'60개 지역의 첫 돌파 보상 · 지역마다 한 번씩 받을 수 있어요',
+      milestone:'용병단의 성장 기록 · 업적마다 한 번씩 받을 수 있어요'
+    };
+    setText('quest-category-description', descriptions[questCategory]);
+    setHidden($('quest-chapter-label'), questCategory !== 'stage');
+    if ($('quest-chapter').value !== String(questChapter)) $('quest-chapter').value = String(questChapter);
+    const items = board.items.filter(q=>q.category === questCategory && (questCategory !== 'stage' || G.chapter(q.stage) === questChapter));
+    const key = `${questCategory}:${questChapter}:${items.map(q=>q.id).join(',')}`;
+    if (key !== questRowsKey) {
+      questRowsKey = key;
+      $('quest-cards').innerHTML = items.map(q=>`<article class="quest-card" data-quest-id="${q.id}"><span class="quest-emblem" aria-hidden="true">${icon(q.category === 'daily' ? 'clock' : q.category === 'repeat' ? 'sword' : q.category === 'stage' ? 'book' : 'trophy')}</span><div class="quest-copy"><h4>${esc(q.name)}</h4><p>${esc(q.desc)}</p><div class="quest-rewards"><span class="quest-gems" aria-label="보석 보상">${icon('gem')}<b data-quest-gems></b></span><span class="quest-gold" aria-label="골드 보상">${icon('coin')}<b data-quest-gold></b></span><span class="quest-cycle" data-quest-cycle hidden></span></div><div class="quest-progress-line"><progress max="${q.goal}" value="${q.progress}" aria-label="${esc(q.name)} 진행도"></progress><small data-quest-progress></small></div></div><button class="secondary quest-claim" data-action="quest" data-quest="${q.id}"></button></article>`).join('');
+    }
+    for (const q of items) {
+      const row = $('quest-cards').querySelector(`[data-quest-id="${q.id}"]`), button = row.querySelector('button');
+      const quantity = q.ready ? q.cycles : 1, progress = row.querySelector('progress');
+      setText(row.querySelector('[data-quest-gems]'),fmt(q.gems*quantity)); setText(row.querySelector('[data-quest-gold]'),fmt(q.gold*quantity));
+      setText(row.querySelector('[data-quest-progress]'),q.claimed ? '수령 완료' : `${fmt(q.category === 'repeat' ? q.value : q.progress)} / ${fmt(q.goal)}`);
+      if (progress.value !== q.progress) progress.value = q.progress;
+      const cycle = row.querySelector('[data-quest-cycle]'); setHidden(cycle,quantity <= 1); setText(cycle,`${quantity}회분`);
+      setText(button,q.claimed ? '완료' : q.ready ? '받기' : '진행 중');
+      setAttr(button,'data-unavailable',String(!q.ready)); setAttr(button,'aria-label',q.ready ? `${q.name} 보상 받기 · 보석 ${fmt(q.gems*quantity)} · 골드 ${fmt(q.gold*quantity)}` : `${q.name} · ${q.claimed ? '수령 완료' : '진행 중'}`);
+      toggleClass(row,'quest-complete',q.claimed); toggleClass(row,'quest-ready',q.ready);
+    }
   }
   function openModal(title, html, kind = '') {
     worldMap?.destroy(); worldMap = null;
@@ -960,7 +1021,7 @@
     openModal('모집 확률 안내', `<div class="modal-copy"><p><strong>${banner.name}</strong><br>1회 보석 ${fmt(G.RECRUIT_COST[1])}개 / 10회 ${fmt(G.RECRUIT_COST[10])}개.</p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회</th><th>용병별 실제 확률</th></tr></thead><tbody>${rows}</tbody></table><p>현재 누적 ${progress.pity}회 · <strong>다음 ${progress.pity + 1}회째 확률</strong>입니다.</p>${rules}<p>단일·10회 모집 모두 한 번씩 계산합니다. 10회의 앞 9명에 SR 이상이 없고 마지막 결과가 R이면 SR로 올립니다. 최고 등급 천장을 먼저 적용합니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개 / UR 30개. 최대 5성까지 각성할 수 있습니다. 표의 소수점은 반올림하여 합계가 조금 다를 수 있습니다.</p></div>`, 'rates');
   }
   function help() {
-    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>안뜰의 용병을 눌러 육성하고, 모험 지도에서 구역과 지역을 골라 출발하세요. 전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>최대 6명의 용병이 자동으로 싸웁니다. 1~3명은 맨 앞 용병이, 4~6명은 전열 3명이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>던전은 일일 열쇠 3개·주간 열쇠 2개로 도전합니다. 패배·포기하면 입장 열쇠가 돌아옵니다.</li><li>뫼비우스의 복도는 열쇠 없이 도전하며 층별 첫 클리어 때만 보상을 받습니다.</li><li>단장은 최대 Lv.${G.CAPTAIN_MAX_LEVEL}까지 성장하며, 레벨업마다 보석 30개를 받아요. 단장 버튼에서 이름을 정하고 레벨·복도 랭킹을 볼 수 있습니다. Google 계정에 저장한 기록과 게임 안에서 정한 이름만 공개됩니다.</li><li>기본 SSR 확률은 ${Number((G.RECRUIT_RATES.SSR * 100).toFixed(2))}%입니다. 픽업별 확률과 확정 횟수는 모집 화면의 확률 안내에서 확인하세요.</li><li>가로 화면에서는 전장과 용병을 함께 볼 수 있어요. 세로에서는 좌우로 밀어 이동하세요. 설정에서 다크 모드·효과음·모션을 바꿀 수 있고, 모집·각성·단장 성장 연출은 바로 건너뛸 수 있습니다.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
+    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>안뜰의 용병을 눌러 육성하고, 모험 지도에서 구역과 지역을 골라 출발하세요. 전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>최대 6명의 용병이 자동으로 싸웁니다. 1~3명은 맨 앞 용병이, 4~6명은 전열 3명이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>던전은 일일 열쇠 3개·주간 열쇠 2개로 도전합니다. 패배·포기하면 입장 열쇠가 돌아옵니다.</li><li>뫼비우스의 복도는 열쇠 없이 도전하며 층별 첫 클리어 때만 보상을 받습니다.</li><li>단장은 최대 Lv.${G.CAPTAIN_MAX_LEVEL}까지 성장하며, 새 단장 레벨마다 보석 160개와 골드를 받아요. 단장 버튼에서 이름을 정하고 레벨·복도 랭킹을 볼 수 있습니다. Google 계정에 저장한 기록과 게임 안에서 정한 이름만 공개됩니다.</li><li>기본 SSR 확률은 ${Number((G.RECRUIT_RATES.SSR * 100).toFixed(2))}%입니다. 픽업별 확률과 확정 횟수는 모집 화면의 확률 안내에서 확인하세요.</li><li>가로 화면에서는 전장과 용병을 함께 볼 수 있어요. 세로에서는 좌우로 밀어 이동하세요. 설정에서 다크 모드·효과음·모션을 바꿀 수 있고, 모집·각성·단장 성장 연출은 바로 건너뛸 수 있습니다.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
   }
   async function sdk() {
     if (window.google?.accounts?.id) return;
@@ -1067,7 +1128,9 @@
       if (target.dataset.speed) act({kind:'speed', speed:Number(target.dataset.speed)});
       if (target.dataset.map !== undefined) stageMap();
       if (target.dataset.filter) { filter = target.dataset.filter; document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === filter)); renderKey = ''; render(); }
+      if (target.dataset.questCategory && Object.hasOwn(questCategories,target.dataset.questCategory)) { questCategory = target.dataset.questCategory; renderKey = ''; render(); }
       if (target.dataset.action === 'quest') act({kind:'quest', quest:target.dataset.quest});
+      if (target.dataset.action === 'quest-all') act({kind:'quest-all'});
     });
     document.addEventListener('change', event => {
       const target = event.target;
@@ -1075,6 +1138,7 @@
       if (target.id === 'setting-sound') { sound = target.checked; applyPreferences(true); play('tap'); }
       if (target.id === 'setting-motion') { reduced = target.checked; applyPreferences(true); }
       if (target.dataset.activityTier) { selectedTiers[target.dataset.activityTier] = Number(target.value); renderKey = ''; render(); }
+      if (target.id === 'quest-chapter') { const chapter = Number(target.value); if (Number.isInteger(chapter) && chapter >= 0 && chapter < G.CHAPTERS.length) { questChapter = chapter; renderKey = ''; render(); } }
       if (target.id === 'tower-floor') {
         const info = activityInfo(), floor = Number(target.value);
         if (!Number.isSafeInteger(floor) || floor < 1 || floor > info.tower.nextFloor) { toast(`1~${fmt(info.tower.nextFloor)}층을 선택해 주세요.`); target.value = selectedTowerFloor || info.tower.nextFloor; return; }

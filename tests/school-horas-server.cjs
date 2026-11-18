@@ -65,7 +65,7 @@ function save(team) {
     assert.equal(JSON.stringify(saves),before);
     for(let index=0;index<5;index++)assert.deepEqual(simulateArena(G,saves,['a','b'],index+1),matches[index]);
     for(const match of matches){
-      assert.ok(match.durationMs>0&&match.durationMs<=90000);assert.equal(match.rules.rewards,false);assert.equal(match.rules.horasDamageMultiplier,.75);
+      assert.ok(match.durationMs>0&&match.durationMs<=90000);assert.equal(match.rules.rewards,false);assert.equal(match.rules.horasDamageMultiplier,.78);
       for(let side=0;side<2;side++)for(const meter of match.damage[side])assert.equal(meter.damage,match.events.filter(e=>e.side===side&&e.from===meter.id&&['attack','skill'].includes(e.kind)).reduce((sum,e)=>sum+e.amount,0));
       for(const units of match.final)for(const unit of units)assert.ok(Number.isFinite(unit.hp)&&unit.hp>=0&&Number.isFinite(unit.shield)&&unit.shield>=0);
     }
@@ -91,16 +91,16 @@ function save(team) {
   const a=(await t.login('horas-server-a')).data,b=(await t.login('horas-server-b')).data;
   try{
     await call(a,'state');await call(b,'state');
-    await test('Legacy save migration preserves other pickup guarantees and rejects catalog10 before writing',async()=>{
+    await test('Legacy save migration preserves other pickup guarantees and rejects outdated catalogs before writing',async()=>{
       patch(a,state=>{delete state.banners.horas;state.pity=61;state.banners.osia={pity:61,guaranteed:true};state.banners.lava={pity:72,guaranteed:true};state.gold=5860;state.gems=10000;state.units.harin.level=40;});
-      const old=row(a).payload;assert.equal((await call(a,'state',{catalogVersion:10})).status,426);assert.equal(row(a).payload,old);
+      const old=row(a).payload;assert.equal((await call(a,'state',{catalogVersion:G.CATALOG_VERSION-1})).status,426);assert.equal(row(a).payload,old);
       const read=await call(a,'state');assert.equal(read.status,200);assert.deepEqual(read.data.state.banners.horas,{pity:0,guaranteed:false});assert.deepEqual(read.data.state.banners.osia,{pity:61,guaranteed:true});assert.deepEqual(read.data.state.banners.lava,{pity:72,guaranteed:true});assert.equal(read.data.state.gold,5860);assert.equal(read.data.state.units.harin.level,40);
     });
     await test('Server-owned UR80 guarantee is charged once under concurrent requests and survives another login',async()=>{
       patch(a,state=>state.banners.horas.pity=79);const current=await call(a,'state');
       const input={revision:current.data.revision,requestId:'horas-server-ur-hard-001',action:{kind:'recruit',banner:'horas',count:1},state:{gems:1e12},pity:0,results:[{id:'lava'}]};
       const results=await Promise.all([call(a,'action',input),call(a,'action',input)]);
-      for(const result of results){assert.equal(result.status,200);assert.equal(result.data.result.results[0].id,'horas');assert.equal(result.data.state.gems,9900);assert.equal(result.data.state.banners.horas.pity,0);assert.equal(result.data.state.banners.osia.pity,61);assert.equal(result.data.state.banners.lava.pity,72);}
+      for(const result of results){assert.equal(result.status,200);assert.equal(result.data.result.results[0].id,'horas');assert.equal(result.data.state.gems,9840);assert.equal(result.data.state.banners.horas.pity,0);assert.equal(result.data.state.banners.osia.pity,61);assert.equal(result.data.state.banners.lava.pity,72);}
       assert.deepEqual(results[0].data.result,results[1].data.result);
       const signed=(await t.login('horas-server-a')).data,rejoined=await call(signed,'state');assert.equal(rejoined.data.state.units.horas.level,1);assert.equal(rejoined.data.state.pulls,1);
     });
@@ -119,7 +119,7 @@ function save(team) {
       t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
       try{assert.equal((await call(a,'action',intent)).status,503);}finally{t.db.prepare=prepare;}
       const recover=await call(a,'action',intent),again=await call(a,'action',intent);
-      assert.equal(recover.status,200);assert.equal(recover.data.repeated,true);assert.deepEqual(recover.data.result,again.data.result);assert.equal(recover.data.result.results[0].id,'horas');assert.equal(recover.data.state.gems,before-100);assert.equal(recover.data.state.units.horas.shards,30);assert.equal(recover.data.result.results[0].shards,30);assert.equal(recover.data.state.banners.horas.pity,0);
+      assert.equal(recover.status,200);assert.equal(recover.data.repeated,true);assert.deepEqual(recover.data.result,again.data.result);assert.equal(recover.data.result.results[0].id,'horas');assert.equal(recover.data.state.gems,before-160);assert.equal(recover.data.state.units.horas.shards,30);assert.equal(recover.data.result.results[0].shards,30);assert.equal(recover.data.state.banners.horas.pity,0);
     });
     await test('Pending ritual snapshot resumes across account reads without reroll or forged impact values',async()=>{
       const state=G.create(now,193);state.units.horas={level:1,xp:0,shards:0,stars:0};G.action(state,{kind:'team',team:['horas']},now);
@@ -140,7 +140,7 @@ function save(team) {
       const before=[row(a).payload,row(b).payload],accepts=await Promise.all([call(b,'social',{kind:'arena_accept',id,winner:1}),call(b,'social',{kind:'arena_accept',id})]);
       accepts.forEach(response=>assert.equal(response.status,200));assert.deepEqual(accepts[0].data.match,accepts[1].data.match);
       const first=accepts[0].data.match,other=await call(a,'social',{kind:'arena_match',id});assert.deepEqual(first.events,other.data.match.events);assert.ok(first.events.some(event=>event.kind==='horas-cast'));assert.deepEqual([row(a).payload,row(b).payload],before);
-      assert.equal((await call(a,'social',{kind:'arena_match',id,catalogVersion:10})).status,426);
+      assert.equal((await call(a,'social',{kind:'arena_match',id,catalogVersion:G.CATALOG_VERSION-1})).status,426);
     });
     console.log(`${passed} Horas arena/server checks passed`);
   }finally{Date.now=realNow;crypto.getRandomValues=realRandom;t.sqlite.close();}

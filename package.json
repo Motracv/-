@@ -17,7 +17,9 @@
     "test:school-browser": "node tests/school-browser.cjs",
     "test:school-winter-browser": "node tests/school-winter-browser.cjs",
     "test:school:horas": "node tests/school-horras.cjs && node tests/school-horas-server.cjs",
-    "test:school:price": "node tests/school-recruit-price.cjs && node tests/school-recruit-price-browser.cjs"
+    "test:school:price": "node tests/school-recruit-price.cjs && node tests/school-recruit-price-browser.cjs",
+    "test:school:progression": "node tests/school-progression.cjs && node tests/school-progression-server.cjs",
+    "test:school:progression-browser": "node tests/school-progression-browser.cjs"
   },
   "engines": {
     "node": ">=20"

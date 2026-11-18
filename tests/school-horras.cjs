@@ -24,7 +24,7 @@ const hits = (s, skill) => s.events.filter(e=>e.kind==='hit'&&e.from==='horas'&&
 const draw = (s, roll, pick=.5) => {let n=0; return G.action(s,{kind:'recruit',banner:'horas',count:1},s.at,()=>n++%2?pick:roll).results[0];};
 
 test('UR hero is obtainable only from her own banner, not granted to old or new accounts',()=>{
-  assert.equal(G.CATALOG_VERSION,12);assert.equal(G.BY_ID.horas.rarity,'UR');assert.equal(G.BY_ID.horas.role,'사수');
+  assert.equal(G.CATALOG_VERSION,13);assert.equal(G.BY_ID.horas.rarity,'UR');assert.equal(G.BY_ID.horas.role,'사수');
   const old=G.create(NOW);delete old.banners.horas;const units=G.clone(old.units),money=[old.gold,old.gems];
   assert(G.validate(old));G.advance(old,old.at);assert.deepEqual(old.units,units);assert.deepEqual([old.gold,old.gems],money);
   assert.deepEqual(G.bannerState(old,'horas'),{pity:0,guaranteed:false});
@@ -65,7 +65,7 @@ test('UR character rates list all eligible standard SSRs equally and preserve ol
   for(const id of G.STANDARD_SSR)assert.equal(r[id],.01/3);
   for(const grade of ['UR','SSR','SR','R'])assert(Math.abs(G.HEROES.filter(h=>h.rarity===grade).reduce((n,h)=>n+r[h.id],0)-G.recruitRates(0,'horas')[grade])<1e-12);
   s.banners.osia.guaranteed=true;assert.equal(G.bannerHeroRates(s,'osia').osia,.01);assert.equal(G.bannerHeroRates(s,'osia').horas,0);
-  s.gems=99;const old=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner:'horas',count:1},s.at));assert.deepEqual(s,old);
+  s.gems=159;const old=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner:'horas',count:1},s.at));assert.deepEqual(s,old);
 });
 test('Slow basics alternate two poses every two seconds and add one stack per attack',()=>{
   const s=noAttacks(make());run(s,1000);assert.equal(hits(s,false).length,0);run(s,7000);
@@ -85,8 +85,8 @@ test('Ritual consumes exactly five, preserves rolls through reload and impacts o
   assert.equal(s.battle.horas.stacks,0);assert.equal(cast.mergeMs,1000);assert.equal(cast.impactDelay,1500);
   run(s,1000);assert.deepEqual(s.battle.enemies.map(e=>e.hp),enemyHp);assert(s.battle.horasCast);
   run(s,500);run(saved,1500);assert.deepEqual(s,saved);assert(!s.battle.horasCast);
-  const dealt=hits(s,true);assert.equal(dealt.length,2);assert.equal(dealt[0].to,'e0');assert(dealt[0].primary);assert.equal(dealt[1].to,'e1');assert(dealt[0].amount>dealt[1].amount*5);assert.equal(s.battle.enemies[2].hp,enemyHp[2]);
-  assert.equal(s.battle.enemies[0].horasMark.until,s.battle.elapsed+6000);
+  const dealt=hits(s,true);assert.equal(dealt.length,3);assert.equal(dealt[0].to,'e1');assert(dealt[0].primary);assert.equal(dealt[1].to,'e0');assert.equal(dealt[2].to,'e2');assert(dealt[0].amount>dealt[1].amount*4);assert(s.battle.enemies[2].hp<enemyHp[2]);
+  assert.equal(s.battle.enemies[1].horasMark.until,s.battle.elapsed+6000);
 });
 test('A missed ritual spends the stacks but does not damage or mark any enemy',()=>{
   const s=noAttacks(make());castReady(s,true);const hp=s.battle.enemies.map(e=>e.hp);run(s,1500);
@@ -111,21 +111,21 @@ test('Stun bonus is exactly 1.5 at the moment of impact, including the primary a
   const expired=make();castReady(expired);expired.battle.enemies[0].stunUntil=expired.battle.elapsed+1000;run(expired,1500);assert(!hits(expired,true)[0].stunBonus);
 });
 test('A marked enemy killed by the ritual refunds two stacks immediately and only once',()=>{
-  const s=noAttacks(make());s.battle.enemies[0].hp=1;castReady(s);run(s,1500);
-  assert.equal(s.battle.enemies[0].hp,0);assert.equal(s.battle.horas.stacks,2);assert(!s.battle.enemies[0].horasMark);
+  const s=noAttacks(make());castReady(s);s.battle.enemies[1].hp=1;run(s,1500);
+  assert.equal(s.battle.enemies[1].hp,0);assert.equal(s.battle.horas.stacks,2);assert(!s.battle.enemies[1].horasMark);
   assert.equal(s.events.filter(e=>e.kind==='horas-refund').length,1);run(s,500);assert.equal(s.battle.horas.stacks,2);
 });
 test('Any ally kill grants marked refund, but expiry and unmarked splash kills do not',()=>{
-  const s=noAttacks(make(['horas','harin']));castReady(s);run(s,1500);s.battle.enemies[0].hp=1;run(s,500);
-  assert.equal(s.battle.horas.stacks,2);assert(s.events.some(e=>e.kind==='horas-refund'&&e.to==='e0'));
+  const s=noAttacks(make(['horas','harin']));castReady(s);run(s,1500);s.battle.enemies[0].hp=0;s.battle.enemies[1].hp=1;run(s,500);
+  assert.equal(s.battle.horas.stacks,2);assert(s.events.some(e=>e.kind==='horas-refund'&&e.to==='e1'));
   const expired=noAttacks(make(['horas','harin']));expired.battle.enemies[0].hp=1;expired.battle.enemies[0].horasMark={until:500,castId:1};run(expired,1000);assert.equal(expired.battle.horas.stacks,0);
-  const splash=noAttacks(make());splash.battle.enemies[1].hp=1;castReady(splash);run(splash,1500);assert.equal(splash.battle.enemies[1].hp,0);assert.equal(splash.battle.horas.stacks,0);
+  const splash=noAttacks(make());splash.battle.enemies[0].hp=1;castReady(splash);run(splash,1500);assert.equal(splash.battle.enemies[0].hp,0);assert.equal(splash.battle.horas.stacks,0);
 });
 test('If the target dies during merge, the saved nearest target is used without rerolling',()=>{
-  const s=noAttacks(make()),cast=castReady(s);const snapshot=G.clone(cast.targets);s.battle.enemies[0].hp=0;
-  run(s,1500);const impact=s.events.find(e=>e.kind==='horas-impact');assert.equal(impact.targetId,'e1');
-  const primary=hits(s,true)[0];assert.equal(primary.to,'e1');assert.equal(primary.amount,Math.round(snapshot.find(t=>t.id==='e1').amount*1.5));
-  assert(s.battle.enemies[1].horasMark);assert(!s.battle.enemies[0].horasMark);assert.equal(hits(s,true)[1].to,'e2');
+  const s=noAttacks(make()),cast=castReady(s);const snapshot=G.clone(cast.targets);assert.equal(cast.targetId,'e1');s.battle.enemies[1].hp=0;
+  run(s,1500);const impact=s.events.find(e=>e.kind==='horas-impact');assert.equal(impact.targetId,'e0');
+  const primary=hits(s,true)[0];assert.equal(primary.to,'e0');assert.equal(primary.amount,Math.round(snapshot.find(t=>t.id==='e0').amount*1.5));
+  assert(s.battle.enemies[0].horasMark);assert(!s.battle.enemies[1].horasMark);assert.equal(hits(s,true).length,1);
 });
 test('Death cancels pending damage, marks cannot refund a dead Horas, manual resets clear stacks',()=>{
   const s=noAttacks(make(['horas','taeo']));castReady(s);s.battle.heroes[0].hp=0;const hp=s.battle.enemies.map(e=>e.hp);run(s,1500);
@@ -159,7 +159,7 @@ test('Stacks earned during ritual wait for the minimum cast interval instead of 
   s.battle.horas.stacks=5;run(s,2000);assert(!s.battle.horasCast);assert.equal(s.events.filter(e=>e.kind==='horas-cast').length,1);
   run(s,1000);assert(s.battle.horasCast.id>first);assert.equal(s.battle.horasCast.began,4000);assert.equal(s.battle.horas.stacks,0);
 });
-test('Seeded sustained combat keeps Horas strong in single-target and below the AoE specialist',()=>{
+test('Seeded sustained combat keeps Horas strong in single-target and moderately above the SSR AoE specialist',()=>{
   const measure=(id,count)=>{let damage=0;for(let seed=1;seed<=40;seed++){
     const s=make(['geonu','taeo','lava','nari','osia',id],Math.imul(seed,2654435761)>>>0);
     for(const u of Object.values(s.units)){u.level=80;u.stars=3;}
@@ -168,7 +168,7 @@ test('Seeded sustained combat keeps Horas strong in single-target and below the 
     run(s,60000);damage+=s.battle.damage[id]?.damage||0;
   }return damage/40;};
   const boss=measure('horas',1),ian=measure('ian',1),adds=measure('horas',3),lumi=measure('lumi',3);
-  assert(boss>ian*1.02&&boss<ian*1.25,`Horas ${boss}, Ian ${ian}`);assert(adds<lumi&&adds>lumi*.7,`Horas ${adds}, Lumi ${lumi}`);
+  assert(boss>ian*1.02&&boss<ian*1.35,`Horas ${boss}, Ian ${ian}`);assert(adds<lumi*1.35&&adds>lumi*1.05,`Horas ${adds}, Lumi ${lumi}`);
   console.log('BALANCE',JSON.stringify({level:80,stars:3,seeds:40,seconds:60,horasBoss:Math.round(boss),ianBoss:Math.round(ian),horasAdds:Math.round(adds),lumiAdds:Math.round(lumi)}));
 });
 console.log(`${passed} Horas combat and recruitment checks passed`);

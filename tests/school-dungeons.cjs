@@ -108,10 +108,10 @@ test('A challenge times out after 120 combat seconds at either speed and refunds
  }
 });
 
-test('The new thank-you and Lava coupons award exact amounts once through the final Korean millisecond',()=>{
- const cutoff=Date.parse('2026-11-21T00:00:00+09:00');for(const[code,amount]of [['LAVA_DEBUT',1000],['THANK_YOU',500]]){
-  const s=state(cutoff-1),before=amounts(s);const r=act(s,{kind:'redeem',code:' '+code.toLowerCase()+' ',gold:1e12,gems:1e12,now:cutoff+1000});assert.equal(r.gold,amount);assert.equal(r.gems,amount);assert.equal(s.gold,before.gold+amount);assert.equal(s.gems,before.gems+amount);assert.ok(s.redeemedCodes.includes(code));rejectUnchanged(s,{kind:'redeem',code});
-  const expired=state(cutoff);rejectUnchanged(expired,{kind:'redeem',code,now:cutoff-1000});
+test('Replacement coupons award their fixed amounts once and retired dungeon codes are disabled',()=>{
+ for(const[code,amount]of [['THANKS_FOR_REPORTING',500],['HORAS_CELEBRATION',2000]]){
+  const s=state(),before=amounts(s);const r=act(s,{kind:'redeem',code:' '+code.toLowerCase()+' ',gold:1e12,gems:1e12});assert.equal(r.gold,amount);assert.equal(r.gems,amount);assert.equal(r.expiresAt,null);assert.equal(s.gold,before.gold+amount);assert.equal(s.gems,before.gems+amount);rejectUnchanged(s,{kind:'redeem',code});
  }
+ for(const code of ['LAVA_DEBUT','THANK_YOU'])rejectUnchanged(state(),{kind:'redeem',code});
 });
 console.log(`${passed} school dungeon checks passed`);

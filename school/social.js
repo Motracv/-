@@ -59,7 +59,7 @@
       const arena = view === 'arena';
       let inner = header() + nameGate();
       if (arena) {
-        inner += `<div class="arena-banner"><div class="arena-banner-ring" aria-hidden="true"></div><span>방과 후 결투장</span><b>우리 용병단의 실력을 겨룰 시간</b><small>현재 편성으로 초대 · 보유 용병의 성장 반영</small></div><details class="arena-rules"><summary>친선전 규칙</summary><p>체력 3배 · 회복량 75% · 최대 90초. 45초부터 피해가 점점 강해지며, 시간 종료 시 남은 체력 비율로 승패를 정해요. 방어막은 기존 체력을 기준으로 계산해요.</p><p>호라스는 아레나에서 기본 공격과 의식 피해가 모험의 75%로 적용돼요. 기절 대상 1.5배와 스택·표식 효과는 유지돼요.</p><p>친선 점수는 승리 +10, 패배 −5. 재화 보상은 없고 모험 중인 용병단은 영향을 받지 않아요.</p></details>`;
+        inner += `<div class="arena-banner"><div class="arena-banner-ring" aria-hidden="true"></div><span>방과 후 결투장</span><b>우리 용병단의 실력을 겨룰 시간</b><small>현재 편성으로 초대 · 보유 용병의 성장 반영</small></div><details class="arena-rules"><summary>친선전 규칙</summary><p>체력 3배 · 회복량 75% · 최대 90초. 45초부터 피해가 점점 강해지며, 시간 종료 시 남은 체력 비율로 승패를 정해요. 방어막은 기존 체력을 기준으로 계산해요.</p><p>호라스는 아레나에서 기본 공격과 의식 피해가 모험의 78%로 적용돼요. 기절 대상 1.5배와 스택·표식 효과는 유지돼요.</p><p>친선 점수는 승리 +10, 패배 −5. 재화 보상은 없고 모험 중인 용병단은 영향을 받지 않아요.</p></details>`;
       } else if (!data?.me?.canName) {
         inner += `<form id="social-add-friend" class="social-add"><label class="social-input-label" for="social-friend-name">친구의 단장 이름</label><div><input id="social-friend-name" maxlength="24" autocomplete="off" placeholder="정확한 이름을 입력하세요" value="${escape(draft)}" required><button class="primary" type="submit">친구 요청</button></div></form>`;
       }

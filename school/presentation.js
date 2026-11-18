@@ -122,11 +122,12 @@
     if (key && known.has(key)) return known.get(key).promise;
     let resolve; const promise = new Promise(done => { resolve = done; });
     if (key) known.set(key, { promise, pending: true });
+    if (kind === 'captain') data = { ...data, level: Math.max(1, Number(data.level) || 1), gems: Math.max(0, Number(data.gems ?? data.reward) || 0), gold: Math.max(0, Number(data.gold) || 0) };
     const listener = { key, resolve }, scope = String(data.scope ?? (key?.includes(':captain:') ? key.split(':captain:')[0] : ''));
     const pendingCaptain = kind === 'captain' && queue.find(job => job.kind === 'captain' && job.scope === scope);
     if (pendingCaptain) {
       pendingCaptain.data.level = Math.max(pendingCaptain.data.level, Number(data.level) || 1);
-      pendingCaptain.data.reward += Math.max(0, Number(data.reward) || 0); pendingCaptain.listeners.push(listener);
+      pendingCaptain.data.gems += data.gems; pendingCaptain.data.gold += data.gold; pendingCaptain.listeners.push(listener);
     } else {
       queue.push({ id: ++sequence, kind, scope, data: { ...data }, listeners: [listener], animations: new Set(), timers: new Set(), finished: false });
     }
@@ -177,6 +178,7 @@
   }
   function shell(job, title, description, grade) {
     const d = ensureDialog(); d.replaceChildren(); d.dataset.kind = job.kind; d.dataset.grade = grade || ''; d.dataset.phase = 'intro';
+    delete d.dataset.cinematic;
     const rays = node('div', 'presentation-rays'); rays.setAttribute('aria-hidden', 'true');
     const panel = node('section', 'presentation-panel');
     const head = node('div', 'presentation-heading'); head.append(node('small', 'presentation-kicker', job.kind === 'captain' ? '우리 용병단의 성장' : job.kind === 'awaken' ? '새로운 힘이 깨어나요' : '운명의 문이 열려요'));
@@ -197,12 +199,17 @@
     }
   }
   async function captainSequence(job) {
-    const level = Math.max(1, Number(job.data.level) || 1), reward = Math.max(0, Number(job.data.reward) || 0);
-    const ui = shell(job, '단장 레벨 UP!', `단장 Lv.${level}${reward ? ` · 보석 +${reward}` : ''}`, 'captain');
+    const { level, gems, gold } = job.data, rewards = [gems ? `보석 +${gems.toLocaleString()}` : '', gold ? `골드 +${gold.toLocaleString()}` : ''].filter(Boolean);
+    const ui = shell(job, '단장 레벨 UP!', `단장 Lv.${level}${rewards.length ? ` · ${rewards.join(' · ')}` : ''}`, 'captain');
     const crest = node('div', 'presentation-captain-crest'), wings = node('span', 'captain-laurel', '❮ ❯');
     crest.append(wings, node('span', 'captain-medal', '★'), node('small', '', '단장'), node('strong', '', `Lv.${level}`));
     ui.scene.append(crest);
-    const rewardNode = node('div', 'presentation-captain-reward', reward ? `◆ 보석 +${reward}` : '용병단이 한 걸음 더 성장했어요'); ui.scene.append(rewardNode);
+    const rewardNode = node('div', 'presentation-captain-reward');
+    for (const [currency, amount, label, icon] of [['gems', gems, '보석', '◆'], ['gold', gold, '골드', '●']]) if (amount) {
+      const item = node('span', `captain-reward-${currency}`, `${icon} ${label} +${amount.toLocaleString()}`); item.dataset.currency = currency; rewardNode.append(item);
+    }
+    if (!rewards.length) rewardNode.textContent = '용병단이 한 걸음 더 성장했어요';
+    ui.scene.append(rewardNode);
     play('captain', 4, job.id);
     particles(job, ui.scene, '#f6d46f', 24);
     await Promise.all([move(job, crest, [{ opacity: 0, transform: 'translate(-50%,-50%) perspective(600px) rotateY(-70deg) scale(.2)' }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(600px) rotateY(8deg) scale(1.16)', offset: .6 }, { opacity: 1, transform: 'translate(-50%,-50%) perspective(600px) rotateY(0deg) scale(1)' }], 900), move(job, rewardNode, [{ opacity: 0, transform: 'translate(-50%,22px)' }, { opacity: 1, transform: 'translate(-50%,0)' }], 450, 550)]);
@@ -225,12 +232,90 @@
     if (!alive(job)) return;
     ui.dialog.dataset.phase = 'revealed'; await delay(job, 600);
   }
+  // This scene presents an already committed recruitment result. Its phases
+  // own only DOM/WAAPI/audio; skip, account cancellation and reload cannot pull
+  // another hero or grant the same reward twice.
+  async function horasRecruitSequence(job) {
+    const ui = shell(job, '벚꽃이 이끈 운명', 'UR · 호라스 · 벚꽃의식', 'UR');
+    ui.dialog.dataset.cinematic = 'horas';
+    ui.dialog.dataset.phase = 'constellation';
+    const sky = node('div', 'ur-cinematic-sky');
+    const horizon = node('div', 'ur-cinematic-horizon');
+    const orbit = node('div', 'ur-cinematic-orbit');
+    const constellation = node('div', 'ur-cinematic-constellation');
+    constellation.innerHTML = '<svg viewBox="0 0 300 300" fill="none"><circle cx="150" cy="150" r="138"/><circle cx="150" cy="150" r="114" stroke-dasharray="2 10"/><path d="M150 25 224 251 31 111 269 111 76 251Z"/><path d="M150 25 269 111 224 251 76 251 31 111Z"/><path class="ur-seal-flower" d="M150 150C98 108 111 51 150 84C189 51 202 108 150 150ZM150 150C174 88 231 83 212 130C254 155 204 187 150 150ZM150 150C216 154 238 206 188 202C177 250 131 213 150 150ZM150 150C167 214 125 253 111 205C62 212 80 158 150 150ZM150 150C96 189 45 160 86 132C63 87 121 88 150 150Z"/></svg>';
+    const core = node('i', 'ur-cinematic-core');
+    orbit.append(constellation, core);
+    const orbs = [];
+    for (let i = 0; i < 5; i++) {
+      const orb = node('i', 'ur-cinematic-orb', '✧');
+      orb.dataset.orb = i + 1;
+      const angle = i * 72 - 90;
+      orb.dataset.start = `translate(-50%,-50%) rotate(${angle}deg) translateX(var(--ur-orbit-radius)) rotate(${-angle}deg)`;
+      orb.style.transform = orb.dataset.start;
+      orbit.append(orb); orbs.push(orb);
+    }
+    const glow = node('div', 'ur-cinematic-glow');
+    const portrait = node('div', 'ur-cinematic-portrait'); portrait.dataset.hero = 'horas';
+    const illustration = node('img', 'ur-cinematic-illustration'); illustration.src = 'school/assets/horas/portrait.webp?v=horas1'; illustration.alt = ''; illustration.decoding = 'async'; portrait.append(illustration);
+    const copy = node('div', 'ur-cinematic-copy');
+    const rarity = node('div', 'ur-cinematic-rarity', 'UR');
+    const name = node('strong', 'ur-cinematic-name', '호라스');
+    copy.append(node('small', 'ur-cinematic-eyebrow', '벚꽃이 이끈 운명'), rarity, name, node('span', 'ur-cinematic-skill', '벚꽃의식'), node('p', 'ur-cinematic-line', '별빛을 모아, 운명을 피우다.'));
+    const flash = node('div', 'ur-cinematic-flash');
+    ui.scene.append(sky, horizon, orbit, glow, portrait, copy, flash);
+    if (!reduced()) {
+      play('blossom-charge', 4, job.id);
+      await Promise.all([
+        move(job, constellation, [{ opacity: 0, transform: 'translate(-50%,-50%) rotate(-24deg) scale(.72)' }, { opacity: .85, transform: 'translate(-50%,-50%) rotate(0) scale(1)' }], 550),
+        ...orbs.map((orb, i) => move(job, orb, [{ opacity: 0, transform: `${orb.dataset.start} scale(.3)` }, { opacity: 1, transform: `${orb.dataset.start} scale(1)` }], 350, i * 50)),
+      ]);
+      if (!alive(job)) return;
+      ui.dialog.dataset.phase = 'fusion';
+      await Promise.all([
+        ...orbs.map(orb => move(job, orb, [{ opacity: 1, transform: `${orb.dataset.start} scale(1)` }, { opacity: 1, transform: 'translate(-50%,-50%) scale(.35)' }], 550)),
+        move(job, core, [{ opacity: 0, transform: 'translate(-50%,-50%) scale(.2)' }, { opacity: 1, transform: 'translate(-50%,-50%) scale(1.8)' }], 550),
+        move(job, constellation, [{ opacity: .85, transform: 'translate(-50%,-50%) rotate(0) scale(1)' }, { opacity: .75, transform: 'translate(-50%,-50%) rotate(36deg) scale(.9)' }], 550),
+      ]);
+      if (!alive(job)) return;
+      ui.dialog.dataset.phase = 'opening';
+      play('blossom', 4, job.id);
+      orbs.forEach(orb => orb.remove());
+      await Promise.all([
+        move(job, core, [{ opacity: 1, transform: 'translate(-50%,-50%) scale(1.8)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(9)' }], 360),
+        move(job, flash, [{ opacity: 0 }, { opacity: .65, offset: .3 }, { opacity: 0 }], 360),
+        move(job, constellation, [{ opacity: .75, transform: 'translate(-50%,-50%) rotate(36deg) scale(.9)' }, { opacity: .22, transform: 'translate(-50%,-50%) rotate(48deg) scale(1.45)' }], 360),
+      ]);
+      if (!alive(job)) return;
+    } else {
+      orbit.hidden = true;
+    }
+    ui.dialog.dataset.phase = 'revealed';
+    play('UR', 4, job.id);
+    if (!reduced()) {
+      // Fourteen composited petals, with no per-frame JS or animated filters.
+      for (let i = 0; i < 14; i++) {
+        const petal = node('i', 'ur-cinematic-petal');
+        petal.style.left = `${9 + (i * 23) % 84}%`; petal.style.top = `${5 + (i * 17) % 60}%`;
+        petal.style.setProperty('--petal-size', `${6 + i % 4 * 2}px`); ui.scene.append(petal);
+        void move(job, petal, [{ opacity: 0, transform: `translate(-30px,-30px) rotate(${i * 31}deg) scale(.6)` }, { opacity: .8, offset: .2, transform: `translate(0,0) rotate(${i * 31 + 20}deg) scale(1)` }, { opacity: 0, transform: `translate(${45 + i % 3 * 30}px,${50 + i % 4 * 23}px) rotate(${i * 31 + 130}deg) scale(.8)` }], 1900, i * 25).then(() => petal.remove());
+      }
+    }
+    await Promise.all([
+      move(job, portrait, [{ opacity: 0, transform: 'translate(42px,15px) scale(1.08)' }, { opacity: 1, transform: 'translate(0,0) scale(1)' }], 700),
+      move(job, copy, [{ opacity: 0, transform: 'translate(-22px,8px)' }, { opacity: 1, transform: 'translate(0,0)' }], 600, 100),
+      move(job, glow, [{ opacity: 0, transform: 'scale(.7)' }, { opacity: 1, transform: 'scale(1)' }], 700),
+    ]);
+    if (!alive(job)) return;
+    await delay(job, 1350);
+  }
   async function recruitSequence(job) {
     const results = Array.isArray(job.data.results) ? job.data.results : [];
     if (!results.length) return;
     const ranking = { UR: 4, SSR: 3, SR: 2, R: 1 };
     const lead = results.reduce((best, entry) => (ranking[info(entry.id).rarity] || 1) > (ranking[info(best.id).rarity] || 1) ? entry : best, results[0]);
     const hero = info(lead.id), grade = ['UR', 'SSR', 'SR'].includes(hero.rarity) ? hero.rarity : 'R';
+    if (grade === 'UR' && lead.id === 'horas') { await horasRecruitSequence(job); return; }
     const ui = shell(job, grade === 'UR' ? '벚꽃이 이끈 운명' : grade === 'SSR' ? '눈부신 운명의 만남' : grade === 'SR' ? '특별한 동료의 등장' : '새로운 만남', `${grade} · ${hero.name}`, grade);
     const gate = node('div', 'presentation-gate'); gate.append(node('span', 'gate-seal', grade === 'UR' ? '❀' : grade === 'SSR' ? '✦' : grade === 'SR' ? '◇' : '✧'));
     if (grade === 'UR') for (let i=0;i<5;i++) { const orb=node('i','ur-gate-orb','❀'); orb.style.setProperty('--orb-angle', `${i*72-90}deg`); gate.append(orb); }

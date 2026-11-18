@@ -162,3 +162,70 @@ button.school-press-active.school-press-reduced, [role="button"].school-press-ac
 .school-presentation[data-grade=UR] .presentation-kicker { color:#f7c4db; }
 @keyframes horas-portrait-breathe { 0%,100%{transform:translateY(0) rotate(-.25deg)}50%{transform:translateY(-2px) rotate(.25deg)} }
 @media(max-height:500px) and (orientation:landscape) { .school-presentation[data-grade=UR] .presentation-gate { width:110px; height:110px; } .ur-gate-orb { width:23px; height:23px; font-size:17px; transform:translate(-50%,-50%) rotate(var(--orb-angle)) translateX(75px); } }
+
+/* Horas is revealed as an illustration across the whole scene, never a tiny
+   pixel card. Only transform/opacity animate; the image and glow are static. */
+.school-presentation[data-cinematic=horas] {
+  width:min(1100px,96vw); height:min(660px,88dvh); max-height:calc(100dvh - 16px);
+  overflow:hidden; border:1px solid #eec7b6; border-radius:10px; background:#120e24;
+  box-shadow:0 0 0 3px #d8a8c329,0 25px 80px #0009;
+}
+.school-presentation[data-cinematic=horas] .presentation-panel { position:absolute; inset:0; display:block; padding:0; }
+.school-presentation[data-cinematic=horas] .presentation-heading { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); }
+.school-presentation[data-cinematic=horas] .presentation-scene { position:absolute; inset:0; width:100%; height:100%; overflow:hidden; perspective:none; }
+.school-presentation[data-cinematic=horas] .presentation-rays { display:none; }
+.school-presentation[data-cinematic=horas] .presentation-footer { position:absolute; inset:auto 24px 17px; min-height:44px; margin:0; }
+.school-presentation[data-cinematic=horas] .presentation-footer small { color:#d8c6da; text-shadow:0 1px 3px #120d22; }
+.school-presentation[data-cinematic=horas] .presentation-skip { min-width:126px; min-height:44px; padding:10px 15px; color:#ffece4; border-color:#c99cb3; background:#1c1427e8; box-shadow:inset 0 1px #efc6d320,0 2px #080614; }
+.ur-cinematic-sky { position:absolute; inset:0; background:linear-gradient(90deg,#130e25e8,#21132cbb 58%,#1e102baa),url('assets/horas/pickup.webp?v=horas1') left center / 190% auto; }
+.ur-cinematic-horizon { position:absolute; inset:0; background:radial-gradient(ellipse at 63% 45%,#e596ba33,transparent 52%),linear-gradient(0deg,#100e25 0%,transparent 30%,transparent 80%,#0f0b1e66); }
+.ur-cinematic-horizon:before,.ur-cinematic-horizon:after { content:''; position:absolute; height:1px; left:3%; right:3%; background:linear-gradient(90deg,transparent,#eec7ad80,transparent); }
+.ur-cinematic-horizon:before { top:17px; }.ur-cinematic-horizon:after { bottom:16px; }
+.ur-cinematic-orbit { --ur-orbit-size:min(65dvh,350px); --ur-orbit-radius:calc(var(--ur-orbit-size) * .4); position:absolute; left:50%; top:46%; width:var(--ur-orbit-size); height:var(--ur-orbit-size); transform:translate(-50%,-50%); z-index:3; }
+.ur-cinematic-constellation { position:absolute; width:100%; height:100%; left:50%; top:50%; transform:translate(-50%,-50%); color:#f4ccae; opacity:0; }
+.ur-cinematic-constellation svg { width:100%; height:100%; overflow:visible; stroke:currentColor; stroke-width:.8; }
+.ur-cinematic-constellation .ur-seal-flower { stroke:#ffcce3; stroke-width:1.2; fill:#e9a1c61c; }
+.ur-cinematic-orb { position:absolute; left:50%; top:50%; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-style:normal; font-size:24px; color:#fff6e8; opacity:0; background:radial-gradient(circle at 40% 35%,#fff1dd,#eca8d9 32%,#c96fa8 65%,#61365f); border:1px solid #ffe1c6; box-shadow:0 0 20px #eca6c97a; }
+.ur-cinematic-core { position:absolute; left:50%; top:50%; width:52px; height:52px; border-radius:50%; opacity:0; background:radial-gradient(circle,#fff9e7,#ffdaec77 35%,#f6b3dd00 72%); transform:translate(-50%,-50%); }
+.ur-cinematic-flash { position:absolute; inset:0; z-index:6; opacity:0; pointer-events:none; background:radial-gradient(ellipse,#fff0e5,#f7d4e1aa 32%,transparent 76%); }
+.ur-cinematic-glow { position:absolute; left:28%; right:-5%; top:4%; bottom:-9%; border-radius:50%; opacity:0; background:radial-gradient(ellipse,#f2a5d13d,transparent 65%); }
+.ur-cinematic-portrait { position:absolute; right:-1%; bottom:-19%; width:72%; height:124%; opacity:0; z-index:4; transform-origin:55% 55%; pointer-events:none; }
+.ur-cinematic-illustration { display:block; width:100%; height:100%; object-fit:contain; image-rendering:auto; }
+.school-presentation[data-cinematic=horas][open][data-motion=full][data-phase=revealed] .ur-cinematic-illustration { animation:ur-illustration-drift 5s ease-in-out both; }
+@keyframes ur-illustration-drift { from{transform:translate(3px,4px) rotate(.25deg)}to{transform:translate(-3px,-3px) rotate(-.25deg)} }
+.ur-cinematic-copy { position:absolute; left:7%; top:22%; width:44%; opacity:0; z-index:5; color:#fff4eb; }
+.ur-cinematic-eyebrow { display:block; font:500 12px/1.5 var(--body,sans-serif); letter-spacing:3px; color:#e2b4cb; }
+.ur-cinematic-rarity { margin-top:12px; width:max-content; font:500 clamp(35px,5vw,64px)/1.1 Georgia,serif; letter-spacing:4px; color:#ffdeba; text-shadow:0 1px #674059,0 0 25px #f3c0d04d; }
+.ur-cinematic-name { display:block; margin:5px 0 13px; font:850 clamp(34px,5.2vw,62px)/1.16 var(--body,sans-serif); letter-spacing:-2px; text-shadow:0 2px 14px #160e28; }
+.ur-cinematic-skill { display:inline-block; padding:7px 18px 7px 0; border-top:1px solid #e9b9ce8c; border-bottom:1px solid #e9b9ce45; font:600 14px/1.3 var(--body,sans-serif); letter-spacing:4px; color:#eec2d9; }
+.ur-cinematic-line { margin:14px 0 0; font:400 13px/1.5 var(--body,sans-serif); color:#cbb5d1; }
+.ur-cinematic-petal { position:absolute; width:var(--petal-size); height:calc(var(--petal-size) * .6); border-radius:80% 10% 70% 12%; background:linear-gradient(120deg,#ffeddb,#e7a1c2); opacity:0; z-index:5; pointer-events:none; }
+.school-presentation[data-cinematic=horas][data-motion=reduced] .ur-cinematic-illustration { animation:none; }
+.school-presentation[data-cinematic=horas][data-motion=reduced] .ur-cinematic-orbit,.school-presentation[data-cinematic=horas][data-motion=reduced] .ur-cinematic-petal,.school-presentation[data-cinematic=horas][data-motion=reduced] .ur-cinematic-flash { display:none; }
+.presentation-captain-reward { display:flex; align-items:center; justify-content:center; gap:16px; max-width:100%; }
+.captain-reward-gems { color:#448ab0; }.captain-reward-gold { color:#ac7b25; }
+html[data-theme=dark] .captain-reward-gems { color:#8dd6ef; }html[data-theme=dark] .captain-reward-gold { color:#edc16b; }
+@media(max-height:500px) and (orientation:landscape) {
+  .school-presentation[data-cinematic=horas] { height:calc(100dvh - 16px); width:min(1100px,96vw); }
+  .school-presentation[data-cinematic=horas] .presentation-footer { inset:auto 18px 12px; }
+  .school-presentation[data-cinematic=horas] .presentation-footer small { font-size:10px; }
+  .ur-cinematic-copy { left:7%; top:16%; width:44%; }
+  .ur-cinematic-eyebrow { font-size:10px; letter-spacing:2px; }
+  .ur-cinematic-rarity { font-size:37px; margin-top:8px; }.ur-cinematic-name { font-size:40px; margin:2px 0 8px; }
+  .ur-cinematic-skill { font-size:12px; padding-block:5px; letter-spacing:3px; }.ur-cinematic-line { margin-top:9px; font-size:11px; }
+  .ur-cinematic-portrait { right:-3%; height:139%; bottom:-33%; width:73%; }
+  .ur-cinematic-orb { width:25px; height:25px; font-size:19px; }
+  .presentation-captain-reward { gap:11px; }
+}
+@media(max-height:310px) and (orientation:landscape) {
+  .ur-cinematic-copy { top:13%; }.ur-cinematic-rarity { font-size:30px; margin-top:6px; }.ur-cinematic-name { font-size:32px; margin-bottom:7px; }
+  .ur-cinematic-line { display:none; }.school-presentation[data-cinematic=horas] .presentation-footer { inset:auto 14px 10px; }
+  .school-presentation[data-cinematic=horas] .presentation-skip { font-size:11px; min-width:115px; }
+}
+@media(max-width:500px) and (orientation:portrait) {
+  .school-presentation[data-cinematic=horas] { height:min(690px,90dvh); }
+  .ur-cinematic-portrait { width:116%; right:-22%; height:100%; bottom:-8%; }
+  .ur-cinematic-copy { left:7%; top:12%; width:55%; }.ur-cinematic-eyebrow { font-size:10px; letter-spacing:1px; }
+  .ur-cinematic-rarity { font-size:40px; }.ur-cinematic-name { font-size:36px; }.ur-cinematic-line { display:none; }
+  .school-presentation[data-cinematic=horas] .presentation-footer { inset:auto 12px 12px; }.school-presentation[data-cinematic=horas] .presentation-footer small { font-size:9px; }
+}
