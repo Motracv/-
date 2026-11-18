@@ -88,7 +88,7 @@ async function runSchoolRegressions({ pageFor, saved, origin, errors, t, login, 
   assert.equal((await saved(p)).units.harin.shards, 0);
   assert.equal((await saved(p)).gold, 500);
   await p.click('#change-hero');
-  await p.waitForSelector('#roster [data-hero="harin"]');
+  await p.waitForSelector('#roster [data-form-detail="harin"]');
   assert.ok(await p.locator('#roster').isVisible());
   await p.click('#back-adventure');
   console.log('PASS party-click awakening and change-hero entry work without a mercenary navigation button');

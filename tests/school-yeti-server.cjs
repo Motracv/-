@@ -30,13 +30,14 @@ try{
  }
  assert(firstFreeze);assert.equal(room(id).battle.outcome,'defeated');
  const awards=t.sqlite.prepare('SELECT * FROM school_yeti_rewards WHERE room_id=?').all(id);assert.equal(awards.length,2);assert(awards.every(r=>r.snowflakes>=20&&r.snowflakes<=50&&r.snowmen===1));
- // Settle ordinary idle farming first so this assertion isolates the Yeti award.
- await call(a,'state');await call(b,'state');const beforeFlakes=[saved(a).winter.snowflakes,saved(b).winter.snowflakes];
- const input={revision:row(a).revision,requestId:crypto.randomUUID(),action:{kind:'yeti-claim',roomId:id,snowflakes:1e12}};
- const wins=await Promise.all([call(a,'action',input),call(a,'action',input)]);assert(wins.every(r=>r.status===200));const n=awards.find(r=>r.account_id===a.profile.id).snowflakes;
- assert.equal(saved(a).winter.snowflakes,beforeFlakes[0]+n);assert.equal(saved(b).winter.snowflakes,beforeFlakes[1]);assert.equal((await call(a,'action',input)).data.repeated,true);assert.equal((await act(a,{kind:'yeti-claim',roomId:id})).status,400);assert.equal((await act(c,{kind:'yeti-claim',roomId:id})).status,400);
- assert.equal((await act(b,{kind:'yeti-claim',roomId:id})).status,200);assert.equal(saved(a).winter.snowmen,1);assert.equal(saved(b).winter.snowmen,1);
- console.log('PASS shared HP, ally-only freeze rescue, duplicate thaw safety, victory rewards 20–50 once per account');
+ assert(awards.every(r=>r.claimed===1));
+ const balances=[saved(a).winter.snowflakes,saved(b).winter.snowflakes];
+ for(const p of [a,b]){assert.equal(saved(p).winter.snowmen,1);assert.equal(saved(p).winter.snowmenEarned,1);}
+ const wins=await Promise.all([cmd(a,'state',{roomId:id}),cmd(b,'state',{roomId:id}),cmd(a,'state',{roomId:id})]);
+ assert(wins.every(r=>r.status===200&&r.data.rewards.length===1&&r.data.rewards[0].claimed===1));
+ assert.deepEqual([saved(a).winter.snowflakes,saved(b).winter.snowflakes],balances);
+ assert.equal((await act(a,{kind:'yeti-claim',roomId:id})).status,400);assert.equal((await act(c,{kind:'yeti-claim',roomId:id})).status,400);
+ console.log('PASS shared HP, ally-only rescue, both players rewarded automatically, duplicate polls cannot duplicate awards');
 
  const second=await cmd(a,'create');assert.equal(second.status,200);const id2=second.data.room.id;
  assert.equal((await cmd(a,'leave',{roomId:id})).status,200);assert.equal((await cmd(a,'state')).data.room.id,id2);

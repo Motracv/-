@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-codes-expired1',
+  version:'school-formation1',
   entries:Object.freeze([
+    {version:'school-formation1',date:'2026.11.19',title:'용병단 편성실 · 예티 보상 자동 지급',items:[
+      '예티를 처치하면 두 단장의 눈송이·눈사람이 자동으로 저장됩니다. 이전에 받지 않은 토벌 보상도 재접속 시 자동 지급돼요.',
+      '왼쪽 출전 편성과 오른쪽 보유 용병을 한 화면에 모았어요. 꾹 눌러 끌면 배치·교체, 짧게 누르면 육성 화면이 열립니다.',
+      '드래그 대신 배치 버튼 → 원하는 자리 선택도 가능해요. 등급·레벨 정렬, 역할 필터와 저장한 편성도 함께 이용하세요.',
+      '설치 앱의 업데이트 검사 버전 불일치를 수정했어요. 앱과 게임 탭을 모두 닫았다가 열어 주세요.'
+    ]},
     {version:'school-codes-expired1',date:'2026.11.19',title:'기존 보상 코드 사용 종료',items:[
       '지금까지 발급한 보상 코드를 모두 만료 처리했어요. 재화 코드와 랭킹 1등 기념 프로필 코드 모두 새로 사용할 수 없어요.',
       '이미 받은 코인·보석·프로필과 기존 수령 기록은 유지됩니다.'

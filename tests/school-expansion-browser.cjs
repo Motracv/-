@@ -65,7 +65,7 @@ async function runExpansionRegressions({pageFor,saved,tab,t,login}){
       assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1&&document.documentElement.scrollHeight<=innerHeight+1));
       await p.screenshot({path:`/tmp/school-expansion-recruit-${width}x${height}.png`});
     }
-    await p.setViewportSize({width:844,height:390});await tab(p,'adventure');await p.click('#formation-button');await p.click('#roster [data-hero="lava"]');
+    await p.setViewportSize({width:844,height:390});await tab(p,'adventure');await p.click('#formation-button');await p.click('#roster [data-form-detail="lava"]');
     assert.match(await p.locator('#modal-content').innerText(),/라바/);await p.locator('.hero-skills summary').click();assert.match(await p.locator('#modal-content').innerText(),/바람의 부채|바람의 상처/);
     await p.click('#train-hero');await p.waitForFunction(()=>JSON.parse(localStorage.getItem('school-mercenaries-v8')).units.lava.level===2);await p.click('[data-slot="1"]');await p.waitForFunction(()=>!document.getElementById('modal').open);
     await p.reload();assert.equal((await saved(p)).team[1],'lava');assert.equal((await saved(p)).units.lava.level,2);

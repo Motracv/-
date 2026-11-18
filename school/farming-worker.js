@@ -1,6 +1,6 @@
 /* Dedicated background analysis. Never reads storage or writes a game save. */
 'use strict';
-importScripts('./engine.js?v=school-codes-expired1');
+importScripts('./engine.js?v=school-formation1');
 const G = self.SchoolRPG, cache = new Map();
 let generation = 0;
 self.onmessage = async ({ data }) => {

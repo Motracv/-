@@ -85,15 +85,13 @@ const {fixture} = require('./account-fixture.cjs');
     t.sqlite.prepare("UPDATE school_yeti_rooms SET payload=json_set(payload,'$.battle.boss.hp',1),revision=revision+1 WHERE id=?").run(roomId);now+=1500;
     assert.equal((await yc(a,'state',{roomId})).status,200);
     const awards=t.sqlite.prepare('SELECT * FROM school_yeti_rewards WHERE room_id=?').all(roomId);assert.equal(awards.length,2);assert(awards.every(x=>x.snowmen===1&&x.snowflakes>=20&&x.snowflakes<=50));
-    const claim=input(a,{kind:'yeti-claim',roomId,snowmen:9999,snowflakes:1e12}),aw=awards.find(x=>x.account_id===a.profile.id);
-    const claims=await Promise.all([call(a,'action',claim),call(a,'action',claim)]);assert(claims.every(x=>x.status===200));assert.equal(save(a).winter.snowmen,1);assert.equal(save(a).winter.snowmenEarned,1);assert.equal(save(a).winter.snowflakes,aw.snowflakes);assert.equal(save(b).winter.snowmen||0,0);
-    const bClaim=input(b,{kind:'yeti-claim',roomId}),originalBatch=t.db.batch;let lostClaim=false;
-    t.db.batch=async sql=>{const result=await originalBatch(sql);if(!lostClaim){lostClaim=true;throw Error('CLAIM_RESPONSE_LOST');}return result;};
-    try{assert.equal((await call(b,'action',bClaim)).status,503);}finally{t.db.batch=originalBatch;}
-    r=await call(b,'action',bClaim);assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(save(b).winter.snowmen,1);assert.equal(save(b).winter.snowmenEarned,1);assert.equal((await act(a,{kind:'yeti-claim',roomId})).status,400);
+    assert(awards.every(x=>x.claimed===1));
+    for(const p of [a,b]){const award=awards.find(x=>x.account_id===p.profile.id);assert.equal(save(p).winter.snowmen,1);assert.equal(save(p).winter.snowmenEarned,1);assert.equal(save(p).winter.snowflakes,award.snowflakes);}
+    assert.equal((await act(a,{kind:'yeti-claim',roomId,snowmen:9999,snowflakes:1e12})).status,400);
     t.sqlite.prepare('INSERT INTO school_yeti_rewards(account_id,room_id,snowflakes,created_at) VALUES(?,?,?,?)').run(a.profile.id,'winter2-old-award',25,now);
-    assert.equal((await act(a,{kind:'yeti-claim',roomId:'winter2-old-award',snowmen:99})).status,200);assert.equal(save(a).winter.snowmen,1);assert.equal(save(a).winter.snowmenEarned,1);
-    console.log('PASS actual duo victory records one snowman each; claims cannot duplicate, forge or retroactively mint old tickets');
+    const beforeOldYeti=save(a).winter.snowflakes;assert.equal((await call(a,'state')).status,200);assert.equal(save(a).winter.snowflakes,beforeOldYeti+25);assert.equal(save(a).winter.snowmen,1);assert.equal(save(a).winter.snowmenEarned,1);
+    assert.equal((await call(a,'state')).status,200);assert.equal(save(a).winter.snowflakes,beforeOldYeti+25);
+    console.log('PASS duo auto-rewards, legacy unclaimed rewards recovered at login, no duplicate or retroactive snowmen');
 
     const spica=await account('spica');fundFlakes(spica,10000);const spicaBefore=save(spica),spicaInput=input(spica,{kind:'winter-exchange',item:'spica',cost:0,level:100,stars:5,count:99});
     const exchanges=await Promise.all([call(spica,'action',spicaInput),call(spica,'action',spicaInput)]);assert(exchanges.every(x=>x.status===200));assert.equal(save(spica).winter.snowflakes,5000);assert.equal(save(spica).units.spica.level,1);assert.equal(save(spica).units.spica.stars,0);assert.equal(exchanges[0].data.result.hero,'spica');assert.equal(exchanges[0].data.result.fresh,true);

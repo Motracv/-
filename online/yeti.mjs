@@ -1,5 +1,31 @@
 import '../school/yeti-engine.js';
 const yetiRequire=(ok,message,status=400)=>{if(!ok)throw Object.assign(Error(message),{status});};
+// Payout and acknowledgement share one transaction. Save revision + a unique
+// receipt protect against both simultaneous room polls and ordinary purchases.
+export async function collectYetiRewards(db,game,account,now,priorityRoom=''){
+ for(let attempt=0;attempt<8;attempt++){
+  const rewards=(await db.prepare('SELECT room_id AS roomId,snowflakes,snowmen FROM school_yeti_rewards WHERE account_id=? AND claimed=0 ORDER BY CASE WHEN room_id=? THEN 0 ELSE 1 END,created_at LIMIT 30').bind(account,priorityRoom).all()).results||[];
+  if(!rewards.length)return [];
+  const row=await db.prepare('SELECT payload,revision FROM school_saves WHERE account_id=?').bind(account).first();
+  if(!row)return [];
+  const state=JSON.parse(row.payload);yetiRequire(game.validate(state),'저장 정보를 확인할 수 없어 보상 지급을 보류했어요.',500);
+  const snowflakes=rewards.reduce((n,r)=>n+r.snowflakes,0),snowmen=rewards.reduce((n,r)=>n+(r.snowmen||0),0);
+  for(const [key,n] of Object.entries({snowflakes,earned:snowflakes,snowmen,snowmenEarned:snowmen})){
+   const value=(state.winter[key]||0)+n;yetiRequire(Number.isSafeInteger(value)&&value>=0,'보상 수량을 확인 중이에요.',409);state.winter[key]=value;
+  }
+  const receipt='yeti-auto-'+crypto.randomUUID();
+  state.receipts.push({id:receipt,result:{kind:'yeti-auto',snowflakes,snowmen}});state.receipts=state.receipts.slice(-20);
+  const ids=rewards.map(r=>r.roomId),places=ids.map(()=>'?').join(',');
+  const results=await db.batch([
+   db.prepare(`UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=? AND (SELECT COUNT(*) FROM school_yeti_rewards WHERE account_id=? AND claimed=0 AND room_id IN (${places}))=?`)
+    .bind(JSON.stringify(state),now,account,row.revision,account,...ids,ids.length),
+   db.prepare(`UPDATE school_yeti_rewards SET claimed=1 WHERE account_id=? AND claimed=0 AND room_id IN (${places}) AND EXISTS(SELECT 1 FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=?)`)
+    .bind(account,...ids,account,row.revision+1,receipt)
+  ]);
+  if(results[0].meta.changes===1)return rewards.map(r=>({...r,claimed:1}));
+ }
+ throw Object.assign(Error('보상을 저장 중이에요. 연결되면 자동으로 다시 확인해요.'),{status:409});
+}
 export function createYeti(game){
  const Y=globalThis.SchoolYetiRules;
  const uuid=()=>crypto.randomUUID();
@@ -27,7 +53,11 @@ export function createYeti(game){
    statements.push(db.prepare(`DELETE FROM school_yeti_slots WHERE room_id=? AND ${guard}`).bind(s.id,s.id,commit));
    if(s.status!=='finished')for(const m of s.members)statements.push(db.prepare(`INSERT INTO school_yeti_slots(account_id,room_id) SELECT ?,? WHERE ${guard}`).bind(m.account,s.id,s.id,commit));
   }
-  const result=await db.batch(statements);return result[0].meta.changes===1;
+  const result=await db.batch(statements);
+  if(result[0].meta.changes===1&&s.status==='finished'&&s.battle?.outcome==='defeated'){
+   for(const t of s.battle.teams)if(!t.withdrawn)await collectYetiRewards(db,game,t.account,now,s.id);
+  }
+  return result[0].meta.changes===1;
  }
  async function update(db,roomId,id,data,now){
   for(let attempt=0;attempt<8;attempt++){
@@ -82,7 +112,12 @@ export function createYeti(game){
   throw Object.assign(Error('동료의 요청을 반영 중이에요. 다시 확인해 주세요.'),{status:409});
  }
  async function view(db,id,s,now){
-  const rewards=(await db.prepare('SELECT room_id AS roomId,snowflakes,snowmen FROM school_yeti_rewards WHERE account_id=? AND claimed=0 ORDER BY created_at DESC LIMIT 30').bind(id).all()).results||[];
+  // Also recover a victory whose response was lost, including the other player
+  // when they have already closed the app.
+  if(s?.status==='finished'&&s.battle?.outcome==='defeated')for(const t of s.battle.teams)if(!t.withdrawn)await collectYetiRewards(db,game,t.account,now,s.id);
+  const recovered=await collectYetiRewards(db,game,id,now,s?.id||'');
+  const currentReward=s&&(await db.prepare('SELECT room_id AS roomId,snowflakes,snowmen,claimed FROM school_yeti_rewards WHERE account_id=? AND room_id=? AND claimed=1').bind(id,s.id).first());
+  const rewards=currentReward?[currentReward]:recovered;
   let room=null;
   if(s&&s.members.some(m=>m.account===id)){
    const members=[];

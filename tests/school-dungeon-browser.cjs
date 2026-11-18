@@ -43,7 +43,7 @@ async function runDungeonRegressions({pageFor,saved,tab,t,login,dropNextAction})
     assert.equal(await p.locator('#party .party-card').count(),6);assert.equal(await p.locator('#party .empty').count(),3);
     for(const id of['osia','lava','ian'])s.units[id]={level:1,xp:0,stars:0,shards:0};await seedGuest(p,s);
     for(const [i,id]of['osia','lava','ian'].entries()){
-      await tab(p,'adventure');await p.locator('#party .empty').first().click();await p.click(`#roster [data-hero="${id}"]`);await p.click(`#modal [data-slot="${i+3}"]`);await p.waitForFunction(()=>!document.getElementById('modal').open);
+      await tab(p,'adventure');await p.locator('#party .empty').first().click();await p.click(`#roster [data-form-detail="${id}"]`);await p.click(`#modal [data-slot="${i+3}"]`);await p.waitForFunction(()=>!document.getElementById('modal').open);
     }
     assert.deepEqual((await saved(p)).team,['taeo','harin','sua','osia','lava','ian']);await p.reload();assert.equal(await p.locator('#party [data-hero]').count(),6);
     for(const [width,height]of[[2560,1440],[320,568],[568,280]]){
@@ -56,7 +56,7 @@ async function runDungeonRegressions({pageFor,saved,tab,t,login,dropNextAction})
       assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1&&document.documentElement.scrollHeight<=innerHeight+1));await p.screenshot({path:`/tmp/school-dungeon-${width}x${height}.png`});
     }
     await p.setViewportSize({width:844,height:390});await tab(p,'adventure');await p.click('#party [data-hero="ian"]');await p.click('#remove-hero');await p.waitForFunction(()=>!document.getElementById('modal').open);assert.equal((await saved(p)).team.length,5);
-    await p.locator('#party .empty').click();await p.click('#roster [data-hero="ian"]');await p.click('#modal [data-slot="5"]');await p.waitForFunction(()=>!document.getElementById('modal').open);assert.equal((await saved(p)).team.length,6);
+    await p.locator('#party .empty').click();await p.click('#roster [data-form-detail="ian"]');await p.click('#modal [data-slot="5"]');await p.waitForFunction(()=>!document.getElementById('modal').open);assert.equal((await saved(p)).team.length,6);
     console.log('PASS v6→v8 migration preserves three starters, six UI slots fill/remove/reload, and mobile/QHD formation plus dungeon controls remain reachable');
 
     const beforeCodes=wallet(await saved(p));await coupon(p,'LAVA_DEBUT');await coupon(p,'THANK_YOU');assert.deepEqual(wallet(await saved(p)),{gold:beforeCodes.gold+1500,gems:beforeCodes.gems+1500});

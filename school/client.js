@@ -24,6 +24,7 @@
   const rarity = id => `<span class="rarity ${G.BY_ID[id].rarity}">${G.BY_ID[id].rarity}</span>`;
   const storage = { get(key, session = false) { try { return (session ? sessionStorage : localStorage).getItem(key); } catch { return null; } }, set(key, value, session = false) { try { (session ? sessionStorage : localStorage).setItem(key, value); return true; } catch { return false; } }, remove(key, session = false) { try { (session ? sessionStorage : localStorage).removeItem(key); } catch {} } };
   let state, mode = 'guest', profile = null, token = null, revision = 0, cloudClock = null, busy = false, pending = null, connected = true;
+  let formationUI=null;
   let tab = 'lobby', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
   let confirmedActivityScope = '', confirmedActivityResult = null, dismissedActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null, selectedDungeon = 'daily';
   let recruitCategory = 'heroes';
@@ -93,11 +94,11 @@
     try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
     clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; cloudClock = null; clearPending();
     storage.remove(CLOUD_CACHE, true); storage.set(MODE, 'guest'); mode = 'guest'; connected = true; effects = [];
-    Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); raid?.destroy(); yeti?.destroy(); social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti(); closeModal();
+    formationUI?.cancel(); Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); raid?.destroy(); yeti?.destroy(); social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti(); closeModal();
     try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
     catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
   }
-  function createYeti(){return window.SchoolYeti?.create({request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,canClaim:()=>!busy&&!pending,dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
+  function createYeti(){return window.SchoolYeti?.create({request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,refreshRewards:()=>{lastSync=0;return sync();},dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
   function createRaid(){return window.SchoolRaid?.create({request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
   function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
   function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openYeti:()=>yeti?.open(),openHero:heroDetail,openAccount:accountModal,openCaptain:captainModal}); }
@@ -574,7 +575,7 @@
   }
   function setTab(next, repaint = true) {
     if (!['lobby', 'adventure', 'roster', 'dungeons', 'recruit', 'supplies'].includes(next)) return;
-    stopTraining();
+    stopTraining();formationUI?.cancel();
     const previousTab=tab;
     if(previousTab==='dungeons'&&next!=='dungeons')dungeonPortal?.close();
     tab = next; $('app').dataset.tab = tab;
@@ -802,6 +803,7 @@
     maybeShowActivityResult();
   }
   function renderButtons() {
+    formationUI?.controls();
     renderCounter();
     setHidden($('operation-status'), !operation || !busy || operation === 'counter');
     setText($('operation-message'), ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중',quest:'임무 보상 저장 중','quest-all':'임무 보상 모으는 중','gear-equip':'장비 착용 저장 중','gear-unequip':'장비 해제 저장 중','gear-awaken':'장비 각성 저장 중'})[operation] || '저장 확인 중');
@@ -967,7 +969,7 @@
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
     const portals=[{id:'daily',name:'방과 후 보급고',label:'일일 던전',desc:'잠든 보급고의 수호자를 물리치고<br>코인과 장비를 획득하세요.'},{id:'tower',name:'뫼비우스의 복도',label:'끝없는 도전',desc:'층마다 달라지는 특성을 공략하고<br>더 높은 곳에 도전하세요.'},{id:'weekly',name:'봉인된 이사장실',label:'주간 보스',desc:'봉인 너머의 강력한 보스를 쓰러뜨리고<br>풍성한 보상을 획득하세요.'}];
-    const portalMarkup=portals.map(p=>`<button class="dungeon-choice ${p.id}" data-dungeon="${p.id}" aria-label="${p.name} 선택"><span class="dungeon-choice-title">${p.name}</span><span class="dungeon-cover"><img src="school/assets/dungeon-${p.id}.png?v=school-codes-expired1" alt="" decoding="async"><span class="dungeon-choice-badge">${p.label}</span><span class="dungeon-choice-status">${p.id==='tower'?`최고 ${fmt(info.tower.best)}층 · 입장 무제한`:`열쇠 ${info[p.id].keys} / ${info[p.id].cap}`}</span><span class="dungeon-choice-enter" aria-hidden="true">선택 <b>›</b></span></span><span class="dungeon-choice-description">${p.desc}</span></button>`).join('');
+    const portalMarkup=portals.map(p=>`<button class="dungeon-choice ${p.id}" data-dungeon="${p.id}" aria-label="${p.name} 선택"><span class="dungeon-choice-title">${p.name}</span><span class="dungeon-cover"><img src="school/assets/dungeon-${p.id}.png?v=school-formation1" alt="" decoding="async"><span class="dungeon-choice-badge">${p.label}</span><span class="dungeon-choice-status">${p.id==='tower'?`최고 ${fmt(info.tower.best)}층 · 입장 무제한`:`열쇠 ${info[p.id].keys} / ${info[p.id].cap}`}</span><span class="dungeon-choice-enter" aria-hidden="true">선택 <b>›</b></span></span><span class="dungeon-choice-description">${p.desc}</span></button>`).join('');
     if($('dungeon-selectors').innerHTML!==portalMarkup)$('dungeon-selectors').innerHTML=portalMarkup;
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
@@ -1031,11 +1033,7 @@
     }).join('');
     if ($('adventure-quests')) $('adventure-quests').innerHTML = questSnapshot().items.filter(q => !q.claimed).sort((a,b)=>Number(b.ready)-Number(a.ready)).slice(0,2).map(q => `<button class="adventure-quest" data-lobby-action="quests"><span>${esc(q.name)}<small>${q.ready ? '보상 받기' : `${fmt(q.progress)} / ${fmt(q.goal)}`}</small></span><progress value="${q.progress}" max="${q.goal}" aria-label="${esc(q.name)}"></progress></button>`).join('') || '<p class="detail-note">오늘의 모험을 이어가 보세요.</p>';
   }
-  function renderRoster() {
-    $('roster-count').textContent = `${Object.keys(state.units).length} / ${G.HEROES.length}`;
-    const list = G.HEROES.filter(h => filter === 'all' || state.units[h.id]).sort((a, b) => Number(!!state.units[b.id]) - Number(!!state.units[a.id]) || ({UR:4, SSR:3, SR:2, R:1}[b.rarity] - {UR:4, SSR:3, SR:2, R:1}[a.rarity]));
-    $('roster').innerHTML = list.map(h => { const u = state.units[h.id]; return `<button class="hero-card ${h.rarity} ${u ? '' : 'unowned'}" data-hero="${h.id}">${rarity(h.id)}${state.team.includes(h.id) ? '<span class="equipped">출전</span>' : ''}${portrait(h.id, 'portrait')}<b>${h.name}</b><small>${u ? `Lv.${u.level} · ` : ''}${h.role}</small><span class="stars">${u ? '★'.repeat(u.stars) + '☆'.repeat(5 - u.stars) : '미보유'}</span></button>`; }).join('');
-  }
+  function renderRoster() { formationUI?.refresh(filter); }
   function renderSupplies() {
     setText('coupon-announcement', '기존에 발급된 모든 보상 코드의 사용 기간이 종료되었습니다.');
     setText('coupon-note', '현재 사용 가능한 코드 없음 · 기존 수령 보상은 유지됩니다.');
@@ -1091,6 +1089,7 @@
     }
   }
   function openModal(title, html, kind = '') {
+    formationUI?.cancel();$('modal').classList.toggle('formation-hero-modal',kind==='hero');
     qol?.close();equipmentUI?.close();$('modal').classList.remove('qol-modal','equipment-modal');
     worldMap?.destroy(); worldMap = null;
     if(kind!=='yeti')yeti?.destroy(); $('modal').classList.toggle('yeti-modal',kind==='yeti');$('modal').classList.toggle('winter-modal',kind==='social-winter');
@@ -1260,8 +1259,9 @@
     $('dungeon-back').onclick=()=>{if(!dungeonPortal?.back())setTab('lobby');};
     lobby = window.SchoolLobby?.create($('lobby-party'), {game:G, art:Art});
     qol = window.SchoolQoL?.create({getState:()=>state,accountScope,serverNow,modalKind:()=>modalKind,activityActive,isBlocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,toast,openRoster:()=>{filter='owned';setTab('roster');},openHelp:help});
+    formationUI=window.SchoolFormation?.create($('tab-roster'),{getState:()=>state,scope:accountScope,blocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),activityActive,modalOpen:()=>$('modal').open,dispatch:act,openHero:heroDetail,toast});
     if(qol){
-      for(const id of ['formation-button','lobby-formation']){const button=$(id);if(button){delete button.dataset.tab;button.onclick=()=>qol.presets();}}
+      for(const id of ['formation-button','lobby-formation']){const button=$(id);if(button){delete button.dataset.tab;button.onclick=()=>{filter='owned';setTab('roster');};}}
       const presets=document.createElement('button');presets.id='presets-button';presets.className='secondary qol-roster-presets';presets.textContent='저장한 편성';presets.onclick=()=>qol.presets();$('tab-roster').querySelector('.section-heading').append(presets);
       const news=document.querySelector('.lobby-shortcuts [data-lobby-action="help"]');if(news){delete news.dataset.lobbyAction;news.id='lobby-patch-notes';news.classList.add('lobby-patch-notes');news.setAttribute('aria-label','업데이트 소식');news.title='업데이트 소식';news.innerHTML='<svg viewBox="0 0 32 32" width="31" height="31" aria-hidden="true"><path d="M5 4h21v24H5z" fill="#d9c49b" stroke="#3b3442" stroke-width="2"/><path d="M9 9h13M9 14h6M18 14h4M9 18h6M18 18h4M9 23h13" fill="none" stroke="#65546a" stroke-width="2"/></svg><i data-patch-unread hidden></i>';news.onclick=()=>qol.patchNotes();}
       qol.refreshCountdowns();

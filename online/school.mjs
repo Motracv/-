@@ -3,7 +3,7 @@ import { createSocial, ensureSchoolName, nameKey } from './social.mjs';
 
 import { createGuilds } from './guilds.mjs';
 import { createRaids } from './raids.mjs';
-import { createYeti } from './yeti.mjs';
+import { createYeti, collectYetiRewards } from './yeti.mjs';
 import { guildActivity, guildProjectClaim } from './guild-progress.mjs';
 
 export function createSchool() {
@@ -86,6 +86,8 @@ export function createSchool() {
         requireSchool(data.action && typeof data.action === "object" && !Array.isArray(data.action), "잘못된 행동입니다.");
       }
       let acceptedRevision = data.revision;
+      // Login/state sync also delivers old unclaimed victory rewards.
+      if(!action)await collectYetiRewards(env.DB,game,signed.id,Date.now());
       for (let attempt = 0; attempt < 8; attempt++) {
         const now = Date.now();
         let row = await env.DB.prepare("SELECT payload, revision FROM school_saves WHERE account_id = ?").bind(signed.id).first();

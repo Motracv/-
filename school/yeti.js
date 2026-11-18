@@ -5,7 +5,7 @@ window.SchoolYeti=(()=>{
  const bg=new Image(),atlas=new Image();let loaded=false;
  function assets(){if(loaded)return;loaded=true;bg.src='school/assets/yeti/background.webp?v=yeti1';atlas.src='school/assets/yeti/poses.png?v=yeti1';}
  function create(ctx){
-  let data=null,busy=false,polling=false,epoch=0,timer=0,raf=0,pending=null,received=0,lastFrame=0,seen=0,events=[],signature='',lastSound=0;
+  let data=null,busy=false,polling=false,epoch=0,timer=0,raf=0,pending=null,received=0,lastFrame=0,seen=0,events=[],signature='',lastSound=0,rewardKey='';
   const rescueInput=window.SchoolRescue.create(send);
   const own=()=>!!document.getElementById('yeti-view')?.closest('dialog')?.open;
   const key=()=>`school-yeti-request:${ctx.scope()}`;
@@ -17,6 +17,8 @@ window.SchoolYeti=(()=>{
    if(data?.room?.id!==next.room?.id){seen=0;events=[];}
    data=next;received=performance.now();const b=data.room?.battle;
    if(b){for(const e of b.events)if(e.seq>seen&&e.t>=b.elapsed-2200)events.push({...e,shown:received-Math.min(1000,b.elapsed-e.t)+120});seen=b.seq;events=events.slice(-100);}
+   const nextKey=(next.rewards||[]).filter(r=>r.claimed).map(r=>r.roomId).sort().join('|');
+   if(nextKey&&nextKey!==rewardKey){rewardKey=nextKey;ctx.refreshRewards?.();}
    render();
   }
   async function load(){if(!own()||busy||polling||!ctx.isCloud())return;const ticket=epoch;polling=true;
@@ -47,16 +49,16 @@ window.SchoolYeti=(()=>{
     else if(status==='lobby')actions=`<div class="yeti-invite"><span>친구에게 전달할 코드 <b>${esc(room.code)}</b></span><button id="yeti-copy" class="secondary">코드 복사</button></div><button class="${me?.ready?'secondary':'primary'}" data-yeti="ready">${me?.ready?'준비 취소':'준비 완료'}</button>${host?`<button class="primary" data-yeti="start" data-unavailable="${room.members.length!==2||!room.members.every(m=>m.ready&&m.online)}">함께 도전</button>`:''}`;
     else actions=`<p class="yeti-rescue-hint">${myTeam?.rescueLockUntil>b.elapsed?'구출 실패 · 내 용병단 15초 정지':myTeam?.frozen?'동료가 얼음을 깨는 중':canRescue?'7초 안에 입력을 완료해 동료를 구하세요':'동료가 얼면 화면에 구출 도전이 나타나요'}</p>`;
     document.getElementById('yeti-actions').innerHTML=actions+(pending?'<button id="yeti-retry" class="secondary">요청 결과 확인</button>':'')+'<button id="yeti-back" class="secondary">'+(status==='fighting'?'도전 포기 · 나가기':'이벤트로 돌아가기')+'</button>';
-    document.getElementById('yeti-rewards').innerHTML=(data.rewards||[]).map(r=>`<button class="yeti-reward" data-yeti-claim="${esc(r.roomId)}">❄ 눈송이 <b>${r.snowflakes}개</b>${r.snowmen?' · ☃ '+r.snowmen+'개':''} 받기</button>`).join('');
+    document.getElementById('yeti-rewards').innerHTML=(data.rewards||[]).filter(r=>r.claimed).map(r=>`<div class="yeti-reward" role="status">✓ 자동 획득 · ❄ 눈송이 <b>${r.snowflakes}개</b>${r.snowmen?' · ☃ 눈사람 '+r.snowmen+'개':''}</div>`).join('');
     const result=document.getElementById('yeti-result');result.hidden=status!=='finished';
-    result.innerHTML=b?.outcome==='defeated'?'<strong>예티 토벌 성공!</strong><span>두 단장의 힘으로 겨울을 지켜냈어요.</span>':`<strong>${status==='finished'?'도전 종료':''}</strong><span>${({timeout:'시간이 끝났어요. 육성과 구출 타이밍을 점검해 보세요.',trapped:'움직일 수 있는 동료가 없어요.',down:'용병단이 쓰러졌어요.',abandoned:'한 단장이 떠나 도전이 종료됐어요.',expired:'대기실이 만료됐어요.'})[b?.outcome||room?.outcome]||'함께 준비하고 다시 도전해 보세요.'}</span>`;
+    result.innerHTML=b?.outcome==='defeated'?'<strong>예티 토벌 성공!</strong><span>보상이 자동으로 지급됐어요. 바로 다음 도전을 준비하세요.</span>':`<strong>${status==='finished'?'도전 종료':''}</strong><span>${({timeout:'시간이 끝났어요. 육성과 구출 타이밍을 점검해 보세요.',trapped:'움직일 수 있는 동료가 없어요.',down:'용병단이 쓰러졌어요.',abandoned:'한 단장이 떠나 도전이 종료됐어요.',expired:'대기실이 만료됐어요.'})[b?.outcome||room?.outcome]||'함께 준비하고 다시 도전해 보세요.'}</span>`;
     document.querySelectorAll('[data-yeti]').forEach(n=>n.onclick=()=>send(n.dataset.yeti));
     document.getElementById('yeti-join')?.addEventListener('submit',e=>{e.preventDefault();send('join',{code:document.getElementById('yeti-code').value.trim().toUpperCase()});});
     const copy=document.getElementById('yeti-copy');if(copy)copy.onclick=async()=>{try{await navigator.clipboard.writeText(room.code);message('초대 코드를 복사했어요.');}catch{message(`초대 코드: ${room.code}`);}};
 
     const retry=document.getElementById('yeti-retry');if(retry)retry.onclick=()=>send(null,{},true);
     document.getElementById('yeti-back').onclick=async()=>{if(await leave()){stop();ctx.openWinter();}};
-    document.querySelectorAll('[data-yeti-claim]').forEach(n=>n.onclick=async()=>{if(busy||ctx.isBlocked()||!ctx.canClaim())return;busy=true;controls();try{await ctx.dispatch({kind:'yeti-claim',roomId:n.dataset.yetiClaim});}finally{busy=false;if(own())load();}});
+
    }
    controls();rescueInput.update(data);
   }

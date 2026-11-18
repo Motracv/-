@@ -1,0 +1,90 @@
+/* Compact fantasy formation desk; isolated from battle and rarity styling. */
+.app[data-tab=roster] .content-panel{width:min(1420px,100%);padding:16px 20px;overflow:hidden;background:linear-gradient(145deg,#202e42,#121e2e);border-color:#647084;color:#eff4ff}
+#tab-roster{height:100%;display:flex;flex-direction:column;gap:12px;min-height:0}
+#tab-roster[hidden]{display:none}
+#tab-roster .section-heading{flex-shrink:0;margin:0;gap:12px}
+#tab-roster .section-heading>div{display:flex;align-items:center;gap:18px}
+#tab-roster .section-heading h2{font-size:22px;color:#f7e6bd;margin:0}
+#tab-roster .section-heading button{min-height:42px;color:#f1e9d6}
+#tab-roster .count-tag{margin-left:auto;background:#354359;color:#ecf3ff;border:1px solid #69768a;font-size:14px}
+.formation-desk{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(0,1.65fr);gap:16px;flex:1;min-height:0}
+.formation-squad,.formation-library{min-height:0;min-width:0;border:1px solid #687184;border-radius:12px;background:#263347;box-shadow:inset 0 1px #a1aec62b,0 4px 12px #0002;overflow:hidden}
+.formation-squad{display:flex;flex-direction:column;padding:12px;gap:9px;overflow-y:auto}
+.formation-presets{display:flex;gap:6px;flex-shrink:0}
+#tab-roster .formation-presets button{flex:1;min-height:42px;padding:5px;background:#344359;border:1px solid #6c7890;color:#f1f4ff;border-radius:6px;font-size:13px}
+#tab-roster .formation-presets button[aria-pressed=true]{background:#ad7940;color:#fff2d0;border-color:#ffe1a2}
+#tab-roster button:disabled{opacity:.45;cursor:not-allowed}
+.formation-rows{display:grid;grid-template-columns:1fr 1fr;gap:9px;text-align:center;font-size:12px;color:#bbcce2;letter-spacing:.1em}
+.formation-slots{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;min-height:294px}
+.formation-slot{position:relative;min-height:92px;border:1px solid #788193;border-radius:8px;background:radial-gradient(ellipse at 50% 85%,#101b2c 30%,#314157 31%,#263347 75%);overflow:hidden}
+.formation-slot.empty{border:1px dashed #748196;background:#1c293c}
+#tab-roster .formation-slot-main{width:100%;height:100%;min-height:92px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr auto auto;align-items:center;padding:5px 8px 7px;color:#f1f5ff;background:transparent;border:0;box-shadow:none;border-radius:8px;touch-action:pan-y;user-select:none;-webkit-touch-callout:none}
+.formation-slot-main img{grid-column:1;grid-row:1/4;justify-self:center;width:70px;height:78px;object-fit:contain;image-rendering:pixelated;pointer-events:none}
+.formation-slot-main strong{align-self:end;font-size:15px}.formation-slot-main small{font-size:12px;color:#d4e0f2}
+.formation-stars{color:#ffd482;font-size:12px;white-space:nowrap;letter-spacing:1px}
+.formation-position{position:absolute;top:4px;left:8px;font-size:11px;color:#9fb5d0}
+#tab-roster .formation-remove{position:absolute;top:0;right:0;width:32px;height:32px;min-height:32px;padding:0;background:#142033dd;border:0;color:#e6ebf8;font-size:21px;border-radius:0 8px 0 8px}
+.formation-slot .formation-empty{grid-column:1/-1;font-size:27px;color:#94a7c1}.formation-slot.empty small{grid-column:1/-1}
+.formation-power-row{display:flex;justify-content:space-between;align-items:center;gap:6px;color:#e2d6bb;font-size:13px;padding-top:5px}
+.formation-power-row b{font-size:18px;color:#ffe0a0}.formation-power-row small{color:#c1d1e5}
+#formation-synergies{font-size:12px;color:#d2c3ec;margin:0;line-height:1.5}
+.formation-library{display:flex;flex-direction:column}
+.formation-toolbar{display:flex;justify-content:space-between;align-items:center;padding:10px;gap:8px;border-bottom:1px solid #5e6b80;flex-wrap:wrap;background:#304158}
+#tab-roster .filter-row{display:flex;margin:0;gap:5px}
+#tab-roster .filter{min-height:40px;padding:6px 12px;background:#243146;border:1px solid #69768d;color:#dce7fa;font-size:13px}
+#tab-roster .filter.active{background:#b88245;color:#fff4de;border-color:#ffd693}
+.formation-sort{display:flex;gap:6px;align-items:center;font-size:12px;color:#cbd9ed}
+#formation-sort{min-height:40px;border:1px solid #72809a;border-radius:6px;color:#f2f6ff;background:#1f2e44;padding:4px 10px;font:inherit}
+.formation-roles{display:flex;gap:5px;flex-shrink:0;padding:8px 10px;overflow-x:auto}
+#tab-roster .formation-roles button{min-height:38px;padding:4px 12px;color:#d3e0f3;background:#1a293e;border:1px solid #586c88;border-radius:20px;white-space:nowrap;font-size:12px}
+#tab-roster .formation-roles button[aria-pressed=true]{color:#f5e4b8;background:#49546a;border-color:#e4bd79}
+#tab-roster .roster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));align-content:start;gap:10px;padding:5px 12px 16px;overflow:auto;min-height:0;flex:1;overscroll-behavior:contain}
+.formation-card{--grade:#93badc;border:1px solid var(--grade);border-radius:7px;overflow:hidden;background:linear-gradient(160deg,#314761,#1b283d);position:relative;min-width:0}
+.formation-card.SR,.formation-slot.SR{--grade:#c79bea}.formation-card.SSR,.formation-slot.SSR{--grade:#efc471}.formation-card.UR,.formation-slot.UR{--grade:#f29ad4}
+.formation-card.SR{background:linear-gradient(145deg,#503b65,#252a40)}.formation-card.SSR{background:linear-gradient(145deg,#655131,#2d2b36)}.formation-card.UR{background:linear-gradient(145deg,#643756,#302648)}
+.formation-slot:not(.empty){border-color:var(--grade,#93badc)}
+#tab-roster .formation-card-main{position:relative;display:flex;flex-direction:column;align-items:center;width:100%;background:transparent;color:#f5f6ff;border:0;box-shadow:none;padding:23px 4px 6px;gap:3px;border-radius:0;touch-action:pan-y;user-select:none;-webkit-touch-callout:none}
+.formation-card-main img{width:75px;height:90px;object-fit:contain;image-rendering:pixelated;pointer-events:none}.formation-card-main strong{font-size:14px}.formation-card-main small{font-size:11px;color:#d4dced}
+.formation-grade,.formation-level{position:absolute;top:6px;font-size:10px;font-weight:700}.formation-grade{left:6px;color:var(--grade)}.formation-level{right:6px;color:#f9f3e6}
+.formation-on-team{position:absolute;top:87px;font-size:10px;background:#172c3ce8;border:1px solid #c9b482;color:#ffedbb;border-radius:4px;padding:1px 8px}
+#tab-roster .formation-place{min-height:35px;width:100%;border:0;border-top:1px solid #ffffff38;border-radius:0;background:#111e30b0;color:#fff0cd;padding:5px;font-size:12px}
+#tab-roster .formation-place[aria-pressed=true]{background:#e1b36e;color:#1e2633}
+.formation-card.unowned img{filter:grayscale(.8);opacity:.5}.formation-card.unowned{border-color:#58647a}
+.formation-footer{flex-shrink:0;display:flex;align-items:center;gap:10px;border-top:1px solid #647087;padding-top:8px}
+#formation-status-live{flex:1;font-size:13px;color:#d5e1f1;margin:0;line-height:1.4}
+#tab-roster #formation-cancel{min-height:38px;color:#dfe8f7;background:#334259;border:1px solid #6d7b92;border-radius:6px;font-size:12px;padding:5px 12px}
+#tab-roster.is-placing .formation-slot{border-style:dashed;border-color:#ddb878}
+#tab-roster .formation-slot.drop-target{border:2px solid #ffdc83;background:#6d5939;box-shadow:inset 0 0 20px #ffda6733}
+.formation-drag-ghost{position:fixed;left:0;top:0;z-index:10000;pointer-events:none;width:80px;display:flex;flex-direction:column;align-items:center;border:2px solid #ffdc83;border-radius:8px;background:#26364dee;box-shadow:0 6px 22px #0008;padding:8px;will-change:transform;color:#fff4d6;font-size:12px}
+.formation-drag-ghost img{width:64px;height:74px;object-fit:contain;image-rendering:pixelated}
+#tab-roster button:focus-visible,#formation-sort:focus-visible{outline:3px solid #a4dbff;outline-offset:-3px}
+.formation-no-results{grid-column:1/-1;color:#cbd6e6;padding:25px;text-align:center}
+@media(max-height:600px) and (min-width:650px){
+ .app[data-tab=roster] .content-panel{padding:7px 10px}#tab-roster{gap:6px}#tab-roster .section-heading button{min-height:36px}#tab-roster .section-heading h2{font-size:17px}.formation-desk{gap:10px;grid-template-columns:minmax(230px,.85fr) minmax(0,1.5fr)}.formation-squad{padding:7px;gap:5px}.formation-slots{min-height:230px;gap:5px}.formation-slot,.formation-slot-main{min-height:72px!important}.formation-slot-main img{width:48px;height:60px}.formation-slot-main strong{font-size:12px}.formation-slot-main small{font-size:10px}.formation-stars{font-size:10px;letter-spacing:0}.formation-toolbar{padding:5px 7px}.formation-roles{padding:5px 7px}.formation-footer{padding-top:4px}#formation-status-live{font-size:11px}.formation-rows{font-size:10px}.formation-power-row b{font-size:15px}#formation-synergies{font-size:10px}#tab-roster .roster-grid{grid-template-columns:repeat(auto-fill,minmax(83px,1fr));gap:7px;padding:4px 7px 10px}.formation-card-main img{width:56px;height:65px}.formation-on-team{top:65px}.formation-card-main strong{font-size:12px}.formation-card-main small{font-size:10px}
+}
+@media(max-width:649px) and (orientation:portrait){
+ .app[data-tab=roster] .content-panel{overflow:auto}.formation-desk{grid-template-columns:1fr;flex:none}.formation-slots{grid-template-columns:repeat(3,1fr);min-height:190px}.formation-rows{display:none}.formation-library{min-height:420px}.formation-footer{position:sticky;bottom:0;background:#1c2a3e;padding:8px}.formation-slot-main img{width:48px;height:62px}#tab-roster .roster-grid{grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}.formation-slot-main{padding:4px!important}#tab-roster{height:auto}
+}
+@media(prefers-reduced-motion:no-preference){#tab-roster .formation-place,#tab-roster .formation-slot{transition:border-color .12s,background-color .12s}#tab-roster button:active{filter:brightness(1.16)}}
+
+/* A readable vertical training sheet instead of a stretched horizontal dialog. */
+dialog.formation-hero-modal{width:min(660px,calc(100vw - 24px));max-width:660px;max-height:calc(100dvh - 20px)}
+dialog.formation-hero-modal .hero-detail-header{padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--paper);gap:22px}
+dialog.formation-hero-modal .detail-portrait{width:100px;height:120px;object-fit:contain;image-rendering:pixelated}
+dialog.formation-hero-modal .detail-actions button{min-height:60px;font-size:16px}
+dialog.formation-hero-modal .hero-stat-grid{gap:10px;margin-top:14px}
+dialog.formation-hero-modal .slot-buttons{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-height:500px){dialog.formation-hero-modal .detail-portrait{width:70px;height:86px}dialog.formation-hero-modal .hero-detail-header{padding:10px}dialog.formation-hero-modal .detail-actions button{min-height:48px}}
+/* The desk has its own back navigation: use the dock space for the six slots. */
+.app[data-tab=roster]{--nav-height:0px}
+.app[data-tab=roster] .bottom-nav{display:none}
+@media(orientation:landscape) and (max-height:500px){
+ .formation-squad{padding:5px;gap:5px}.formation-squad .formation-presets,.formation-squad .formation-rows,#formation-synergies{display:none}
+ .formation-slots{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(72px,1fr));min-height:149px;gap:5px}
+ .formation-slot[data-form-slot="0"]{grid-area:1/1}.formation-slot[data-form-slot="1"]{grid-area:1/2}.formation-slot[data-form-slot="2"]{grid-area:1/3}
+ .formation-slot[data-form-slot="3"]{grid-area:2/1}.formation-slot[data-form-slot="4"]{grid-area:2/2}.formation-slot[data-form-slot="5"]{grid-area:2/3}
+ #tab-roster .formation-slot-main{display:flex;flex-direction:column;justify-content:end;gap:0;padding:3px 1px}
+ .formation-slot-main img{width:42px;height:43px}.formation-slot-main strong{align-self:center;font-size:11px}.formation-slot-main small{font-size:9px}.formation-slot .formation-stars{display:none}
+ .formation-position{font-size:9px;left:4px;top:3px}.formation-power-row{padding:0;font-size:11px}.formation-power-row b{font-size:14px}
+ #tab-roster #formation-cancel{min-height:32px;padding:3px 8px}.formation-footer{gap:6px}#tab-roster .formation-remove{width:26px;height:26px;min-height:26px;font-size:18px}
+}
