@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 14;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 15;
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
   const OSIA_SKILLS = [
@@ -206,6 +206,22 @@
     const name = raw.normalize("NFC").trim().replace(/\p{Zs}+/gu, " ");
     const length = Array.from(name).length;
     return length >= 2 && length <= 12 && /^[\p{L}\p{N} _-]+$/u.test(name) ? name : null;
+  }
+  const PRESET_NAMES = Object.freeze(["모험", "보스", "아레나"]);
+  function normalizePresetName(raw) {
+    if (typeof raw !== "string" || raw.length > 128 || /[\p{C}<>]/u.test(raw)) return null;
+    const name = raw.normalize("NFC").trim().replace(/\p{Zs}+/gu, " ");
+    return Array.from(name).length >= 1 && Array.from(name).length <= 12 && /^[\p{L}\p{N} _-]+$/u.test(name) ? name : null;
+  }
+  function newPresets() { return PRESET_NAMES.map(name => ({ name, team: [] })); }
+  function ownedTeam(s, team, empty = false) {
+    return Array.isArray(team) && team.length >= (empty ? 0 : 1) && team.length <= MAX_TEAM && new Set(team).size === team.length && team.every(id => typeof id === "string" && Object.hasOwn(BY_ID, id) && Object.hasOwn(s.units, id));
+  }
+  function validPresets(s) {
+    return s.presets === undefined || Array.isArray(s.presets) && s.presets.length === PRESET_NAMES.length && s.presets.every(p => p && typeof p.name === "string" && normalizePresetName(p.name) === p.name && ownedTeam(s, p.team, true));
+  }
+  function presetInfo(s) {
+    return (s.presets || newPresets()).map((p, slot) => ({ slot, name: p.name, team: [...p.team], saved: p.team.length > 0, active: p.team.length > 0 && p.team.length === s.team.length && p.team.every((id, i) => id === s.team[i]) }));
   }
   function commanderNameInfo(s) {
     const changes = s.nameChanges ?? (s.commanderName && s.commanderName !== "새내기 단장" ? 1 : 0);
@@ -433,7 +449,7 @@
   function create(now = Date.now(), seed = 123456789) {
     fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
-      gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"],
+      gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(),
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
       banners: { osia: { pity: 0, guaranteed: false }, lava: { pity: 0, guaranteed: false }, horas: { pity: 0, guaranteed: false } },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
@@ -450,6 +466,7 @@
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
       s.units && Object.keys(s.units).every(id => Object.hasOwn(BY_ID, id) && Number.isInteger(s.units[id].level) && s.units[id].level >= 1 && s.units[id].level <= MAX_LEVEL && Number.isFinite(s.units[id].xp) && Number.isInteger(s.units[id].stars) && s.units[id].stars >= 0 && s.units[id].stars <= 5 && Number.isFinite(s.units[id].shards)) &&
       Array.isArray(s.team) && s.team.length >= 1 && s.team.length <= MAX_TEAM && new Set(s.team).size === s.team.length && s.team.every(id => typeof id === "string" && Object.hasOwn(BY_ID, id) && Object.hasOwn(s.units, id)) &&
+      validPresets(s) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
       (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)) && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean")) &&
@@ -781,7 +798,7 @@
   function advance(s, now) {
     refreshQuestState(s, s.at); refreshWinter(s, s.at);
     s.speed ??= 1; s.simCredit ??= 0; s.simTime ??= 0;
-    s.commanderName ??= "새내기 단장";
+    s.commanderName ??= "새내기 단장"; s.presets ??= newPresets();
     // Preserve the captain share already earned under the previous bank rate.
     s.offline.captainXp ??= Math.floor(s.offline.xp / 4);
     refreshActivities(s, Number.isFinite(now) && now >= 0 ? Math.max(now, s.at) : s.at);
@@ -946,6 +963,28 @@
       fail(u.stars < 5, "최대 각성입니다."); const cost = awakeningCost(u); fail(u.shards >= cost, "같은 용병의 조각이 부족합니다.");
       u.shards -= cost; u.stars++; event(s, "awaken", { id: input.hero, stars: u.stars }); return { kind, hero: input.hero, stars: u.stars };
     }
+    if (["preset-save", "preset-apply", "preset-delete", "preset-rename"].includes(kind)) {
+      fail(Number.isInteger(input.slot) && input.slot >= 0 && input.slot < PRESET_NAMES.length, "편성 슬롯을 선택하세요.");
+      const presets = presetInfo(s), preset = presets[input.slot];
+      if (kind === "preset-apply") {
+        fail(preset.saved && ownedTeam(s, preset.team), "저장된 편성의 용병을 확인하세요.");
+        // Reuse the exact existing team-change rules, including dungeon locks
+        // and a fresh campaign battle. Failed applies leave the save untouched.
+        action(s, { kind: "team", team: preset.team }, now, rng);
+      } else if (kind === "preset-save") {
+        fail(ownedTeam(s, s.team), "현재 편성을 확인하세요.");
+        presets[input.slot].team = [...s.team];
+      } else if (kind === "preset-delete") {
+        fail(preset.saved, "비어 있는 편성입니다."); presets[input.slot].team = [];
+      } else {
+        const name = normalizePresetName(input.name);
+        fail(name !== null, "편성 이름은 문자·숫자·공백·_·-로 1~12자를 입력하세요.");
+        fail(name !== preset.name, "이미 같은 편성 이름입니다."); presets[input.slot].name = name;
+      }
+      if (kind !== "preset-apply") s.presets = presets.map(p => ({ name: p.name, team: [...p.team] }));
+      const result = presetInfo(s)[input.slot];
+      return { kind, slot: input.slot, name: result.name, team: result.team };
+    }
     if (kind === "team") {
       fail(!s.activities?.run || s.activities.run.settled, "진행 중인 던전을 마치거나 먼저 포기하세요.");
       fail(Array.isArray(input.team) && input.team.length >= 1 && input.team.length <= MAX_TEAM && new Set(input.team).size === input.team.length && input.team.every(id => typeof id === "string" && BY_ID[id] && Object.hasOwn(s.units, id)), "보유한 서로 다른 용병 1~6명을 편성하세요.");
@@ -989,7 +1028,56 @@
     }
     throw Error("지원하지 않는 행동입니다.");
   }
+  const FARMING_ANALYSIS = Object.freeze({ seconds: 180, seeds: Object.freeze([0x8d12a7b3, 0x41c6ce57, 0xe7139a2d]), minSuccessfulSeeds: 2 });
+  function farmingCandidates(s) {
+    const top = Math.max(1, Math.min(MAX_STAGE, s.best));
+    return Array.from({ length: top - Math.max(1, top - CAMPAIGN_REWARDS.safeGap) + 1 }, (_, i) => Math.max(1, top - CAMPAIGN_REWARDS.safeGap) + i);
+  }
+  function farmingFingerprint(s) {
+    return JSON.stringify([CATALOG_VERSION, s.best, s.speed || 1, s.team.map(id => [id, s.units[id].level, s.units[id].stars])]);
+  }
+  // CPU-heavy analysis belongs in farming-worker.js, never the render loop.
+  // Every run starts at wave one on a detached save; current investment is held
+  // fixed, and only normal combat reward events contribute to the estimate.
+  function simulateFarmingStage(source, stage) {
+    fail(validate(source), "분석할 편성 정보를 확인하세요.");
+    fail(farmingCandidates(source).includes(stage), "보상이 적용되는 열린 지역만 분석할 수 있습니다.");
+    let totalGold = 0, totalXp = 0, clears = 0, losses = 0, successfulSeeds = 0, clearTime = 0;
+    for (const seed of FARMING_ANALYSIS.seeds) {
+      const s = clone(source), levels = Object.fromEntries(s.team.map(id => [id, s.units[id].level]));
+      s.at = WINTER_EVENT.startsAt; s.seed = seed; s.simTime = 0; s.simCredit = 0; s.seq = 0; s.events = []; s.logs = []; s.receipts = []; s.history = [];
+      s.captain = { level: CAPTAIN_MAX_LEVEL, xp: 0 }; s.activities = newActivities(s.at); s.offline = { seconds: 0, gold: 0, xp: 0, captainXp: 0 };
+      for (const id of s.team) { s.units[id].xp = 0; if (id === "osia" || id === "lava") s.units[id].nextSkill = 1; if (id === "lava") s.units[id].basicHits = 0; }
+      action(s, { kind: "stage", stage, mode: "farm" }, s.at);
+      let trialClears = 0, trialLosses = 0, previousClear = 0;
+      for (let elapsed = STEP_MS; elapsed <= FARMING_ANALYSIS.seconds * 1000; elapsed += STEP_MS) {
+        const seq = s.seq; advance(s, s.at + STEP_MS);
+        for (const e of s.events) if (e.seq > seq) {
+          if (e.kind === "reward") {
+            totalGold += e.gold; totalXp += e.xp;
+            if (e.boss) { clears++; trialClears++; clearTime += elapsed - previousClear; previousClear = elapsed; }
+          } else if (e.kind === "defeat") { losses++; trialLosses++; }
+        }
+        // Training, awakening, level-up grants, quest claims and event exchanges
+        // are not simulated. Earned unit XP cannot inflate a current-team estimate.
+        for (const id of s.team) { s.units[id].level = levels[id]; s.units[id].xp = 0; }
+        // A failed trial is deliberately conservative: remaining time contributes
+        // no income, instead of silently farming a different fallback stage.
+        if (trialLosses) break;
+      }
+      if (trialClears > 0 && trialLosses === 0) successfulSeeds++;
+    }
+    const totalSeeds = FARMING_ANALYSIS.seeds.length, minutes = totalSeeds * FARMING_ANALYSIS.seconds / 60;
+    return { stage, name: stageName(stage), goldPerMinute: Math.round(totalGold / minutes), xpPerMinute: Math.round(totalXp / minutes), clears, losses,
+      successfulSeeds, totalSeeds, successRate: successfulSeeds / totalSeeds, stable: successfulSeeds >= FARMING_ANALYSIS.minSuccessfulSeeds,
+      meanClearSeconds: clears ? Math.round(clearTime / clears / 100) / 10 : null };
+  }
+  function farmingRecommendations(s, candidates) {
+    const ranked = [...candidates].filter(r => r.stable).sort((a, b) => b.goldPerMinute - a.goldPerMinute || b.successfulSeeds - a.successfulSeeds || a.stage - b.stage);
+    return { fingerprint: farmingFingerprint(s), recommendations: ranked.slice(0, 3), candidates: [...candidates], seconds: FARMING_ANALYSIS.seconds, seeds: FARMING_ANALYSIS.seeds.length,
+      basis: "combat-gold-only", reason: ranked.length ? "ok" : "train" };
+  }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id]); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { HEROES, BY_ID, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { HEROES, BY_ID, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

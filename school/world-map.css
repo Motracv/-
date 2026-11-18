@@ -137,3 +137,6 @@
 
 /* Reward changes are visible before entering an older farming region. */
 .wm-reward[data-reduced=true],.wm-stage-note[data-reduced=true]{color:#f0c58b}.wm-reward[data-reduced=true]::before{content:'!';color:#f0c58b}.app[data-tab=adventure] #battle-status[data-reduced=true]{color:#ffe3b5;background:#35291fdd}
+.wm-jump.wm-recommend{border-color:#b8a2cc99;color:#ead8f3;background:#3c3852;min-height:44px}
+@media(max-width:760px){.wm-toolbar>div{gap:5px}.wm-toolbar p{display:none}.wm-jump{padding-inline:9px;font-size:11px}}
+@media(max-width:600px){#modal.world-map-modal .modal-top h2{font-size:14px;max-width:26%}.wm-toolbar{right:49px;gap:0}.wm-jump{font-size:10px;padding-inline:7px}}

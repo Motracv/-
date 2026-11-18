@@ -1,4 +1,5 @@
 import { simulateArena } from './arena.mjs';
+import { createSeasons, equippedSeasonCosmetic } from './seasons.mjs';
 
 const fail = (condition,message,status=400) => { if(!condition)throw Object.assign(new Error(message),{status}); };
 const uid = () => Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
@@ -21,6 +22,7 @@ export async function ensureSchoolName(db,accountId,state,game,now) {
 }
 
 export function createSocial(game) {
+  const seasons = createSeasons(game);
   async function saved(db,id){
     const row=await db.prepare('SELECT payload FROM school_saves WHERE account_id = ?').bind(id).first();
     fail(row,'먼저 용병단을 생성해 주세요.',409);
@@ -50,10 +52,11 @@ export function createSocial(game) {
     const invites={incoming:[],outgoing:[]},matches=[];
     for(const row of arena){if(row.status==='pending')(row.target===id?invites.incoming:invites.outgoing).push({id:row.id,name:row.name,expiresAt:row.expires_at});
       else{const side=row.challenger===id?0:1;matches.push({id:row.id,opponent:row.name,result:row.winner===-1?'draw':row.winner===side?'win':'loss',createdAt:row.created_at});}}
-    return {me:{name:name?.display_name||ownSave.commanderName,canName:!name,renameCost:name?3000:0,rating:await rating(db,id)},friends,requests:{incoming,outgoing},invites,matches,serverTime:now};
+    return {me:{name:name?.display_name||ownSave.commanderName,canName:!name,renameCost:name?3000:0,rating:await rating(db,id),cosmetic:await equippedSeasonCosmetic(db,id)},friends,requests:{incoming,outgoing},invites,matches,serverTime:now};
   }
   function matchView(row,id){const match=JSON.parse(row.payload),meSide=row.challenger===id?0:1;return {...match,id:row.id,createdAt:row.created_at,meSide,ratingChange:match.winner===-1?0:match.winner===meSide?10:-5};}
   return {async request(request,env,data,accounts){
+    if(typeof data.kind==='string'&&data.kind.startsWith('season_'))return seasons.request(request,env,data,accounts);
     const now=Date.now(),signed=await accounts.identity(request,env,now);fail(signed,'친구와 아레나는 Google 계정으로 로그인해 주세요.',401);
     fail(data.catalogVersion===game.CATALOG_VERSION,'게임이 업데이트되었습니다. 새로고침해 주세요.',426);
     const db=env.DB,id=signed.id,kind=data.kind;

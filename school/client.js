@@ -38,7 +38,7 @@
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
   let social, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
-  let lobby = null, worldMap = null;
+  let lobby = null, worldMap = null, qol = null;
   let questCategory = 'daily', questChapter = null, questRowsKey = '', questCacheKey = '', questCache = null;
   const questCategories = {daily:'일일',repeat:'반복',stage:'지역',milestone:'업적'};
   const graphics = {frames:0, lastFrame:0, lastDraw:0, failures:0, lastError:'', losses:0, recoveries:0, lost:false};
@@ -83,6 +83,7 @@
   }
   async function logoutAccount() {
     if (busy || pending) return toast('진행 중인 저장을 먼저 확인해 주세요.');
+    qol?.close();
     stopTraining(); busy = true;
     try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
     clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; cloudClock = null; clearPending();
@@ -144,6 +145,10 @@
     openModal('설정', `<div class="settings-list"><label class="setting-row" for="setting-theme"><span><b>다크 모드</b><small>눈이 편한 차분한 어두운 화면</small></span><input id="setting-theme" type="checkbox" role="switch" ${theme === 'dark' ? 'checked' : ''}></label><label class="setting-row" for="setting-sound"><span><b>효과음</b><small>전투·모집·성장 효과음</small></span><input id="setting-sound" type="checkbox" role="switch" ${sound ? 'checked' : ''}></label><label class="setting-row" for="setting-motion"><span><b>모션 줄이기</b><small>큰 움직임과 섬광을 간단하게</small></span><input id="setting-motion" type="checkbox" role="switch" ${reduced ? 'checked' : ''}></label></div><div class="settings-links"><button class="secondary" id="settings-help">${icon('book')} 게임 안내</button><button class="secondary" id="settings-rotate">${icon('fullscreen')} 전체 화면 · 상태바</button></div><div id="school-install-controls"></div><p class="settings-note">설정은 이 브라우저에 저장됩니다.</p>`, 'settings');
     window.SchoolInstall?.renderControls?.($('school-install-controls'));
     $('settings-help').onclick = help; $('settings-rotate').onclick = () => { closeModal(); attemptLandscape(); };
+    if(qol){
+      const updates=document.createElement('button');updates.id='settings-patch-notes';updates.className='secondary';updates.innerHTML=`${icon('book')} 업데이트 소식 <i data-patch-unread hidden></i>`;updates.onclick=()=>qol.patchNotes();$('settings-help').parentElement.append(updates);
+      const events=document.createElement('details');events.className='qol-details';events.innerHTML=`<summary>모집·이벤트 일정</summary>${qol.eventRows()}`;$('school-install-controls').before(events);events.addEventListener('toggle',()=>qol.refreshCountdowns());qol.refreshCountdowns();
+    }
     const repairs = document.createElement('div'); repairs.className = 'settings-links';
     repairs.innerHTML = '<button class="secondary" id="settings-recover">전투 화면 복구</button><button class="secondary" id="settings-diagnostics">문제 정보</button>';
     $('school-install-controls').before(repairs);
@@ -494,6 +499,7 @@
     else if (result.kind === 'awaken') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.awaken({hero:result.hero,stars:result.stars,key:`${accountScope()}:awaken:${completedActionKey}`}); if (!shown?.cancelled) { toast(`${G.BY_ID[result.hero].name} ${result.stars}성 각성!`); heroDetail(result.hero); } }
     else if (result.kind === 'winter-exchange') { play('reward'); social?.refresh(); }
     else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); captainModal(); }
+    else if (result.kind.startsWith('preset-')) { toast(({'preset-save':'현재 편성을 저장했어요.','preset-apply':'저장한 편성을 불러왔어요.','preset-delete':'저장한 편성을 비웠어요.','preset-rename':'편성 이름을 저장했어요.'})[result.kind] || '편성을 저장했어요.');qol?.refresh(); }
     else if (result.kind === 'team') { closeModal(); toast(`새 편성으로 출발합니다. ${formationHint()}`); }
     else if (result.kind === 'activity') { closeModal(); setTab('adventure'); toast('던전에 입장했어요. 전투가 끝나면 결과를 확인하세요.'); }
     else if (result.kind === 'activity-exit') { closeModal(); setTab('adventure'); toast(result.result?.refunded ? '입장 열쇠를 돌려받고 모험으로 돌아왔어요.' : '모험으로 돌아왔어요.'); }
@@ -619,7 +625,9 @@
     setText('next-ssr-chance', `다음 ${grade} ${Number((odds[grade] * 100).toFixed(2))}%`);
     setText('pity-phase', progress.pity >= G.RECRUIT_PITY.soft - 1 ? '확률 상승 적용 중' : '60회째부터 매회 +1%p');
     setText('banner-status', ur ? '80회 이내 호라스 확정 · SSR도 누적 유지' : progress.guaranteed ? `다음 SSR은 ${name} 확정` : `SSR 등장 시 ${name} 50% · 픽뚫 후 다음 SSR 확정`);
-    setText('banner-deadline', banner.limited ? (G.bannerAvailable(selectedBanner, serverNow()) ? '11월 20일 23:59까지 · 한국 시간' : '종료된 픽업 · 다른 배너를 선택해 주세요') : ur ? 'UR 누적 별도 보관 · 기존 픽업 누적 유지' : '상시 픽업 · 배너별 누적 별도 보관');
+    setAttr($('banner-deadline'),'data-qol-countdown',selectedBanner);
+    setText('banner-deadline',window.SchoolQoL?.countdown(banner.expiresAt,serverNow(),!banner.limited).text || (banner.limited?'11월 20일 23:59까지 · 한국 시간':'상시'));
+    setAttr($('banner-deadline'),'title',banner.limited?'2026년 11월 20일 23:59까지 · 한국 시간':'종료일이 없는 상시 모집이에요.');
     document.querySelectorAll('[data-banner]').forEach(button => { if (button.tagName === 'BUTTON') setAttr(button, 'aria-pressed', String(button.dataset.banner === selectedBanner)); });
     document.querySelectorAll('[data-preview]').forEach(button => setHidden(button, button.dataset.preview !== selectedBanner));
   }
@@ -731,6 +739,7 @@
     setAttr($('app'), 'aria-busy', String(busy));
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
     worldMap?.update(state, blocked || !!state.battle.activity);
+    qol?.refresh();
     document.querySelectorAll('[data-battle-mode]').forEach(button => {
       setDisabled(button, blocked || !!state.battle.activity);
       setAttr(button, 'aria-pressed', String(button.dataset.battleMode === state.mode));
@@ -839,7 +848,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-blossom2" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-season1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -961,6 +970,7 @@
     }
   }
   function openModal(title, html, kind = '') {
+    qol?.close();$('modal').classList.remove('qol-modal');
     worldMap?.destroy(); worldMap = null;
     $('modal').classList.toggle('world-map-modal', kind === 'map');
     loginGeneration++; modalKind = kind; delete $('modal').dataset.activityResult; $('modal-title').textContent = title; $('modal-content').innerHTML = html;
@@ -969,7 +979,7 @@
   }
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
-    worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal');
+    qol?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal');
     stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
   }
   function heroDetail(id) {
@@ -1008,7 +1018,8 @@
     if (!window.SchoolWorldMap) { $('world-map-root').innerHTML = '<p class="modal-copy">지도를 불러오지 못했어요. 연결을 확인하고 게임을 새로고침해 주세요.</p>'; return; }
     worldMap = window.SchoolWorldMap.render($('world-map-root'), {
       state, blocked:busy || !!pending || (mode === 'cloud' && !connected),
-      onSelect:(stage, selectedMode) => act({kind:'stage',stage,mode:selectedMode})
+      onSelect:(stage, selectedMode) => act({kind:'stage',stage,mode:selectedMode}),
+      onRecommend:()=>qol?.farm()
     });
     renderButtons();
   }
@@ -1110,6 +1121,13 @@
   }
   function bind() {
     lobby = window.SchoolLobby?.create($('lobby-party'), {game:G, art:Art});
+    qol = window.SchoolQoL?.create({getState:()=>state,accountScope,serverNow,modalKind:()=>modalKind,activityActive,isBlocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,toast,openRoster:()=>{filter='owned';setTab('roster');},openHelp:help});
+    if(qol){
+      for(const id of ['formation-button','lobby-formation']){const button=$(id);if(button){delete button.dataset.tab;button.onclick=()=>qol.presets();}}
+      const presets=document.createElement('button');presets.id='presets-button';presets.className='secondary qol-roster-presets';presets.textContent='저장한 편성';presets.onclick=()=>qol.presets();$('tab-roster').querySelector('.section-heading').append(presets);
+      const news=document.querySelector('.lobby-shortcuts [data-lobby-action="help"]');if(news){delete news.dataset.lobbyAction;news.id='lobby-patch-notes';news.classList.add('lobby-patch-notes');news.setAttribute('aria-label','업데이트 소식');news.title='업데이트 소식';news.innerHTML='<svg viewBox="0 0 32 32" width="31" height="31" aria-hidden="true"><path d="M5 4h21v24H5z" fill="#d9c49b" stroke="#3b3442" stroke-width="2"/><path d="M9 9h13M9 14h6M18 14h4M9 18h6M18 18h4M9 23h13" fill="none" stroke="#65546a" stroke-width="2"/></svg><i data-patch-unread hidden></i>';news.onclick=()=>qol.patchNotes();}
+      qol.refreshCountdowns();
+    }
     social = createSocial();
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();
@@ -1168,7 +1186,7 @@
       stopTraining();
       if ($('modal').open) return;
       if (modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
-      worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal');
+      qol?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal');
       delete $('modal').dataset.activityResult; modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
     });
     document.addEventListener('close', event => { if (event.target.id === 'school-presentation') queueMicrotask(maybeShowActivityResult); }, true);

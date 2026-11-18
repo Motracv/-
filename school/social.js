@@ -20,12 +20,13 @@
 
   function create(context) {
     let generation = 0, loadEpoch = 0, view = '', data = null, busy = false, poll = null, cancelReplay = null, pending = null, stopped = false, winterSignature = '';
+    let arenaMode='season', seasonPanel='opponents', seasonData=null, seasonClock=null, seasonPending=null, seasonScope=null, seasonLoading=false, seasonContentKey='', seasonPortraitKey='', seasonCountdownSecond=-1, seasonPointer=false;
     const own = () => !stopped && document.querySelector(`#school-social[data-view="${view}"]`)?.closest('dialog')?.open;
     const $ = id => document.getElementById(id);
     const now = () => context.serverNow?.() ?? Date.now();
     const winterInfo = () => window.SchoolRPG.winterInfo?.(context.getState(), now());
     const winterBlocked = () => busy || !!context.isBlocked?.();
-    function stop() { generation++; clearTimeout(poll); poll = null; cancelReplay?.(); cancelReplay = null; }
+    function stop() { generation++; seasonLoading=false; clearTimeout(poll); poll = null; cancelReplay?.(); cancelReplay = null; }
     function status(message, error = false) {
       const node = $('social-message');
       if (node) { node.textContent = message; node.dataset.error = String(error); }
@@ -60,7 +61,7 @@
       const incoming = data?.requests?.incoming || [], outgoing = data?.requests?.outgoing || [], friends = data?.friends || [];
       const invites = data?.invites || {incoming:[],outgoing:[]};
       const arena = view === 'arena';
-      let inner = header() + nameGate();
+      let inner = (arena ? arenaTabs() : '') + header() + nameGate();
       if (arena) {
         inner += `<div class="arena-banner"><div class="arena-banner-ring" aria-hidden="true"></div><span>방과 후 결투장</span><b>우리 용병단의 실력을 겨룰 시간</b><small>현재 편성으로 초대 · 보유 용병의 성장 반영</small></div><details class="arena-rules"><summary>친선전 규칙</summary><p>체력 3배 · 회복량 75% · 최대 90초. 45초부터 피해가 점점 강해지며, 시간 종료 시 남은 체력 비율로 승패를 정해요. 방어막은 기존 체력을 기준으로 계산해요.</p><p>호라스는 아레나에서 기본 공격과 의식 피해가 모험의 78%로 적용돼요. 기절 대상 1.5배와 스택·표식 효과는 유지돼요.</p><p>친선 점수는 승리 +10, 패배 −5. 재화 보상은 없고 모험 중인 용병단은 영향을 받지 않아요.</p></details>`;
       } else if (!data?.me?.canName) {
@@ -73,7 +74,7 @@
       inner += `<div class="social-section"><h3>${arena ? '친구에게 도전' : '내 친구'} <span>${friends.length}</span><button id="social-refresh" class="social-refresh" aria-label="친구와 초대 새로고침">↻</button></h3>${friends.map(friend => friendRow(friend, arena)).join('') || `<div class="social-empty compact">${icon('friends')}<p>${arena ? '친구를 추가하고 첫 대결을 시작해 보세요.' : '아직 친구가 없어요. 단장 이름으로 먼저 인사해 보세요.'}</p>${arena ? '<button id="arena-add-friend" class="secondary">친구 찾기</button>' : ''}</div>`}</div>`;
       if (arena && data?.matches?.length) inner += `<div class="social-section"><h3>최근 대결</h3><div class="arena-history">${data.matches.map(match => `<button class="arena-history-row" data-social-action="arena_match" data-id="${escape(match.id)}"><span class="arena-history-result ${escape(match.result)}">${({win:'승리',loss:'패배',draw:'무승부'})[match.result] || '대결'}</span><b>${escape(match.opponent)}</b><small>${time(match.createdAt)}</small><span aria-hidden="true">▶</span></button>`).join('')}</div></div>`;
       inner += `<p id="social-message" role="status" aria-live="polite"></p>`;
-      const root = $('school-social'); root.innerHTML = inner;
+      const root = $('school-social'); root.innerHTML = inner; if(arena){root.dataset.arenaMode='friendly';bindArenaTabs();}
       $('social-name')?.addEventListener('click', () => context.openCaptain?.());
       $('arena-add-friend')?.addEventListener('click', () => open('friends'));
       $('social-refresh')?.addEventListener('click', () => fetchState(true));
@@ -124,17 +125,167 @@
         if (ticket !== generation || !own()) return;
         if (response.match && ['arena_accept','arena_match'].includes(kind)) { busy = false; showMatch(response.match); return; }
         data = response;
-        if (kind === 'arena_invite' && view !== 'arena') { view = 'arena'; frame(''); }
+        if (kind === 'arena_invite' && view !== 'arena') { view = 'arena'; arenaMode='friendly'; frame(''); }
         if (kind === 'friend_request' && $('social-friend-name')) $('social-friend-name').value = '';
         renderSocial();
         status(({friend_request:'친구 요청을 보냈어요.',friend_accept:'새 친구가 생겼어요!',friend_decline:'요청을 거절했어요.',friend_remove:'친구 목록에서 삭제했어요.',arena_invite:'대결 초대를 보냈어요. 2분 안에 수락하면 시작됩니다.',arena_decline:'대결 초대를 거절했어요.'})[kind] || '완료했어요.');
       } catch (error) { if (ticket === generation && own()) status(error.message, true); }
       finally { if (ticket === generation) { busy = false; lockButtons(); if (!cancelReplay) schedulePoll(); } }
     }
+    const tierName = tier => ({bronze:'브론즈',silver:'실버',gold:'골드',diamond:'다이아몬드'})[typeof tier === 'string' ? tier : tier?.id] || tier?.name || '브론즈';
+    const frameName = frame => ['bronze','silver','gold','diamond'].find(name => String(frame || '').includes(name)) || 'none';
+    const cosmeticMarkup = cosmetic => cosmetic?.title ? `<span class="season-cosmetic" data-frame="${frameName(cosmetic.frame)}">✦ ${escape(cosmetic.title)}</span>` : '';
+    const seasonNow = () => seasonClock ? seasonClock.time + Math.max(0,performance.now()-seasonClock.at) : now();
+    const setSeasonText = (id,value) => { const node=$(id),text=String(value);if(node&&node.textContent!==text)node.textContent=text; };
+    const arenaTabs = () => `<div class="arena-mode-tabs" role="group" aria-label="아레나 종류"><button type="button" data-arena-mode="season" aria-pressed="${arenaMode === 'season'}">시즌전</button><button type="button" data-arena-mode="friendly" aria-pressed="${arenaMode === 'friendly'}">친선전</button></div>`;
+    function bindArenaTabs() { $('school-social')?.querySelectorAll('[data-arena-mode]').forEach(button=>button.addEventListener('click',()=>{if(busy||arenaMode===button.dataset.arenaMode)return;arenaMode=button.dataset.arenaMode;open('arena');})); }
+    function pendingKey(accountId) { return `school-season-pending:${accountId}`; }
+    function loadSeasonPending() {
+      const id=context.getProfile()?.id;
+      if(seasonScope!==id){seasonData=null;seasonClock=null;}
+      seasonPending=null;seasonScope=id;
+      if(!id)return;
+      try { const saved=JSON.parse(sessionStorage.getItem(pendingKey(id))||'null');if(saved?.accountId===id&&saved.input?.requestId&&['season_attack','season_register','season_equip'].includes(saved.input.kind))seasonPending=saved.input; } catch {}
+    }
+    function rememberSeasonPending(input,accountId=seasonScope,expectedId=null) {
+      try {
+        if(input)sessionStorage.setItem(pendingKey(accountId),JSON.stringify({accountId,input}));
+        else {
+          const stored=JSON.parse(sessionStorage.getItem(pendingKey(accountId))||'null');
+          // A late response from a closed dialog cannot erase a newer intent.
+          if(expectedId&&stored?.input?.requestId&&stored.input.requestId!==expectedId)return;
+          if(expectedId&&accountId===seasonScope&&seasonPending?.requestId&&seasonPending.requestId!==expectedId)return;
+          sessionStorage.removeItem(pendingKey(accountId));
+        }
+      }
+      catch { if(input)throw Error('안전한 요청 저장을 사용할 수 없어요. 일반 브라우저에서 다시 시도해 주세요.'); }
+      if(accountId===seasonScope)seasonPending=input;
+    }
+    function acceptSeason(response) {
+      if(!response?.season||!response.me)return;
+      seasonData=response;
+      if(Number.isFinite(response.serverTime))seasonClock={time:response.serverTime,at:performance.now()};
+    }
+    function seasonMarkup() {
+      return `${arenaTabs()}<div class="season-shell"><div class="season-topline"><b id="season-name">시즌 아레나</b><span id="season-countdown"></span></div><div class="season-profile"><div id="season-profile-art" class="season-profile-art"></div><div class="season-identity"><b id="season-commander"></b><span id="season-cosmetic"></span></div><div class="season-score"><b id="season-tier"></b><strong id="season-rating">—</strong><small>시즌 점수</small></div><div class="season-entry"><b id="season-remaining">— / 5</b><small>오늘 남은 도전</small><span id="season-day-countdown"></span></div></div><div class="season-pending" id="season-pending" hidden><span id="season-pending-message">이전 요청의 결과를 확인해 주세요.</span><button type="button" class="primary" id="season-pending-retry">결과 확인</button><button type="button" class="primary" id="season-connect" hidden>계정 연결</button></div><div class="season-navigation" role="group" aria-label="시즌전 메뉴">${[['opponents','도전'],['ranking','순위'],['history','기록'],['rewards','보상']].map(([id,label])=>`<button type="button" data-season-panel="${id}" aria-pressed="${seasonPanel===id}">${label}</button>`).join('')}<button type="button" id="season-refresh" aria-label="시즌 정보 새로고침">↻</button></div><div id="season-content" class="season-content" aria-live="off"><div class="social-empty"><div class="social-loader" aria-label="시즌 정보 불러오는 중"></div></div></div><p id="season-feedback" class="season-feedback" role="status" aria-live="polite"></p></div>`;
+    }
+    function setupSeason() {
+      frame(seasonMarkup());const root=$('school-social');root.dataset.arenaMode='season';seasonContentKey='';seasonPortraitKey='';seasonCountdownSecond=-1;seasonPointer=false;
+      bindArenaTabs();
+      root.addEventListener('pointerdown',()=>{seasonPointer=true;});
+      const release=()=>{if(!seasonPointer)return;seasonPointer=false;if(own()&&arenaMode==='season'&&!cancelReplay)requestAnimationFrame(()=>renderSeason());};
+      root.addEventListener('pointerup',release);root.addEventListener('pointercancel',release);root.addEventListener('pointerleave',release);
+      root.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key)&&event.target.closest('button'))seasonPointer=true;});
+      root.addEventListener('keyup',release);
+      root.addEventListener('click',event=>{
+        const button=event.target.closest('button');if(!button||button.disabled)return;
+        if(button.dataset.seasonPanel){seasonPanel=button.dataset.seasonPanel;seasonContentKey='';renderSeason();}
+        else if(button.id==='season-register')seasonMutate('season_register',{});
+        else if(button.dataset.seasonAttack)seasonMutate('season_attack',{targetId:button.dataset.seasonAttack});
+        else if(button.dataset.seasonMatch)readSeasonMatch(button.dataset.seasonMatch);
+        else if(button.hasAttribute('data-season-equip'))seasonMutate('season_equip',{awardId:button.dataset.seasonEquip||null});
+        else if(button.id==='season-refresh')fetchSeason(true);
+        else if(button.id==='season-pending-retry')seasonMutate(null,null,true);
+        else if(button.id==='season-name-setup')context.openCaptain?.();
+        else if(button.id==='season-connect')context.openAccount?.();
+      });
+      loadSeasonPending();renderSeason();
+    }
+    function teamMarkup(team) {
+      return `<span class="season-team">${(team||[]).slice(0,6).map(entry=>{const id=typeof entry==='string'?entry:entry.id;return window.SchoolRPG.BY_ID[id]?`<span title="${escape(window.SchoolRPG.BY_ID[id].name)}">${portrait(id)}</span>`:'';}).join('')}</span>`;
+    }
+    function seasonPanelMarkup() {
+      const s=seasonData,me=s.me,rules=s.rules||{},registered=me.registered;
+      if(seasonPanel==='opponents') {
+        const defense=me.defense;
+        const register=`<div class="season-defense"><div><b>${registered?'등록된 방어 편성':'이번 시즌 첫 출전'}</b><small>${registered?`전투력 ${number(defense?.power)} · 현재 편성으로 갱신할 수 있어요`:'현재 편성을 공개 방어덱으로 등록하고 시작해요'}</small>${teamMarkup(defense?.team||context.getState()?.team)}</div><button type="button" class="${registered?'secondary':'primary'}" id="season-register" ${!me.canRegister?'disabled':''}>${registered?'방어 편성 갱신':'시즌 참가'}</button></div>`;
+        if(me.requiresName)return `<div class="social-empty compact"><h3>단장 이름을 먼저 정해 주세요</h3><p>시즌전에서는 이름과 등록한 방어 편성이 공개돼요.</p><button type="button" class="primary" id="season-name-setup">이름 정하기</button></div>`;
+        const candidates=s.candidates||[];
+        return `${register}<p class="season-hint">비슷한 전투력의 실제 단원과 대결 · 동일 상대 하루 1회</p>${!registered?'<div class="season-empty">참가하면 상대를 찾을 수 있어요. 친구가 접속해 있지 않아도 등록된 방어 편성과 대결할 수 있습니다.</div>':candidates.length?`<div class="season-opponents">${candidates.map(player=>`<article class="season-opponent"><div class="season-opponent-name"><b>${escape(player.name)}</b><span>${tierName(player.tier)} · ${number(player.rating)}</span></div>${cosmeticMarkup(player.cosmetic)}${teamMarkup(player.team)}<small>전투력 ${number(player.power)}</small><button type="button" class="primary" data-season-attack="${escape(player.id)}">도전 <span aria-hidden="true">↗</span></button></article>`).join('')}</div>`:'<div class="season-empty">지금은 비슷한 전투력의 도전 가능한 단원이 없어요.<br>새로 참가한 단원이 생기면 이곳에 표시됩니다.</div>'}<details class="season-rules"><summary>시즌전 규칙</summary><p>4주 시즌 · 한국 시간 매일 00:00에 도전 ${number(rules.dailyAttacks||5)}회 갱신. 승리 +${number(rules.win??20)}, 패배 ${rules.loss??-10}, 무승부 0점. 방어전 결과로 내 점수는 변하지 않아요.</p><p>공격은 현재 편성, 방어는 등록 당시 편성으로 진행해요. 전투력 ${Math.round((rules.powerRange?.[0]??.65)*100)}~${Math.round((rules.powerRange?.[1]??1.35)*100)}%의 실제 단원만 표시합니다. 시즌 종료 전 ${number(rules.minimumRewardAttacks||5)}회 이상 도전하면 최종 티어의 칭호·테두리를 얻어요.</p></details>`;
+      }
+      if(seasonPanel==='ranking')return `<div class="season-list-head"><b>이번 시즌 순위</b><small>점수 · 도전 횟수</small></div><ol class="season-rankings">${(s.rankings||[]).map(player=>`<li class="${player.isMe?'season-self':''}"><span class="season-rank-number">${number(player.rank)}</span><div class="season-rank-person" data-frame="${frameName(player.cosmetic?.frame)}"><b>${escape(player.name)}${player.isMe?' · 나':''}</b>${cosmeticMarkup(player.cosmetic)}<small>${tierName(player.tier)}</small></div><div class="season-rank-score"><b>${number(player.rating)}</b><small>${number(player.attacks)}회</small></div></li>`).join('')}</ol>${s.rankings?.length?'':'<div class="season-empty">아직 참가한 단원이 없어요. 이번 시즌의 첫 주인공이 되어 보세요.</div>'}`;
+      if(seasonPanel==='history')return `<div class="season-list-head"><b>최근 시즌 대결</b><small>방어전은 점수 변화 없음</small></div><div class="arena-history season-history">${(s.matches||[]).map(match=>`<button type="button" class="arena-history-row" data-season-match="${escape(match.id)}"><span class="arena-history-result ${escape(match.result)}">${({win:'승리',loss:'패배',draw:'무승부'})[match.result]||'대결'}</span><b>${escape(match.opponent)}<small>시즌 ${number(match.seasonId)} · ${match.isAttack?'공격':'방어'} · ${time(match.createdAt)}</small></b><span>${match.isAttack?(match.ratingChange>0?'+':'')+String(match.ratingChange||0):'—'}</span><span aria-hidden="true">▶</span></button>`).join('')||'<div class="season-empty">아직 시즌 대결 기록이 없어요.</div>'}</div>`;
+      const awards=s.awards||[],equipped=awards.some(award=>award.equipped);
+      return `<div class="season-rewards-head"><div><b>시즌 명예 보상</b><p>종료 시 최종 티어의 칭호·테두리 지급 · 능력치 보너스 없음</p></div><span>${number(me.attacks)} / ${number(rules.minimumRewardAttacks||5)}회 도전</span></div><div class="season-awards">${awards.map(award=>`<article class="season-award" data-frame="${frameName(award.frame)}"><span class="season-award-emblem" aria-hidden="true">✦</span><div><b>${escape(award.title)}</b><small>시즌 ${escape(typeof award.season==='object'?award.season.number:award.season)} · ${tierName(award.tier)}</small></div><button type="button" class="secondary" data-season-equip="${escape(award.id)}" data-equipped="${!!award.equipped}">${award.equipped?'착용 중':'착용'}</button></article>`).join('')||'<div class="season-empty">아직 받은 시즌 보상이 없어요.<br>이번 시즌에 5회 이상 도전하고 종료 후 확인해 주세요.</div>'}</div>${equipped?'<button type="button" class="secondary season-unequip" data-season-equip="">칭호·테두리 해제</button>':''}`;
+    }
+    function renderSeason() {
+      if(!own()||view!=='arena'||arenaMode!=='season'||cancelReplay||!$('season-content'))return;
+      const s=seasonData,accountReady=context.isCloud()&&!context.isBlocked?.();
+      if(s){
+        const me=s.me;setSeasonText('season-name',s.season.name||`시즌 ${s.season.number}`);setSeasonText('season-commander',me.name||'나의 용병단');setSeasonText('season-tier',me.registered?tierName(me.tier):'참가 전');setSeasonText('season-rating',me.registered?number(me.rating):'—');setSeasonText('season-remaining',`${number(me.remainingToday)} / ${number(s.rules?.dailyAttacks||5)}`);
+        const artKey=JSON.stringify([me.defense?.team?.[0]||context.getState()?.team?.[0],me.cosmetic]);
+        if(artKey!==seasonPortraitKey){seasonPortraitKey=artKey;const first=me.defense?.team?.[0]||context.getState()?.team?.[0];$('season-profile-art').innerHTML=window.SchoolRPG.BY_ID[first]?portrait(first):icon('arena');$('season-profile-art').dataset.frame=frameName(me.cosmetic?.frame);$('season-cosmetic').innerHTML=cosmeticMarkup(me.cosmetic);}
+        const key=JSON.stringify([seasonPanel,s.season.id,s.season.phase,s.me,s.rules,s.candidates,s.rankings,s.matches,s.awards]);
+        if(!seasonPointer&&key!==seasonContentKey){
+          const content=$('season-content'),focused=content.contains(document.activeElement)?document.activeElement:null;
+          const focusKey=focused&&['seasonAttack','seasonMatch','seasonEquip'].find(key=>Object.hasOwn(focused.dataset,key)),focusValue=focusKey?focused.dataset[focusKey]:null,focusId=focused?.id;
+          seasonContentKey=key;content.innerHTML=seasonPanelMarkup();
+          if(focused){const target=Array.from(content.querySelectorAll('button')).find(button=>focusId?button.id===focusId:focusKey&&button.dataset[focusKey]===focusValue);target?.focus({preventScroll:true});}
+        }
+      }
+      const disconnected=!context.isCloud();
+      $('season-pending').hidden=!seasonPending&&!disconnected;
+      setSeasonText('season-pending-message',disconnected?'계정을 다시 연결하면 이어서 대결할 수 있어요.':'이전 요청의 결과를 확인해 주세요.');
+      $('season-pending-retry').hidden=!seasonPending||disconnected;
+      $('season-connect').hidden=!disconnected;
+      const blocked=busy||!!seasonPending||!accountReady,expired=s?.season.phase==='upcoming'||!s||s.season.endsAt<=seasonNow(),dayExpired=!!s&&s.dayResetsAt<=seasonNow();
+      $('school-social').querySelectorAll('[data-season-panel]').forEach(button=>{button.setAttribute('aria-pressed',String(button.dataset.seasonPanel===seasonPanel));button.disabled=busy;});
+      $('school-social').querySelectorAll('[data-arena-mode]').forEach(button=>{button.disabled=busy;});
+      if($('season-register'))$('season-register').disabled=blocked||expired||!s.me.canRegister;
+      $('school-social').querySelectorAll('[data-season-attack]').forEach(button=>{button.disabled=blocked||expired||dayExpired||!s.me.registered||s.me.remainingToday<1;});
+      $('school-social').querySelectorAll('[data-season-equip]').forEach(button=>{button.disabled=blocked||button.dataset.equipped==='true';});
+      $('school-social').querySelectorAll('[data-season-match]').forEach(button=>{button.disabled=busy||!accountReady;});
+      $('season-pending-retry').disabled=busy||!accountReady;
+      $('season-refresh').disabled=busy||seasonLoading||!context.isCloud();
+      seasonCountdown();
+    }
+    function seasonCountdown() {
+      if(!seasonData||!$('season-countdown'))return;
+      const at=seasonNow(),second=Math.floor(at/1000);if(second===seasonCountdownSecond)return;seasonCountdownSecond=second;
+      const duration=stamp=>{const seconds=Math.max(0,Math.ceil((stamp-at)/1000)),days=Math.floor(seconds/86400),hours=Math.floor(seconds%86400/3600),minutes=Math.floor(seconds%3600/60),rest=seconds%60;return `${days?days+'일 ':''}${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`;};
+      setSeasonText('season-countdown',seasonData.season.phase==='upcoming'?`시작까지 ${duration(seasonData.season.startsAt)}`:seasonData.season.endsAt>at?`종료까지 ${duration(seasonData.season.endsAt)}`:'새 시즌 확인 중');
+      setSeasonText('season-day-countdown',`도전 갱신 ${duration(seasonData.dayResetsAt)} · KST`);
+      if((seasonData.season.endsAt<=at||seasonData.dayResetsAt<=at)&&!busy&&!seasonLoading)fetchSeason(false);
+    }
+    function scheduleSeasonPoll() {
+      clearTimeout(poll);poll=setTimeout(()=>{if(!own()||view!=='arena'||arenaMode!=='season'||cancelReplay)return;if(document.hidden||busy||seasonLoading){scheduleSeasonPoll();return;}fetchSeason(false);},10000);
+    }
+    async function fetchSeason(manual=false) {
+      if(!own()||!context.isCloud()||busy||seasonLoading||arenaMode!=='season'||cancelReplay)return;
+      const ticket=generation,epoch=++loadEpoch;seasonLoading=true;if(manual)setSeasonText('season-feedback','시즌 정보를 확인하고 있어요…');renderSeason();
+      try{const response=await context.request('/api/school/social',{kind:'season_state'});if(ticket!==generation||epoch!==loadEpoch||!own())return;acceptSeason(response);if(manual)setSeasonText('season-feedback','');}
+      catch(error){if(ticket===generation&&own())setSeasonText('season-feedback',error.message);}
+      finally{if(ticket===generation){seasonLoading=false;renderSeason();scheduleSeasonPoll();}}
+    }
+    async function seasonMutate(kind,values,retry=false) {
+      if(busy||!own()||!context.isCloud()||context.isBlocked?.())return;
+      if(seasonPending&&!retry){setSeasonText('season-feedback','이전 요청의 결과를 먼저 확인해 주세요.');return;}
+      const input=retry?seasonPending:{kind,...values,seasonId:seasonData?.season.id,requestId:crypto.randomUUID().replaceAll('-','')};if(!input)return;
+      const ticket=generation,scope=context.getProfile()?.id;if(!scope)return;
+      try{rememberSeasonPending(input,scope);}catch(error){setSeasonText('season-feedback',error.message);return;}
+      ++loadEpoch;busy=true;renderSeason();setSeasonText('season-feedback',input.kind==='season_attack'?'대결 결과를 저장하고 있어요…':'시즌 정보를 저장하고 있어요…');
+      try{
+        const response=await context.request('/api/school/social',input);rememberSeasonPending(null,scope,input.requestId);
+        if(ticket!==generation||!own()||context.getProfile()?.id!==scope)return;
+        acceptSeason(response);setSeasonText('season-feedback','');
+        if(response.match&&input.kind==='season_attack'){busy=false;showMatch({...response.match,mode:'season'});return;}
+        if(response.matchUnavailable){setSeasonText('season-feedback','대결 결과는 저장됐어요. 상대 계정이 삭제되어 재생 기록은 볼 수 없습니다.');return;}
+        setSeasonText('season-feedback',input.kind==='season_register'?'방어 편성을 등록했어요.':input.awardId?'시즌 칭호와 테두리를 착용했어요.':'시즌 장식을 해제했어요.');
+      }catch(error){
+        if(error.status&&error.status<500&&![408,425,426,429].includes(error.status))rememberSeasonPending(null,scope,input.requestId);
+        if(ticket===generation&&own())setSeasonText('season-feedback',seasonPending?'응답을 확인하지 못했어요. 결과 확인을 누르면 같은 요청을 안전하게 확인합니다.':error.message);
+      }finally{if(ticket===generation){busy=false;renderSeason();if(!cancelReplay){scheduleSeasonPoll();if(!seasonPending)fetchSeason(false);}}}
+    }
+    async function readSeasonMatch(id) {
+      if(busy||!own()||!context.isCloud())return;const ticket=generation;busy=true;++loadEpoch;renderSeason();
+      try{const response=await context.request('/api/school/social',{kind:'season_match',id});if(ticket===generation&&own()&&response.match){busy=false;showMatch({...response.match,mode:'season'});}}
+      catch(error){if(ticket===generation&&own())setSeasonText('season-feedback',error.message);}
+      finally{if(ticket===generation){busy=false;renderSeason();if(!cancelReplay)scheduleSeasonPoll();}}
+    }
     function winterMarkup() {
       const info = winterInfo();
       if (!info) return '<div class="social-empty">겨울 이벤트를 준비하고 있어요.</div>';
-      return `<div class="winter-banner"><div class="winter-snow" aria-hidden="true">✦ · ✧ · ✦</div>${icon('winter')}<small>WINTER FESTIVAL</small><h3>${escape(info.name)}</h3><p>모험 끝에 찾아온 작은 눈송이</p><div class="winter-reset"><span>매일 00:00 · 한국 시간</span><b id="winter-reset-countdown"></b></div></div><div class="winter-wallet"><span>${icon('winter')} 내 눈송이</span><b id="winter-balance">0</b></div><div class="winter-shop">${info.items.map(item => `<div class="winter-item" data-winter-row="${escape(item.id)}"><span class="winter-reward-icon ${item.id}">${icon(item.gems ? 'gem' : 'coin')}</span><div><b>${item.gems ? '보석' : '코인'} ${number(item.gems || item.gold)}</b><small data-winter-remaining></small></div><button class="primary" data-winter-item="${escape(item.id)}" disabled>${icon('winter')}<span data-winter-price>${number(item.cost)}</span></button></div>`).join('')}</div><p class="social-note">보상 대상 지역에서 승리하면 가끔 눈송이를 얻어요. 보스는 2개! 교환은 품목별 하루 10회예요.</p>`;
+      return `<div class="winter-banner"><div class="winter-snow" aria-hidden="true">✦ · ✧ · ✦</div>${icon('winter')}<small>WINTER FESTIVAL</small><h3>${escape(info.name)}</h3><p>모험 끝에 찾아온 작은 눈송이</p><span id="winter-event-deadline" class="winter-event-deadline"></span><div class="winter-reset"><span>매일 00:00 · 한국 시간</span><b id="winter-reset-countdown"></b></div></div><div class="winter-wallet"><span>${icon('winter')} 내 눈송이</span><b id="winter-balance">0</b></div><div class="winter-shop">${info.items.map(item => `<div class="winter-item" data-winter-row="${escape(item.id)}"><span class="winter-reward-icon ${item.id}">${icon(item.gems ? 'gem' : 'coin')}</span><div><b>${item.gems ? '보석' : '코인'} ${number(item.gems || item.gold)}</b><small data-winter-remaining></small></div><button class="primary" data-winter-item="${escape(item.id)}" disabled>${icon('winter')}<span data-winter-price>${number(item.cost)}</span></button></div>`).join('')}</div><p class="social-note">보상 대상 지역에서 승리하면 가끔 눈송이를 얻어요. 보스는 2개! 교환은 품목별 하루 10회예요.</p>`;
     }
     function renderWinter() {
       if (!own()) return;
@@ -169,6 +320,9 @@
           button.setAttribute('aria-label', `${item.gems ? '보석' : '코인'} ${number(item.gems || item.gold)} 교환 · 눈송이 ${number(item.cost)}개 · 오늘 ${number(item.remaining)}회 남음`);
         }
       }
+      const endsAt=window.SchoolRPG.WINTER_EVENT?.endsAt;
+      const eventDeadline=endsAt==null?'이벤트 종료일 미정':`이벤트 종료 ${new Date(endsAt).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric'})} · 한국 시간`;
+      if($('winter-event-deadline').textContent!==eventDeadline)$('winter-event-deadline').textContent=eventDeadline;
       const left = Math.max(0, Math.ceil((info.resetsAt - now()) / 1000));
       const countdown = info.active ? `갱신까지 ${String(Math.floor(left/3600)).padStart(2,'0')}:${String(Math.floor(left%3600/60)).padStart(2,'0')}:${String(left%60).padStart(2,'0')}` : '이벤트 종료';
       if ($('winter-reset-countdown').textContent !== countdown) $('winter-reset-countdown').textContent = countdown;
@@ -177,16 +331,17 @@
       stop(); stopped = false; view = next; busy = false;
       if (next === 'winter') { frame(winterMarkup()); renderWinter(); return; }
       if (!context.isCloud()) { data = null; loginGate(); return; }
+      if(next==='arena'&&arenaMode==='season'){setupSeason();fetchSeason(true);return;}
       frame(`<div class="social-empty">${icon(next)}<h3>용병단 소식을 불러오는 중…</h3><div class="social-loader" aria-label="불러오는 중"></div></div>`);
       fetchState(true);
     }
 
     function showMatch(match) {
-      stop(); view = 'arena'; busy = false;
+      stop(); view = 'arena'; busy = false; arenaMode=match.mode==='season'?'season':'friendly';
       const me = Number(match.meSide) === 1 ? 1 : 0;
       const teams = match.teams || [];
       if (teams.length !== 2) { context.toast?.('대결 기록을 불러오지 못했어요.'); open('arena'); return; }
-      frame(`<div class="arena-match-heading"><div><small>${me === 0 ? '나의 용병단' : '상대 용병단'}</small><b>${escape(teams[0].name)}</b></div><span>VS</span><div><small>${me === 1 ? '나의 용병단' : '상대 용병단'}</small><b>${escape(teams[1].name)}</b></div></div><div class="arena-stage"><canvas id="arena-canvas" aria-label="서버에서 확정된 두 용병단의 아레나 전투 재생"></canvas><div id="arena-replay-result" hidden></div></div><div class="arena-playback"><span id="arena-clock">0:00</span><progress id="arena-progress" max="${Math.max(1, Number(match.durationMs) || 1)}" value="0" aria-label="대결 재생 진행률"></progress><button class="secondary" id="arena-skip">결과 보기</button><button class="secondary" id="arena-damage-report" aria-label="대결 기여도 보기" title="딜량 · 치유량">${icon('damage')}</button></div><div id="arena-damage-content" hidden></div><div class="arena-return"><button class="secondary" id="arena-back">아레나로 돌아가기</button><small>양쪽 편성으로 서버에서 진행한 대결입니다.</small></div>`);
+      frame(`<div class="arena-match-heading"><div><small>${me === 0 ? '나의 용병단' : '상대 용병단'}</small><b>${escape(teams[0].name)}</b></div><span>VS</span><div><small>${me === 1 ? '나의 용병단' : '상대 용병단'}</small><b>${escape(teams[1].name)}</b></div></div><div class="arena-stage"><canvas id="arena-canvas" aria-label="서버에서 확정된 두 용병단의 아레나 전투 재생"></canvas><div id="arena-replay-result" hidden></div></div><div class="arena-playback"><span id="arena-clock">0:00</span><progress id="arena-progress" max="${Math.max(1, Number(match.durationMs) || 1)}" value="0" aria-label="대결 재생 진행률"></progress><button class="secondary" id="arena-skip">결과 보기</button><button class="secondary" id="arena-damage-report" aria-label="대결 기여도 보기" title="딜량 · 치유량">${icon('damage')}</button></div><div id="arena-damage-content" hidden></div><div class="arena-return"><button class="secondary" id="arena-back">아레나로 돌아가기</button><small>${match.mode==='season'?'시즌전 · 등록된 방어 편성과 진행한 대결':'양쪽 편성으로 서버에서 진행한 대결입니다.'}</small></div>`);
       $('arena-back').addEventListener('click', () => open('arena'));
       $('arena-damage-report').addEventListener('click', () => {
         const target = $('arena-damage-content'); target.hidden = !target.hidden;
@@ -202,6 +357,7 @@
     function refresh() {
       if (!own()) return;
       if (view === 'winter') renderWinter();
+      if(view==='arena'&&arenaMode==='season'&&!cancelReplay)renderSeason();
     }
     return {openFriends:() => open('friends'),openArena:() => open('arena'),openWinter:() => open('winter'),refresh,destroy() {stop();stopped = true;data = null;}};
   }
