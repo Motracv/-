@@ -53,12 +53,14 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   },currentRelease);assert.equal(offlineArtwork.missingCache,undefined);assert.equal(offlineArtwork.fanDecoded,true);assert.equal(offlineArtwork.frontDecoded,true);for(const asset of offlineArtwork.assets){assert.equal(asset.status,200,asset.path);assert.ok(asset.bytes>10000,asset.path+' must contain the actual image bytes');assert.equal(asset.signature,'RIFFWEBP',asset.path);}
   assert.deepEqual(await savedProgress(offline),beforeProgress,'Updating the installed shell preserves existing v8 currency, characters, levels, formation and campaign');
   const lobbyPaths=[...['courtyard','icon-recruit','icon-supplies','icon-codex','icon-arena','icon-dungeon','icon-adventure','icon-quests','icon-ranking','icon-winter','icon-help'].map(name=>`school/assets/lobby/${name}.webp?v=lobby1`),...['lobby.js','lobby.css','world-map.js','world-map.css'].map(name=>`school/${name}?v=${currentRelease}`)];
+  const adventurePaths=[`school/battle.css?v=${currentRelease}`,...Array.from({length:12},(_,i)=>`school/assets/adventure/region-${String(i+1).padStart(2,'0')}.webp?v=adventure1`),...['classroom','garden','snow'].map(name=>`school/assets/battlefields/${name}.webp?v=battlefield1`)];
   const lobbyCache=await offline.evaluate(async({release,paths})=>{
    const key=(await caches.keys()).find(key=>key.endsWith(release));if(!key)throw Error('Updated cache is missing');const cache=await caches.open(key),assets=[];
    for(const path of paths){const response=await cache.match(new URL(path,location.href).href);if(!response){assets.push({path,missing:true});continue;}const bytes=await response.arrayBuffer(),sha256=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(x=>x.toString(16).padStart(2,'0')).join('');let decoded=null;if(path.includes('.webp')){const img=new Image();img.src=new URL(path,location.href).href;await img.decode();decoded=[img.naturalWidth,img.naturalHeight];}assets.push({path,status:response.status,bytes:bytes.byteLength,sha256,decoded});}
    return assets;
-  },{release:currentRelease,paths:lobbyPaths});
-  assert.equal(lobbyCache.length,15);
+  },{release:currentRelease,paths:[...lobbyPaths,...adventurePaths]});
+  assert.equal(lobbyCache.length,31);
+  assert.equal(lobbyCache.filter(asset=>asset.decoded).length,26);
   for(const asset of lobbyCache){assert.equal(asset.missing,undefined,asset.path+' must have been installed before going offline');assert.equal(asset.status,200,asset.path);const local=fs.readFileSync(path.join(root,asset.path.split('?')[0]));assert.equal(asset.sha256,crypto.createHash('sha256').update(local).digest('hex'),asset.path+' cached bytes must match the new local release');if(asset.decoded)assert(asset.decoded.every(n=>n>0),asset.path+' must decode offline');}
   await offline.click('#modal-close');
   assert.equal(await offline.locator('#app').getAttribute('data-tab'),'lobby');
@@ -68,17 +70,35 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   await offline.screenshot({path:'/tmp/school-install-offline-lobby.png'});
   await offline.click('.lobby-nav [data-lobby-action="map"]');
   await offline.waitForSelector('#modal.world-map-modal .school-world-map');
+  assert.equal(await offline.locator('.wm-region-image').count(),12);
   assert(await offline.locator('[data-map-stage="2"]').isDisabled());
   assert(await offline.locator('#map-start').isEnabled());
   await offline.screenshot({path:'/tmp/school-install-offline-map.png'});
+  await offline.evaluate(async()=>{
+   await SchoolArt.battlefieldsReady;
+   window.offlineBattleProof={draws:0,backgrounds:[]};
+   const draw=SchoolArt.draw;SchoolArt.draw=function(...args){offlineBattleProof.draws++;return draw.apply(this,args);};
+   const image=CanvasRenderingContext2D.prototype.drawImage;
+   CanvasRenderingContext2D.prototype.drawImage=function(source,...args){if(source instanceof HTMLImageElement&&source.src.includes('/assets/battlefields/'))offlineBattleProof.backgrounds.push(new URL(source.src).pathname.split('/').at(-1));return image.call(this,source,...args);};
+  });
   await offline.click('#map-start');
   await offline.waitForFunction(()=>document.querySelector('#app').dataset.tab==='adventure'&&!document.querySelector('#modal').open);
-  await offline.click('#home-button');
+  await offline.waitForFunction(()=>offlineBattleProof.draws>3&&offlineBattleProof.backgrounds.includes('classroom.webp'));
+  const offlineBattle=await offline.evaluate(()=>{const canvas=document.querySelector('#battle'),r=canvas.getBoundingClientRect();return{...offlineBattleProof,layout:canvas.dataset.layout,rect:{x:r.x,y:r.y,width:r.width,height:r.height},viewport:{width:innerWidth,height:innerHeight},backing:[canvas.width,canvas.height],decoded:['classroom','garden','snow'].map(name=>SchoolArt.assetsReady('battlefield-'+name))};});
+  assert.equal(offlineBattle.layout,'panorama');assert(offlineBattle.decoded.every(Boolean));
+  assert(Math.abs(offlineBattle.rect.x)<=1&&Math.abs(offlineBattle.rect.y)<=1&&Math.abs(offlineBattle.rect.width-offlineBattle.viewport.width)<=1&&Math.abs(offlineBattle.rect.height-offlineBattle.viewport.height)<=1,'Offline panorama must cover the viewport');
+  assert(Math.abs(offlineBattle.backing[0]/offlineBattle.backing[1]-offlineBattle.rect.width/offlineBattle.rect.height)<.02,'Offline canvas backing/display aspect ratios match');
+  assert.deepEqual(await offline.locator('#party [data-hero]').evaluateAll(nodes=>nodes.map(node=>node.dataset.hero)),beforeProgress.team);
+  await offline.screenshot({path:'/tmp/school-install-offline-panorama.png'});
+  await offline.click('#battle-back');
   await offline.waitForFunction(()=>document.querySelector('#app').dataset.tab==='lobby');
   assert.deepEqual(await savedProgress(offline),beforeProgress,'Offline map entry and return must preserve existing character and currency progress');
   assert.deepEqual(errors,[]);
-  fs.writeFileSync('/tmp/school-install-lobby-cache.json',JSON.stringify({baselineCommit,baselineRelease,currentRelease,assets:lobbyCache,progressPreserved:true,offlineLobby:true,offlineMap:true,scope:'Real Chromium service-worker update/offline execution; no native Android installation'},null,2));
+  const updateEvidence={baselineCommit,baselineRelease,currentRelease,assets:lobbyCache,progressPreserved:true,offlineLobby:true,offlineMap:true,offlineBattle,scope:'Real Chromium service-worker update/offline execution; no native Android installation'};
+  fs.writeFileSync('/tmp/school-install-lobby-cache.json',JSON.stringify(updateEvidence,null,2));
+  fs.writeFileSync('/tmp/school-install-adventure-cache.json',JSON.stringify(updateEvidence,null,2));
   console.log(`PASS real ${baselineRelease} worker waits without reloading, activates ${currentRelease} after game windows close, clears old cache and serves the updated retry button offline with saved gold intact`);console.log('PASS restored Osia front and Lava fan atlas both exist as WebP responses in the new cache and decode successfully offline');console.log('PASS real Chromium manifest installability and direct school start URL; no native OS installation was performed');
-  console.log('PASS all 11 lobby images decode offline, four lobby/map modules match cached release bytes, and actual offline lobby → map → battle → lobby preserves the original v8 save');
+  console.log('PASS all 11 lobby images, 12 region cards and 3 battlefield backgrounds decode offline; five lobby/map/battle modules match cached release bytes');
+  console.log('PASS actual offline lobby → illustrated map → full viewport panorama with source background draws → lobby preserves the original v8 save');
  }finally{for(const c of contexts)await c.close().catch(()=>{});await persistent?.close();await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));fs.rmSync(baseline,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

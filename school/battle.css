@@ -1,0 +1,237 @@
+/* Full-screen battle presentation; the simulation and original character art
+   are shared with the rest of the game. All rules are scoped to adventure. */
+.app[data-tab=adventure] {
+  --battle-edge:#af9066; --battle-gold:#e6cca0; --battle-glass:#241f20d9;
+  --battle-inset:14px; --battle-button:48px; --battle-portrait:80px;
+  --battle-party-gap:6px;
+  grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr);
+  background:#182327;
+}
+.app[data-tab=adventure]>.topbar,.app[data-tab=adventure]>.bottom-nav { display:none; }
+.app[data-tab=adventure]>.connection { position:relative; grid-area:1 / 1; top:auto; left:auto; right:auto; z-index:20; }
+.app[data-tab=adventure]>.workspace {
+  position:relative; isolation:isolate; grid-area:2 / 1; display:block;
+  width:100%; height:100%; min-height:0; max-height:100%; padding:0; gap:0; overflow:hidden;
+}
+.app[data-tab=adventure] .battle-panel {
+  position:absolute; inset:0; width:100%; height:100%; min-height:0; max-height:100%; display:block; overflow:hidden;
+}
+.app[data-tab=adventure] .battle-panel::after {
+  content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+  background:linear-gradient(180deg,#1014194d,transparent 22%,transparent 74%,#10141966);
+}
+.app[data-tab=adventure] .battle-frame,
+.app[data-tab=adventure] .battle-panel.has-boss .battle-frame,
+.app[data-tab=adventure] .battle-panel:has(#boss-hud:not([hidden])) .battle-frame {
+  position:absolute; inset:0; width:100%; height:100%; max-height:100%; min-height:0;
+  display:block; aspect-ratio:auto; flex:none; border:0; border-radius:0;
+  box-shadow:none; background:#283e3e; overflow:hidden;
+}
+.app[data-tab=adventure] #battle {
+  display:block; width:100%; height:100%; max-width:none; max-height:none;
+  aspect-ratio:auto; object-fit:fill;
+}
+/* The stage title has its own centered anchor; buttons stay at the corners. */
+.app[data-tab=adventure] .battle-heading {
+  position:absolute; inset:0 0 auto; z-index:4; height:70px; min-height:0;
+  display:block; padding:0; border:0; border-radius:0; background:none; box-shadow:none;
+  pointer-events:none;
+}
+.app[data-tab=adventure] .battle-heading>div:first-child {
+  position:absolute; top:var(--battle-inset); left:26%; right:26%; min-width:0; text-align:center;
+}
+.app[data-tab=adventure] .battle-heading h1 { font-size:20px; color:#fff4db; text-shadow:0 2px #162024,1px 0 #162024,-1px 0 #162024; }
+.app[data-tab=adventure] #battle-stage {
+  pointer-events:auto; display:block; width:100%; min-height:var(--battle-button); padding:0 5px;
+  text-align:center; font:inherit; color:inherit; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.app[data-tab=adventure] .battle-heading #stage-number { color:#fff0d3; margin-right:5px; }
+.app[data-tab=adventure] .battle-heading .map-arrow { color:#e4cb9c; font-size:12px; }
+.app[data-tab=adventure] .battle-tools {
+  position:absolute; top:var(--battle-inset); right:calc(var(--battle-inset) + var(--battle-button) + 7px);
+  display:flex; gap:0; pointer-events:auto;
+}
+.app[data-tab=adventure] .auto-badge { display:none; }
+.app[data-tab=adventure] .battle-heading .speed-controls { gap:5px; display:flex; border:0; border-radius:0; background:transparent; overflow:visible; }
+.app[data-tab=adventure] :is(#battle-back,#battle-settings,.battle-utility>button,.battle-mode-controls>button),
+.app[data-tab=adventure] .battle-heading .speed-controls button {
+  display:flex; align-items:center; justify-content:center; gap:5px;
+  min-width:var(--battle-button); min-height:var(--battle-button); height:var(--battle-button);
+  margin:0; padding:5px 8px; border:1px solid var(--battle-edge); border-radius:3px;
+  background:var(--battle-glass); color:#e6d6b7; box-shadow:inset 0 0 0 2px #4c3b2e88,0 2px 0 #10171966;
+  font-size:13px; font-weight:750; line-height:1.2; text-shadow:0 1px #17161a;
+  pointer-events:auto; touch-action:manipulation;
+}
+.app[data-tab=adventure] .battle-heading .speed-controls button[aria-pressed=true],
+.app[data-tab=adventure] .battle-mode-controls>button[aria-pressed=true] {
+  background:#5d4930ed; color:#ffe6ae; border-color:#e2bd7d;
+  box-shadow:inset 0 0 0 2px #8a6b3d66,0 2px 0 #10171966;
+}
+.app[data-tab=adventure] :is(#battle-back,#battle-settings,.battle-utility>button,.battle-mode-controls>button):hover,
+.app[data-tab=adventure] .battle-heading .speed-controls button:hover { border-color:#f0d4a5; color:#fff0cc; }
+.app[data-tab=adventure] :is(#battle-back,#battle-settings,.battle-utility>button) svg { width:23px; height:23px; }
+.app[data-tab=adventure] #battle-back { position:absolute; z-index:5; top:var(--battle-inset); left:var(--battle-inset); width:var(--battle-button); }
+.app[data-tab=adventure] #battle-back>span { font-size:31px; line-height:1; transform:translateY(-1px); }
+.app[data-tab=adventure] #battle-settings { position:absolute; z-index:5; top:var(--battle-inset); right:var(--battle-inset); width:var(--battle-button); }
+.app[data-tab=adventure] .battle-time {
+  position:absolute; z-index:4; top:var(--battle-inset); left:calc(var(--battle-inset) + var(--battle-button) + 11px);
+  display:flex; align-items:center; gap:6px; min-height:var(--battle-button);
+  color:#fff0d1; font-size:18px; font-weight:750; font-variant-numeric:tabular-nums;
+  text-shadow:0 2px #152025,1px 0 #152025;
+}
+.app[data-tab=adventure] .battle-time svg { width:21px; height:21px; color:#e0b87d; }
+.app[data-tab=adventure] .battle-mode-controls {
+  position:absolute; top:calc(var(--battle-inset) + var(--battle-button) + 8px); right:var(--battle-inset);
+  z-index:4; display:flex; gap:6px;
+}
+.app[data-tab=adventure] .battle-mode-controls>button { min-width:82px; font-size:12px; }
+.app[data-tab=adventure] .wave-label {
+  z-index:3; top:calc(var(--battle-inset) + var(--battle-button) + 10px); left:var(--battle-inset);
+  padding:4px 6px; border:1px solid #b29c6c88; border-radius:2px;
+  background:#1d2528bb; color:#efdfbd; font-size:10px; line-height:1.2;
+}
+.app[data-tab=adventure] .wave-label.boss { background:#4c262fd9; color:#ffdfb6; border-color:#bd8b78; }
+/* The old party column becomes a nonblocking layer over the scene. */
+.app[data-tab=adventure] .party-panel {
+  position:absolute; inset:0; z-index:5; grid-column:auto; display:block;
+  width:100%; height:100%; min-height:0; max-height:100%; padding:0; margin:0;
+  background:none; border:0; border-radius:0; box-shadow:none; overflow:visible;
+  pointer-events:none;
+}
+.app[data-tab=adventure] .party-panel>:not(#party) { display:none; }
+html[data-theme] .app[data-tab=adventure] .party-panel { background:transparent; border:0; box-shadow:none; }
+.app[data-tab=adventure] #party {
+  position:absolute; right:var(--battle-inset); bottom:var(--battle-inset);
+  display:grid; grid-template-columns:repeat(6,var(--battle-portrait)); gap:var(--battle-party-gap);
+  width:max-content; margin:0; padding:0; pointer-events:auto;
+}
+.app[data-tab=adventure] .party-card {
+  position:relative; display:block; width:var(--battle-portrait); height:calc(var(--battle-portrait) + 12px);
+  min-width:44px; min-height:56px; padding:2px 2px 12px; margin:0; gap:0;
+  border:2px solid #a58a68; border-radius:3px; background:#2a2426e8; color:#fff0d1;
+  box-shadow:inset 0 0 0 1px #101619,0 2px 0 #10161988; overflow:hidden;
+  pointer-events:auto; touch-action:manipulation;
+}
+.app[data-tab=adventure] .party-card[data-rarity=SSR] { border-color:#d7af66; }
+.app[data-tab=adventure] .party-card[data-rarity=SR] { border-color:#b399cf; }
+.app[data-tab=adventure] .party-card img {
+  display:block; width:100%; height:100%; max-width:none; max-height:none; margin:0;
+  object-fit:contain; image-rendering:pixelated; pointer-events:none; filter:none;
+  transform:scale(1.55); transform-origin:center 10%;
+}
+.app[data-tab=adventure] .party-card .party-info { position:static; width:100%; height:0; margin:0; padding:0; }
+.app[data-tab=adventure] .party-card .party-info>b,
+.app[data-tab=adventure] .party-card .party-info>small {
+  position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0;
+  overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap;
+}
+.app[data-tab=adventure] .party-card .party-hp,
+.app[data-tab=adventure] .party-card .party-energy {
+  position:absolute; display:block; left:2px; right:2px; bottom:6px; width:auto;
+  height:5px; margin:0; border:1px solid #15291f; border-radius:0; background:#1c241f; overflow:hidden;
+}
+.app[data-tab=adventure] .party-card .party-hp>i { display:block; height:100%; background:#9dd479; }
+.app[data-tab=adventure] .party-card .party-energy { bottom:1px; height:3px; border:0; background:#263746; }
+.app[data-tab=adventure] .party-card .party-energy>i { display:block; height:100%; background:#8dcbe0; }
+.app[data-tab=adventure] .party-card .party-cooldown {
+  position:absolute; left:0; right:0; top:52%; color:#fff1bf; font-size:25px; font-weight:850; line-height:1;
+  text-align:center; font-variant-numeric:tabular-nums; text-shadow:0 2px #17191d,2px 0 #17191d,-2px 0 #17191d,0 -2px #17191d;
+}
+.app[data-tab=adventure] .party-card .party-skill {
+  position:absolute; left:3px; top:3px; padding:1px 2px; border-radius:1px; background:#172127c9;
+  color:#e7ddc1; font-size:10px; line-height:1.15;
+  text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px #0e1721,1px 0 #0e1721;
+}
+.app[data-tab=adventure] .party-card .party-skill:empty { display:none; }
+.app[data-tab=adventure] .party-card .party-shield {
+  position:absolute; top:3px; right:3px; padding:1px 3px; border-radius:2px;
+  background:#1a3648d9; color:#b6e3ed; font-size:10px; line-height:1.2;
+}
+.app[data-tab=adventure] .party-card.fallen { background:#201d22e8; border-color:#655f62; }
+.app[data-tab=adventure] .party-card.fallen img { opacity:.35; }
+.app[data-tab=adventure] .party-card.fallen .party-cooldown { color:#b9a5a1; font-size:16px; }
+.app[data-tab=adventure] .party-card.empty { background:#182022aa; border:1px dashed #a7997988; }
+.app[data-tab=adventure] .party-card.empty .empty-slot-mark { display:grid; place-items:center; width:100%; height:100%; color:#cfbe99; font-size:25px; }
+.app[data-tab=adventure] .battle-utility {
+  position:absolute; left:var(--battle-inset); bottom:var(--battle-inset); z-index:6;
+  display:flex; align-items:center; gap:8px;
+}
+.app[data-tab=adventure] .battle-utility>button {
+  position:static; width:var(--battle-button); min-height:var(--battle-button); padding:4px;
+}
+.app[data-tab=adventure] .battle-utility>button>span { display:none; }
+.app[data-tab=adventure] .battle-footer,
+.app[data-tab=adventure] .battle-footer:has(#boss-hud:not([hidden])) {
+  position:absolute; left:var(--battle-inset); bottom:calc(var(--battle-inset) + var(--battle-button) + 10px);
+  z-index:4; display:block; width:min(340px,42%); min-height:0; padding:0;
+  color:#eee0c5; font-size:11px; line-height:1.3; pointer-events:none;
+}
+.app[data-tab=adventure] #battle-status { display:block; width:max-content; max-width:100%; padding:3px 5px; border-radius:2px; background:#172127bd; color:#e9dcc1; font-size:11px; text-shadow:0 1px #12212b; }
+.app[data-tab=adventure] #power { display:none; }
+.app[data-tab=adventure] #boss-hud { width:100%; padding:6px 7px; border:1px solid #a67c65; border-radius:3px; background:#281f23e8; }
+.app[data-tab=adventure] #boss-hud .boss-title { color:#f4d8b5; font-size:12px; }
+.app[data-tab=adventure] #boss-hp { color:#f1cdb9; font-size:10px; }
+.app[data-tab=adventure] #boss-hud:has(#boss-warning:not([hidden])) .boss-title>b { visibility:visible; }
+.app[data-tab=adventure] .boss-track { height:6px; margin-top:4px; background:#352931; border-color:#967365; }
+.app[data-tab=adventure] #boss-warning { position:static; max-width:100%; margin:3px 0 0; color:#f5bd9b; font-size:10px; }
+.app[data-tab=adventure] .battle-panel.has-boss .battle-footer>#battle-status { display:none; }
+.app[data-tab=adventure] .battle-recovery { z-index:10; }
+@media (min-width:1800px) and (min-height:900px) {
+  .app[data-tab=adventure] { --battle-inset:22px; --battle-button:60px; --battle-portrait:112px; --battle-party-gap:10px; }
+  .app[data-tab=adventure] .battle-heading h1 { font-size:29px; }
+  .app[data-tab=adventure] .battle-time { font-size:25px; }
+  .app[data-tab=adventure] .battle-time svg { width:26px; height:26px; }
+  .app[data-tab=adventure] .battle-heading .speed-controls button { font-size:17px; }
+  .app[data-tab=adventure] .battle-mode-controls>button { min-width:108px; font-size:16px; }
+  .app[data-tab=adventure] .wave-label { font-size:14px; padding:6px 9px; }
+  .app[data-tab=adventure] .party-card .party-cooldown { font-size:35px; }
+  .app[data-tab=adventure] .party-card .party-skill { font-size:12px; }
+  .app[data-tab=adventure] #battle-status { font-size:14px; }
+  .app[data-tab=adventure] .battle-footer { width:450px; }
+}
+@media (max-width:1100px),(max-height:600px) {
+  .app[data-tab=adventure] { --battle-inset:8px; --battle-button:44px; --battle-portrait:62px; --battle-party-gap:5px; }
+  .app[data-tab=adventure] .battle-heading h1 { font-size:16px; }
+  .app[data-tab=adventure] .battle-time { font-size:15px; left:calc(var(--battle-inset) + 51px); gap:4px; }
+  .app[data-tab=adventure] .battle-time svg { width:18px; height:18px; }
+  .app[data-tab=adventure] .battle-heading .speed-controls button { font-size:11px; padding:4px; }
+  .app[data-tab=adventure] .battle-mode-controls>button { font-size:10px; min-width:71px; padding:4px 6px; }
+  .app[data-tab=adventure] .party-card .party-cooldown { font-size:22px; }
+  .app[data-tab=adventure] .party-card .party-skill { font-size:8px; }
+  .app[data-tab=adventure] .party-card .party-shield { font-size:8px; }
+  .app[data-tab=adventure] .battle-utility { gap:6px; }
+  .app[data-tab=adventure] #battle-status { font-size:9px; }
+}
+@media (orientation:landscape) and (max-height:500px) {
+  .app[data-tab=adventure] { --battle-inset:6px; --battle-portrait:clamp(44px,7.1vw,60px); --battle-party-gap:4px; }
+  .app[data-tab=adventure] .battle-heading>div:first-child { left:24%; right:25%; }
+  .app[data-tab=adventure] .battle-heading h1 { font-size:14px; }
+  .app[data-tab=adventure] .battle-heading .map-arrow { display:inline; font-size:10px; }
+  .app[data-tab=adventure] .battle-mode-controls { top:56px; gap:4px; }
+  .app[data-tab=adventure] .wave-label { top:57px; font-size:8px; padding:3px 5px; }
+  .app[data-tab=adventure] .party-card { border-width:1px; }
+  .app[data-tab=adventure] .party-card .party-cooldown { font-size:20px; }
+  .app[data-tab=adventure] .battle-footer { bottom:58px; width:min(290px,40%); }
+  .app[data-tab=adventure] #boss-hud { padding:4px 5px; }
+  .app[data-tab=adventure] #boss-hud .boss-title { font-size:10px; }
+  .app[data-tab=adventure] #boss-hp,.app[data-tab=adventure] #boss-warning { font-size:9px; }
+}
+@media (orientation:landscape) and (max-width:680px) {
+  .app[data-tab=adventure] { --battle-portrait:44px; --battle-party-gap:3px; }
+  .app[data-tab=adventure] .battle-heading h1 { font-size:12px; }
+  .app[data-tab=adventure] .battle-heading>div:first-child { left:24%; right:28%; }
+  .app[data-tab=adventure] .battle-time { font-size:13px; left:57px; }
+  .app[data-tab=adventure] .battle-time svg { display:none; }
+  .app[data-tab=adventure] .battle-mode-controls>button { min-width:65px; font-size:9px; }
+  .app[data-tab=adventure] .battle-utility { gap:4px; }
+  .app[data-tab=adventure] .party-card .party-cooldown { font-size:18px; }
+  .app[data-tab=adventure] .party-card .party-skill { font-size:7px; }
+  .app[data-tab=adventure] .party-card .party-shield { font-size:7px; }
+  .app[data-tab=adventure] .battle-footer { width:40%; }
+}
+
+.app[data-tab=adventure] .party-card:is(.ready,.casting) { box-shadow:inset 0 0 0 1px #ffe0a4,0 2px 0 #10161988; }
+.app[data-tab=adventure] .party-card.casting .party-energy>i { background:#efc97c; }
+@media (orientation:portrait) and (max-width:1000px) {
+  .app[data-tab=adventure] .battle-panel { display:block!important; }
+}

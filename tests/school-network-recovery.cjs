@@ -53,7 +53,7 @@ const ROOT=path.resolve(__dirname,'..');
  try{
   await scenario('missing-timeout-api',async()=>{
    const {p,control,errors}=await open('mobile-missing-timeout',{missingTimeout:true});const before=await sim(p);await p.waitForTimeout(1700);const after=await sim(p);
-   await p.click('#settings-button');const buttonsWork=await p.locator('#modal').evaluate(el=>el.open);await p.click('#modal-close');
+   await p.click('#battle-settings');const buttonsWork=await p.locator('#modal').evaluate(el=>el.open);await p.click('#modal-close');
    console.log('missing-timeout evidence',JSON.stringify({apiRequests:control.requests.length,state200:control.requests.filter(r=>r.path==='/api/school/state'&&r.status===200).length,simBefore:before,simAfter:after,buttonsWork,banner:await p.locator('#connection').innerText()}));
    assert.ok(control.requests.some(r=>r.path==='/api/school/state'&&r.status===200),'A browser missing AbortSignal.timeout must still perform authenticated state requests');assert.ok(after>before,'Fallback-compatible mobile battle must advance');assert.deepEqual(errors,[]);
   });

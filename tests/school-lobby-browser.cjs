@@ -40,7 +40,8 @@ async function closeModal(page) {
 
 async function home(page) {
   await closeModal(page);
-  if (await page.locator('#app').getAttribute('data-tab') !== 'lobby') await page.click('#home-button');
+  const tab = await page.locator('#app').getAttribute('data-tab');
+  if (tab !== 'lobby') await page.click(tab === 'adventure' ? '#battle-back' : '#home-button');
   await page.waitForFunction(() => document.querySelector('#app').dataset.tab === 'lobby');
 }
 
@@ -225,7 +226,7 @@ async function layout(page) {
     await page.waitForFunction(() => document.querySelector('#app').dataset.tab === 'adventure' && lobbyMapActions.some(action => action.kind === 'stage' && action.stage === 15 && action.mode === 'progress' && action.actualStage === 15));
     await page.waitForFunction(() => lobbyBattleDraws.length > 4 && lobbyBattleDraws.some(draw => draw.stage === 15));
     assert.equal(await page.locator('#modal').evaluate(el => el.open), false);
-    await inside(page, page.locator('#home-button'), 'battle return to lobby');
+    await inside(page, page.locator('#battle-back'), 'battle return to lobby');
     await page.screenshot({ path: path.join(out, 'battle-from-map-755x330.png') });
     await home(page);
     await page.click('.lobby-nav [data-lobby-action="map"]');

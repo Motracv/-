@@ -586,6 +586,10 @@
     const activity = state.battle.activity;
     setText('stage-number', activity ? `${activityLevel(activity)}${state.activities?.run?.settled && !activityAwaitingConfirmation() ? ' · 결과 보기' : ''}` : G.stageName(state.battle.stage));
     setText('stage-name', activity ? activityTitle(activity.kind) : G.CHAPTERS[G.chapter(state.battle.stage)]);
+    const elapsedSeconds = Math.floor(Math.max(0, state.battle.elapsed || 0) / 1000);
+    setText('battle-clock', `${String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:${String(elapsedSeconds % 60).padStart(2, '0')}`);
+    setHidden(document.querySelector('.battle-mode-controls'), !!activity);
+    setText($('battle-map').querySelector('span'), activity ? state.activities?.run?.settled ? '결과' : '던전' : '지도');
     setText('wave-label', activity ? activity.kind === 'tower' ? `CORRIDOR · ${fmt(activity.floor)}F` : `BOSS · ${activityLevel(activity)}` : state.battle.boss ? 'BOSS · ' + G.BOSSES[G.chapter(state.battle.stage)] : `WAVE ${state.battle.wave} / 4`);
     toggleClass($('wave-label'), 'boss', !!state.battle.boss);
     renderBossHUD(); social?.refresh();
@@ -608,10 +612,29 @@
       partyKey = pk;
       $('party').innerHTML = Array.from({length:maxTeam()}, (_, i) => {
         const id = state.team[i];
-        return id ? `<button class="party-card" data-hero="${id}" aria-label="${G.BY_ID[id].name} 육성·교체">${portrait(id)}<span class="party-info"><b>${G.BY_ID[id].name}</b><small></small><span class="party-hp"><i></i></span></span></button>` : `<button class="party-card empty" data-tab="roster" aria-label="${i + 1}번 빈자리, 출전 용병 추가"><span class="empty-slot-mark" aria-hidden="true">+</span><span class="party-info"><b>빈자리</b><small>용병 추가</small></span></button>`;
+        return id ? `<button class="party-card" data-hero="${id}" data-rarity="${G.BY_ID[id].rarity}" aria-label="${G.BY_ID[id].name} 육성·교체">${portrait(id)}<span class="party-cooldown" aria-hidden="true"></span><span class="party-skill" aria-hidden="true"></span><span class="party-shield" hidden></span><span class="party-info"><b>${G.BY_ID[id].name}</b><small></small><span class="party-hp" role="progressbar" aria-label="${G.BY_ID[id].name} 체력" aria-valuemin="0" aria-valuemax="100"><i></i></span></span><span class="party-energy" role="progressbar" aria-label="${G.BY_ID[id].name} 스킬 충전" aria-valuemin="0" aria-valuemax="100"><i></i></span></button>` : `<button class="party-card empty" data-tab="roster" aria-label="${i + 1}번 빈자리, 출전 용병 추가"><span class="empty-slot-mark" aria-hidden="true">+</span><span class="party-info"><b>빈자리</b><small>용병 추가</small></span></button>`;
       }).join('');
     }
-    document.querySelectorAll('.party-card[data-hero]').forEach(el => { const id = el.dataset.hero, h = state.battle.heroes.find(h => h.id === id), u = state.units[id]; setText(el.querySelector('small'), `Lv.${u.level} · ${G.BY_ID[id].role}`); setWidth(el.querySelector('i'), `${h ? Math.max(0, h.hp / h.max) * 100 : 100}%`); toggleClass(el, 'fallen', !!h && h.hp <= 0); });
+    document.querySelectorAll('.party-card[data-hero]').forEach(el => {
+      const id = el.dataset.hero, h = state.battle.heroes.find(h => h.id === id), u = state.units[id], def = G.BY_ID[id];
+      const fallen = !!h && h.hp <= 0, casting = id === 'osia' && !!state.battle.osiaCast && !fallen;
+      const hp = h ? Math.max(0, Math.min(100, h.hp / h.max * 100)) : 100;
+      const energy = h && !fallen ? Math.max(0, Math.min(100, h.energy / def.cooldown * 100)) : 0;
+      const seconds = Math.ceil(Math.max(0, def.cooldown - (h?.energy || 0)));
+      const next = id === 'osia' ? G.osiaSkill(state) : id === 'lava' ? G.lavaSkill(state) : null;
+      const step = casting ? state.battle.osiaCast.stage : next?.stage;
+      const skill = casting ? G.OSIA_SKILLS[step - 1].name : next?.name || def.skill;
+      const charge = fallen ? '✕' : !h || state.battle.phase !== 'fight' ? '대기' : casting ? '시전' : seconds ? String(seconds) : '준비';
+      setText(el.querySelector('small'), `Lv.${u.level} · ${def.role}`);
+      setWidth(el.querySelector('.party-hp i'), `${hp}%`); setAttr(el.querySelector('.party-hp'), 'aria-valuenow', String(Math.round(hp)));
+      setWidth(el.querySelector('.party-energy i'), `${energy}%`); setAttr(el.querySelector('.party-energy'), 'aria-valuenow', String(Math.round(energy)));
+      setText(el.querySelector('.party-cooldown'), charge); setText(el.querySelector('.party-skill'), step ? `${step}/${id === 'osia' ? 4 : 2}` : '');
+      const shield = Math.max(0, h?.shield || 0); setHidden(el.querySelector('.party-shield'), !shield || fallen); setText(el.querySelector('.party-shield'), `◆ ${fmt(shield)}`);
+      toggleClass(el, 'fallen', fallen); toggleClass(el, 'casting', casting); toggleClass(el, 'ready', !fallen && !!h && state.battle.phase === 'fight' && !casting && seconds === 0);
+      const status = fallen ? '전투불능' : charge === '대기' ? '다음 전투 대기' : casting ? `${skill} 시전 중` : `${skill} · 충전 ${seconds}초 (전투 시간)`;
+      setAttr(el, 'aria-label', `${def.name} Lv.${u.level} · 체력 ${Math.round(hp)}% · ${status}${shield ? ` · 보호막 ${fmt(shield)}` : ''} · 눌러서 육성`);
+      setAttr(el, 'title', `${def.name} · ${status}`);
+    });
     setText($('offline-summary'), state.offline.seconds ? `${duration(state.offline.seconds)} · 골드 ${fmt(state.offline.gold)} 수령 가능` : '자리를 비워도 최대 8시간까지');
     const key = panelContentKey();
     if (key !== renderKey) {
@@ -645,6 +668,11 @@
     setAttr($('app'), 'aria-busy', String(busy));
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
     worldMap?.update(state, blocked || !!state.battle.activity);
+    document.querySelectorAll('[data-battle-mode]').forEach(button => {
+      setDisabled(button, blocked || !!state.battle.activity);
+      setAttr(button, 'aria-pressed', String(button.dataset.battleMode === state.mode));
+    });
+    document.querySelectorAll('[data-confirm-battle-mode]').forEach(button => setDisabled(button, blocked || !!state.battle.activity));
     const bannerClosed = !G.bannerAvailable(selectedBanner, serverNow());
     setDisabled($('recruit-one'), blocked || bannerClosed || state.gems < 100); setDisabled($('recruit-ten'), blocked || bannerClosed || state.gems < 900);
     document.querySelectorAll('[data-speed]').forEach(button => { setDisabled(button, blocked); setAttr(button, 'aria-pressed', String(Number(button.dataset.speed) === (state.speed || 1))); });
@@ -748,7 +776,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-lobby1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-adventure1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -859,6 +887,12 @@
       }; });
       if ($('remove-hero')) $('remove-hero').onclick = () => act({kind:'team', team:state.team.filter(member => member !== id)});
     } else $('to-recruit').onclick = () => { if (id === 'osia' || id === 'lava') { selectedBanner = id; storage.set('school-pickup', id); } closeModal(); setTab('recruit'); };
+    renderButtons();
+  }
+  function changeBattleMode(nextMode) {
+    if (!['progress', 'farm'].includes(nextMode) || state.mode === nextMode || busy || pending || state.battle.activity) return;
+    const stage = state.battle.stage, label = nextMode === 'farm' ? '자동 반복' : '자동 진행';
+    openModal('사냥 방식 변경', `<div class="modal-copy"><p><strong>${G.stageName(stage)} · ${esc(G.CHAPTERS[G.chapter(stage)])}</strong></p><p>${label}으로 변경하면 이 지역의 <strong>첫 웨이브부터 다시 시작</strong>해요.</p><p>${nextMode === 'farm' ? '지역을 클리어해도 같은 지역에서 계속 사냥해요.' : '지역을 클리어하면 다음 지역으로 도전해요.'}</p></div><button class="primary full" data-confirm-battle-mode="${nextMode}" data-confirm-stage="${stage}">${label}으로 시작</button>`, 'battle-mode');
     renderButtons();
   }
   function stageMap() {
@@ -981,6 +1015,8 @@
       const target = e.target.closest('button'); if (!target || target.disabled) return;
       if (target.dataset.tab) { setTab(target.dataset.tab); if (!['adventure','lobby'].includes(target.dataset.tab)) boardJump('party'); }
       if (target.dataset.lobbyAction) lobbyAction(target.dataset.lobbyAction);
+      if (target.dataset.battleMode) changeBattleMode(target.dataset.battleMode);
+      if (target.dataset.confirmBattleMode && !state.battle.activity) act({kind:'stage', stage:Number(target.dataset.confirmStage), mode:target.dataset.confirmBattleMode});
       if (target.dataset.boardJump) boardJump(target.dataset.boardJump);
       if (target.dataset.dungeon) { selectedDungeon = target.dataset.dungeon; dungeonRenderKey = ''; render(); }
       if (target.dataset.ranking) rankingModal(target.dataset.ranking);
@@ -1010,6 +1046,7 @@
     });
     $('dungeon-help').onclick = dungeonHelp;
     $('sound-button').onclick = () => { sound = !sound; applyPreferences(true); play('tap'); };
+    $('battle-settings').onclick = settingsModal;
     $('settings-button').onclick = settingsModal; $('continue-landscape').onclick = dismissRotation; $('rotate-screen').onclick = attemptLandscape;
     $('tower-ranking-button').onclick = () => rankingModal('tower');
     window.addEventListener('resize', updateOrientation);
@@ -1029,6 +1066,7 @@
     $('feature-osia-button').onclick = () => heroDetail('osia');
     $('feature-lava-button').onclick = () => heroDetail('lava');
     $('battle-stage').onclick = () => state.activities?.run?.settled && confirmedActivityResult && !activityAwaitingConfirmation() ? showActivityResult(confirmedActivityResult) : state.battle.activity ? setTab('dungeons') : stageMap();
+    $('battle-map').onclick = () => $('battle-stage').click();
     $('offline-strip').onclick = () => setTab('supplies'); $('claim-offline').onclick = () => act({kind:'offline'}); $('claim-daily').onclick = () => act({kind:'daily'});
     $('recruit-one').onclick = () => act({kind:'recruit', count:1, banner:selectedBanner}); $('recruit-ten').onclick = () => act({kind:'recruit', count:10, banner:selectedBanner}); $('rates-button').onclick = ratesModal;
     $('coupon-code').addEventListener('input', () => { couponMessage(''); renderButtons(); });
@@ -1156,11 +1194,12 @@
       if (!canvasSizeDirty && canvasDpr === dpr) return true;
       const box = canvas.getBoundingClientRect();
       if (box.width < 1 || box.height < 1) return false;
-      // Match the actual painted area, including object-fit's letterboxing.
-      // Render details/text at screen resolution instead of enlarging 480px.
-      const fitWidth = Math.min(box.width, box.height * 12 / 7);
+      // Panoramic battles use the full visible canvas; the art layer keeps
+      // characters uniformly scaled. Legacy surfaces retain their 12:7 fit.
+      const panorama = canvas.dataset.layout === 'panorama';
+      const fitWidth = panorama ? box.width : Math.min(box.width, box.height * 12 / 7);
       const width = Math.max(1, Math.round(Math.min(fitWidth * dpr * rasterScale, 2880)));
-      const height = Math.max(1, Math.round(width * 7 / 12));
+      const height = Math.max(1, Math.round(panorama ? width * box.height / box.width : width * 7 / 12));
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width; canvas.height = height; if (ctx) ctx.imageSmoothingEnabled = false;
       }

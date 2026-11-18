@@ -51,6 +51,18 @@ window.SchoolArt = (() => {
   // Keep the current scenery at display resolution, not a 480px enlargement.
   // Weak ownership releases it with the battle canvas; a resize replaces it.
   let backgrounds = new WeakMap();
+  // Panoramic battlefields are optional, static assets. A slow/failed image
+  // keeps the existing procedural scene usable and never blocks game boot.
+  const battlefieldImages = new Map();
+  let battlefieldRevision = 0;
+  const battlefieldsReady = Promise.all(['classroom', 'garden', 'snow'].map(name => new Promise(resolve => {
+    const image = new Image(), entry = {image, loaded:false};
+    battlefieldImages.set(name, entry);
+    const timer = setTimeout(() => resolve(false), 5000);
+    image.onload = () => { entry.loaded = true; battlefieldRevision++; clearTimeout(timer); resolve(true); };
+    image.onerror = () => { clearTimeout(timer); resolve(false); };
+    image.src = `school/assets/battlefields/${name}.webp?v=battlefield1`;
+  })));
   const sprites = new Map();
   let spritePixels = 0, fontRevision = 0;
   const SPRITE_PIXEL_LIMIT = 2 * 1024 * 1024;
@@ -779,6 +791,43 @@ window.SchoolArt = (() => {
     c.save(); if (extendedParty) { c.translate(-36, -42); c.scale(1.15, 1.15); }
     weather(c, battle, reduced ? 0 : time); c.restore();
   }
+  function panoramicViewport(canvas) {
+    const scale = Math.min(canvas.width / 480, canvas.height / 280);
+    return {scale, x:(canvas.width - 480 * scale) / 2, y:(canvas.height - 280 * scale) / 2};
+  }
+  function panoramicScenery(c, battle, extendedParty, time, reduced, view) {
+    const width = c.canvas.width, height = c.canvas.height, zone = S.chapter(battle.stage);
+    const imageName = !battle.activity && ([0,1,2].includes(zone) ? 'classroom' : zone === 3 ? 'garden' : zone === 6 ? 'snow' : null);
+    const picture = imageName && battlefieldImages.get(imageName);
+    const key = `panorama:${zone}:${battle.activity?.kind || 'story'}:${battle.activity?.floor || 0}:${+extendedParty}:${fontRevision}:${battlefieldRevision}`;
+    let cached = backgrounds.get(c.canvas);
+    if (!cached || cached.width !== width || cached.height !== height || cached.key !== key) {
+      const layer = document.createElement('canvas'); layer.width = width; layer.height = height;
+      const sc = layer.getContext('2d', {alpha:false}); sc.imageSmoothingEnabled = false;
+      if (picture?.loaded) {
+        const image = picture.image, ratio = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+        const sw = width / ratio, sh = height / ratio;
+        sc.drawImage(image, (image.naturalWidth - sw) / 2, (image.naturalHeight - sh) / 2, sw, sh, 0, 0, width, height);
+      } else {
+        // Only scenery may stretch to fill the wide viewport. Sprites, damage
+        // numbers and every skill effect use a separate uniform transform.
+        sc.setTransform(width / 480, 0, 0, height / 280, 0, 0);
+        if (extendedParty) { sc.translate(-36, -42); sc.scale(1.15, 1.15); }
+        if (battle.activity) activityBackground(sc, battle.activity, 0, true, true);
+        else background(sc, battle.stage, 0, true);
+      }
+      cached = {key, width, height, layer}; backgrounds.set(c.canvas, cached);
+    }
+    c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(cached.layer, 0, 0);
+    c.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
+    c.save(); if (extendedParty && !picture?.loaded) { c.translate(-36, -42); c.scale(1.15, 1.15); }
+    weather(c, battle, reduced ? 0 : time); c.restore();
+  }
+  function sceneBounds(canvas) {
+    if (canvas.dataset?.layout !== 'panorama') return {x:0,y:0,width:480,height:280};
+    const view = panoramicViewport(canvas);
+    return {x:-view.x/view.scale,y:-view.y/view.scale,width:canvas.width/view.scale,height:canvas.height/view.scale};
+  }
   function makeDragon() {
     const dragon = document.createElement("canvas"); dragon.width = 104; dragon.height = 72;
     const dc = dragon.getContext("2d");
@@ -990,9 +1039,10 @@ window.SchoolArt = (() => {
     const duration = (event?.duration || active?.duration || S.OSIA_CINEMATIC_MS) / 1000, age = event ? time - event.time : active ? 0 : -1;
     if (age < 0 || !active && age >= duration || !active && !event) return;
     const enter = reduced ? 1 : Math.min(1, age / .12), offset = reduced ? 0 : (1 - enter) * -45;
-    c.save(); rect(c, "#081c32b8", 0, 0, 480, 280);
-    c.beginPath(); c.rect(0, 61, 480, 143); c.clip(); c.translate(offset, 0);
-    rect(c, "#123a55f5", -50, 62, 580, 141); rect(c, "#1a5671", 0, 69, 480, 126);
+    const bounds = sceneBounds(c.canvas);
+    c.save(); rect(c, "#081c32b8", bounds.x, bounds.y, bounds.width, bounds.height);
+    c.beginPath(); c.rect(bounds.x, 61, bounds.width, 143); c.clip(); c.translate(offset, 0);
+    rect(c, "#123a55f5", bounds.x - 50, 62, bounds.width + 100, 141); rect(c, "#1a5671", bounds.x, 69, bounds.width, 126);
     for (let i = 0; i < 15; i++) { const x = reduced ? i * 41 : (i * 41 + age * 230) % 550 - 50; rect(c, i % 2 ? "#75d8e741" : "#b6f6f12e", x, 78 + i * 8, 65 + i % 4 * 21, 2); }
     c.globalAlpha = .42; c.drawImage(dragonSprite(), 278, 69, 195, 135); c.globalAlpha = 1;
     // Charge and release use the original illustrated poses and identity.
@@ -1005,7 +1055,7 @@ window.SchoolArt = (() => {
     c.textAlign = "left"; c.font = "11px Galmuri, monospace"; c.fillStyle = "#9ee8ed"; c.fillText("물의 용왕  OSIA", 174, 99);
     c.font = "17px Galmuri, monospace"; c.fillStyle = "#062b43"; c.fillText("용왕의 권능 · 거대 수룡", 175, 132); c.fillStyle = "#f4ffef"; c.fillText("용왕의 권능 · 거대 수룡", 174, 131);
     c.font = "9px Galmuri, monospace"; c.fillStyle = "#bee6e7"; c.fillText("시간 정지 · 궁극기 발동", 175, 155);
-    c.restore(); detail(c, "#adf4ed", 0, 61, 480, 1.5); detail(c, "#87c7dc", 0, 202, 480, 1.5);
+    c.restore(); detail(c, "#adf4ed", bounds.x, 61, bounds.width, 1.5); detail(c, "#87c7dc", bounds.x, 202, bounds.width, 1.5);
   }
   function criticalMark(c,x,y,size=1){
     c.save();c.translate(Math.round(x),Math.round(y));c.scale(size,size);
@@ -1123,13 +1173,15 @@ window.SchoolArt = (() => {
     } finally { c.restore(); }
   }
   function drawFrame(c, state, time, effects, reduced) {
+    const panorama = c.canvas.dataset?.layout === 'panorama', view = panorama ? panoramicViewport(c.canvas) : null;
     c.setTransform(c.canvas.width / 480, 0, 0, c.canvas.height / 280, 0, 0); c.imageSmoothingEnabled = false;
     const economy=Number(c.canvas.dataset?.renderScale||1)<.8;
     const battle = state.battle, extendedParty = Math.max(battle.heroes.length, state.team?.length || 0) > 3, cinematicEvent = lastEffect(effects, e => e.kind === "cinematic" && e.castId === battle.cinematic?.castId);
     const sceneTime = battle.cinematic ? cinematicEvent?.time ?? time : time;
     // A slightly closer background camera brings the floor up behind both
     // formation rows; rear allies must not appear to stand on the classroom wall.
-    scenery(c, battle, extendedParty, sceneTime, reduced);
+    if (panorama) panoramicScenery(c, battle, extendedParty, sceneTime, reduced, view);
+    else scenery(c, battle, extendedParty, sceneTime, reduced);
     effects = effects.filter(e => (!e.battleId || e.battleId === battle.id) && time >= e.time);
     const landedCasts = new Set(effects.filter(e => e.kind === "skill-impact").map(e => e.castId));
     effects = effects.filter(e => e.kind !== "skill-stage" || battle.osiaCast?.id === e.castId || landedCasts.has(e.castId));
@@ -1150,8 +1202,9 @@ window.SchoolArt = (() => {
     const lifecycle = sceneLife(c.canvas, battle, time, effects);
     const positions = {};
     const partyPositions = extendedParty ? partyFront : partySmall;
-    battle.heroes.forEach((h, i) => { positions[h.id] = partyPositions[i] || {x:66 + (i % 3) * 68,y:137}; });
-    battle.enemies.forEach((e, i) => { positions[e.id] = battle.boss ? { x: 375, y: 210 } : enemyPlaces[i]; });
+    const place = p => panorama && p.y > 170 ? {x:p.x, y:p.y - 18} : p;
+    battle.heroes.forEach((h, i) => { positions[h.id] = place(partyPositions[i] || {x:66 + (i % 3) * 68,y:137}); });
+    battle.enemies.forEach((e, i) => { positions[e.id] = place(battle.boss ? { x: 375, y: 210 } : enemyPlaces[i]); });
     const visualPositions = {...positions};
     const items = battle.heroes.map(h => ({ ...h, side: "hero" })).concat(battle.enemies.map(e => ({ ...e, side: "enemy" }))).sort((a, b) => positions[a.id].y - positions[b.id].y);
     for (const item of items) {
@@ -1229,7 +1282,7 @@ window.SchoolArt = (() => {
       c.save(); c.textAlign = "center"; c.font = "9px Galmuri, monospace"; rect(c,"#66553de8",p.x-30,p.y-79,60,16); c.fillStyle="#fff2c4"; c.fillText(`불사 ${remaining.toFixed(1)}초`,p.x,p.y-68); c.restore();
     }
     const osiaHero = battle.heroes.find(h => h.id === "osia" && h.hp > 0);
-    if (osiaHero && battle.phase === "fight") {
+    if (osiaHero && battle.phase === "fight" && !panorama) {
       const current = battle.osiaCast, next = S.osiaSkill(state), stage = current?.stage || next.stage;
       const label = current ? `스킬 ${stage}/4 · ${S.OSIA_SKILLS[stage-1].name} 시전 중` : `다음 ${stage}/4 · ${next.name} · 충전 ${Math.max(0, S.BY_ID.osia.cooldown-osiaHero.energy)}초`;
       c.save(); c.font="9px Galmuri, monospace"; c.textAlign="left"; const width=c.measureText(label).width+59;
@@ -1238,7 +1291,7 @@ window.SchoolArt = (() => {
       c.fillStyle="#dbffff"; c.fillText(label,480-width+43,270); c.restore();
     }
     const lavaHero = battle.heroes.find(h => h.id === "lava" && h.hp > 0);
-    if (lavaHero && battle.phase === "fight" && S.lavaSkill) {
+    if (lavaHero && battle.phase === "fight" && S.lavaSkill && !panorama) {
       const next = S.lavaSkill(state), count = state.units.lava.basicHits || 0, y = osiaHero ? 237 : 257;
       const label = `라바 · 다음 ${next.stage}/2 · ${next.name} · ${Math.max(0, S.BY_ID.lava.cooldown - lavaHero.energy)}초`;
       c.save(); c.font = "8px Galmuri, monospace"; c.textAlign = "left"; const width = c.measureText(label).width + 13;
@@ -1248,7 +1301,8 @@ window.SchoolArt = (() => {
     }
     if (battle.phase !== "fight") {
       c.save(); c.globalAlpha = reduced ? 1 : clamp01((time-lifecycle.resultAt)/.55);
-      rect(c, "#243a3277", 0, 0, 480, 280); c.textAlign = "center"; c.font = "18px Galmuri, monospace"; c.fillStyle = "#fff1c8";
+      const bounds = sceneBounds(c.canvas);
+      rect(c, "#243a3277", bounds.x, bounds.y, bounds.width, bounds.height); c.textAlign = "center"; c.font = "18px Galmuri, monospace"; c.fillStyle = "#fff1c8";
       const activity = battle.activity;
       c.fillText(activity ? battle.phase === "victory" ? activity.kind === "tower" ? `${activity.floor}층 돌파!` : "던전 클리어!" : "패배 · 다시 도전하세요" : battle.phase === "victory" ? (battle.boss ? "지역 클리어!" : "WAVE CLEAR") : "패배 · 다시 도전하세요", 240, 112);
       c.font = "10px Galmuri, monospace"; c.fillText(activity ? "결과에서 다음 행동을 선택하세요." : battle.phase === "victory" ? `다음 전투까지 ${Math.ceil(battle.wait)}초` : `${Math.ceil(battle.wait)}초 뒤 자동 재도전`, 240, 135); c.textAlign = "left";
@@ -1256,5 +1310,5 @@ window.SchoolArt = (() => {
     }
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : osiaLoaded };
+  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

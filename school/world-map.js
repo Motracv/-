@@ -2,13 +2,7 @@
 window.SchoolWorldMap = (() => {
   'use strict';
   const G = window.SchoolRPG;
-  const NODES = [
-    [12,19], [37,16], [62,19], [87,17],
-    [86,49], [62,49], [37,48], [12,49],
-    [12,80], [37,81], [62,80], [87,80]
-  ];
   const COLORS = ['#d7b16c','#d7b16c','#a0a4df','#87be9a','#cfaa78','#9faee2','#9acdde','#a89dc2','#94c1c3','#bb9b89','#94b89e','#b4d3c6'];
-  const THEMES = ['교실','복도','도서관','정원','체육관','옥상','운동장','별관','실험실','지하','경계','성소'];
   const esc = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const clamp = (n,min,max) => Math.max(min,Math.min(max,n));
   function markerIcon(index) {
@@ -29,20 +23,30 @@ window.SchoolWorldMap = (() => {
     else shape='<path fill="#adc7b9" d="M13 31h7v23h-7zm31 0h7v23h-7z"/><path fill="#80a69a" d="M6 25 32 10l26 15v7H6z"/><path fill="#dce3c2" d="M8 25h48v6H8zM9 53h46v5H9z"/><path fill="#b6e5d4" d="m32 31 8 9-8 9-8-9z"/><path fill="#8bbfb3" d="M25 3h17v3H25zm13 4h14v3H38z"/>';
     return `<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" shape-rendering="crispEdges"><path fill="#10282c" opacity=".5" d="M5 54h54v7H5z"/>${shape}<path fill="${c}" opacity=".18" d="M7 59h50v3H7z"/></svg>`;
   }
-  function terrain() {
-    const path = NODES.map((p,i)=>(i?'L':'M')+(p[0]*8.4)+' '+(p[1]*4.8)).join(' ');
-    let trees='';
-    for(const [x,y,s] of [[23,41,1],[787,349,1],[463,19,.85],[470,375,.9],[164,370,.8],[690,8,.7],[19,345,.9],[746,208,.8],[330,180,.65],[521,191,.7],[198,202,.6],[810,32,.85]]) trees+=`<g transform="translate(${x} ${y}) scale(${s})"><path fill="#162f36" d="M-12 0h24v30h-24z"/><path fill="#36584c" d="M-21 8h42v24h-42zM-14-5h28v18h-28z"/><path fill="#62816a" d="M-14-5h28v6h-28zM-21 8h20v7h-20z"/><path fill="#907b59" d="M-4 32h8v11h-8z"/></g>`;
-    return `<svg class="wm-terrain" viewBox="0 0 840 480" preserveAspectRatio="none" aria-hidden="true" focusable="false"><defs><pattern id="wm-ground" width="40" height="40" patternUnits="userSpaceOnUse"><path fill="#273f46" d="M0 0h40v40H0z"/><path fill="#2d474d" d="M1 1h18v18H1zm20 20h18v18H21z"/></pattern></defs><path fill="url(#wm-ground)" d="M0 0h840v480H0z"/><path fill="#324f48" d="M16 14h342v126H16zM483 15h342v129H483zM3 319h225v144H3zM572 326h253v139H572z"/><path fill="#314951" d="M280 290h253v159H280z"/><path d="${path}" fill="none" stroke="#182e36" stroke-width="29" stroke-linejoin="round"/><path d="${path}" fill="none" stroke="#786d55" stroke-width="19" stroke-linejoin="round"/><path d="${path}" fill="none" stroke="#b9a982" stroke-width="2" stroke-dasharray="4 12"/>${trees}<g opacity=".6" fill="#9dc7ba"><path d="M397 223h4v4h-4zm29 15h3v3h-3zm-44 27h3v3h-3z"/></g><path fill="#607c82" d="M359 338h121v6H359zm17 10h89v5h-89z"/><path fill="#8aa4a0" d="M390 324h61v13h-61z"/><path fill="#bdd5bc" d="M414 311h12v13h-12z"/></svg>`;
-  }
+  const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5zM12 14v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
   function render(container, options) {
     if (!container || !options?.state) throw Error('모험 지도를 표시할 기록이 필요합니다.');
-    let state=options.state, blocked=options.blocked||false, destroyed=false, sending=false, signature='', lastError='';
+    let state=options.state, blocked=options.blocked||false, destroyed=false, sending=false, signature='', lastError='', scrollFrame=0;
     let selectedStage=clamp(Number(state.stage)||1,1,G.MAX_STAGE), selectedChapter=Math.floor((selectedStage-1)/5);
     const chapterCount=G.CHAPTERS.length;
-    container.innerHTML=`<section class="school-world-map" aria-label="학교 모험 지도"><div class="wm-toolbar"><p><span class="wm-compass" aria-hidden="true">✦</span><span>지도에서 지역을 골라 출발하세요</span></p><div><button type="button" class="wm-jump" data-map-current>현재 지역</button><button type="button" class="wm-jump" data-map-next>다음 도전 <span aria-hidden="true">↗</span></button></div></div><div class="wm-layout"><div class="wm-map-wrap"><div class="wm-campus" aria-label="학교의 열두 구역">${terrain()}${G.CHAPTERS.map((name,i)=>{const [x,y]=NODES[i]||[50,50];return `<button type="button" class="wm-chapter" data-map-chapter="${i}" style="--map-x:${x}%;--map-y:${y}%;--map-accent:${COLORS[i]||COLORS[0]}" aria-label="${i+1}구역 ${esc(name)}" title="${esc(name)}"><span class="wm-chapter-art">${markerIcon(i)}</span><span class="wm-chapter-name"><i>${String(i+1).padStart(2,'0')}</i><b>${esc(THEMES[i]||name)}</b></span><span class="wm-chapter-state"></span></button>`;}).join('')}</div><div class="wm-map-legend"><span><i class="wm-legend-dot cleared"></i>돌파</span><span><i class="wm-legend-dot available"></i>도전 가능</span><span><i class="wm-legend-dot locked"></i>미개방</span><span class="wm-total"></span></div></div><aside class="wm-detail" aria-label="선택한 지역"><div class="wm-detail-heading"><span class="wm-region-icon"></span><div><small class="wm-region-number"></small><h3 class="wm-region-title"></h3></div></div><div class="wm-route" role="group" aria-label="구역의 다섯 지역"></div><div class="wm-stage-info"><div><b class="wm-stage-title"></b><span class="wm-stage-state"></span></div><p class="wm-stage-note"></p><span class="wm-reward"></span></div><div class="wm-map-actions"><button id="map-start" type="button" class="wm-start" data-map-start>도전 시작</button><button id="map-farm" type="button" class="wm-farm" data-map-farm>반복 사냥</button></div><p class="wm-block-reason" role="status"></p><p class="wm-mode-note">도전은 다음 지역으로 · 반복은 선택한 지역에서</p></aside></div></section>`;
-    const q=selector=>container.querySelector(selector);
+    container.innerHTML=`<section class="school-world-map" aria-label="학교 모험 지도"><div class="wm-toolbar"><p>학교 너머, 새로운 모험</p><div><button type="button" class="wm-jump" data-map-current>현재 지역</button><button type="button" class="wm-jump" data-map-next>다음 도전 <span aria-hidden="true">↗</span></button></div></div><div class="wm-layout"><div class="wm-map-wrap"><div class="wm-campus" aria-label="학교의 열두 구역 · 좌우로 넘겨서 선택">${G.CHAPTERS.map((name,i)=>`<button type="button" class="wm-chapter" data-map-chapter="${i}" style="--map-accent:${COLORS[i]||COLORS[0]}" aria-label="${i+1}구역 ${esc(name)}" title="${esc(name)}"><span class="wm-region-fallback" aria-hidden="true">${markerIcon(i)}</span><img class="wm-region-image" src="school/assets/adventure/region-${String(i+1).padStart(2,'0')}.webp?v=adventure1" alt="" loading="${Math.abs(i-selectedChapter)<3?'eager':'lazy'}" decoding="async" draggable="false"><span class="wm-region-shade" aria-hidden="true"></span><span class="wm-chapter-number" aria-hidden="true">${String(i+1).padStart(2,'0')}</span><span class="wm-current-tag" aria-hidden="true">현재</span><span class="wm-chapter-boss" title="보스 · ${esc(G.BOSSES?.[i]||'지역의 수호자')}"><span class="wm-boss-fallback" aria-hidden="true">${markerIcon(i)}</span><canvas class="wm-boss-art" width="160" height="144" aria-hidden="true"></canvas><span class="wm-boss-label" aria-hidden="true">BOSS</span></span><span class="wm-chapter-caption"><span class="wm-chapter-name">${esc(name)}</span><span class="wm-chapter-stars" aria-hidden="true">${'<i></i>'.repeat(5)}</span><span class="wm-chapter-progress"></span><span class="wm-chapter-state">${LOCK}<span>미개방</span></span></span></button>`).join('')}</div><div class="wm-map-legend"><span>← <span class="wm-swipe-copy">지역을 좌우로 넘겨보세요</span> →</span><span class="wm-total"></span></div></div><aside class="wm-detail" aria-label="선택한 지역"><div class="wm-selection-summary"><div class="wm-detail-heading"><small class="wm-region-number"></small><h3 class="wm-region-title"></h3></div><div class="wm-stage-info"><b class="wm-stage-title"></b><span class="wm-stage-state"></span></div><span class="wm-reward"></span></div><div class="wm-route-box"><div class="wm-route" role="group" aria-label="구역의 다섯 지역"></div><p class="wm-stage-note"></p></div><div class="wm-action-box"><div class="wm-map-actions"><button id="map-start" type="button" class="wm-start" data-map-start>도전 시작</button><button id="map-farm" type="button" class="wm-farm" data-map-farm>반복 사냥</button></div><p class="wm-mode-note">도전: 다음 지역으로 · 반복: 이 지역에서</p></div><p class="wm-block-reason" role="status" hidden></p></aside></div></section>`;
+    const q=selector=>container.querySelector(selector),track=q('.wm-campus');
     const labels=Array.from(container.querySelectorAll('[data-map-chapter]'));
+    // Static portraits are drawn once. The map never adds an animation or battle loop.
+    if(window.SchoolArt?.monster)labels.forEach((button,i)=>{
+      try {
+        const canvas=button.querySelector('canvas'),c=canvas.getContext('2d');
+        if(!c)return;c.imageSmoothingEnabled=false;
+        window.SchoolArt.monster(c,{kind:i,boss:true,hp:1},80,130,{reduced:true,stage:i*5+5,wave:4});
+        button.classList.add('wm-boss-ready');
+      }catch{/* The school emblem remains visible if a browser cannot draw a portrait. */}
+    });
+    function imageError(event){if(event.target.matches?.('.wm-region-image'))event.target.closest('.wm-chapter').classList.add('wm-image-missing');}
+    container.addEventListener('error',imageError,true);
+    function centerSelection(){
+      cancelAnimationFrame(scrollFrame);
+      scrollFrame=requestAnimationFrame(()=>{if(destroyed)return;const card=labels[selectedChapter];track.scrollLeft=card.offsetLeft-(track.clientWidth-card.offsetWidth)/2;});
+    }
     function reason() {
       if (state.activities?.run && !state.activities.run.settled || state.battle?.activity) return '던전 결과를 확인하고 모험으로 돌아와 주세요.';
       if (typeof blocked==='string') return blocked;
@@ -54,16 +58,16 @@ window.SchoolWorldMap = (() => {
       if (destroyed) return;
       const why=reason(), key=[state.best,state.stage,state.mode,selectedChapter,selectedStage,why,sending,lastError].join('|');
       if(!force&&signature===key)return;signature=key;
-      const best=Number(state.best)||0,opened=unlock(),first=selectedChapter*5+1,last=Math.min(first+4,G.MAX_STAGE), locked=selectedStage>opened;
+      const best=clamp(Number(state.best)||0,0,G.MAX_STAGE),opened=unlock(),first=selectedChapter*5+1,last=Math.min(first+4,G.MAX_STAGE), locked=selectedStage>opened;
       labels.forEach((button,i)=>{
-        const start=i*5+1,end=Math.min(start+4,G.MAX_STAGE),canOpen=start<=opened,cleared=best>=end,current=Math.floor(((Number(state.stage)||1)-1)/5)===i;
+        const start=i*5+1,end=Math.min(start+4,G.MAX_STAGE),canOpen=start<=opened,cleared=best>=end,current=Math.floor(((Number(state.stage)||1)-1)/5)===i,count=clamp(best-start+1,0,end-start+1);
         button.classList.toggle('selected',i===selectedChapter);button.classList.toggle('locked',!canOpen);button.classList.toggle('cleared',cleared);button.classList.toggle('current',current);
         button.setAttribute('aria-pressed',String(i===selectedChapter));
-        button.setAttribute('aria-label',`${i+1}구역 ${G.CHAPTERS[i]} · ${cleared?'돌파':canOpen?'도전 가능':'미개방'}${current?' · 현재 지역':''}`);
-        button.querySelector('.wm-chapter-state').textContent=cleared?'✓':!canOpen?'◆':current?'●':'';
+        button.setAttribute('aria-label',`${i+1}구역 ${G.CHAPTERS[i]} · 클리어 ${count}/5 · ${cleared?'돌파':canOpen?'도전 가능':'미개방'}${current?' · 현재 지역':''}`);
+        button.querySelector('.wm-chapter-progress').textContent=`클리어 ${count} / 5`;
+        button.querySelectorAll('.wm-chapter-stars i').forEach((star,n)=>star.classList.toggle('earned',n<count));
       });
-      q('.wm-total').textContent=`${best} / ${G.MAX_STAGE}`;
-      q('.wm-region-icon').innerHTML=markerIcon(selectedChapter);
+      q('.wm-total').textContent=`전체 ${best} / ${G.MAX_STAGE}`;
       q('.wm-region-number').textContent=`CHAPTER ${String(selectedChapter+1).padStart(2,'0')}`;
       q('.wm-region-title').textContent=G.CHAPTERS[selectedChapter];
       const route=q('.wm-route'),routeKey=[selectedChapter,best,state.stage,selectedStage].join('|');
@@ -72,18 +76,17 @@ window.SchoolWorldMap = (() => {
         route.innerHTML=Array.from({length:last-first+1},(_,i)=>{const n=first+i,isLocked=n>opened,isSelected=n===selectedStage,isCleared=n<=best;return `<button type="button" data-map-stage="${n}" class="wm-stage${isLocked?' locked':''}${isCleared?' cleared':''}${isSelected?' selected':''}${n===state.stage?' current':''}" aria-pressed="${isSelected}" aria-disabled="${isLocked}" ${isLocked?'disabled':''} aria-label="${G.stageName(n)} ${isLocked?'미개방':isCleared?'돌파':'도전 가능'}"><span>${G.stageName(n)}</span><small aria-hidden="true">${isLocked?'◆':isCleared?'✓':n===state.stage?'●':'·'}</small></button>`;}).join('');
         route.dataset.key=routeKey;if(focus)route.querySelector(`[data-map-stage="${focus}"]`)?.focus({preventScroll:true});
       }
-      q('.wm-stage-title').textContent=`${G.stageName(selectedStage)} · ${THEMES[selectedChapter]||'지역'}`;
-      q('.wm-stage-state').textContent=locked?'미개방':selectedStage===state.stage?'전투 중':selectedStage<=best?'돌파 완료':'새로운 도전';
+      q('.wm-stage-title').textContent=G.stageName(selectedStage);
+      q('.wm-stage-state').textContent=locked?'미개방':selectedStage===state.stage?'현재 지역':selectedStage<=best?'돌파 완료':'새로운 도전';
       q('.wm-stage-note').textContent=locked?`${G.stageName(selectedStage-1)} 돌파 후 열려요.`:'일반 전투 3번 · 마지막 웨이브 보스';
       q('.wm-reward').textContent=selectedStage<=best?'첫 돌파 보상 수령 완료':'첫 돌파 보석 60';
       q('.wm-reward').classList.toggle('claimed',selectedStage<=best);
       q('[data-map-start]').textContent=selectedStage<=best?'다시 도전':'도전 시작';
       for(const button of container.querySelectorAll('[data-map-start],[data-map-farm]'))button.disabled=locked||!!why||sending;
       q('.wm-block-reason').textContent=why||lastError;q('.wm-block-reason').hidden=!(why||lastError);
-      q('[data-map-next]').disabled=sending;
-      q('[data-map-current]').disabled=sending;
+      q('[data-map-next]').disabled=sending;q('[data-map-current]').disabled=sending;
     }
-    function chooseStage(n){lastError='';selectedStage=clamp(n,1,G.MAX_STAGE);selectedChapter=Math.floor((selectedStage-1)/5);paint();}
+    function chooseStage(n,center=false){lastError='';selectedStage=clamp(n,1,G.MAX_STAGE);selectedChapter=Math.floor((selectedStage-1)/5);paint();if(center)centerSelection();}
     async function start(mode) {
       if(destroyed||sending||reason()||selectedStage>unlock())return;
       lastError='';sending=true;paint();
@@ -92,18 +95,18 @@ window.SchoolWorldMap = (() => {
       finally {sending=false;if(!destroyed)paint();}
     }
     function click(event){
-      const button=event.target.closest('button');if(!button||!container.contains(button)||destroyed)return;
+      const button=event.target.closest('button');if(!button||!container.contains(button)||destroyed||button.disabled)return;
       if(button.dataset.mapChapter!==undefined){lastError='';selectedChapter=clamp(Number(button.dataset.mapChapter),0,chapterCount-1);const first=selectedChapter*5+1,last=Math.min(first+4,G.MAX_STAGE);selectedStage=clamp(unlock(),first,last);paint();}
       else if(button.dataset.mapStage!==undefined)chooseStage(Number(button.dataset.mapStage));
-      else if(button.hasAttribute('data-map-current'))chooseStage(Number(state.stage)||1);
-      else if(button.hasAttribute('data-map-next'))chooseStage(unlock());
+      else if(button.hasAttribute('data-map-current'))chooseStage(Number(state.stage)||1,true);
+      else if(button.hasAttribute('data-map-next'))chooseStage(unlock(),true);
       else if(button.hasAttribute('data-map-start'))start('progress');
       else if(button.hasAttribute('data-map-farm'))start('farm');
     }
-    container.addEventListener('click',click);paint(true);
+    container.addEventListener('click',click);window.addEventListener('resize',centerSelection);paint(true);centerSelection();
     return {
       update(next,nextBlocked=false){if(destroyed)return;state=next||state;blocked=nextBlocked;paint();},
-      destroy(){destroyed=true;container.removeEventListener('click',click);}
+      destroy(){destroyed=true;cancelAnimationFrame(scrollFrame);container.removeEventListener('click',click);container.removeEventListener('error',imageError,true);window.removeEventListener('resize',centerSelection);}
     };
   }
   return {render};

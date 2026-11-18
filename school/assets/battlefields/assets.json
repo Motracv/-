@@ -1,0 +1,48 @@
+{
+  "source": "/workspace/generated_images/exec-ec25c048-b70e-45da-a255-05f814a38f4d.png",
+  "packaging": "Crop generated contact sheet, remove magenta separators; no pixel painting, no rescale; WebP quality 92 method 6",
+  "images": [
+    {
+      "file": "classroom.webp",
+      "sourceCrop": [
+        0,
+        0,
+        887,
+        578
+      ],
+      "size": [
+        887,
+        578
+      ],
+      "bytes": 152946
+    },
+    {
+      "file": "garden.webp",
+      "sourceCrop": [
+        0,
+        599,
+        887,
+        1174
+      ],
+      "size": [
+        887,
+        575
+      ],
+      "bytes": 217180
+    },
+    {
+      "file": "snow.webp",
+      "sourceCrop": [
+        0,
+        1197,
+        887,
+        1774
+      ],
+      "size": [
+        887,
+        577
+      ],
+      "bytes": 204678
+    }
+  ]
+}

@@ -1,0 +1,280 @@
+{
+  "version": "adventure1",
+  "format": "WebP",
+  "size": [
+    384,
+    576
+  ],
+  "sourceGrid": {
+    "columns": 3,
+    "rows": 2
+  },
+  "packing": "Each original 418x627 cell is extracted exactly; 1px sheet divider margin is trimmed on all sides, then nearest-neighbor resized to 384x576. Static RGB WebP quality95/method6. No creative pixels redrawn after generation.",
+  "regions": [
+    {
+      "chapter": 1,
+      "name": "오래된 교실",
+      "file": "region-01.webp",
+      "source": "exec-0006d63c-1e5f-457b-bc6f-300390262584.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 0,
+      "crop": [
+        1,
+        1,
+        417,
+        626
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 110170
+    },
+    {
+      "chapter": 2,
+      "name": "방과 후 복도",
+      "file": "region-02.webp",
+      "source": "exec-0006d63c-1e5f-457b-bc6f-300390262584.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 1,
+      "crop": [
+        419,
+        1,
+        835,
+        626
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 83960
+    },
+    {
+      "chapter": 3,
+      "name": "비밀의 도서관",
+      "file": "region-03.webp",
+      "source": "exec-0006d63c-1e5f-457b-bc6f-300390262584.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 2,
+      "crop": [
+        837,
+        1,
+        1253,
+        626
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 105676
+    },
+    {
+      "chapter": 4,
+      "name": "뒤뜰의 정원",
+      "file": "region-04.webp",
+      "source": "exec-0006d63c-1e5f-457b-bc6f-300390262584.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 3,
+      "crop": [
+        1,
+        628,
+        417,
+        1253
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 126946
+    },
+    {
+      "chapter": 5,
+      "name": "체육관 결계",
+      "file": "region-05.webp",
+      "source": "exec-0006d63c-1e5f-457b-bc6f-300390262584.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 4,
+      "crop": [
+        419,
+        628,
+        835,
+        1253
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 98366
+    },
+    {
+      "chapter": 6,
+      "name": "별이 내리는 옥상",
+      "file": "region-06.webp",
+      "source": "exec-0006d63c-1e5f-457b-bc6f-300390262584.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 5,
+      "crop": [
+        837,
+        628,
+        1253,
+        1253
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 99020
+    },
+    {
+      "chapter": 7,
+      "name": "눈 내린 운동장",
+      "file": "region-07.webp",
+      "source": "exec-adf664ff-5207-4bcb-ba36-1eb9d8e45a1e.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 0,
+      "crop": [
+        1,
+        1,
+        417,
+        626
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 118388
+    },
+    {
+      "chapter": 8,
+      "name": "잊혀진 별관",
+      "file": "region-08.webp",
+      "source": "exec-adf664ff-5207-4bcb-ba36-1eb9d8e45a1e.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 1,
+      "crop": [
+        419,
+        1,
+        835,
+        626
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 114922
+    },
+    {
+      "chapter": 9,
+      "name": "마력 실험실",
+      "file": "region-09.webp",
+      "source": "exec-adf664ff-5207-4bcb-ba36-1eb9d8e45a1e.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 2,
+      "crop": [
+        837,
+        1,
+        1253,
+        626
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 102676
+    },
+    {
+      "chapter": 10,
+      "name": "지하 통로",
+      "file": "region-10.webp",
+      "source": "exec-adf664ff-5207-4bcb-ba36-1eb9d8e45a1e.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 3,
+      "crop": [
+        1,
+        628,
+        417,
+        1253
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 92784
+    },
+    {
+      "chapter": 11,
+      "name": "학교의 경계",
+      "file": "region-11.webp",
+      "source": "exec-adf664ff-5207-4bcb-ba36-1eb9d8e45a1e.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 4,
+      "crop": [
+        419,
+        628,
+        835,
+        1253
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 110974
+    },
+    {
+      "chapter": 12,
+      "name": "바람의 성소",
+      "file": "region-12.webp",
+      "source": "exec-adf664ff-5207-4bcb-ba36-1eb9d8e45a1e.png",
+      "sourceSize": [
+        1254,
+        1254
+      ],
+      "cell": 5,
+      "crop": [
+        837,
+        628,
+        1253,
+        1253
+      ],
+      "size": [
+        384,
+        576
+      ],
+      "bytes": 98032
+    }
+  ],
+  "totalBytes": 1261914
+}
