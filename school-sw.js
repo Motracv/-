@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-raid2';
+const RELEASE = 'school-pickup-pixel1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -22,6 +22,7 @@ const required = [
   ...['gymnasium','balloon-poses'].map(id => `school/assets/raid/${id}.png?v=raid1`),
   ...['plant','bookshelf','trophy','rug-teal','rug-wine','rug-blue'].map(id => `school/assets/guild/decor/${id}.svg?v=guild2`),
   'school/assets/ryusion/portrait.png?v=ryusion1', 'school/assets/ryusion/combat.png?v=ryusion1',
+  ...['ryusion','osia','lava'].map(id => `school/assets/recruit/${id}.webp?v=pickup-pixel1`),
   'school/assets/app-192.png', 'school/assets/app-512.png'
 ].map(url);
 const pictures = ['daily','weekly','tower'].map(id => url(`school/assets/dungeon-${id}.png?v=${RELEASE}`));

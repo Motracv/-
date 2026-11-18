@@ -201,3 +201,62 @@ html[data-motion=reduced] .weapon-spotlight img,html[data-motion=reduced] .weapo
 .app .pickup-screen .pickup-select[hidden]{display:none!important}
 @media(max-width:900px) and (orientation:landscape){.app .pickup-screen .pickup-select{gap:4px;padding:4px 6px}.app .pickup-screen .pickup-select small{display:none}.pickup-screen-top{gap:6px}}
 @media(max-width:620px) and (orientation:landscape){.app .pickup-screen .pickup-select .rarity{display:none}.app .pickup-screen .pickup-grid{gap:3px}.app .pickup-screen .pickup-select{min-width:44px;padding:4px 5px}.app .pickup-return span{display:none}}
+
+/* Approved pixel splash art: full bodies fit the stage; controls stay live. */
+.app #tab-recruit[data-art-banner=pixel]{background:#f8f0e5;color:#42392f;--pickup-accent:#805c29;--pickup-soft:#eee0c8}
+.app #tab-recruit[data-art-banner=pixel][data-pickup=ryusion]{--pickup-art:url('assets/recruit/ryusion.webp?v=pickup-pixel1');--pickup-focus:2%}
+.app #tab-recruit[data-art-banner=pixel][data-pickup=osia]{--pickup-art:url('assets/recruit/osia.webp?v=pickup-pixel1');--pickup-accent:#286478;--pickup-soft:#d4e8ed;--pickup-focus:12%}
+.app #tab-recruit[data-art-banner=pixel][data-pickup=lava]{--pickup-art:url('assets/recruit/lava.webp?v=pickup-pixel1');--pickup-accent:#496340;--pickup-soft:#e0e7d5;--pickup-focus:6%}
+.app #tab-recruit[data-art-banner=pixel] .pickup-stage{background-color:#fbf1e8;background-image:var(--pickup-art);background-position:right center;background-size:auto 100%;background-repeat:no-repeat;image-rendering:pixelated}
+.app #tab-recruit[data-art-banner=pixel] .pickup-screen-top{background:#f6eee3f2;border-color:#bca58666}
+.app #tab-recruit[data-art-banner=pixel] .pickup-categories{background:#e9e0d4;border-color:#bca586}
+.app #tab-recruit[data-art-banner=pixel] .pickup-categories button{color:#665543}
+.app #tab-recruit[data-art-banner=pixel] .pickup-categories button[aria-pressed=true]{background:#5b5147;color:#fff8ec}
+.app #tab-recruit[data-art-banner=pixel] .pickup-select{background:#fffaf1;color:#514538;border-color:#c6b79f;box-shadow:none}
+.app #tab-recruit[data-art-banner=pixel] .pickup-select small{color:#756653}
+.app #tab-recruit[data-art-banner=pixel] .pickup-select[aria-pressed=true]{background:var(--pickup-soft);border-color:var(--pickup-accent);color:var(--pickup-accent);box-shadow:inset 0 -3px var(--pickup-accent)}
+.app #tab-recruit[data-art-banner=pixel] .pickup-select[aria-pressed=true] small{color:var(--pickup-accent)}
+.app #tab-recruit[data-art-banner=pixel] .pickup-copy{width:35%;max-width:650px;padding-inline:clamp(14px,3.2vw,64px);gap:clamp(4px,1.2vh,14px);justify-content:center;background:linear-gradient(90deg,#fbf1e8bd 60%,#fbf1e800);text-shadow:none}
+.app #tab-recruit[data-art-banner=pixel] .pickup-kicker{color:var(--pickup-accent);letter-spacing:1px}
+.app #tab-recruit[data-art-banner=pixel] h2{color:#6a5d4e;text-shadow:none;font-size:clamp(14px,1.6vw,27px)}
+.app #tab-recruit[data-art-banner=pixel] #pickup-grade{color:#976a27;text-shadow:none}
+.app #tab-recruit[data-art-banner=pixel] .pickup-hero-title strong{color:#3c3029;text-shadow:none}
+.app #tab-recruit[data-art-banner=pixel] #pickup-tagline{color:#584938;line-height:1.4}
+.app #tab-recruit[data-art-banner=pixel] #pickup-element{color:var(--pickup-accent);font-weight:650}
+.app #tab-recruit[data-art-banner=pixel] .pickup-skill-list{gap:6px;margin-top:4px}
+.app #tab-recruit[data-art-banner=pixel] .pickup-skill-list span{color:#51483d;background:#fffaf1e6;border-color:#c8b69d}
+.app #tab-recruit[data-art-banner=pixel] .recruit-count{color:#756756}
+.app #tab-recruit[data-art-banner=pixel] .pickup-preview img{visibility:hidden}
+.app #tab-recruit[data-art-banner=pixel] .pickup-preview>span{top:auto;bottom:8px;min-height:44px;display:flex;align-items:center;background:#fffaf1ec;border-color:#b4a184;color:#5c4936}
+.app #tab-recruit[data-art-banner=pixel] .pickup-preview:hover>span{background:#fffdf7;border-color:var(--pickup-accent)}
+.app #tab-recruit[data-art-banner=pixel] .pickup-screen-bottom{background:#f5ede0f2;border-top:1px solid #c8b69d80}
+.app #tab-recruit[data-art-banner=pixel] .banner-summary{background:transparent;border:0;color:#594832}
+.app #tab-recruit[data-art-banner=pixel] .pickup-return,.app #tab-recruit[data-art-banner=pixel] .pickup-history,.app #tab-recruit[data-art-banner=pixel] .pickup-rates{color:#5b4934;background:#fffaf0;border-color:#b7a488}
+.app #tab-recruit[data-art-banner=pixel] #banner-status{color:#594832}
+.app #tab-recruit[data-art-banner=pixel] #banner-deadline{color:#695e50}
+.app #tab-recruit[data-art-banner=pixel] .pity-line,.app #tab-recruit[data-art-banner=pixel] .pity-chance{color:#6d5c47}
+.app #tab-recruit[data-art-banner=pixel] .pity-line b,.app #tab-recruit[data-art-banner=pixel] .pity-chance b{color:var(--pickup-accent)}
+.app #tab-recruit[data-art-banner=pixel] .pity-track{background:#dfd2be}
+.app #tab-recruit[data-art-banner=pixel] .pity-track i{background:var(--pickup-accent)}
+.app #tab-recruit[data-art-banner=pixel] .recruit-buttons button{color:#5e4a33;background:#fffaf1;border-color:#ba9c71;box-shadow:inset 0 0 0 2px #fff7e6,0 2px #b8a387}
+.app #tab-recruit[data-art-banner=pixel] .recruit-buttons button.primary{background:linear-gradient(120deg,#fce8b7,#e9c98c);color:#51391d;border-color:#b99150}
+.app #tab-recruit[data-art-banner=pixel] .button-ribbon{background:var(--pickup-accent);color:#fff8eb;border-color:#f5e5c5}
+.app #tab-recruit[data-art-banner=pixel] button:focus-visible{outline-color:var(--pickup-accent);outline-offset:-3px}
+@media(max-height:620px) and (orientation:landscape){
+ .app #tab-recruit[data-art-banner=pixel] .pickup-stage{background-size:100% auto;background-position:center var(--pickup-focus)}
+ .app #tab-recruit[data-art-banner=pixel] .pickup-copy{width:36%;padding:5px 18px;gap:4px}
+ .app #tab-recruit[data-art-banner=pixel] .pickup-kicker,.app #tab-recruit[data-art-banner=pixel] .pickup-skill-list{display:none}
+ .app #tab-recruit[data-art-banner=pixel] .pickup-hero-title{margin-top:0}
+ .app #tab-recruit[data-art-banner=pixel] .pickup-preview>span{right:6px;bottom:3px;font-size:0;padding:6px 8px;background:#fffaf0ed}
+ .app #tab-recruit[data-art-banner=pixel] .pickup-preview>span::after{content:'상세 ↗';font-size:11px}
+}
+@media(max-height:370px) and (orientation:landscape){
+ .app #tab-recruit[data-art-banner=pixel] .pickup-copy{width:38%;padding:4px 14px;gap:3px}
+ .app #tab-recruit[data-art-banner=pixel] #pickup-tagline{display:none}
+ .app #tab-recruit[data-art-banner=pixel] .pickup-screen-bottom{padding-block:6px}
+}
+@media(orientation:portrait){
+ .app #tab-recruit[data-art-banner=pixel] .pickup-stage{min-height:270px;background-size:auto 80%;background-position:right bottom}
+ .app #tab-recruit[data-art-banner=pixel] .pickup-copy{width:48%;justify-content:flex-start;padding:12px;gap:5px;background:linear-gradient(90deg,#fbf1e8e8,#fbf1e800)}
+ .app #tab-recruit[data-art-banner=pixel] .pickup-kicker,.app #tab-recruit[data-art-banner=pixel] #pickup-tagline{display:none}
+}

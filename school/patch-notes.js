@@ -1,7 +1,12 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-raid2',
+  version:'school-pickup-pixel1',
   entries:Object.freeze([
+    {version:'school-pickup-pixel1',date:'2026.11.18',title:'세 용병의 새로운 모집 그림',items:[
+      '류시온·오시아·라바의 모집 배너를 새 도트 일러스트로 바꿨어요.',
+      '오시아는 수룡을 부르는 자세, 라바는 부채를 앞으로 휘두르는 자세로 등장해요. 라바의 남성적인 얼굴과 무당 의상을 살렸어요.',
+      '모집 화면의 이름·확률·가격은 선명한 글씨로 표시하고, 캐릭터 그림을 눌러 상세 정보를 확인해요.'
+    ]},
     {version:'school-raid2',date:'2026.11.18',title:'빛나는 사슬 · 함께 꾸미는 교실',items:[
       '길드 보스 전투가 화면 전체를 사용해요. 전체 화면 버튼으로 지원 브라우저의 상태바도 숨길 수 있어요.',
       '벌룬의 사슬 평타를 추가하고 패턴 간격을 5초에서 4.5초로 조정했어요. 용병 평타는 0.75초, 호라스는 1.5초 간격이며 스킬 충전 시간은 유지해요.',
