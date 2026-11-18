@@ -21,12 +21,12 @@ const G = require('../school/engine.js');
   const award = (s, id) => G.questBoard(s, now).items.find(q => q.id === id);
   const prepareWin = (who, elapsed = 1000) => patch(who, s => { s.at = now - elapsed; for (const h of s.battle.heroes) { h.atk = 10000; h.energy = 0; } for (const e of s.battle.enemies) { e.hp = 1; e.atk = 0; } });
   try {
-    await test('Catalog15 is required before account reads or spending; catalog14 cannot mutate a save', async () => {
-      assert.equal(G.CATALOG_VERSION, 15);
+    await test('Catalog16 is required before account reads or spending; catalog15 cannot mutate a save', async () => {
+      assert.equal(G.CATALOG_VERSION, 16);
       const who = await account('catalog'), before = row(who);
       for (const route of ['state', 'action']) {
         const data = route === 'action' ? intent(who, { kind: 'recruit', count: 1, cost: 100 }) : {};
-        const r = await call(who, route, { ...data, catalogVersion: 14 });
+        const r = await call(who, route, { ...data, catalogVersion: 15 });
         assert.equal(r.status, 426); assert.match(r.data.error, /업데이트/); assert.ok(!r.data.state);
       }
       assert.equal(row(who).payload, before.payload); assert.equal(row(who).revision, before.revision);

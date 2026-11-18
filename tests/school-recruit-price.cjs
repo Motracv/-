@@ -6,7 +6,7 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
   let passed=0;
   const test=async(name,run)=>{await run();passed++;console.log('PASS',name);};
   await test('All three banners charge exactly 1600 for ten, reject 1599 atomically, and keep single price 160',()=>{
-    assert.equal(G.CATALOG_VERSION,15);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
+    assert.equal(G.CATALOG_VERSION,16);assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
     for(const banner of ['horas','osia','lava']){
       assert(G.bannerAvailable(banner,NOW));
       const s=G.create(NOW);s.gems=1599;const before=G.clone(s);let rolls=0;
@@ -33,9 +33,9 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
         const result=await call(who,'action',{revision:before.revision,requestId:`price-${banner}-insufficient1`,action:{kind:'recruit',banner,count:10,cost:900,gems:1e12}});
         assert.equal(result.status,400);assert.equal(row(who).payload,before.payload);assert.equal(row(who).revision,before.revision);assert(!result.data.result);
       });
-      await test(`${banner}: catalog 14 cannot spend at the old price or receive a roll`,async()=>{
+      await test(`${banner}: catalog 15 cannot spend at the old price or receive a roll`,async()=>{
         patch(who,1600);const before=row(who);
-        const result=await call(who,'action',{catalogVersion:14,revision:before.revision,requestId:`price-${banner}-stale-catalog1`,action:{kind:'recruit',banner,count:10,cost:900}});
+        const result=await call(who,'action',{catalogVersion:15,revision:before.revision,requestId:`price-${banner}-stale-catalog1`,action:{kind:'recruit',banner,count:10,cost:900}});
         assert.equal(result.status,426);assert.equal(row(who).payload,before.payload);assert.equal(row(who).revision,before.revision);assert(!result.data.result);assert(!result.data.state);
       });
       await test(`${banner}: exactly 1600 buys ten once under concurrent requests and persisted duplicate retries`,async()=>{

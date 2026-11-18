@@ -35,7 +35,7 @@ export function createSocial(game) {
   async function state(db,id,now){
     const ownSave=await saved(db,id), name=await ensureSchoolName(db,id,ownSave,game,now);
     const rows=(await db.prepare(`SELECT f.*, n.display_name AS name,
-      json_object('team',json_extract(s.payload,'$.team'),'units',json_extract(s.payload,'$.units'),'captain',json_extract(s.payload,'$.captain')) AS save,
+      json_object('team',json_extract(s.payload,'$.team'),'units',json_extract(s.payload,'$.units'),'captain',json_extract(s.payload,'$.captain'),'equipment',json_extract(s.payload,'$.equipment')) AS save,
       (SELECT MAX(0,1000+COALESCE(SUM(CASE WHEN CAST(json_extract(a.payload,'$.winner') AS INTEGER) = -1 THEN 0 WHEN (a.challenger = n.account_id AND CAST(json_extract(a.payload,'$.winner') AS INTEGER) = 0) OR (a.target = n.account_id AND CAST(json_extract(a.payload,'$.winner') AS INTEGER) = 1) THEN 10 ELSE -5 END),0)) FROM school_arena a WHERE a.status = 'done' AND (a.challenger = n.account_id OR a.target = n.account_id)) AS rating
       FROM school_friends f
       JOIN school_names n ON n.account_id = CASE WHEN f.requester = ? THEN f.target ELSE f.requester END

@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-season1a',
+  version:'school-equipment1',
   entries:Object.freeze([
+    {version:'school-equipment1',date:'2026.11.18',title:'던전의 유물 · 장비 업데이트',items:[
+      '일일 던전에서 장비 1개, 주간 던전에서 2개를 얻어요. 뫼비우스는 처음 돌파한 5층 단위 보스가 장비를 줘요.',
+      '용병 육성 창에서 무기·방어구·장신구를 장착하세요. R·SR·SSR 장비 9종을 만날 수 있어요.',
+      '장비 레벨업은 없어요. 남는 같은 장비로 5단계까지 각성하며, 같은 종류의 각성은 함께 적용돼요.',
+      '장비 보너스는 다음 전투부터 적용돼요. 공격력 최대 9%·체력 최대 14%로 캐릭터 성장을 보조해요.'
+    ]},
     {version:'school-season1a',date:'2026.11.18',title:'편성부터 아레나까지',items:[
       '자주 쓰는 출전 편성을 3개까지 저장하고 불러올 수 있어요.',
       '모험 지도에서 현재 편성의 전투를 별도로 계산해 파밍 지역을 추천해요.',

@@ -26,7 +26,12 @@ export function createSeasons(game) {
     fail(row, '먼저 학교용병단을 시작해 주세요.', 409);
     const value = JSON.parse(row.payload); fail(game.validate(value), '저장 정보를 확인해 주세요.', 409); return value;
   }
-  const snapshot = state => ({ team: [...state.team], units: Object.fromEntries(state.team.map(id => [id, { level: state.units[id].level, stars: state.units[id].stars }])) });
+  const snapshot = state => {
+    const result = { team: [...state.team], units: Object.fromEntries(state.team.map(id => [id, { level: state.units[id].level, stars: state.units[id].stars }])) };
+    const equipment = game.snapshotEquipment?.(state, state.team);
+    if (equipment && Object.keys(equipment.equipped).length) result.equipment = equipment;
+    return result;
+  };
   async function settle(db, id, season, now) {
     // A finished entry is immutable. Awards are minted once, without touching
     // gold, gems, campaign saves, or the current season's attack allowance.

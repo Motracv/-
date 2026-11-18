@@ -13,11 +13,11 @@
 
 ## 학교용병단 카탈로그 12 운영
 
-학교용병단은 같은 계정과 D1을 사용하되 카드게임과 별도 저장·규칙으로 동작합니다. 정적 `school.html`, `school/engine.js`, `school/art.js`, `school/client.js`, `school/style.css`, `school/presentation.js`, `school/presentation.css`, 던전 이미지 3개를 서버의 RPG 엔진·모듈과 함께 갱신합니다. 설치형 웹앱은 `school.webmanifest`, `school-sw.js`, `school/install.js`, `school/install.css`, 앱 아이콘을 함께 배포합니다. SW는 `school.html`만 제어하며 정적 학교 파일 외 API·Google·카드게임은 캐시하지 않습니다. 클라이언트와 서버는 `catalogVersion: 15`로 맞춥니다. 구버전 계정 화면의 저장·재화 사용은 426으로 거부하고 새로고침을 안내합니다.
+학교용병단은 같은 계정과 D1을 사용하되 카드게임과 별도 저장·규칙으로 동작합니다. 정적 `school.html`, `school/engine.js`, `school/art.js`, `school/client.js`, `school/style.css`, `school/presentation.js`, `school/presentation.css`, 던전 이미지 3개를 서버의 RPG 엔진·모듈과 함께 갱신합니다. 설치형 웹앱은 `school.webmanifest`, `school-sw.js`, `school/install.js`, `school/install.css`, 앱 아이콘을 함께 배포합니다. SW는 `school.html`만 제어하며 정적 학교 파일 외 API·Google·카드게임은 캐시하지 않습니다. 클라이언트와 서버는 `catalogVersion: 16`로 맞춥니다. 구버전 계정 화면의 저장·재화 사용은 426으로 거부하고 새로고침을 안내합니다.
 
 기존 `school_saves` 행과 마이그레이션을 보존합니다. 저장 JSON의 `version: 1`은 유지하며 기존 레벨·재화·진행·미수령 방치 보상·모집 누적과 픽업 보장을 초기화하지 않습니다. [`migrations/0004_school_rankings.sql`](migrations/0004_school_rankings.sql)의 표현식 인덱스를 Sites의 다음 Drizzle 마이그레이션에 추가합니다. 별도 랭킹 테이블이나 점수 업로드 API는 없습니다.
 
-학교 저장·행동은 Google 인증을 완료한 게임 세션이 필요합니다. `POST /api/school/rankings`는 공개 읽기 경로이며 `{catalogVersion: 15, mode: "level" | "tower"}`로 상위 50명을 조회합니다. 유효한 `X-Account-Session`이 있으면 본인 전체 순위를 추가합니다. 공개 항목은 순위·게임 단장 이름·레벨·복도 최고 층이며 Google 신원·계정 ID·토큰·전체 저장은 반환하지 않습니다. 서버의 저장된 기록만 순위에 반영하고 게스트 기록은 받지 않습니다. 응답은 `no-store`이며 계정 삭제 시 저장과 순위도 함께 제거합니다.
+학교 저장·행동은 Google 인증을 완료한 게임 세션이 필요합니다. `POST /api/school/rankings`는 공개 읽기 경로이며 `{catalogVersion: 16, mode: "level" | "tower"}`로 상위 50명을 조회합니다. 유효한 `X-Account-Session`이 있으면 본인 전체 순위를 추가합니다. 공개 항목은 순위·게임 단장 이름·레벨·복도 최고 층이며 Google 신원·계정 ID·토큰·전체 저장은 반환하지 않습니다. 서버의 저장된 기록만 순위에 반영하고 게스트 기록은 받지 않습니다. 응답은 `no-store`이며 계정 삭제 시 저장과 순위도 함께 제거합니다.
 
 `GOOGLE_CLIENT_ID`는 기존 운영 값을 보존합니다. 새 OAuth 동의 범위나 클라이언트 비밀번호는 필요하지 않습니다. 배포 시 정적 화면·API의 카탈로그 일치, 무인증 저장 거부와 공개 랭킹 조회, 잘못된 버전 거부, 기존 계정 진행 보존, 계정별 순위·이름과 삭제 반영을 확인합니다. 실제 Google 계정 로그인의 검증과 테스트 서명 fixture 검증은 구분합니다. 공개 범위는 [개인정보 안내](../privacy.html)와 일치시킵니다.
 
@@ -50,3 +50,6 @@
 
 
 학교용병단 서버 v22 (2026-11-18): 소스 `053dc78315879d44699e8f07f95ba1ef57488869`, 배포 `appgdep_6afd21dafc4081919f3987dda8cbd67d` 성공. 카탈로그15, 편성 프리셋3칸과 서버 판정 시즌 아레나를 추가했습니다. 운영의 `drizzle/0005_school_seasons.sql`은 기존 마이그레이션을 변경하지 않고 시즌 참가·일일 횟수·경기·요청 영수증·보상·착용 테이블6개를 추가합니다. 기존 저장·친구 대전·공개 범위·환경 변수revision1을 유지했습니다. 실제 번들과 생성된 운영 마이그레이션을 함께 적용한 SQLite 검사6그룹이 통과했습니다. 새 버전15만 계정 작업을 허용하며 이전14는426으로 새로고침을 안내합니다.
+
+
+학교용병단 서버 v23 (2026-11-18): 소스 `727969c023f21c9b4582e242986b346e256bf8d5`, 배포 `appgdep_6afd2d1b78cc8191971c976b458a496b` 성공. 카탈로그16은 던전 장비9종·3부위·사본 수량·공유5각성, 서버 보안 RNG로 확정한 장비 보상과 다음 전투 능력치를 추가했습니다. 무작위 보상을 후속 행동 검증 전에 저장해 실패하는 행동으로 SSR만 고르는 재추첨을 차단했습니다. 친선/시즌 스냅샷에는 실제 착용 장비만 포함합니다. 기존 계정 JSON에 선택 필드equipment를 추가하며 스키마/마이그레이션·기존 재화·모집 보장·공개 범위·환경 변수revision1을 유지합니다. 구카탈로그15는426으로 새로고침을 안내합니다.

@@ -27,11 +27,11 @@ const G = require('../school/engine.js');
   const list = async who => { const r = await social(who, 'season_state'); assert.equal(r.status, 200, JSON.stringify(r.data)); return r.data; };
   const publicOnly = (data, accounts = []) => { const serialized = JSON.stringify(data); for (const forbidden of ['never-store@example.test', 'Never Publish Real Name', 'google_key', 'account_sessions', 'shards', 'presets', ...accounts.map(who => who.token)]) assert.ok(!serialized.includes(forbidden), 'public reply must not leak ' + forbidden); };
   try {
-    await test('Catalog15 rejects old14 state and preset mutations without changing saved progress', async () => {
-      assert.equal(G.CATALOG_VERSION, 15);
+    await test('Catalog16 rejects old15 state and preset mutations without changing saved progress', async () => {
+      assert.equal(G.CATALOG_VERSION, 16);
       const who = await account('catalog'), before = row(who);
-      const read = await call(who, 'state', { catalogVersion: 14 }); assert.equal(read.status, 426); assert.ok(!read.data.state);
-      const write = await call(who, 'action', { ...intent(who, { kind: 'preset-save', slot: 0 }), catalogVersion: 14 }); assert.equal(write.status, 426); assert.equal(row(who).payload, before.payload); assert.equal(row(who).revision, before.revision);
+      const read = await call(who, 'state', { catalogVersion: 15 }); assert.equal(read.status, 426); assert.ok(!read.data.state);
+      const write = await call(who, 'action', { ...intent(who, { kind: 'preset-save', slot: 0 }), catalogVersion: 15 }); assert.equal(write.status, 426); assert.equal(row(who).payload, before.payload); assert.equal(row(who).revision, before.revision);
     });
 
     await test('Legacy accounts get three empty preset slots without overwriting their active team or currency', async () => {
@@ -95,7 +95,7 @@ const G = require('../school/engine.js');
       const who = await account('season-auth');
       for (const kind of ['season_state', 'season_candidates', 'season_register', 'season_attack', 'season_match', 'season_equip']) {
         assert.equal((await social(null, kind, { accountId: who.profile.id, seasonId: 1, targetId: who.profile.id, requestId: key(), awardId: null })).status, 401);
-        assert.equal((await social(who, kind, { catalogVersion: 14 })).status, 426);
+        assert.equal((await social(who, kind, { catalogVersion: 15 })).status, 426);
       }
       const empty = await list(who); assert.deepEqual(empty.candidates, []); assert.deepEqual(empty.rankings, []); assert.equal(empty.me.registered, false); assert.equal(empty.me.requiresName, true);
       assert.equal((await social(who, 'season_register', { seasonId: 1, name: 'clientName', team: ['horas'] })).status, 409);

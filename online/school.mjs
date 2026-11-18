@@ -67,6 +67,7 @@ export function createSchool() {
         requireSchool(typeof data.requestId === "string" && /^[A-Za-z0-9_-]{16,80}$/.test(data.requestId), "행동 요청을 확인하세요.");
         requireSchool(data.action && typeof data.action === "object" && !Array.isArray(data.action), "잘못된 행동입니다.");
       }
+      let acceptedRevision = data.revision;
       for (let attempt = 0; attempt < 8; attempt++) {
         const now = Date.now();
         let row = await env.DB.prepare("SELECT payload, revision FROM school_saves WHERE account_id = ?").bind(signed.id).first();
@@ -81,11 +82,26 @@ export function createSchool() {
         requireSchool(game.validate(state), "저장 정보를 읽지 못했습니다. 운영자에게 문의하세요.", 500);
         const prior = action && state.receipts.find(r => r.id === data.requestId);
         if (prior) return { state: game.view(state), revision: row.revision, serverTime: now, result: prior.result, repeated: true };
-        if (action && data.revision !== row.revision) {
+        if (action && acceptedRevision !== row.revision) {
           return { conflict: true, state: game.view(state), revision: row.revision, serverTime: now };
         }
         await ensureSchoolName(env.DB, signed.id, state, game, now);
-        game.advance(state, now);
+        // Gear is rolled only while a server-owned encounter settles. The
+        // public combat seed must never predict cloud inventory rewards.
+        const previousResult = state.activities?.lastResult?.runId;
+        game.advance(state, now, { gearRng: secure });
+        const settled = state.activities?.lastResult;
+        if (action && settled?.runId !== previousResult && settled?.gearDrops?.length) {
+          // Commit earned random loot before validating the following intent.
+          // Otherwise "equip the SSR if it dropped" could selectively fail an
+          // action and roll the uncommitted dungeon reward again for free.
+          const advanced = await env.DB.prepare("UPDATE school_saves SET payload = ?, revision = revision + 1, updated_at = ? WHERE account_id = ? AND revision = ?")
+            .bind(JSON.stringify(state), now, signed.id, row.revision).run();
+          if (advanced.meta.changes === 1) acceptedRevision = row.revision + 1;
+          // A lost response here safely recovers via the ordinary revision
+          // conflict flow. No action receipt exists until the action commits.
+          continue;
+        }
         let result = null;
         const renaming = action && data.action.kind === 'rename';
         if (renaming) {
@@ -96,7 +112,9 @@ export function createSchool() {
         }
         if (action) {
           // The client submits intentions only. Time, loot, draws and costs are server-owned.
-          try { result = game.action(state, data.action, now, secure); }
+          // Speed changes can consume a fractional combat step and settle a
+          // dungeon too, so they share the same authoritative loot context.
+          try { result = game.action(state, data.action, now, secure, { gearRng: secure }); }
           catch (error) { throw Object.assign(error, { status: 400 }); }
           state.receipts.push({ id: data.requestId, result }); state.receipts = state.receipts.slice(-20);
           if (renaming) state.nameNeedsClaim = false;

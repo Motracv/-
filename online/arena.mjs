@@ -4,10 +4,16 @@ export function simulateArena(game, saves, names, seed) {
   const random = () => { let x = randomSeed | 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; randomSeed = x >>> 0; return randomSeed / 4294967296; };
   const synergy = saves.map(s => game.partySynergies?.(s) || { damageMultiplier:1, healMultiplier:1, incomingMultiplier:1 });
   const teams = saves.map((s,side) => ({ name:names[side], units:s.team.slice(0,6).map(id => {
-    const unit = s.units[id], def = game.BY_ID[id], st = game.stats(id,unit);
+    const unit = s.units[id], def = game.BY_ID[id], st = game.stats(id,unit,s);
     // PvP vitality gives healers, shields and Osia's complete cycle time to act.
     return { id,name:def.name,role:def.role,level:unit.level,stars:unit.stars,max:st.hp*3,hp:st.hp*3,atk:st.atk,defense:st.defense,shield:0 };
   }) }));
+  // Replays retain only gear worn by this formation. Unused inventory,
+  // duplicate stacks and campaign currency never enter a public replay.
+  for (let side=0;side<saves.length;side++) {
+    const equipment=game.snapshotEquipment?.(saves[side],saves[side].team);
+    if(equipment&&Object.keys(equipment.equipped).length)teams[side].equipment=equipment;
+  }
   const sides = teams.map(team => team.units.map(u => ({...u,energy:0,stage:1,hits:0,stunUntil:0,protectedUntil:0})));
   const H = game.HORAS_RULES;
   // A PvP-only adjustment keeps stack generation and the 1.5x stun combo
