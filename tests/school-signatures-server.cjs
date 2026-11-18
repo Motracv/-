@@ -86,7 +86,7 @@ const G = require('../school/engine.js');
     await test('Server time closes the limited weapon at the KST boundary; replay remains idempotent after closing',async()=>{
       const a=await account('expiry');now=G.WEAPON_BANNERS.horas.expiresAt-1;patch(a,s=>{s.at=now;s.weaponBanners.limited.pity=79;});const input=intent(a,{kind:'weapon-recruit',banner:'horas',count:1});assert.equal((await call(a,'action',input)).status,200);now++;
       assert.equal((await call(a,'action',input)).data.repeated,true);const before=row(a),closed=await act(a,{kind:'weapon-recruit',banner:'horas',count:1,now:now-9999999});assert.equal(closed.status,400);assert.equal(row(a).payload,before.payload);
-      assert.equal((await act(a,{kind:'weapon-recruit',banner:'lava',count:1})).status,200);assert.equal((await act(a,{kind:'recruit',banner:'lava',count:1})).status,400);
+      assert.equal((await act(a,{kind:'weapon-recruit',banner:'lava',count:1})).status,200);assert.equal((await act(a,{kind:'recruit',banner:'lava',count:1})).status,200);
     });
     console.log(`${passed} signature SQLite security groups passed`);
   }finally{Date.now=realNow;crypto.getRandomValues=realRandom;t.sqlite.close();}

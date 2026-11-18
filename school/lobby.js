@@ -25,6 +25,8 @@ window.SchoolLobby = (() => {
           button.dataset.lobbySlot = String(i);
           if (definition && state.units[id]) {
             button.dataset.hero = id; button.dataset.rarity = definition.rarity;
+            button.style.setProperty('--breath-period',`${3.6+(i%4)*.25}s`);
+            button.style.setProperty('--breath-delay',`${-(i*.63)}s`);
             button.innerHTML = '<span class="lobby-unit-label"><small></small><b></b></span><span class="lobby-stars" aria-hidden="true"></span><img class="lobby-sprite" alt="" draggable="false">';
             button.querySelector('b').textContent = definition.name;
             button.querySelector('img').src = art.portrait(id);

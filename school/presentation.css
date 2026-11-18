@@ -237,3 +237,15 @@ html[data-theme=dark] .captain-reward-gems { color:#8dd6ef; }html[data-theme=dar
 .presentation-hero-card[data-rarity=UR]{--present-line:#ff94d7;--present-glow:#ee65ca;--present-accent:#c44399}
 .presentation-hero-card[data-rarity]{border-color:var(--present-line)}.presentation-hero-card .presentation-rarity{border:1px solid var(--present-line);background:color-mix(in srgb,var(--present-glow) 20%,var(--present-paper));padding:4px 7px;border-radius:4px}.presentation-hero-card[data-rarity=UR]::after{border-width:2px;border-style:double}
 html[data-theme=dark] .presentation-hero-card .presentation-rarity{color:var(--present-line);text-shadow:none}
+
+/* Exchange acquisition keeps the winter character illustration and SSR identity. */
+.school-presentation[data-cinematic=spica] {--present-glow:#a8dcf5;--present-line:#bed9ed;--present-accent:#557eaa;background:radial-gradient(ellipse at 50% 40%,#d8edfa,#eef4fb 72%)}
+.school-presentation[data-cinematic=spica] .presentation-gate {border-color:#c2e8ff;box-shadow:0 0 40px #a4ddff66}
+.school-presentation[data-cinematic=spica] .presentation-hero-card {height:min(340px,55dvh);width:220px;background:linear-gradient(150deg,#eef8ff,#bfd7e9);border-color:#a9bfd9}
+.school-presentation[data-cinematic=spica] .presentation-portrait {position:absolute;inset:0;width:100%;height:100%;overflow:hidden;border-radius:5px}
+.presentation-portrait .spica-illustration {width:100%;height:100%;object-fit:cover;object-position:center top;image-rendering:auto}
+.school-presentation[data-cinematic=spica] .presentation-hero-name {position:relative;z-index:2;background:#16324cb8;color:#eefaff;padding:5px 16px;border-radius:6px}
+.school-presentation[data-cinematic=spica] .presentation-rarity {z-index:3;color:#fbdf8a;background:#1f3b55c9!important;border-color:#edce89}
+.school-presentation[data-cinematic=spica] .presentation-stars {display:none}
+html[data-theme=dark] .school-presentation[data-cinematic=spica] {--present-ink:#eaf7ff;--present-muted:#bdd4e7;background:radial-gradient(ellipse at 50% 40%,#36546f,#1e2c40 72%)}
+@media(max-height:500px) {.school-presentation[data-cinematic=spica] .presentation-hero-card {height:180px;width:135px}.school-presentation[data-cinematic=spica] .presentation-hero-name {font-size:14px}}

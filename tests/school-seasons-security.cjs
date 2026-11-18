@@ -28,7 +28,7 @@ const G = require('../school/engine.js');
   const publicOnly = (data, accounts = []) => { const serialized = JSON.stringify(data); for (const forbidden of ['never-store@example.test', 'Never Publish Real Name', 'google_key', 'account_sessions', 'shards', 'presets', ...accounts.map(who => who.token)]) assert.ok(!serialized.includes(forbidden), 'public reply must not leak ' + forbidden); };
   try {
     await test('Catalog16 rejects old15 state and preset mutations without changing saved progress', async () => {
-      assert.equal(G.CATALOG_VERSION, 24);
+      assert.equal(G.CATALOG_VERSION, 25);
       const who = await account('catalog'), before = row(who);
       const read = await call(who, 'state', { catalogVersion: 15 }); assert.equal(read.status, 426); assert.ok(!read.data.state);
       const write = await call(who, 'action', { ...intent(who, { kind: 'preset-save', slot: 0 }), catalogVersion: 15 }); assert.equal(write.status, 426); assert.equal(row(who).payload, before.payload); assert.equal(row(who).revision, before.revision);

@@ -15,7 +15,10 @@ export function simulateArena(game, saves, names, seed) {
     if(equipment&&Object.keys(equipment.equipped).length)teams[side].equipment=equipment;
   }
   const sides = teams.map((team,side) => team.units.map(u => ({...u,...(game.exclusivePassive?.(saves[side],u.id)?{exclusive:game.exclusivePassive(saves[side],u.id)}:{}),energy:0,stage:1,hits:0,stunUntil:0,protectedUntil:0})));
-  const H = game.HORAS_RULES, R=game.RYUSION_RULES;
+  const H = game.HORAS_RULES, R=game.RYUSION_RULES, tactical=sides.some(team=>team.some(u=>u.id==='spica'));
+  const defense=hero=>game.ryusionDefense?.(hero)||R;
+  const basicRate=unit=>game.basicAttackRate?.(unit,t)||1;
+  const nextBasic=(previous,interval,unit)=>(previous>0&&previous>t-500?previous:t)+interval/basicRate(unit);
   const guard=side=>game.ryusionGuard?.(sides[side],t)||{hero:null,taunting:false};
   const redirect=(side,target)=>guard(1-side).taunting?guard(1-side).hero:target;
   // A PvP-only adjustment keeps stack generation and the 1.5x stun combo
@@ -43,7 +46,7 @@ export function simulateArena(game, saves, names, seed) {
     const enemySide=1-side, crit=typeof detail.critical==='boolean'?detail.critical:random()<.12;
     const power=detail.snapshot?raw:raw*(.9+random()*.2)*(crit?1.5:1);
     const stunBonus=from==='horas'&&target.stunUntil>t;
-    let value=Math.max(1,Math.round(power*(stunBonus?H.stunMultiplier:1)*(1-target.defense)*synergy[enemySide].incomingMultiplier*(guard(enemySide).hero?1-R.teamReduction:1)*(guard(enemySide).taunting&&target.id==='ryusion'?1-R.tauntReduction:1)));
+    let value=Math.max(1,Math.round(power*(stunBonus?H.stunMultiplier:1)*(1-target.defense)*synergy[enemySide].incomingMultiplier*(guard(enemySide).hero?1-R.teamReduction:1)*(guard(enemySide).taunting&&target.id==='ryusion'?1-defense(guard(enemySide).hero).tauntReduction:1)));
     const absorbed=Math.min(target.shield,value);target.shield-=absorbed;value-=absorbed;game.absorbEarthShield?.(target,absorbed);
     if(value>=target.hp&&!rescued[enemySide]&&alive(enemySide).some(u=>u.id==='lava')){
       rescued[enemySide]=true;target.protectedUntil=t+2000;
@@ -78,7 +81,7 @@ export function simulateArena(game, saves, names, seed) {
       emit('horas-cast',side,'horas',1-side,target,0,{castId:progress.cast.id,stacks:0,skill:'벚꽃의식',targetId:target.id,mergeMs:H.mergeMs,impactDelay:H.impactDelay,targets:[target.id]});return;
     }
     if(t<progress.nextBasicAt)return;
-    progress.nextBasicAt=t+H.basicMs;const target=enemies[0],pose=progress.basicPose;progress.basicPose=pose===1?2:1;
+    progress.nextBasicAt=tactical?nextBasic(progress.nextBasicAt,H.basicMs,unit):t+H.basicMs;const target=enemies[0],pose=progress.basicPose;progress.basicPose=pose===1?2:1;
     emit('horas-basic',side,'horas',1-side,target,0,{pose,duration:H.basicMotionMs});
     hit(side,'horas',target,attack*H.basicMultiplier,null);addHorasStack(side,1,'basic',target);
   }
@@ -107,24 +110,33 @@ export function simulateArena(game, saves, names, seed) {
   function ryusionStep(side){
     const g=guard(side);
     for(const hero of sides[side])if(game.expireEarthShield?.(hero,t))emit('shield-expire',side,'ryusion',side,hero,0);
-    if(g.taunting){const began=t-t%R.tauntEvery;if(g.hero.lastTauntAt!==began){g.hero.lastTauntAt=began;emit('ryusion-taunt',side,'ryusion',side,g.hero,0,{until:began+R.tauntMs});}}
+    if(g.taunting){const began=t-t%R.tauntEvery;if(g.hero.lastTauntAt!==began){g.hero.lastTauntAt=began;const ratio=defense(g.hero).tauntShieldRatio||0;if(ratio){const amount=game.addEarthShield(g.hero,Math.max(g.hero.earthShield||0,g.hero.max/3*ratio),t);emit('shield',side,'ryusion',side,g.hero,amount,{skill:'대지의 맹세'});}emit('ryusion-taunt',side,'ryusion',side,g.hero,0,{until:began+R.tauntMs});}}
     const hero=sides[side].find(h=>h.id==='ryusion'),cast=hero?.earthCast;if(!cast)return;
     if(hero.hp<=0){delete hero.earthCast;return;}
     if(t<cast.began+R.impactDelay)return;delete hero.earthCast;
     if(cast.stage===1){const target=alive(1-side).find(h=>h.id===cast.targetId)||alive(1-side)[0];if(!target)return;const victim=redirect(side,target);
       hit(side,hero.id,target,cast.power,'돌격 앞으로',1,{snapshot:true,critical:false});
       if(victim.hp>0){victim.stunUntil=Math.max(victim.stunUntil,t+R.stunMs);emit('stun',side,hero.id,1-side,victim,0,{skill:'돌격 앞으로',duration:R.stunMs});}
-    }else for(const target of alive(side)){const amount=game.addEarthShield(target,hero.max/3*R.shieldRatio,t);emit('shield',side,hero.id,side,target,amount,{skill:'방어막 추가',stage:2,earthShield:amount,earthShieldUntil:target.earthShieldUntil});}
+    }else for(const target of alive(side)){const amount=game.addEarthShield(target,hero.max/3*defense(hero).shieldRatio,t);emit('shield',side,hero.id,side,target,amount,{skill:'방어막 추가',stage:2,earthShield:amount,earthShieldUntil:target.earthShieldUntil});}
   }
   function act(side,unit) {
     if(unit.hp<=0||unit.stunUntil>t||!alive(1-side).length)return;
     const attack=unit.atk*synergy[side].damageMultiplier*(buffUntil[side]>t?1.3:1)*(t>=45000?1+(t-45000)/15000:1);
     if(unit.id==='horas'){horasAct(side,unit,attack*horasDamageMultiplier*(1+(unit.exclusive?.strength||0)));return;}
-    const def=game.BY_ID[unit.id];unit.energy++;const skill=unit.energy>=def.cooldown;
+    const def=game.BY_ID[unit.id];
+    if(!tactical||t>=(unit.nextEnergyAt||1000)){unit.energy++;unit.nextEnergyAt=t+1000;}
+    const skill=unit.energy>=def.cooldown;
+    if(tactical&&!skill&&t<(unit.nextBasicAt||1000))return;
+    if(tactical)unit.nextBasicAt=skill?Math.max(unit.nextBasicAt||t,t)+1000/basicRate(unit):nextBasic(unit.nextBasicAt||1000,1000,unit);
     if(skill)unit.energy=0;
     if(skill&&unit.id==='ryusion'){
       unit.earthCast={began:t,stage:unit.stage,targetId:alive(1-side)[0].id,power:attack};
       emit('ryusion-skill',side,unit.id,unit.stage===1?1-side:side,unit.stage===1?alive(1-side)[0]:unit,0,{stage:unit.stage,skill:game.RYUSION_SKILLS[unit.stage-1].name});unit.stage=unit.stage===1?2:1;return;
+    }
+    if(skill&&unit.id==='spica'){
+      const p=game.SPICA_RULES;for(const ally of alive(side))ally.hasteUntil=Math.max(ally.hasteUntil||0,t+p.hasteMs);
+      for(const target of alive(1-side)){target.slowUntil=Math.max(target.slowUntil||0,t+p.slowMs);hit(side,unit.id,target,attack*p.skillMultiplier,def.skill);}
+      emit('spica-wind',side,unit.id,side,unit,0,{skill:def.skill,hasteUntil:t+p.hasteMs,slowUntil:t+p.slowMs});return;
     }
     if(skill&&unit.id==='lava'){
       if(unit.stage===1)for(const target of alive(side)){heal(side,unit.id,target,unit.atk*1.6,'바람의 부채');shield(side,unit.id,target,unit.atk*.9,'바람의 부채');}
@@ -152,7 +164,7 @@ export function simulateArena(game, saves, names, seed) {
     const first=(Math.floor(t/1000)+initial)%2;
     ryusionStep(first);ryusionStep(1-first);
     horasStep(first);horasStep(1-first);
-    if(t%1000||!alive(0).length||!alive(1).length)continue;
+    if((!tactical&&t%1000)||!alive(0).length||!alive(1).length)continue;
     for(let index=0;index<6;index++){for(const side of[first,1-first])if(sides[side][index])act(side,sides[side][index]);}
   }
   const ratios=sides.map(team=>team.reduce((sum,u)=>sum+u.hp/u.max,0)/Math.max(1,team.length));

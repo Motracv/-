@@ -1,7 +1,10 @@
 /* Winter duo rules. Only the server advances the encounter or accepts a thaw. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.SchoolYetiRules=api;})(globalThis,()=>{
  'use strict';
- const HP=1600000,DURATION=150000,MAX_PLAYERS=2;
+ const HP=800000,DURATION=210000,MAX_PLAYERS=2,RECOMMENDED_LEVEL=70,DIFFICULTY='어려움';
+ const RULES=Object.freeze({version:2,hp:HP,duration:DURATION,attack:1000,rage:4,recommendedLevel:RECOMMENDED_LEVEL,difficulty:DIFFICULTY});
+ const LEGACY_RULES=Object.freeze({version:1,hp:1600000,duration:150000,attack:480,rage:3,recommendedLevel:100,difficulty:'어려움'});
+ const encounterRules=s=>s?.yetiRules||LEGACY_RULES;
  const PATTERNS=Object.freeze([
   {id:'claw',name:'서리 발톱',tell:1000,desc:'전열 2명을 공격하고 1초 기절시켜요.'},
   {id:'freeze',name:'꽁꽁 얼음!',tell:1800,desc:'한쪽 용병단을 얼려요. 동료의 얼음땡이 필요해요.'},
@@ -13,11 +16,11 @@
  function create(g,parties,now,seed){
   if(parties.length!==2)throw Error('예티는 두 명이 함께 도전해야 해요.');
   const s=globalThis.SchoolRaidRules.create(g,parties,now,seed,HP);
-  s.encounter='yeti';s.boss.max=HP;s.boss.nextAt=3000;s.boss.pattern=0;s.freezeNext=0;
+  s.encounter='yeti';s.yetiRules={...RULES};s.boss.max=HP;s.boss.nextAt=3000;s.boss.pattern=0;s.freezeNext=0;
   for(const t of s.teams){t.frozen=null;t.thaws=0;}
   return s;
  }
- function bossAct({s,emit,hurt,living}){
+ function bossAct({s,emit,hurt,living,basicRate}){
   const b=s.boss;if(b.stunUntil>s.elapsed)return;
   if(b.cast&&s.elapsed>=b.cast.at){
    const id=b.cast.id;b.cast=null;b.nextBasicAt=s.elapsed+1200;emit('impact',{pattern:id});
@@ -38,7 +41,7 @@
    });
   }
   if(!b.cast&&s.elapsed>=b.nextAt){const p=PATTERNS[b.pattern++%PATTERNS.length];b.cast={id:p.id,at:s.elapsed+p.tell};b.nextAt=s.elapsed+5500;emit('telegraph',{pattern:p.id,impactAt:b.cast.at});}
-  if(!b.cast&&s.elapsed>=b.nextBasicAt){b.nextBasicAt=s.elapsed+2000;emit('impact',{pattern:'basic'});s.teams.forEach((t,ti)=>hurt(ti,living(t)[0],.55,'basic'));}
+  if(!b.cast&&s.elapsed>=b.nextBasicAt){b.nextBasicAt=(b.nextBasicAt>s.elapsed-250?b.nextBasicAt:s.elapsed)+2000/(basicRate?.(b,true)||1);emit('impact',{pattern:'basic'});s.teams.forEach((t,ti)=>hurt(ti,living(t)[0],.55,'basic'));}
  }
  function tick({s,emit,hurt,living}){
   for(let ti=0;ti<s.teams.length;ti++){
@@ -46,7 +49,7 @@
   }
   if(s.teams.every(t=>t.withdrawn||!living(t).length||t.frozen)){s.ended=true;s.outcome='trapped';emit('end',{outcome:s.outcome});}
  }
- function advance(g,s,now){return globalThis.SchoolRaidRules.advance(g,s,now,{physical:true,duration:DURATION,attack:480,rage:3,bossAct,tick});}
+ function advance(g,s,now){const rules=encounterRules(s);return globalThis.SchoolRaidRules.advance(g,s,now,{physical:true,duration:rules.duration,attack:rules.attack,rage:rules.rage,bossAct,tick});}
  function thaw(g,s,actor,freezeId,now){
   advance(g,s,now);
   const ti=s.teams.findIndex(t=>t.account===actor),own=s.teams[ti],target=s.teams[1-ti];
@@ -57,5 +60,5 @@
   return s;
  }
  function withdraw(s,account){const t=s.teams.find(t=>t.account===account);if(t){t.withdrawn=true;t.frozen=null;for(const u of t.units)u.hp=0;}s.ended=true;s.outcome='abandoned';s.events.push({seq:++s.seq,t:s.elapsed,kind:'end',outcome:s.outcome});}
- return {HP,DURATION,MAX_PLAYERS,PATTERNS,create,advance,thaw,withdraw};
+ return {HP,DURATION,MAX_PLAYERS,RECOMMENDED_LEVEL,DIFFICULTY,RULES,LEGACY_RULES,encounterRules,PATTERNS,create,advance,thaw,withdraw};
 });

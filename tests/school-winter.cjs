@@ -77,7 +77,7 @@ test('Later ordinary monsters use melee, ranged and healer skills; early enemies
 });
 test('Winter projection does not mutate legacy saves; invalid exchange never invents balances',()=>{
   const s=make();delete s.winter;const original=G.clone(s),info=G.winterInfo(s,NOW);
-  assert.equal(info.active,true);assert.equal(info.snowflakes,0);assert.equal(info.items.length,3);assert.deepEqual(s,original);assert.ok(G.validate(s));
+  assert.equal(info.active,true);assert.equal(info.snowflakes,0);assert.equal(info.items.length,4);assert.deepEqual(s,original);assert.ok(G.validate(s));
   reject(s,{kind:'winter-exchange',item:'gold',snowflakes:999999,cost:0});
   reject(s,{kind:'winter-exchange',item:'constructor'});
 });

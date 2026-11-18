@@ -18,12 +18,12 @@ const G = require('../school/engine.js');
   const item = (who, id) => info(who).items.find(entry => entry.id === id);
   const test = async (name, fn) => { now += 61000; await fn(); passed++; console.log('PASS', name); };
   try {
-    await test('Catalog16 rejects old15 reads and purchases before any server migration or charge', async () => {
-      assert.equal(G.CATALOG_VERSION, 24);
+    await test('Catalog25 rejects old24 reads and purchases before any server migration or charge', async () => {
+      assert.equal(G.CATALOG_VERSION, 25);
       const who = await account('catalog'); funded(who); const before = row(who);
       for (const route of ['state', 'action']) {
         const payload = route === 'action' ? input(who, { kind: 'winter-exchange', item: 'gold', cost: 10 }) : {};
-        const r = await call(who, route, { ...payload, catalogVersion: 15 }); assert.equal(r.status, 426); assert.match(r.data.error, /업데이트/); assert.ok(!r.data.state);
+        const r = await call(who, route, { ...payload, catalogVersion: 24 }); assert.equal(r.status, 426); assert.match(r.data.error, /업데이트/); assert.ok(!r.data.state);
       }
       assert.equal(row(who).payload, before.payload); assert.equal(row(who).revision, before.revision);
       assert.equal((await call(who, 'state')).status, 200);

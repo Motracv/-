@@ -24,12 +24,13 @@ const hits = (s, skill) => s.events.filter(e=>e.kind==='hit'&&e.from==='horas'&&
 const draw = (s, roll, pick=.5) => {let n=0; return G.action(s,{kind:'recruit',banner:'horas',count:1},s.at,()=>n++%2?pick:roll).results[0];};
 
 test('UR hero is obtainable only from her own banner, not granted to old or new accounts',()=>{
-  assert.equal(G.CATALOG_VERSION,24);assert.equal(G.BY_ID.horas.rarity,'UR');assert.equal(G.BY_ID.horas.role,'사수');
+  assert.equal(G.CATALOG_VERSION,25);assert.equal(G.BY_ID.horas.rarity,'UR');assert.equal(G.BY_ID.horas.role,'사수');
   const old=G.create(NOW);delete old.banners.horas;const units=G.clone(old.units),money=[old.gold,old.gems];
   assert(G.validate(old));G.advance(old,old.at);assert.deepEqual(old.units,units);assert.deepEqual([old.gold,old.gems],money);
   assert.deepEqual(G.bannerState(old,'horas'),{pity:0,guaranteed:false});
   for(const banner of ['osia','lava'])assert.equal(G.bannerHeroRates(old,banner).horas,0);
-  assert.equal(G.bannerHeroRates(old,'horas').lava,0);
+  assert.equal(G.bannerHeroRates(old,'horas').lava,.01/4);
+  assert.equal(G.bannerHeroRates(old,'horas').spica,0);
 });
 test('UR probability boundaries, soft 60 and hard 80 are exact and sum to one',()=>{
   for(const [pity,ur] of [[0,.003],[58,.003],[59,.013],[60,.023],[78,.203],[79,1]]){
@@ -62,7 +63,7 @@ test('UR ten-pull pity evolves per slot, exact cost, duplicates and awakening pe
 });
 test('UR character rates list all eligible standard SSRs equally and preserve old 50:50',()=>{
   const s=G.create(NOW),r=G.bannerHeroRates(s,'horas');assert.equal(r.horas,.003);
-  for(const id of G.STANDARD_SSR)assert.equal(r[id],.01/3);
+  for(const id of G.STANDARD_SSR)assert.equal(r[id],.01/4);
   for(const grade of ['UR','SSR','SR','R'])assert(Math.abs(G.HEROES.filter(h=>h.rarity===grade).reduce((n,h)=>n+r[h.id],0)-G.recruitRates(0,'horas')[grade])<1e-12);
   s.banners.osia.guaranteed=true;assert.equal(G.bannerHeroRates(s,'osia').osia,.01);assert.equal(G.bannerHeroRates(s,'osia').horas,0);
   s.gems=159;const old=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner:'horas',count:1},s.at));assert.deepEqual(s,old);

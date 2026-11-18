@@ -10,18 +10,18 @@ try{
  async function race(fn){const original=t.db.batch.bind(t.db);let count=0,release;const gate=new Promise(r=>release=r);t.db.batch=async statements=>{if(count<2){if(++count===2)release();await gate;}return original(statements);};try{return await fn();}finally{t.db.batch=original;}}
  const users=[];for(let i=0;i<3;i++){const p=(await t.login('yeti-'+i)).data;assert.equal((await call(p,'state')).status,200);const s=G.create(now,1);s.commanderName='겨울단장'+i;s.team=['horas','osia','lava','ryusion','lumi','ian'];for(const id of s.team)s.units[id]={level:100,stars:5,xp:0,shards:0};t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),p.profile.id);users.push(p);}
  const [a,b,c]=users;
- assert.equal((await cmd(null,'create')).status,401);assert.equal((await cmd(a,'create',{catalogVersion:23})).status,426);
+ assert.equal((await cmd(null,'create')).status,401);assert.equal((await cmd(a,'create',{catalogVersion:24})).status,426);
  const createId=crypto.randomUUID();const creates=await race(()=>Promise.all([cmd(a,'create',{requestId:createId}),cmd(a,'create',{requestId:createId})]));assert(creates.every(r=>r.status===200));assert.equal(creates[0].data.room.id,creates[1].data.room.id);let id=creates[0].data.room.id,code=creates[0].data.room.code;
  assert.equal((await cmd(a,'ready',{roomId:id})).status,200);assert.equal((await cmd(a,'start',{roomId:id})).status,409);
  assert.equal((await cmd(b,'join',{code})).status,200);assert.equal((await cmd(c,'join',{code})).status,409);
  assert.equal((await cmd(c,'state',{roomId:id})).status,403);assert.equal((await cmd(b,'start',{roomId:id})).status,403);
  assert.equal((await cmd(b,'ready',{roomId:id})).status,200);
- const startId=crypto.randomUUID();const starts=await race(()=>Promise.all([cmd(a,'start',{roomId:id,requestId:startId,hp:1}),cmd(a,'start',{roomId:id,requestId:startId,hp:1})]));assert(starts.every(r=>r.status===200));assert.equal(room(id).battle.boss.max,1600000);
+ const startId=crypto.randomUUID();const starts=await race(()=>Promise.all([cmd(a,'start',{roomId:id,requestId:startId,hp:1}),cmd(a,'start',{roomId:id,requestId:startId,hp:1})]));assert(starts.every(r=>r.status===200));assert.equal(room(id).battle.boss.max,800000);assert.equal(starts[0].data.rules.duration,210000);assert.equal(starts[0].data.rules.recommendedLevel,70);assert.equal(room(id).battle.yetiRules.version,2);
  assert.equal(t.sqlite.prepare('SELECT COUNT(*) n FROM school_raid_days').get().n,0);
  assert(!JSON.stringify(starts[0].data).includes(a.profile.id));assert(!JSON.stringify(starts[0].data).includes('seed'));assert(!JSON.stringify(starts[0].data).includes('receipts'));
  console.log('PASS authenticated duo-only rooms, one concurrent create/start, capacity/privacy and no guild entry costs');
  const start=now;let firstFreeze=null;
- while(now-start<150000&&!room(id).battle.ended){now+=1000;const views=await Promise.all([cmd(a,'state',{roomId:id}),cmd(b,'state',{roomId:id})]);for(const v of views)assert.equal(v.status,200);assert.equal(views[0].data.room.battle.boss.hp,views[1].data.room.battle.boss.hp);
+ while(now-start<210000&&!room(id).battle.ended){now+=1000;const views=await Promise.all([cmd(a,'state',{roomId:id}),cmd(b,'state',{roomId:id})]);for(const v of views)assert.equal(v.status,200);assert.equal(views[0].data.room.battle.boss.hp,views[1].data.room.battle.boss.hp);
   const battle=room(id).battle,ti=battle.teams.findIndex(t=>t.frozen);if(ti>=0&&!battle.ended){const target=users[ti],partner=users[1-ti],freezeId=battle.teams[ti].frozen.id;
    if(!firstFreeze){firstFreeze=freezeId;assert.equal((await cmd(target,'thaw',{roomId:id,freezeId})).status,400);assert.equal((await cmd(c,'thaw',{roomId:id,freezeId})).status,403);assert.equal((await cmd(partner,'thaw',{roomId:id,freezeId:'forged'})).status,400);}
    const thawId=crypto.randomUUID();const rs=await race(()=>Promise.all([cmd(partner,'thaw',{roomId:id,freezeId,requestId:thawId}),cmd(partner,'thaw',{roomId:id,freezeId,requestId:thawId})]));assert(rs.every(r=>r.status===200));assert.equal(room(id).battle.teams[ti].frozen,null);
@@ -29,11 +29,13 @@ try{
   }
  }
  assert(firstFreeze);assert.equal(room(id).battle.outcome,'defeated');
- const awards=t.sqlite.prepare('SELECT * FROM school_yeti_rewards WHERE room_id=?').all(id);assert.equal(awards.length,2);assert(awards.every(r=>r.snowflakes>=20&&r.snowflakes<=50));
+ const awards=t.sqlite.prepare('SELECT * FROM school_yeti_rewards WHERE room_id=?').all(id);assert.equal(awards.length,2);assert(awards.every(r=>r.snowflakes>=20&&r.snowflakes<=50&&r.snowmen===1));
+ // Settle ordinary idle farming first so this assertion isolates the Yeti award.
+ await call(a,'state');await call(b,'state');const beforeFlakes=[saved(a).winter.snowflakes,saved(b).winter.snowflakes];
  const input={revision:row(a).revision,requestId:crypto.randomUUID(),action:{kind:'yeti-claim',roomId:id,snowflakes:1e12}};
  const wins=await Promise.all([call(a,'action',input),call(a,'action',input)]);assert(wins.every(r=>r.status===200));const n=awards.find(r=>r.account_id===a.profile.id).snowflakes;
- assert.equal(saved(a).winter.snowflakes,n);assert.equal(saved(b).winter.snowflakes,0);assert.equal((await call(a,'action',input)).data.repeated,true);assert.equal((await act(a,{kind:'yeti-claim',roomId:id})).status,400);assert.equal((await act(c,{kind:'yeti-claim',roomId:id})).status,400);
- assert.equal((await act(b,{kind:'yeti-claim',roomId:id})).status,200);
+ assert.equal(saved(a).winter.snowflakes,beforeFlakes[0]+n);assert.equal(saved(b).winter.snowflakes,beforeFlakes[1]);assert.equal((await call(a,'action',input)).data.repeated,true);assert.equal((await act(a,{kind:'yeti-claim',roomId:id})).status,400);assert.equal((await act(c,{kind:'yeti-claim',roomId:id})).status,400);
+ assert.equal((await act(b,{kind:'yeti-claim',roomId:id})).status,200);assert.equal(saved(a).winter.snowmen,1);assert.equal(saved(b).winter.snowmen,1);
  console.log('PASS shared HP, ally-only freeze rescue, duplicate thaw safety, victory rewards 20–50 once per account');
 
  const second=await cmd(a,'create');assert.equal(second.status,200);const id2=second.data.room.id;

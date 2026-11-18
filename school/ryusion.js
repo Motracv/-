@@ -28,10 +28,10 @@ window.SchoolRyusion = (() => {
   function draw(c,x,y,scale=2,frame={}){
     c.save();c.translate(Math.round(x),Math.round(y));c.scale(scale*(frame.flip?-1:1),scale);
     if(frame.dead){c.globalAlpha*=.4;c.rotate(-Math.PI/2);}
-    const a=frame.attackAge,bob=frame.reduced||frame.dead||frame.taunting||frame.motion?0:Math.sin((frame.time||0)*2)*.45;
+    const a=frame.attackAge;
     if(!frame.reduced&&Number.isFinite(a)&&a>=0&&a<.7&&!frame.motion&&!frame.taunting)c.translate(Math.sin(clamp(a/.7)*Math.PI)*3,0);
     c.imageSmoothingEnabled=false;
-    if(atlasLoaded)c.drawImage(source(poseFor(frame)),-24,-55+bob,48,64);
+    if(atlasLoaded)c.drawImage(source(poseFor(frame)),-24,-55,48,64);
     else{c.fillStyle='#28272b';c.fillRect(-7,-24,13,19);c.fillStyle='#694b3f';c.fillRect(-8,-37,16,16);c.fillStyle='#e8c7ab';c.fillRect(-4,-31,11,9);c.fillStyle='#b28a56';c.fillRect(6,-32,11,32);}
     c.restore();
   }

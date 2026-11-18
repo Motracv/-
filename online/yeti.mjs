@@ -20,7 +20,7 @@ export function createYeti(game){
   const statements=[db.prepare('UPDATE school_yeti_rooms SET payload=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?').bind(JSON.stringify(s),now,s.id,row.revision)];
   if(s.status==='finished'&&before.status!=='finished'&&s.battle?.outcome==='defeated'){
    // One server roll per party member, stored with the victory transaction.
-   for(const t of s.battle.teams)if(!t.withdrawn){const amount=20+Math.floor(crypto.getRandomValues(new Uint32Array(1))[0]/4294967296*31);statements.push(db.prepare(`INSERT OR IGNORE INTO school_yeti_rewards(account_id,room_id,snowflakes,created_at) SELECT ?,?,?,? WHERE ${guard} AND EXISTS(SELECT 1 FROM accounts WHERE id=?)`).bind(t.account,s.id,amount,now,s.id,commit,t.account));}
+   for(const t of s.battle.teams)if(!t.withdrawn){const amount=20+Math.floor(crypto.getRandomValues(new Uint32Array(1))[0]/4294967296*31);statements.push(db.prepare(`INSERT OR IGNORE INTO school_yeti_rewards(account_id,room_id,snowflakes,snowmen,created_at) SELECT ?,?,?,1,? WHERE ${guard} AND EXISTS(SELECT 1 FROM accounts WHERE id=?)`).bind(t.account,s.id,amount,now,s.id,commit,t.account));}
   }
   const slotsChanged=s.status!==before.status||JSON.stringify(s.members.map(m=>m.account))!==JSON.stringify(before.members.map(m=>m.account));
   if(slotsChanged){
@@ -78,7 +78,7 @@ export function createYeti(game){
   throw Object.assign(Error('동료의 요청을 반영 중이에요. 다시 확인해 주세요.'),{status:409});
  }
  async function view(db,id,s,now){
-  const rewards=(await db.prepare('SELECT room_id AS roomId,snowflakes FROM school_yeti_rewards WHERE account_id=? AND claimed=0 ORDER BY created_at DESC LIMIT 30').bind(id).all()).results||[];
+  const rewards=(await db.prepare('SELECT room_id AS roomId,snowflakes,snowmen FROM school_yeti_rewards WHERE account_id=? AND claimed=0 ORDER BY created_at DESC LIMIT 30').bind(id).all()).results||[];
   let room=null;
   if(s&&s.members.some(m=>m.account===id)){
    const members=[];
@@ -86,7 +86,8 @@ export function createYeti(game){
    const battle=s.battle&&game.clone(s.battle);if(battle){delete battle.seed;battle.events=battle.events.filter(e=>e.t>=battle.elapsed-2400).slice(-100);for(const t of battle.teams){t.isMe=t.account===id;delete t.account;delete t.synergy;for(const u of t.units)delete u.exclusive;}}
    room={id:s.id,code:s.code,status:s.status,outcome:s.outcome,members,battle};
   }
-  return {room,rewards,serverTime:now,rules:{hp:Y.HP,duration:Y.DURATION,players:2,rewardMin:20,rewardMax:50,unlimited:true}};
+  const rules=s?.battle?Y.encounterRules(s.battle):Y.RULES;
+  return {room,rewards,serverTime:now,rules:{hp:rules.hp,duration:rules.duration,recommendedLevel:Y.RECOMMENDED_LEVEL,difficulty:Y.DIFFICULTY,players:2,rewardMin:20,rewardMax:50,snowmen:1,unlimited:true}};
  }
  return {async request(request,env,data,accounts){
   const now=Date.now(),signed=await accounts.identity(request,env,now);

@@ -3,7 +3,14 @@ window.SchoolArt = (() => {
   const portraits = new Map(), frontPortraits = new Map(), osiaPoses = new Map(), lavaPoses = new Map(), lavaSources = new Map(), combatLabels = new Map(), S = SchoolRPG;
   let lavaPosePixels = 0, combatLabelPixels = 0;
   const healthTrackers = new WeakMap();
-  window.addEventListener('school-art-ready',()=>{portraits.delete('ryusion');frontPortraits.delete('ryusion');});
+  window.addEventListener('school-art-ready',()=>{for(const id of ['ryusion','spica']){portraits.delete(id);frontPortraits.delete(id);}});
+  const spicaImage=new Image(),spicaPortraitImage=new Image(),spicaPoses=new Map();
+  let spicaLoaded=false,spicaPortraitLoaded=false;
+  const spicaReady=Promise.all([[spicaImage,'combat.png'],[spicaPortraitImage,'portrait.webp']].map(([image,file])=>new Promise(resolve=>{
+    const timer=setTimeout(()=>resolve(false),5000);
+    image.onload=()=>{if(file==='combat.png'){spicaLoaded=true;spicaPoses.clear();}else spicaPortraitLoaded=true;clearTimeout(timer);resolve(true);window.dispatchEvent(new Event('school-art-ready'));};
+    image.onerror=()=>{clearTimeout(timer);resolve(false);};image.src=`school/assets/spica/${file}?v=spica1`;
+  })));
   const osiaImage = new Image(), osiaFrontImage = new Image(), lavaImage = new Image();
   const osiaFrontSources = new Map();
   let osiaLoaded = false, osiaFrontLoaded = false, lavaLoaded = false;
@@ -57,7 +64,7 @@ window.SchoolArt = (() => {
   horasImage.src = 'school/assets/horas/combat.webp?v=horas1';
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
-  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
+  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
   osiaImage.src = "school/assets/osia-sprites.png?v=osia1";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-front1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
@@ -105,6 +112,10 @@ window.SchoolArt = (() => {
   // simulation clock, so changing battle speed never desynchronises a pose.
   function castingMotion(id, stage, age, reduced = false) {
     if(id==="ryusion")return window.SchoolRyusion.motion(stage,age,reduced);
+    if(id==='spica'){
+      const p=clamp01(age/1.45),wave=reduced?0:Math.sin(p*Math.PI);
+      return {dx:age>.65?wave*3:-wave*1.5,dy:age<.65?-wave*2:0,lean:reduced?0:wave*(age>.65?.025:-.015),stretch:1+wave*.012,cloth:wave,pose:p<.13?0:age<.65?2:3,stage,age,reduced};
+    }
     if (reduced) return {dx:0, dy:0, lean:0, stretch:1, cloth:0, pose:stage === 1 ? 2 : 1, stage, age, reduced};
     if (age < 0) return {dx:0, dy:0, lean:0, stretch:1.025, cloth:0, pose:1, stage, age, reduced};
     const progress = clamp01(age / (id === "lava" ? 1.35 : stage === 4 ? 1.65 : 1.05));
@@ -184,7 +195,7 @@ window.SchoolArt = (() => {
       const active = casting || passive || frame.attackAge != null;
       const gesture = reduced ? 0 : active ? wave : 0;
       c.save();
-      c.translate(gesture * (casting ? .6 : passive ? -.35 : 1.1), active ? -gesture * .6 : -idle * .35);
+      c.translate(gesture * (casting ? .6 : passive ? -.35 : 1.1), active ? -gesture * .6 : 0);
       c.rotate(gesture * (casting ? -.025 : passive ? -.018 : .045));
       c.drawImage(source, -width / 2, -41, width, 44);
       c.restore();
@@ -244,7 +255,7 @@ window.SchoolArt = (() => {
     const basicAge=Number.isFinite(frame.basicAttackAt)&&Number.isFinite(frame.time)?frame.time-frame.basicAttackAt:frame.attackAge;
     const fanAttack=lavaFanLoaded&&!poseReduced&&!frame.dead&&!frame.casting&&!frame.passive&&basicAge>=0&&basicAge<1;
     const kind=fanAttack?"fan":frame.casting?"skill":frame.passive?"passive":frame.attackAge!=null?"attack":"idle";
-    const duration=kind==="skill"?1.8:kind==="passive"?1.45:.85,steps=kind==="skill"?18:kind==="idle"?8:12;
+    const duration=kind==="skill"?1.8:kind==="passive"?1.45:.85,steps=kind==="skill"?18:kind==="idle"?(lavaLoaded?1:8):12;
     const rawAge=frame.motion?.age??frame.attackAge??0;
     // Limb poses are a fixed tiny atlas. Position/lean still interpolate each
     // rendered frame, but identical pixel poses do not submit 70+ draw calls.
@@ -361,7 +372,7 @@ window.SchoolArt = (() => {
       else{const p=ease((age-.34)/.84),wave=Math.sin(p*Math.PI);Object.assign(m,{pose:age<.91?first+2:0,x:(second?3.5:6)*(1-p),y:(second?-3.5:-.8)*(1-p)-wave*.6,lean:(second?-.065:.10)*(1-p),sy:1+.018*wave});}
       m.cloth=Math.sin(age*8-1)*(1-clamp01((age-.35)/.83));
     }else if(frame.hit){m.pose=11;m.x=-1.5;}
-    else m.y=Math.sin((frame.time||0)*1.7)*.35;
+    else m.y=0;
     if(frame.reduced)return {...m,x:0,y:0,lean:0,sx:1,sy:1,trail:0,cloth:0};
     return m;
   }
@@ -372,7 +383,6 @@ window.SchoolArt = (() => {
     rect(c,'#26333b35',-9,1+(frame.shadowY||0),20,2);
     const cast=frame.horasCastAge,active=Number.isFinite(cast)&&cast>=0&&cast<2.45,age=frame.attackAge,attack=Number.isFinite(age)&&age>=0&&age<1.18;
     const wave=frame.reduced||frame.dead||!active&&!attack?0:Math.sin(clamp01((active?cast:age)/(active?1.5:1.05))*Math.PI);
-    const breath=frame.reduced||active||attack||frame.dead?0:Math.sin((frame.time||0)*1.7)*.35;
     const merge=active?clamp01((cast-.22)/.63):0,stacks=frame.dead?0:active&&cast<1?5:Math.min(5,Math.max(0,frame.horasStacks||0));
     // The stack halo is behind her back, not a screen HUD effect. During the
     // fusion the same five visible orbs converge into her cupped hands.
@@ -545,6 +555,7 @@ window.SchoolArt = (() => {
     const z=Math.min(w/62,h/86),breath=reduced?0:Math.sin(time*1.6)*.6;
     c.translate(w/2,h*.88);c.scale(z,z);
     if(id==="ryusion")window.SchoolRyusion.illustration(c,0,-76+breath,62,80);
+    else if(id==='spica'&&spicaPortraitLoaded){const ratio=spicaPortraitImage.naturalWidth/spicaPortraitImage.naturalHeight,height=80;c.drawImage(spicaPortraitImage,-height*ratio/2,-76,height*ratio,height);}
     else if(id==="horas")horasIllustration(c,0,-76+breath,62,80);
     else if(id==="osia")osiaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85});
     else if(id==="lava"){c.translate(-3,0);c.scale(1.38,1.38);lavaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85},true);}
@@ -555,8 +566,54 @@ window.SchoolArt = (() => {
     if(!frontPortraits.has(id)){const canvas=document.createElement("canvas");canvas.width=248;canvas.height=344;recruitPortrait(canvas.getContext("2d"),id,0,true);frontPortraits.set(id,canvas.toDataURL());}
     return frontPortraits.get(id);
   }
+  // The feet remain planted: one cheap transform per actor, no animated
+  // canvases or ever-growing frame cache. Different cadences avoid a chorus
+  // of identical movement, while static portraits remain perfectly still.
+  function idleBreath(id,frame={}){
+    if(!Number.isFinite(frame.time)||frame.reduced||frame.dead||frame.frozen||frame.stunned||frame.hit||frame.attack||frame.casting||frame.passive||frame.motion||frame.attackAge>=0||frame.horasCastAge>=0)return null;
+    let seed=0;for(let i=0;i<id.length;i++)seed=(seed*31+id.charCodeAt(i))>>>0;
+    const breath=(Math.sin(frame.time*(1.4+(seed%5)*.08)+(seed%17)*.35)+1)*.5;
+    return {x:1+breath*.007,y:1+breath*.018};
+  }
+  function spica(c,x,y,scale,frame={}){
+    c.save();c.translate(x,y);c.scale(scale*(frame.flip?-1:1),scale);
+    if(frame.dead)c.globalAlpha*=.42;
+    rect(c,'#1b334333',-10,1,21,2);
+    const age=Number.isFinite(frame.attackAge)?frame.attackAge:0,attack=!!frame.attack||frame.attackAge>=0&&frame.attackAge<.85;
+    const pose=Math.max(0,Math.min(5,Math.trunc(frame.dead?5:frame.hit?4:frame.pose??(frame.casting?2:attack?1:0))));
+    if(frame.motion)c.transform(1,0,frame.motion.lean||0,frame.motion.stretch||1,0,0);
+    if(spicaLoaded){
+      const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d)),res=density>4?6:density>2?4:2,key=pose+':'+res;
+      let source=spicaPoses.get(key);if(!source){source=document.createElement('canvas');source.width=source.height=64*res;const sc=source.getContext('2d');sc.imageSmoothingEnabled=false;const w=spicaImage.naturalWidth/3,h=spicaImage.naturalHeight/2;sc.drawImage(spicaImage,pose%3*w,Math.floor(pose/3)*h,w,h,0,0,source.width,source.height);spicaPoses.set(key,source);}
+      // Poses were drawn with different hand extensions. Align measured feet,
+      // not cell centers, so switching between haste and slow never teleports.
+      const anchors=[[277,485],[212,485],[209,485],[276,484],[244,484],[204,485]],unit=46/432;
+      c.drawImage(source,-anchors[pose][0]*unit,-anchors[pose][1]*unit,512*unit,512*unit);
+    }else{
+      // Right-facing, deliberately modest pixel fallback matching the supplied
+      // indigo hair, pale tips, black choker and slate winter dress.
+      const ink='#24324b',dark='#405675',cloth='#6d879b',pale='#dceef5',skin='#e3e1dc',gesture=frame.reduced?0:Math.sin(clamp01(age/.85)*Math.PI);
+      rect(c,ink,-10,-42,20,20);rect(c,'#5473ad',-9,-41,18,17);rect(c,'#88a4ce',-7,-42,12,3);
+      rect(c,dark,-8,-24,17,24);rect(c,cloth,-7,-23,15,21);rect(c,'#8ba7b6',-7,-23,5,19);
+      rect(c,'#bacbd0',-9,-4,20,5);detail(c,'#d2e1df',-9,-3,19,1);rect(c,'#3e4c60',-7,0,8,3);rect(c,'#3e4c60',3,0,8,3);
+      rect(c,skin,-4,-36,12,13);rect(c,skin,8,-32,3,4);rect(c,'#b7c4d3',-2,-25,9,2);rect(c,ink,-3,-23,11,2);
+      rect(c,'#4b68a0',-9,-41,18,6);rect(c,'#3f568c',-10,-36,5,13);rect(c,'#6382b5',-5,-38,6,7);rect(c,'#435c98',4,-38,6,5);
+      rect(c,pale,-9,-27,6,10);rect(c,'#accde0',-8,-28,4,8);rect(c,pale,7,-29,5,12);rect(c,'#bfdde9',8,-27,3,8);
+      rect(c,ink,5,-32,3,frame.blink?1:2);detail(c,'#a4dce9',6,-32,1,1);detail(c,'#b58f99',5,-26,3,.5);
+      c.save();c.translate(7,-21);c.rotate(frame.casting?-.65:attack?-.3-gesture*.75:.15);rect(c,dark,-1,-1,6,15);rect(c,cloth,0,0,4,12);rect(c,skin,0,11,5,4);c.restore();
+      c.save();c.translate(-7,-21);c.rotate(frame.casting?.75:.12);rect(c,dark,-4,-1,6,14);rect(c,cloth,-3,0,4,11);rect(c,skin,-3,10,4,4);c.restore();
+      if(frame.casting){c.strokeStyle='#b9eaff';c.lineWidth=.7;c.beginPath();c.ellipse(0,-12,21,8,0,0,Math.PI*2);c.stroke();}
+    }
+    c.restore();
+  }
   function hero(c, id, x, y, scale = 2, frame = {}) {
-    if (id === "osia" || id === "lava" || id === "horas" || id === "ryusion") { heroShape(c, id, x, y, scale, frame); return; }
+    if(frame.dead||frame.frozen||frame.stunned)frame={...frame,time:0,reduced:true,attack:false,attackAge:undefined,basicAttackAt:undefined,casting:false,motion:undefined,passive:false,horasCastAge:-1};
+    const breath=idleBreath(id,frame);
+    if(breath){c.save();c.translate(x,y);c.scale(breath.x,breath.y);c.translate(-x,-y);}
+    try{drawHero(c,id,x,y,scale,frame);}finally{if(breath)c.restore();}
+  }
+  function drawHero(c, id, x, y, scale = 2, frame = {}) {
+    if (id === "osia" || id === "lava" || id === "horas" || id === "ryusion" || id==='spica') { heroShape(c, id, x, y, scale, frame); return; }
     const transform = c.getTransform(), density = Math.max(Math.hypot(transform.a, transform.b), Math.hypot(transform.c, transform.d)) * scale;
     const resolution = density > 6 ? 8 : density > 4 ? 6 : density > 2 ? 4 : 2;
     const key = `${id}:${+!!frame.attack}:${+!!frame.blink}:${resolution}`;
@@ -576,6 +633,7 @@ window.SchoolArt = (() => {
     c.drawImage(sprite, -25, -49, 56, 56); c.restore();
   }
   function heroShape(c, id, x, y, scale = 2, frame = {}) {
+    if(id==='spica'){spica(c,x,y,scale,frame);return;}
     if(id==="ryusion"){window.SchoolRyusion.draw(c,x,y,scale,frame);return;}
     if (id === "osia") { osia(c, x, y, scale, frame); return; }
     if (id === "lava") { lava(c, x, y, scale, frame); return; }
@@ -881,6 +939,44 @@ window.SchoolArt = (() => {
       rect(c, i % 3 ? "#edf8f0bb" : "#ffffff", x, y, i % 4 === 0 ? 2 : 1, 1);
     }
   }
+  // A single-point floor replaces the old screen-aligned checkerboard. It is
+  // painted only into scenery caches, so depth adds no combat-frame workload.
+  function perspectiveFloor(c,color,{snowy=false,wood=false,vanishX=246,vanishY=103}={}){
+    c.save();rect(c,color,0,153,480,127);
+    const light=c.createLinearGradient(0,153,0,280);light.addColorStop(0,snowy?'#f1fcff4a':'#fbf1d91b');light.addColorStop(.5,'#ffffff00');light.addColorStop(1,'#11233824');c.fillStyle=light;c.fillRect(0,153,480,127);
+    const rows=[153,159,168,181,200,227,265,280],spread=wood?64:82;
+    const xAt=(x,y)=>vanishX+(x-vanishX)*(y-vanishY)/(280-vanishY);
+    c.lineWidth=.65;c.strokeStyle=snowy?'#577b8d36':wood?'#4d40323b':'#324d5038';
+    for(let x=-330;x<=810;x+=spread){c.beginPath();c.moveTo(xAt(x,153),153);c.lineTo(x,280);c.stroke();}
+    for(let r=1;r<rows.length-1;r++){const y=rows[r];c.beginPath();c.moveTo(0,y);c.lineTo(480,y);c.stroke();c.strokeStyle=snowy?'#fcffff53':'#fff0cd18';c.beginPath();c.moveTo(0,y+1);c.lineTo(480,y+1);c.stroke();c.strokeStyle=snowy?'#577b8d36':wood?'#4d40323b':'#324d5038';}
+    // Alternating quiet tile lights show the receding planes without a noisy
+    // checker texture. The floor remains clear behind all six combatants.
+    c.fillStyle=snowy?'#ffffff14':'#f7e6c10b';
+    for(let r=0;r<rows.length-1;r++)for(let x=-330+((r%2)*spread);x<810;x+=spread*2){const a=rows[r]+1,b=rows[r+1]-1;c.beginPath();c.moveTo(xAt(x,a)+1,a);c.lineTo(xAt(x+spread,a)-1,a);c.lineTo(xAt(x+spread,b)-1,b);c.lineTo(xAt(x,b)+1,b);c.closePath();c.fill();}
+    const edge=c.createLinearGradient(0,0,480,0);edge.addColorStop(0,'#1023382e');edge.addColorStop(.18,'#10233800');edge.addColorStop(.82,'#10233800');edge.addColorStop(1,'#1023382e');c.fillStyle=edge;c.fillRect(0,153,480,127);c.restore();
+  }
+  function depthAtmosphere(c,width,height){
+    // Foreground occlusion and a softly lit distance give painted maps the
+    // same stage depth. No blur, filter or per-frame gradient allocation.
+    c.save();c.setTransform(1,0,0,1,0,0);const shade=c.createLinearGradient(0,0,0,height);shade.addColorStop(0,'#1020301a');shade.addColorStop(.45,'#d7f1e708');shade.addColorStop(.72,'#10203000');shade.addColorStop(1,'#10203035');c.fillStyle=shade;c.fillRect(0,0,width,height);c.restore();
+  }
+  function paintedDepth(c,width,height,name,image,sw,sh){
+    // These paintings already contain accurate perspective. Project light
+    // onto their existing floor instead of drawing a second, conflicting grid.
+    // Account for cover-cropping so the vanishing point never slides on mobile.
+    const ratio=width/sw,left=(image.naturalWidth-sw)/2,top=(image.naturalHeight-sh)/2;
+    const vx=(image.naturalWidth*.5-left)*ratio,vy=(image.naturalHeight*(name==='classroom'?.34:name==='garden'?.4:.43)-top)*ratio;
+    const horizon=Math.max(height*.2,Math.min(height*.58,vy)),bottom=height;
+    c.save();c.setTransform(1,0,0,1,0,0);
+    const light=c.createLinearGradient(0,horizon,0,bottom);light.addColorStop(0,name==='classroom'?'#fff3cf00':'#c9f7ff00');light.addColorStop(.38,name==='classroom'?'#ffe3a51e':'#d5f9ff1a');light.addColorStop(1,'#ffffff00');
+    c.fillStyle=light;c.beginPath();c.moveTo(vx-width*.025,horizon);c.lineTo(vx+width*.035,horizon);c.lineTo(width*.88,bottom);c.lineTo(width*.12,bottom);c.closePath();c.fill();
+    // A separate near-ground plane and inward-facing corner shadows frame
+    // the party. The bright distant center stays open behind battle effects.
+    const near=c.createLinearGradient(0,height*.83,0,bottom);near.addColorStop(0,'#10273c00');near.addColorStop(1,'#10273c29');c.fillStyle=near;c.fillRect(0,height*.83,width,height*.17);
+    c.fillStyle=name==='classroom'?'#281c1c12':'#102b351c';
+    for(const side of [0,1]){const edge=side?width:0,inner=side?width*.94:width*.06;c.beginPath();c.moveTo(edge,horizon);c.lineTo(edge,bottom);c.lineTo(inner,bottom);c.lineTo(vx+(edge-vx)*.82,height*.67);c.closePath();c.fill();}
+    c.restore();
+  }
   function newBackground(c, zone, time, still = false) {
     const snowy = zone === 6 || zone === 11, outdoor = snowy || zone === 10;
     const walls = ["#9ab3c1", "#555963", "#6c8587", "#485f67", "#9eafa0", "#768da5"], color = walls[zone - 6] || walls[0];
@@ -921,8 +1017,7 @@ window.SchoolArt = (() => {
       }
     }
     const floor = snowy ? "#d6e3e2" : zone === 7 ? "#73756c" : zone === 8 ? "#82978d" : zone === 9 ? "#507d81" : "#a1b28b";
-    rect(c, floor, 0, 153, 480, 127); rect(c, snowy ? "#ecf3e9" : "#b2c0a466", 0, 151, 480, 3);
-    for (let y = 156; y < 280; y += 23) { detail(c, snowy ? "#a2bbc42e" : "#3f62513d", 0, y, 480, 1); for (let x = y % 2 ? 0 : 30; x < 480; x += 60) detail(c, snowy ? "#a2bbc42e" : "#3f62513d", x, y, 1, 23); }
+    perspectiveFloor(c,floor,{snowy,vanishX:zone===11?272:246}); rect(c, snowy ? "#ecf3e9" : "#b2c0a466", 0, 151, 480, 3);
     if (zone === 9 && !still) for (let i = 0; i < 20; i++) { const x = (i * 53 + time * 8) % 480, y = 162 + i * 17 % 111; detail(c, "#bcdfce77", x, y, 13 + i % 4 * 5, .5); }
     if (zone === 10) { if (!still) for (let i = 0; i < 15; i++) { const x = (i * 49 + time * 32) % 510 - 20, y = 35 + i * 19 % 199; rect(c, "#edf1d65c", x, y, 11 + i % 4 * 7, 1); } for (let i=0;i<13;i++) { const x=i*41; rect(c,"#718d64",x,147,2,8); rect(c,"#afc585",x+2,149,2,6); } }
     if (snowy) { for (let i = 0; i < 16; i++) { const x = i * 33 + 5, y = 166 + i * 29 % 107; detail(c, "#f4f9ef", x, y, 9, .5); } if (!still) snow(c, time); }
@@ -954,10 +1049,8 @@ window.SchoolArt = (() => {
       c.font="10px Galmuri, monospace";c.textAlign="center";c.fillStyle="#d2e6c4";c.fillText(`뫼비우스의 복도 · ${activity.floor || 1}층`,240,52);c.textAlign="left";
     }
     const floor = kind === "daily" ? "#a18b62" : kind === "weekly" ? "#676477" : "#6a8587";
-    rect(c,floor,0,153,480,127);detail(c,"#c4c6a0",0,151,480,2);
-    if(kind === "weekly"){rect(c,"#705365",232,153,193,127);detail(c,"#c3a67b",237,153,1,127);detail(c,"#c3a67b",419,153,1,127);}
-    for(let y=158;y<280;y+=24){detail(c,"#263f452e",0,y,480,1);for(let x=y%2?18:58;x<480;x+=80)detail(c,"#263f452e",x,y,1,24);}
-    if(kind === "tower"){c.save();c.strokeStyle="#b9cfb835";c.lineWidth=.7;for(let x=-240;x<=720;x+=90){c.beginPath();c.moveTo(249,153);c.lineTo(x,280);c.stroke();}c.restore();}
+    perspectiveFloor(c,floor,{wood:kind==='daily',vanishX:kind==='weekly'?374:249});detail(c,"#c4c6a0",0,151,480,2);
+    if(kind === "weekly"){c.save();c.fillStyle='#705365';c.strokeStyle='#c3a67b';c.lineWidth=1;c.beginPath();c.moveTo(340,153);c.lineTo(405,153);c.lineTo(463,280);c.lineTo(247,280);c.closePath();c.fill();c.stroke();c.restore();}
     if (!still) for(let i=0;i<15;i++){const x=(i*71+(reduced?0:Math.sin(time*.4+i)*9)+480)%480,y=(i*29+(reduced?0:time*3))%250;rect(c,kind==="weekly"?"#d3b9e73d":"#e9edba3d",x,y,1,1);}
     rect(c,"#152d3520",0,263,480,17);
   }
@@ -1033,9 +1126,7 @@ window.SchoolArt = (() => {
       detail(c, "#d6c7a0", 0, 137, 480, 1); detail(c, "#514f412e", 0, 151, 480, 2);
     }
     const floor = outdoor ? (zone === 5 ? "#7e8490" : "#a5ae87") : "#b2946a";
-    rect(c, floor, 0, 153, 480, 127);
-    for (let y = 155; y < 280; y += 24) { rect(c, outdoor ? "#596b5b28" : "#705b4138", 0, y, 480, 2); for (let x = (y % 48 ? -20 : 20); x < 480; x += 80) rect(c, outdoor ? "#596b5b28" : "#705b4138", x, y, 2, 24); }
-    for (let y = 158; y < 279; y += 12) for (let x = (y % 24 ? 15 : 51); x < 480; x += 80) detail(c, outdoor ? "#edf0c31c" : "#f4d7a526", x, y, 13 + x % 7, .5);
+    perspectiveFloor(c,floor,{wood:!outdoor,vanishX:zone===4?240:250});
     if (zone === 4) { detail(c, "#f2e6b594", 11, 164, 458, 1); detail(c, "#f2e6b594", 240, 164, 1, 116); detail(c, "#f2e6b594", 12, 164, 1, 116); detail(c, "#f2e6b594", 468, 164, 1, 116); c.save(); c.strokeStyle = "#f2e6b594"; c.lineWidth = .8; c.beginPath(); c.ellipse(240, 227, 47, 26, 0, 0, Math.PI * 2); c.stroke(); c.restore(); }
     if (!outdoor) { rect(c, "#f8e8b21a", 29, 155, 63, 20); rect(c, "#f8e8b218", 35, 175, 68, 20); rect(c, "#f8e8b214", 42, 195, 74, 20); rect(c, "#f8e8b21a", 111, 155, 60, 20); rect(c, "#f8e8b218", 118, 175, 66, 20); }
     rect(c, "#2b3d3420", 0, 260, 480, 20);
@@ -1067,6 +1158,7 @@ window.SchoolArt = (() => {
       if (extendedParty) { sc.translate(-36, -42); sc.scale(1.15, 1.15); }
       if (battle.activity) activityBackground(sc, battle.activity, 0, true, true);
       else background(sc, battle.stage, 0, true);
+      depthAtmosphere(sc,width,height);
       cached = {key, width, height, layer}; backgrounds.set(c.canvas, cached);
     }
     c.drawImage(cached.layer, 0, 0, 480, 280);
@@ -1090,6 +1182,7 @@ window.SchoolArt = (() => {
         const image = picture.image, ratio = Math.max(width / image.naturalWidth, height / image.naturalHeight);
         const sw = width / ratio, sh = height / ratio;
         sc.drawImage(image, (image.naturalWidth - sw) / 2, (image.naturalHeight - sh) / 2, sw, sh, 0, 0, width, height);
+        paintedDepth(sc,width,height,imageName,image,sw,sh);
       } else {
         // Only scenery may stretch to fill the wide viewport. Sprites, damage
         // numbers and every skill effect use a separate uniform transform.
@@ -1098,6 +1191,7 @@ window.SchoolArt = (() => {
         if (battle.activity) activityBackground(sc, battle.activity, 0, true, true);
         else background(sc, battle.stage, 0, true);
       }
+      depthAtmosphere(sc,width,height);
       cached = {key, width, height, layer}; backgrounds.set(c.canvas, cached);
     }
     c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(cached.layer, 0, 0);
@@ -1133,7 +1227,7 @@ window.SchoolArt = (() => {
   // Rebuild their pixels lazily; decoded source images and portrait URLs stay.
   function resetRenderCache() {
     backgrounds = new WeakMap();
-    osiaPoses.clear(); osiaFrontSources.clear(); lavaPoses.clear(); lavaSources.clear(); sprites.clear(); combatLabels.clear(); horasPoses.clear(); horasPortraitSources.clear(); horasFxSources.clear(); horasCutinSource=null;
+    osiaPoses.clear(); osiaFrontSources.clear(); lavaPoses.clear(); lavaSources.clear(); spicaPoses.clear(); sprites.clear(); combatLabels.clear(); horasPoses.clear(); horasPortraitSources.clear(); horasFxSources.clear(); horasCutinSource=null;
     lavaPosePixels = spritePixels = combatLabelPixels = horasPosePixels = 0;
     void warmHorasEffects();if(horasCutinLoaded)void warmHorasSource('face');
     dragon = null;
@@ -1350,6 +1444,37 @@ window.SchoolArt = (() => {
     for(let i=0;i<6;i++)rect(c,"#fff5bd",-5+i*2,5-i*2,3,2);
     rect(c,"#f87546",2,3,3,3);c.restore();
   }
+  function frostCrystal(c,x,y,r,turn=0){
+    c.save();c.translate(x,y);c.rotate(turn);c.lineWidth=Math.max(.7,r*.1);c.strokeStyle='#d9f7ff';c.beginPath();
+    for(let i=0;i<6;i++){const a=i*Math.PI/3,dx=Math.cos(a),dy=Math.sin(a);c.moveTo(0,0);c.lineTo(dx*r,dy*r);c.moveTo(dx*r*.6,dy*r*.6);c.lineTo(dx*r*.45-dy*r*.22,dy*r*.45+dx*r*.22);c.moveTo(dx*r*.6,dy*r*.6);c.lineTo(dx*r*.45+dy*r*.22,dy*r*.45-dx*r*.22);}c.stroke();c.restore();
+  }
+  // Shared by campaign, guild raids and the duo encounter. Geometry is
+  // deliberately capped at six allies and three foes; nothing persists.
+  function spicaSkillEffect(c,source,allies,foes,age,reduced=false,scale=1){
+    if(age<0||age>1.6||!source)return;
+    const fade=clamp01((1.6-age)/.65),rise=reduced?1:clamp01(age/.65),chill=reduced?1:clamp01((age-.45)/.8);
+    c.save();c.globalAlpha*=fade;c.lineWidth=1.1*scale;
+    frostCrystal(c,source.x,source.y-52*scale,(6+rise*7)*scale,reduced?0:age*.28);
+    for(const p of allies.slice(0,6)){
+      c.strokeStyle='#b9f4ed';c.beginPath();c.ellipse(p.x,p.y-1,scale*(9+rise*12),scale*(3+rise*4),0,0,Math.PI*2);c.stroke();
+      const y=p.y-(28+rise*22)*scale;c.strokeStyle='#d9fff5';
+      for(let k=0;k<2;k++){c.beginPath();c.moveTo(p.x-4*scale,y+6*k*scale);c.lineTo(p.x,y-4*scale+6*k*scale);c.lineTo(p.x+4*scale,y+6*k*scale);c.stroke();}
+      if(!reduced)for(let i=0;i<2;i++)rect(c,'#c7f9fa',p.x+(i?10:-12)*scale,p.y-(9+rise*35+i*7)*scale,2*scale,2*scale);
+    }
+    if(chill>0)for(const p of foes.slice(0,3)){
+      c.save();c.globalAlpha*=chill;c.strokeStyle='#8dbff4';c.beginPath();
+      const r=(13+chill*10)*scale;for(let i=0;i<=6;i++){const a=i*Math.PI/3,xx=p.x+Math.cos(a)*r,yy=p.y+Math.sin(a)*r*.3;if(!i)c.moveTo(xx,yy);else c.lineTo(xx,yy);}c.stroke();
+      frostCrystal(c,p.x,p.y-42*scale,(6+chill*4)*scale,reduced?0:-age*.2);c.restore();
+    }
+    c.restore();
+  }
+  function spicaEffects(c,battle,effects,positions,time,reduced){
+    for(const e of effects){if(e.from!=='spica')continue;const age=time-e.time;if(age<0||age>1.6)continue;
+      if(e.kind==='spica-skill')spicaSkillEffect(c,positions.spica,(e.targets||[]).map(id=>positions[id]).filter(Boolean),(e.enemies||[]).map(id=>positions[id]).filter(Boolean),age,reduced);
+      if(e.kind==='hit'&&!e.skill&&age<.65){const a=positions.spica,b=positions[e.to];if(!a||!b)continue;const p=reduced?1:clamp01(age/.4),x=a.x+12+(b.x-a.x-12)*p,y=a.y-32+(b.y-a.y)*p-Math.sin(p*Math.PI)*8;c.save();c.globalAlpha*=1-clamp01((age-.3)/.35);frostCrystal(c,x,y,4.5,reduced?0:age*2);c.restore();}
+    }
+    for(const u of [...battle.heroes,...battle.enemies]){if(u.hp<=0)continue;const p=positions[u.id];if(!p)continue;const buff=(u.hasteUntil||0)>battle.elapsed,slow=(u.slowUntil||0)>battle.elapsed;if(!buff&&!slow)continue;c.save();c.globalAlpha=.8;c.fillStyle=buff?'#b5f2dd':'#aacbff';c.font='bold 9px sans-serif';c.fillText(buff?'↑↑':'❄',p.x+18,p.y-39);c.restore();}
+  }
   function combatNumber(c,text,x,y,size,color,critical){
     const resolution=c.canvas.width/480>4?6:c.canvas.width/480>2?4:2;
     const key=`${text}:${size}:${color}:${+critical}:${fontRevision}:${resolution}`;
@@ -1378,7 +1503,7 @@ window.SchoolArt = (() => {
       const x=p.x,y=p.y-35,spread=(reduced?9:5+age*50)*power;
       c.save();c.globalAlpha*=Math.max(0,1-age/.36);
       if(!reduced&&age<.075){rect(c,critical?"#ffe8a177":"#fff6db55",x-9*power,y-15*power,18*power,30*power);}
-      const color=e.element==="water"?"#9deaf4":critical?"#ffc35f":"#f4ddbd";
+      const color=e.element==="ice"?'#c5eaff':e.element==="water"?"#9deaf4":critical?"#ffc35f":"#f4ddbd";
       for(let shard=0;shard<(reduced||economy?3:critical?8:5);shard++){
         const a=shard*2.399+(e.seq||0)*.2,dx=Math.cos(a),dy=Math.sin(a),length=(critical?8:5)*(1-age/.5);
         const px=x+dx*spread,py=y+dy*spread;
@@ -1483,6 +1608,7 @@ window.SchoolArt = (() => {
       if(event.kind==="ryusion-skill"&&age<1.4)actor("ryusion").combo=event;
       if(event.kind==="ryusion-impact"&&age<.7)actor(event.to).earthImpact=event;
       if (event.kind === "lava-skill" && age < 1.8) actor("lava").combo = event;
+      if(event.kind==='spica-skill'&&age<1.6)actor('spica').combo=event;
       if (event.kind === "horas-basic" && age < 1.18) actor("horas").basic = event;
       if (event.kind === "horas-cast" && age < 1.8) actor("horas").horasCast = event;
       if (event.kind === "horas-impact" && age < .95) actor("horas").horasImpact = event;
@@ -1508,7 +1634,7 @@ window.SchoolArt = (() => {
     for (const item of items) {
       const p = positions[item.id], visual = actors.get(item.id) || {}, hit = !!visual.incoming && time - visual.incoming.time < .15, attacking = !!visual.outgoing && time - visual.outgoing.time < .25;
       const stunned = item.hp > 0 && (item.stunUntil || 0) > battle.elapsed;
-      const bounce = reduced || item.hp <= 0 || stunned || battle.cinematic || item.id === "horas" ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
+      const bounce = reduced || item.side==='hero' || item.hp <= 0 || stunned || battle.cinematic ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
       const attackAge = visual.outgoing ? time - visual.outgoing.time : -1;
       // Ease the same attack distance out and back instead of snapping eight
       // pixels in one frame. Combat timing, attack poses and casts stay intact.
@@ -1521,7 +1647,7 @@ window.SchoolArt = (() => {
       const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : ["lava","horas"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
-        time:sceneTime, reduced, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
+        time:sceneTime, reduced:reduced||!!battle.cinematic,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
         horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
         horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasImpact ? 1.5+time-visual.horasImpact.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
@@ -1548,6 +1674,7 @@ window.SchoolArt = (() => {
     }
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy);
     lavaEffects(c, effects, visualPositions, time, reduced,economy);
+    spicaEffects(c,battle,effects,visualPositions,time,reduced);
     horasVisualEffects(c,battle,effects,visualPositions,time,reduced,economy,horasInterpolation,true);
     window.SchoolRyusion?.effects(c,battle,effects,positions,time,reduced);
     monsterSkillEffects(c,effects,positions,time,reduced);
@@ -1628,5 +1755,5 @@ window.SchoolArt = (() => {
     if(!battle.cinematic&&battle.phase==='fight'&&battle.horasCast&&battle.heroes.some(h=>h.id==='horas'&&h.hp>0))horasCutin(c,Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation),reduced);
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

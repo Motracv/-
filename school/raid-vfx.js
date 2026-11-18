@@ -40,12 +40,16 @@ window.SchoolRaidFX=(()=>{
    const recoil=reduced?0:Math.sin(clamp(hitAge/.3)*PI)*8;
    if(a.heal&&now-a.heal.shown<950){const f=(now-a.heal.shown)/950;c.save();c.globalAlpha=1-f;glow(c,p.x,p.y-scale*20,scale*35,'#94ffb5',.8);c.lineWidth=2;ring(c,p.x,p.y,scale*(16+f*12),'#8fffc3');for(let n=0;n<3;n++){c.fillStyle='#bcffd6';c.fillRect(p.x+(n-1)*scale*10-2,p.y-f*scale*38-n*7,4,9);c.fillRect(p.x+(n-1)*scale*10-5,p.y-f*scale*38-n*7+3,10,3);}c.restore();}
    if(u.shield>0){c.save();c.globalAlpha=.4+(a.hurt?.absorbed&&hitAge<.4?.4:0);c.strokeStyle='#b3e7ff';c.lineWidth=2;c.beginPath();c.ellipse(p.x,p.y-scale*18,scale*14,scale*22,0,0,PI*2);c.stroke();c.restore();}
-   SchoolArt.hero(c,u.id,p.x+dx-recoil,p.y+(reduced?0:motion?.dy||0),scale,{attack:outAge<.65,dead:u.hp<=0,hit:hitAge<.2,time:now/1000,reduced,pose:motion?.pose,motion,casting:castAge<1.5,attackAge:out&&!out.skill&&outAge<1.1?outAge:undefined,basicAttackAt:out&&!out.skill?out.shown/1000:undefined,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0,horasCastAge:u.id==='horas'&&castAge<2.4?castAge:-1,taunting:u.id==='ryusion'&&SchoolRPG.ryusionGuard(units,t).taunting,passive:!!a.rescue&&now-a.rescue.shown<1200});
+   SchoolArt.hero(c,u.id,p.x+dx-recoil,p.y+(reduced?0:motion?.dy||0),scale,{attack:outAge<.65,dead:u.hp<=0,stunned:u.stunUntil>t,hit:hitAge<.2,time:now/1000,reduced,pose:motion?.pose,motion,casting:castAge<1.5,attackAge:out&&!out.skill&&outAge<1.1?outAge:undefined,basicAttackAt:out&&!out.skill?out.shown/1000:undefined,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0,horasCastAge:u.id==='horas'&&castAge<2.4?castAge:-1,taunting:u.id==='ryusion'&&SchoolRPG.ryusionGuard(units,t).taunting,passive:!!a.rescue&&now-a.rescue.shown<1200});
    const key=focus+':'+u.id,prior=bars.get(key)||{hp:u.hp,trail:u.hp},hpEvent=own.findLast(e=>e.id===u.id&&Number.isFinite(e.hpAfter)&&now-e.shown<1000),targetHP=hpEvent?.hpAfter??u.hp;
    prior.hp=mix(prior.hp,targetHP,Math.min(1,dt/135));prior.trail=mix(prior.trail,targetHP,Math.min(1,dt/450));bars.set(key,prior);
    const bw=Math.max(48,scale*32);c.fillStyle='#111b30';c.fillRect(p.x-bw/2-1,p.y+4,bw+2,7);c.fillStyle='#ce737a';c.fillRect(p.x-bw/2,p.y+5,bw*clamp(prior.trail/u.max),5);c.fillStyle=prior.hp/u.max<.25?'#ff9c83':'#9fed9a';c.fillRect(p.x-bw/2,p.y+5,bw*clamp(prior.hp/u.max),5);
    if(u.shield){c.fillStyle='#b8eaff';c.fillRect(p.x-bw/2,p.y+12,bw*clamp(u.shield/u.max),3);}
+   if(u.hp>0&&u.hasteUntil>t){c.save();c.strokeStyle='#bbffe8';c.lineWidth=Math.max(1,scale*.7);for(let n=0;n<2;n++){const y=p.y-scale*(48+n*3);c.beginPath();c.moveTo(p.x-3*scale,y+2*scale);c.lineTo(p.x,y);c.lineTo(p.x+3*scale,y+2*scale);c.stroke();}c.restore();}
   });
+  for(const e of own.filter(e=>e.kind==='spica-wind'&&now-e.shown<1600).slice(-1)){
+   const p=positions[units.findIndex(u=>u.id==='spica')];if(p)SchoolArt.spicaSkillEffect(c,p,positions.filter((_,i)=>units[i].hp>0),[{x:bossX,y:bossY}],(now-e.shown)/1000,reduced,scale);
+  }
   // Boss effects terminate at the actual server-selected target (including taunt).
   if(impact){const id=impact.pattern,fade=1-age;c.save();c.globalAlpha=fade;
    if(id==='basic'||id==='pull'||id==='dash'){
@@ -64,7 +68,7 @@ window.SchoolRaidFX=(()=>{
   }
   // Every attack remains visible, even when a physical attack is immune.
   for(const e of own.filter(e=>['hit','immune'].includes(e.kind)&&now-e.shown<850).slice(-12)){
-   const p=positions[units.findIndex(u=>u.id===e.id)];if(!p)continue;const f=clamp((now-e.shown)/850),travel=clamp(f/.4),color=e.kind==='immune'?'#c5c9df':e.id==='horas'?'#ffc3e7':e.id==='lava'?'#a0ffe1':'#8ee5ff';
+   const p=positions[units.findIndex(u=>u.id===e.id)];if(!p)continue;const f=clamp((now-e.shown)/850),travel=clamp(f/.4),color=e.kind==='immune'?'#c5c9df':e.id==='horas'?'#ffc3e7':e.id==='lava'?'#a0ffe1':e.id==='spica'?'#d9f6ff':'#8ee5ff';
    c.save();c.globalAlpha=1-f;const x=mix(p.x+10,bossX,travel),y=mix(p.y-scale*28,bossY-size*.5,travel);glow(c,x,y,e.skill?35:16,color,.8);c.fillStyle=color;c.fillRect(x-5,y-4,e.skill?16:10,8);if(f>.35)burst(c,bossX,bossY-size*.5,(f-.35)/.65,color,reduced?3:8,e.skill?1.5:.6);c.restore();
   }
   for(const e of own.filter(e=>e.kind==='hit'&&e.skill&&now-e.shown<1550).slice(-3)){

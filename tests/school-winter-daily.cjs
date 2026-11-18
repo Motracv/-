@@ -6,8 +6,8 @@ const make=(now=NOW)=>{const s=G.create(now);s.winter.snowflakes=s.winter.earned
 const buy=(s,item,now=s.at)=>G.action(s,{kind:'winter-exchange',item,cost:0,gold:1e12,gems:1e12,day:0,remaining:10},now);
 const info=(s,now=s.at)=>G.winterInfo(s,now);
 function rejects(s,action,now=s.at){const before=G.clone(s);assert.throws(()=>G.action(s,action,now));assert.deepEqual(s,before);}
-test('Each item costs exactly triple the old flakes and has an independent ten-per-day allowance',()=>{
- const s=make(),before=[s.gold,s.gems];assert.equal(G.CATALOG_VERSION,24);assert.deepEqual(info(s).items.map(i=>[i.id,i.cost,i.limit,i.remaining]),[['gold',30,10,10],['gems',60,10,10],['horas',1000,2,2]]);
+test('Four winter items retain ten daily gold/gem purchases, two shard purchases and one lifetime Spica unlock',()=>{
+ const s=make(),before=[s.gold,s.gems];assert.equal(G.CATALOG_VERSION,25);assert.deepEqual(info(s).items.map(i=>[i.id,i.cost,i.limit,i.remaining]),[['gold',30,10,10],['gems',60,10,10],['horas',1000,2,2],['spica',5000,1,1]]);assert.equal(info(s).items.find(i=>i.id==='spica').lifetime,true);
  for(let n=0;n<10;n++){assert.equal(buy(s,'gold').cost,30);assert.equal(buy(s,'gems').cost,60);}
  assert.deepEqual([s.gold,s.gems],[before[0]+10000,before[1]+1000]);assert.equal(s.winter.snowflakes,9100);assert.deepEqual(s.winter.exchanges,{gold:10,gems:10});assert.deepEqual(s.winter.daily.exchanges,{gold:10,gems:10});assert(info(s).items.filter(i=>!i.hero).every(i=>!i.canBuy&&i.bought===10&&i.remaining===0));
  for(const item of ['gold','gems'])rejects(s,{kind:'winter-exchange',item});assert(G.validate(G.clone(s)));

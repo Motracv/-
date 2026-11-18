@@ -1,0 +1,54 @@
+{
+  "image": "combat.png",
+  "width": 1536,
+  "height": 1024,
+  "columns": 3,
+  "rows": 2,
+  "cellWidth": 512,
+  "cellHeight": 512,
+  "facing": "right",
+  "poses": [
+    {
+      "id": "idle",
+      "column": 0,
+      "row": 0,
+      "anchorX": 277,
+      "anchorY": 485
+    },
+    {
+      "id": "basic",
+      "column": 1,
+      "row": 0,
+      "anchorX": 212,
+      "anchorY": 485
+    },
+    {
+      "id": "haste",
+      "column": 2,
+      "row": 0,
+      "anchorX": 209,
+      "anchorY": 485
+    },
+    {
+      "id": "slow",
+      "column": 0,
+      "row": 1,
+      "anchorX": 276,
+      "anchorY": 484
+    },
+    {
+      "id": "hurt",
+      "column": 1,
+      "row": 1,
+      "anchorX": 244,
+      "anchorY": 484
+    },
+    {
+      "id": "defeat",
+      "column": 2,
+      "row": 1,
+      "anchorX": 204,
+      "anchorY": 485
+    }
+  ]
+}

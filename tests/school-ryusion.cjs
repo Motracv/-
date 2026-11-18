@@ -8,7 +8,7 @@ function setup(team=['harin','sua','lava','osia','horas','ryusion']){
 }
 function advance(s,time){const events=[];while(s.battle.elapsed<time&&s.battle.phase==='fight'){const seq=s.seq;G.advance(s,s.at+500);events.push(...s.events.filter(e=>e.seq>seq));}return events;}
 test('SSR pickup uses 100/1000, independent soft/hard pity and loss guarantee, old pools unchanged',()=>{
- assert.equal(G.BY_ID.ryusion.rarity,'SSR');assert.equal(G.BY_ID.ryusion.role,'수호');assert.equal(G.HEROES.length,17);assert(!G.STANDARD_SSR.includes('ryusion'));
+ assert.equal(G.BY_ID.ryusion.rarity,'SSR');assert.equal(G.BY_ID.ryusion.role,'수호');assert.equal(G.HEROES.length,18);assert(!G.STANDARD_SSR.includes('ryusion'));
  const s=G.create(NOW,1);s.gems=50000;s.banners.ryusion={pity:79,guaranteed:false};const old=structuredClone(s.banners.osia);let rolls=[.999,.9];let r=G.action(s,{kind:'recruit',banner:'ryusion',count:1},NOW,()=>rolls.shift());assert(r.results[0].lostFeatured);assert.equal(s.gems,49900);assert(G.bannerState(s,'ryusion').guaranteed);assert.deepEqual(s.banners.osia,old);
  s.banners.ryusion.pity=79;r=G.action(s,{kind:'recruit',banner:'ryusion',count:10},NOW,()=>.999);assert.equal(r.results[0].id,'ryusion');assert.equal(s.gems,48900);assert(!G.bannerState(s,'ryusion').guaranteed);assert.equal(s.units.ryusion.level,1);assert.equal(G.recruitRates(59,'ryusion').SSR,.02);assert.equal(G.recruitRates(79,'ryusion').SSR,1);assert(G.validate(s));
  assert.equal(G.bannerHeroRates(s,'osia').ryusion,0);assert.equal(G.bannerHeroRates(s,'horas').ryusion,0);

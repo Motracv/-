@@ -7,6 +7,7 @@
     friends:'<path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM1 22v-3a7 7 0 0 1 14 0v3M17 5a4 4 0 0 1 0 8M18 16a6 6 0 0 1 5 6"/>',
     arena:'<path d="m4 3 17 17M3 4l2 5 3-1 1-3-5-2ZM20 3 3 20M21 4l-2 5-3-1-1-3 5-2ZM3 16l5 5M16 21l5-5"/>',
     winter:'<path d="M12 1v22M2.5 6.5l19 11M2.5 17.5l19-11M8 3l4 4 4-4M8 21l4-4 4 4M3 11l5-2-1-5M21 13l-5 2 1 5M3 13l5 2-1 5M21 11l-5-2 1-5"/>',
+    snowman:'<circle cx="12" cy="7" r="4"/><circle cx="12" cy="17" r="6"/><path d="M8 3h8M9 3V1h6v2M5 15l-4-3M19 15l4-3M11 7h2M12 14v5"/>',
     damage:'<path d="M4 21V13h4v8M10 21V7h4v14M16 21V2h4v19M2 22h21"/>',
     gem:'<path d="m2 8 5-5h10l5 5-10 14ZM2 8h20M7 3l-2 5 7 14 7-14-2-5M12 3v19"/>',
     coin:'<path d="M7 2h10l5 5v10l-5 5H7l-5-5V7ZM15 7H9v5h6v5H9M12 5v14"/>'
@@ -20,13 +21,14 @@
 
   function create(context) {
     let generation = 0, loadEpoch = 0, view = '', data = null, busy = false, poll = null, cancelReplay = null, pending = null, stopped = false, winterSignature = '';
+    let spinRotation=0, spinAnimation=null;
     let arenaMode='season', seasonPanel='opponents', seasonData=null, seasonClock=null, seasonPending=null, seasonScope=null, seasonLoading=false, seasonContentKey='', seasonDefenseKey='', seasonPortraitKey='', seasonCountdownSecond=-1, seasonPointer=false, seasonRolloverKey='';
     const own = () => !stopped && document.querySelector(`#school-social[data-view="${view}"]`)?.closest('dialog')?.open;
     const $ = id => document.getElementById(id);
     const now = () => context.serverNow?.() ?? Date.now();
     const winterInfo = () => window.SchoolRPG.winterInfo?.(context.getState(), now());
     const winterBlocked = () => busy || !!context.isBlocked?.();
-    function stop() { generation++; seasonLoading=false; clearTimeout(poll); poll = null; cancelReplay?.(); cancelReplay = null; }
+    function stop() { spinAnimation?.cancel();spinAnimation=null;generation++; seasonLoading=false; clearTimeout(poll); poll = null; cancelReplay?.(); cancelReplay = null; }
     function status(message, error = false) {
       const node = $('social-message');
       if (node) { node.textContent = message; node.dataset.error = String(error); }
@@ -295,18 +297,56 @@
       catch(error){if(ticket===generation&&own())setSeasonText('season-feedback',error.message);}
       finally{if(ticket===generation){busy=false;renderSeason();if(!cancelReplay)scheduleSeasonPoll();}}
     }
+    const winterItemName = item => item.unlock ? `${window.SchoolRPG.BY_ID[item.hero]?.name || item.hero} · SSR` : item.hero ? `${window.SchoolRPG.BY_ID[item.hero]?.name || item.hero} 조각 ${number(item.shards)}` : `${item.gems?'보석':'코인'} ${number(item.gems || item.gold)}`;
+    const wheelSlots=()=>window.SchoolRPG.WINTER_ROULETTE||[];
     function winterMarkup() {
       const info = winterInfo();
       if (!info) return '<div class="social-empty">겨울 이벤트를 준비하고 있어요.</div>';
-      return `<div class="winter-banner"><div class="winter-snow" aria-hidden="true">✦ · ✧ · ✦</div>${icon('winter')}<small>WINTER FESTIVAL</small><h3>${escape(info.name)}</h3><p>모험 끝에 찾아온 작은 눈송이</p><span id="winter-event-deadline" class="winter-event-deadline"></span><div class="winter-reset"><span>매일 00:00 · 한국 시간</span><b id="winter-reset-countdown"></b></div></div><button class="winter-yeti-entry" id="winter-yeti"><span aria-hidden="true">❄</span><span><b>만년설 예티 · 2인 협동 토벌</b><small>동료를 얼음땡으로 구출! · 승리 시 눈송이 20~50개 · 무제한 도전</small></span></button><div class="winter-wallet"><span>${icon('winter')} 내 눈송이</span><b id="winter-balance">0</b></div><div class="winter-shop">${info.items.map(item => `<div class="winter-item" data-winter-row="${escape(item.id)}"><span class="winter-reward-icon ${item.id}">${item.hero?portrait(item.hero):icon(item.gems ? 'gem' : 'coin')}</span><div><b>${item.hero?'호라스 조각':item.gems?'보석':'코인'} ${number(item.shards || item.gems || item.gold)}</b><small data-winter-remaining></small></div><button class="primary" data-winter-item="${escape(item.id)}" disabled>${icon('winter')}<span data-winter-price>${number(item.cost)}</span></button></div>`).join('')}</div><p class="social-note">보상 대상 지역에서 승리하면 가끔 눈송이를 얻어요. 보스는 2개! 코인·보석은 하루 10회, 호라스 조각은 하루 2회 교환해요. 아직 호라스가 없으면 조각을 보관했다가 첫 획득 때 합쳐 드려요.</p>`;
+      const spica=info.items.find(i=>i.id==='spica'),ordinary=info.items.filter(i=>i.id!=='spica');
+      return `<header class="winter-banner"><div class="winter-snow" aria-hidden="true">✦ · ✧ · ✦</div><small>WINTER FESTIVAL</small><h3>${escape(info.name)}</h3><p>둘이 함께 구하는 겨울, 새로운 인연</p><span id="winter-event-deadline" class="winter-event-deadline"></span><div class="winter-reset"><span>매일 00:00 · 한국 시간</span><b id="winter-reset-countdown"></b></div></header>
+      <div class="winter-tabs" role="tablist" aria-label="겨울 이벤트 메뉴"><button role="tab" data-winter-tab="festival" aria-selected="true">축제 · 교환</button><button role="tab" data-winter-tab="roulette" aria-selected="false">눈사람 룰렛</button></div>
+      <div class="winter-wallets"><div class="winter-wallet"><span>${icon('winter')} 눈송이</span><b id="winter-balance">0</b></div><div class="winter-wallet"><span>${icon('snowman')} 눈사람</span><b id="winter-snowmen">0</b></div></div>
+      <section data-winter-panel="festival"><button class="winter-yeti-entry" id="winter-yeti"><span aria-hidden="true">❄</span><span><b>만년설 예티 · 2인 협동 토벌</b><small>어려움 · 권장 Lv.70 이상 · HP 80만<br>눈송이 20~50개 + 눈사람 1개 · 무제한 도전</small></span><span class="winter-entry-arrow" aria-hidden="true">›</span></button>
+      ${spica?`<article class="winter-spica-card" data-winter-row="spica"><button class="winter-spica-art" id="winter-spica-preview" aria-label="스피카 캐릭터 시안과 능력 보기"><img src="school/assets/spica/portrait.webp?v=spica1" alt="흰 털 장식과 긴 겨울 드레스를 입은 설녀 스피카" loading="lazy" decoding="async"><span>캐릭터 살펴보기 ↗</span></button><div class="winter-spica-copy"><span class="winter-exclusive">겨울 한정 · SSR</span><h3>스피카</h3><p>설원의 숨결</p><div class="spica-traits"><span>지원</span><span>아군 공속 ↑</span><span>적 공속 ↓</span></div><small data-winter-remaining></small><button class="primary" data-winter-item="spica" disabled>${icon('winter')}<span data-winter-price>5,000</span><span>교환</span></button><small>모집에서 나오지 않는 겨울의 동료</small></div></article>`:''}
+      <div class="winter-shop">${ordinary.map(item => `<div class="winter-item" data-winter-row="${escape(item.id)}"><span class="winter-reward-icon ${escape(item.id)}">${item.hero?portrait(item.hero):icon(item.gems ? 'gem' : 'coin')}</span><div><b>${escape(winterItemName(item))}</b><small data-winter-remaining></small></div><button class="primary" data-winter-item="${escape(item.id)}" disabled>${icon('winter')}<span data-winter-price>${number(item.cost)}</span></button></div>`).join('')}</div><p class="social-note">코인·보석은 하루 10회, 호라스 조각은 하루 2회 교환해요. 미보유 조각은 보관하고 첫 모집 때 합쳐요. 스피카는 계정당 한 번 영입할 수 있어요.</p></section>
+      <section data-winter-panel="roulette" hidden><div class="winter-roulette-layout"><div class="winter-wheel-shell"><i class="winter-wheel-pointer" aria-hidden="true"></i><div id="winter-wheel" class="winter-wheel" aria-hidden="true">${wheelSlots().map((slot,i)=>`<div class="winter-wheel-label" style="--slot:${i}"><span>${slot.type==='equipment'?'⚒':slot.type==='gold'?'◉':'◆'}</span><b>${i===0?'10,000':i===1?'1,000':i===2?'100':i===3?'장비':'코인'}</b></div>`).join('')}<span class="winter-wheel-hub">${icon('snowman')}</span></div></div><div class="winter-roulette-copy"><span class="winter-exclusive">SNOWMAN ROULETTE</span><h3>눈사람의 선물</h3><p>예티 토벌로 모은 눈사람이<br>작은 행운을 가져와요.</p><button id="winter-spin" class="primary" disabled>${icon('snowman')}<span>눈사람 1개 · 돌리기</span></button><div id="winter-spin-result" class="winter-spin-result" role="status" aria-live="polite">다섯 가지 선물 중 하나를 받아요.</div></div></div><details class="winter-wheel-odds"><summary>5칸의 보상과 정확한 확률</summary><ul>${wheelSlots().map(slot=>`<li><span>${escape(slot.label)}</span><b>${Number((slot.chance*100).toFixed(3))}%</b></li>`).join('')}</ul><p>칸의 크기와 당첨 확률은 달라요. 일반 장비는 R 70% · SR 25% · SSR 5%이며 전용 무기는 나오지 않아요. 코인은 2,600~7,800개예요.</p></details></section>`;
+    }
+    async function playWinterSpin(result){
+      const reward=result.reward||{},g=window.SchoolRPG.GEAR_BY_ID?.[reward.item],text=reward.type==='equipment'?`${g?.name||'일반 장비'} · ${reward.rarity||g?.rarity||''} 획득`: `${reward.type==='gems'?'보석':'코인'} +${number(reward.amount)}`;
+      if(!own()||view!=='winter'){context.toast?.(text);return;}
+      const ticket=generation,wheel=$('winter-wheel'),resultNode=$('winter-spin-result');
+      if(!wheel||!Number.isInteger(result.index)||result.index<0||result.index>=5){context.toast?.(text);return;}
+      // The action has already committed. Animation never rolls or grants a reward.
+      selectWinterTab('roulette');resultNode.textContent='선물이 도착하고 있어요…';resultNode.classList.remove('won');
+      const target=(360-result.index*72)%360,from=spinRotation,to=from+360*5+(target-from%360+360)%360;
+      const reduced=document.documentElement.dataset.motion==='reduced'||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      const animation=wheel.animate([{transform:`rotate(${from}deg)`},{transform:`rotate(${to}deg)`}],{duration:reduced?120:3500,easing:'cubic-bezier(.12,.72,.12,1)',fill:'forwards'});spinAnimation=animation;
+      window.SchoolPresentation?.play('pull');
+      try{await animation.finished;}catch{}
+      if(ticket!==generation||!own()||view!=='winter')return;
+      spinRotation=to;wheel.style.transform=`rotate(${to}deg)`;animation.cancel();spinAnimation=null;
+      resultNode.textContent=text;resultNode.classList.add('won');status('');window.SchoolPresentation?.play(result.index<2?'SSR':'reward');renderWinter();
+    }
+    function selectWinterTab(tab){
+      const root=$('school-social');if(!root||view!=='winter')return;
+      root.querySelectorAll('[data-winter-panel]').forEach(n=>n.hidden=n.dataset.winterPanel!==tab);
+      root.querySelectorAll('[data-winter-tab]').forEach(n=>n.setAttribute('aria-selected',String(n.dataset.winterTab===tab)));
     }
     function renderWinter() {
       if (!own()) return;
       const root = $('school-social'), info = winterInfo();
       if (!info || !root.querySelector('.winter-shop')) return;
       if (!root.dataset.winterReady) {
-        root.dataset.winterReady = 'true'; winterSignature = '';
+        root.dataset.winterReady = 'true'; winterSignature = '';spinRotation=0;
         $('winter-yeti')?.addEventListener('click',()=>context.openYeti?.());
+        $('winter-spica-preview')?.addEventListener('click',()=>context.openHero?.('spica'));
+        root.querySelectorAll('[data-winter-tab]').forEach(n=>n.onclick=()=>{if(!busy)selectWinterTab(n.dataset.winterTab);});
+        $('winter-spin')?.addEventListener('click',async()=>{
+          if(winterBlocked()||!winterInfo()?.active||(winterInfo()?.snowmen||0)<1)return;
+          const ticket=generation;busy=true;renderWinter();status('눈사람과 선물을 확인하고 있어요…');
+          try{await context.dispatch({kind:'winter-spin'});}catch(error){if(ticket===generation)status(error.message,true);}
+          finally{if(ticket===generation&&own()){busy=false;renderWinter();}}
+        });
         root.querySelectorAll('[data-winter-item]').forEach(button => button.addEventListener('click', async () => {
           if (winterBlocked()) return;
           const item = winterInfo()?.items.find(item => item.id === button.dataset.winterItem);
@@ -322,16 +362,16 @@
           finally { if (ticket === generation && own()) { busy = false; renderWinter(); if (message) status(message, failed); } }
         }));
       }
-      // Preserve each pressed/focused button across balance and midnight updates.
-      const blocked = winterBlocked(), signature = [info.day,info.active,info.snowflakes,blocked,context.getState().units.horas?.shards||context.getState().heroShards?.horas||0,...info.items.flatMap(item => [item.id,item.bought,item.remaining,item.cost,item.canBuy])].join('|');
+      const blocked = winterBlocked(), signature = [info.day,info.active,info.snowflakes,info.snowmen,info.spicaOwned,blocked,context.getState().units.horas?.shards||context.getState().heroShards?.horas||0,...info.items.flatMap(item => [item.id,item.bought,item.remaining,item.cost,item.canBuy])].join('|');
       if (winterSignature !== signature) {
-        winterSignature = signature; $('winter-balance').textContent = number(info.snowflakes);
+        winterSignature = signature; $('winter-balance').textContent = number(info.snowflakes);$('winter-snowmen').textContent=number(info.snowmen);
+        $('winter-spin').disabled=blocked||!info.active||(info.snowmen||0)<1;
         for (const item of info.items) {
-          const row = root.querySelector(`[data-winter-row="${item.id}"]`), button = row.querySelector('button');
-          row.querySelector('[data-winter-remaining]').textContent = `오늘 ${number(item.remaining)} / ${number(item.limit)}회`+(item.hero?` · 조각 ${number(context.getState().units.horas?.shards||context.getState().heroShards?.horas||0)}개 보유`:'');
+          const row = root.querySelector(`[data-winter-row="${item.id}"]`);if(!row)continue;const button = row.querySelector('[data-winter-item]');
+          row.querySelector('[data-winter-remaining]').textContent = item.unlock?(info.spicaOwned?'영입 완료 · 육성에서 확인하세요':'겨울 한정 · 한 번 영입'):`오늘 ${number(item.remaining)} / ${number(item.limit)}회`+(item.hero?` · 조각 ${number(context.getState().units[item.hero]?.shards||context.getState().heroShards?.[item.hero]||0)}개 보유`:'');
           row.querySelector('[data-winter-price]').textContent = number(item.cost);
           button.disabled = blocked || !item.canBuy;
-          button.setAttribute('aria-label', `${item.hero?'호라스 조각':item.gems?'보석':'코인'} ${number(item.shards || item.gems || item.gold)} 교환 · 눈송이 ${number(item.cost)}개 · 오늘 ${number(item.remaining)}회 남음`);
+          button.setAttribute('aria-label', `${winterItemName(item)} 교환 · 눈송이 ${number(item.cost)}개 · ${item.lifetime?'계정당 한 번':`오늘 ${number(item.remaining)}회 남음`}`);
         }
       }
       const endsAt=window.SchoolRPG.WINTER_EVENT?.endsAt;
@@ -373,7 +413,7 @@
       if (view === 'winter') renderWinter();
       if(view==='arena'&&arenaMode==='season'&&!cancelReplay)renderSeason();
     }
-    return {openFriends:() => open('friends'),openArena:() => open('arena'),openWinter:() => open('winter'),refresh,destroy() {stop();stopped = true;data = null;}};
+    return {openFriends:() => open('friends'),openArena:() => open('arena'),openWinter:() => open('winter'),playWinterSpin,cancelPresentation(){spinAnimation?.cancel();spinAnimation=null;},refresh,destroy() {stop();stopped = true;data = null;}};
   }
 
   function damageMarkup(match) {
@@ -420,7 +460,7 @@
     }
     function apply(event) {
       const from = byKey.get(`${event.side}:${event.from}`), target = byKey.get(`${event.toSide}:${event.target}`);
-      if (from && ['attack','skill','heal','shield'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
+      if (from && ['attack','skill','heal','shield','spica-wind'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind==='spica-wind'?'skill':event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
       if(from?.id==='ryusion'){if(event.kind==='ryusion-skill'){from.earthCastAt=event.t;from.earthStage=event.stage;}if(event.kind==='ryusion-taunt')from.earthTauntUntil=event.until;}
       if (from?.id==='horas') {
         if(event.kind==='horas-basic'){from.horasBasicAt=event.t;from.horasBasicPose=event.pose;}
@@ -435,6 +475,7 @@
         if(event.kind==='horas-cast'&&!finished&&clock-event.t>=0&&clock-event.t<200)window.SchoolPresentation?.play('blossom-charge');
       }
       if (target) {
+        if(event.kind==='stun')target.stunUntil=Math.max(target.stunUntil||0,event.t+(event.duration||0));
         if (Number.isFinite(event.hp)) target.hp = Math.max(0,event.hp);
         else if (['attack','skill'].includes(event.kind)) target.hp = Math.max(0,target.hp-(event.amount || 0));
         else if (event.kind==='heal') target.hp = Math.min(target.max,target.hp+(event.amount || 0));
@@ -470,12 +511,13 @@
       units.flat().sort((a,b)=>positions.get(`${a.side}:${a.id}`).y-positions.get(`${b.side}:${b.id}`).y).forEach(unit=>{
         const position=positions.get(`${unit.side}:${unit.id}`),actAge=(clock-unit.actAt)/1000,hitAge=clock-unit.hitAt;
         const horasAge=(clock-unit.horasBasicAt)/1000,horasCastAge=unit.horasCast?(clock-unit.horasCastAt)/1000:1.5+(clock-unit.horasImpactAt)/1000;
-        const casting=unit.id==='horas'?(!!unit.horasCast||horasCastAge>=1.5&&horasCastAge<2.1)&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<1.15&&unit.hp>0;
+        const casting=unit.id==='horas'?(!!unit.horasCast||horasCastAge>=1.5&&horasCastAge<2.1)&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<(unit.id==='spica'?1.45:1.15)&&unit.hp>0;
         const attacking=(unit.id==='horas'?horasAge>=0&&horasAge<.9:actAge>=0&&actAge<.48)&&unit.hp>0, direction=unit.side?-1:1;
         const move=attacking&&!reduced?Math.sin(actAge/.48*Math.PI)*15*direction:0;
         const earthAge=(clock-(unit.earthCastAt??-10000))/1000;
-        const motion=unit.id==='ryusion'&&earthAge>=0&&earthAge<1.4?window.SchoolArt?.poseForSkill?.('ryusion',unit.earthStage,earthAge,reduced):casting&&['osia','lava'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
-        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:unit.id==='horas'?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{time:clock/1000,dead:unit.hp<=0,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):null,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
+        const motion=unit.id==='ryusion'&&earthAge>=0&&earthAge<1.4?window.SchoolArt?.poseForSkill?.('ryusion',unit.earthStage,earthAge,reduced):casting&&['osia','lava','spica'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
+        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:unit.id==='horas'?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{time:clock/1000,dead:unit.hp<=0,stunned:unit.stunUntil>clock,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):null,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
+        if(unit.id==='spica'&&casting&&!(unit.stunUntil>clock))window.SchoolArt?.spicaSkillEffect?.(c,position,units[unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),units[1-unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),actAge,reduced,1.2);
         c.fillStyle='#14222ce6';c.fillRect(position.x-38,position.y+8,76,8);c.fillStyle=unit.side===me?'#a4c478':'#dc8d7f';c.fillRect(position.x-37,position.y+9,74*Math.max(0,unit.hp)/Math.max(1,unit.max),6);
         if(unit.shield>0){c.fillStyle='#9dd4e2';c.fillRect(position.x-37,position.y+16,74*Math.min(1,unit.shield/Math.max(1,unit.max)),3);}
         c.font='9px Galmuri,monospace';c.textAlign='center';c.fillStyle=unit.hp>0?'#edf0e5':'#93a0a6';c.fillText(unit.name || window.SchoolRPG.BY_ID[unit.id]?.name || unit.id,position.x,position.y+30);

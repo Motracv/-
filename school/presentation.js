@@ -154,7 +154,9 @@
     card.dataset.hero = id; card.dataset.rarity = hero.rarity;
     card.append(node('span', 'presentation-rarity', hero.rarity));
     const art = node('div', 'presentation-portrait');
-    if (id === 'ryusion') {
+    if (id === 'spica') {
+      const image=node('img','spica-illustration');image.src='school/assets/spica/portrait.webp?v=spica1';image.alt='설녀 스피카';art.append(image);
+    } else if (id === 'ryusion') {
       const image=node('img','horas-illustration');image.src='school/assets/ryusion/portrait.png?v=ryusion1';image.alt='류시온';art.append(image);
     } else if (id === 'horas') {
       const image = node('img', 'horas-illustration'); image.src = 'school/assets/horas/portrait.webp?v=horas1'; image.alt = '호라스'; art.append(image);
@@ -328,7 +330,8 @@
     const hero = info(lead.id), grade = ['UR', 'SSR', 'SR'].includes(hero.rarity) ? hero.rarity : 'R';
     if (grade === 'UR' && lead.id === 'horas') { await horasRecruitSequence(job); return; }
     const ui = shell(job, grade === 'UR' ? '벚꽃이 이끈 운명' : grade === 'SSR' ? '눈부신 운명의 만남' : grade === 'SR' ? '특별한 동료의 등장' : '새로운 만남', `${grade} · ${hero.name}`, grade);
-    const gate = node('div', 'presentation-gate'); gate.append(node('span', 'gate-seal', grade === 'UR' ? '❀' : grade === 'SSR' ? '✦' : grade === 'SR' ? '◇' : '✧'));
+    if(job.data.source==='winter-exchange'){ui.dialog.dataset.cinematic='spica';ui.dialog.querySelector('.presentation-kicker').textContent='겨울이 맺어 준 인연';ui.title.textContent='설원의 숨결 · 스피카';}
+    const gate = node('div', 'presentation-gate'); gate.append(node('span', 'gate-seal', lead.id==='spica'?'❄':grade === 'UR' ? '❀' : grade === 'SSR' ? '✦' : grade === 'SR' ? '◇' : '✧'));
     if (grade === 'UR') for (let i=0;i<5;i++) { const orb=node('i','ur-gate-orb','❀'); orb.style.setProperty('--orb-angle', `${i*72-90}deg`); gate.append(orb); }
     const heroCard = portraitCard(lead.id, 0, 'recruit-featured', job); heroCard.hidden = true;
     const gradeBadge = node('div', 'presentation-grade', grade); gradeBadge.hidden = true; ui.scene.append(gate, heroCard, gradeBadge);

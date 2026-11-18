@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 24;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 25;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const PROFILE_AVATARS = Object.freeze(['knight','witch','scholar','bear','cat','bird']);
@@ -32,9 +32,12 @@
     { stage: 2, name: "바람의 상처", healMultiplier: 4.5 },
   ];
   const lavaSkill = s => LAVA_SKILLS[(s.units.lava?.nextSkill || 1) - 1];
+  const SPICA_RULES = Object.freeze({haste:.15,hasteMs:6000,slow:.15,slowMs:5000,bossSlowScale:.5,cooldown:9,skillMultiplier:1.1});
+  function basicAttackRate(unit,time,isBoss=false) { return 1 + ((time < (unit.hasteUntil||0) ? SPICA_RULES.haste : 0) - (time < (unit.slowUntil||0) ? SPICA_RULES.slow*(isBoss?SPICA_RULES.bossSlowScale:1) : 0)); }
   const RYUSION_RULES = Object.freeze({ tauntEvery:5000, tauntMs:2000, tauntReduction:.6, teamReduction:.08, shieldRatio:.08, shieldMs:6000, stunMs:2000, impactDelay:500 });
   const RYUSION_SKILLS = Object.freeze([{stage:1,name:"돌격 앞으로"},{stage:2,name:"방어막 추가"}]);
   const ryusionSkill = s => RYUSION_SKILLS[(s.units.ryusion?.nextSkill || 1)-1];
+  function ryusionDefense(hero) { const p=hero?.exclusive;return p?.id==='earth_shield'?{tauntReduction:p.tauntReduction,shieldRatio:p.shieldRatio,tauntShieldRatio:p.tauntShieldRatio}:{tauntReduction:RYUSION_RULES.tauntReduction,shieldRatio:RYUSION_RULES.shieldRatio,tauntShieldRatio:0}; }
   function ryusionGuard(heroes,time) { const hero=heroes.find(h=>h.id==='ryusion'&&h.hp>0);return {hero,taunting:!!hero&&time>=RYUSION_RULES.tauntEvery&&time%RYUSION_RULES.tauntEvery<RYUSION_RULES.tauntMs}; }
   function expireEarthShield(hero,time) { if(hero.earthShield&&time>=hero.earthShieldUntil){hero.shield=Math.max(0,hero.shield-hero.earthShield);hero.earthShield=0;return true;}return false; }
   function addEarthShield(hero,amount,time) { hero.shield=Math.max(0,hero.shield-(hero.earthShield||0));hero.earthShield=Math.max(0,Math.round(amount));hero.earthShieldUntil=time+RYUSION_RULES.shieldMs;hero.shield+=hero.earthShield;return hero.earthShield; }
@@ -46,18 +49,19 @@
   function recruitCost(banner, count) { return (banner === "horas" ? RECRUIT_COST : SSR_RECRUIT_COST)[count]; }
   const WEAPON_COST = SSR_RECRUIT_COST;
   const WEAPON_BANNERS = Object.freeze({
+    ryusion: Object.freeze({ id:"ryusion", item:"earth_shield", group:"standard", limited:false, expiresAt:null }),
     osia: Object.freeze({ id:"osia", item:"osia_scepter", group:"standard", limited:false, expiresAt:null }),
     lava: Object.freeze({ id:"lava", item:"lava_fan", group:"standard", limited:false, expiresAt:null }),
     horas: Object.freeze({ id:"horas", item:"horas_orbit", group:"limited", limited:true, expiresAt:Date.parse("2026-12-03T00:00:00+09:00") }),
   });
   const RECRUIT_RATES = { SSR: .01, SR: .26, R: .73 };
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
-  const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi"]);
+  const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi", "lava"]);
   const BANNERS = Object.freeze({
     ryusion: Object.freeze({ id:"ryusion", name:"류시온 픽업 모집", featured:"ryusion", limited:false, expiresAt:null }),
-    horas: Object.freeze({ id: "horas", name: "호라스 픽업뽑기", featured: "horas", rarity: "UR", limited: false, expiresAt: null }),
+    horas: Object.freeze({ id: "horas", name: "호라스 픽업뽑기", featured: "horas", rarity: "UR", limited: true, expiresAt: Date.parse("2026-12-03T00:00:00+09:00") }),
     osia: Object.freeze({ id: "osia", name: "오시아 상시 모집", featured: "osia", limited: false, expiresAt: null }),
-    lava: Object.freeze({ id: "lava", name: "라바 한정 모집", featured: "lava", limited: true, expiresAt: Date.parse("2026-11-21T00:00:00+09:00") }),
+    lava: Object.freeze({ id: "lava", name: "라바 상시 모집", featured: "lava", limited: false, expiresAt: null }),
   });
   // Retired code names remain valid historical records, but cannot be redeemed.
   const COUPONS = Object.freeze({
@@ -86,6 +90,7 @@
     { id: "adventure_badge", name: "모험부 배지", slot: "charm", rarity: "R", atk: .01, hp: .01, starAtk: .002, starHp: .004 },
     { id: "wind_bell", name: "바람의 방울", slot: "charm", rarity: "SR", atk: .015, hp: .015, starAtk: .002, starHp: .004 },
     { id: "dawn_brooch", name: "여명석 브로치", slot: "charm", rarity: "SSR", atk: .02, hp: .02, starAtk: .002, starHp: .004 },
+    { id:"earth_shield", name:"대지의 방패", owner:"ryusion", passive:"대지의 맹약", slot:"weapon", rarity:"EX", atk:.02, hp:.08, starAtk:.004, starHp:.008 },
     { id:"osia_scepter", name:"해연의 왕권", owner:"osia", passive:"용왕의 해류", slot:"weapon", rarity:"EX", atk:.06, hp:0, starAtk:.008, starHp:0 },
     { id:"lava_fan", name:"설풍의 신탁", owner:"lava", passive:"풍령의 가호", slot:"weapon", rarity:"EX", atk:.06, hp:0, starAtk:.008, starHp:0 },
     { id:"horas_orbit", name:"낙성의 화관", owner:"horas", passive:"벚꽃의 맹세", slot:"weapon", rarity:"EX", atk:.06, hp:0, starAtk:.008, starHp:0 },
@@ -106,7 +111,14 @@
     Object.freeze({ id: "healer", name: "생명의 합주", required: 3, description: "치유 3명 · 아군 전체 회복량 20% 증가" }),
   ]);
   const WINTER_EVENT = Object.freeze({ id: "first-snow-2026", name: "겨울의 첫눈", startsAt: Date.parse("2026-11-18T00:00:00+09:00"), endsAt: null, dropChance: .2,
-    shop: Object.freeze({ gold: Object.freeze({ cost: 30, limit: 10, gold: 1000, gems: 0 }), gems: Object.freeze({ cost: 60, limit: 10, gold: 0, gems: 100 }), horas: Object.freeze({ cost:1000, limit:2, gold:0, gems:0, hero:"horas", shards:5 }) }) });
+    shop: Object.freeze({ gold: Object.freeze({ cost: 30, limit: 10, gold: 1000, gems: 0 }), gems: Object.freeze({ cost: 60, limit: 10, gold: 0, gems: 100 }), horas: Object.freeze({ cost:1000, limit:2, gold:0, gems:0, hero:"horas", shards:5 }), spica:Object.freeze({cost:5000,limit:1,gold:0,gems:0,hero:"spica",unlock:true,lifetime:true}) }) });
+  const WINTER_ROULETTE = Object.freeze([
+    {id:'jackpot',label:'보석 10,000',type:'gems',amount:10000,chance:.001},
+    {id:'gems1000',label:'보석 1,000',type:'gems',amount:1000,chance:.01},
+    {id:'gems100',label:'보석 100',type:'gems',amount:100,chance:.089},
+    {id:'gear',label:'랜덤 장비',type:'equipment',amount:1,chance:.35},
+    {id:'gold',label:'랜덤 골드',type:'gold',min:2600,max:7800,chance:.55}
+  ].map(Object.freeze));
   // Use integer percentages so 1400 × 35% is exactly 490, not 489.999… .
   const scaledXp = (amount, multiplier) => amount > 0 ? Math.max(1, Math.floor(amount * Math.round(multiplier * 100) / 100)) : 0;
   function recruitRates(misses, banner = "osia") {
@@ -166,6 +178,7 @@
     { id: "lumi", name: "루미", club: "오컬트부", role: "마법", rarity: "SSR", hp: 128, atk: 21, skill: "달빛 소환", cooldown: 4, color: "#c89ed4", hair: "#b9b2db", outfit: "#5c527d", weapon: "staff", desc: "적 전체에게 공격력 170%의 달빛. 빠른 광역 공격." },
     { id: "osia", name: "오시아", latin: "Osia", club: "물의 용왕", species: "물고기", element: "water", role: "마법", rarity: "SSR", hp: 136, atk: 20, skill: "용왕의 해일", skillMultiplier: 2.2, cooldown: 5, passive: "용왕의 권능", passiveDesc: "물폭탄 평타로 싸우며 스킬을 충전합니다. 충전할 때마다 대형 물탄 → 소용돌이 → 물기둥 → 거대 수룡 순서로 하나씩 사용하고 반복합니다. 마지막 수룡은 명중한 적을 1.5초 기절시킵니다.", color: "#59bdd7", hair: "#6587bb", outfit: "#f6f3eb", weapon: "water", desc: "5초 충전마다 다음 단계 스킬 하나로 적 전체에게 공격력 220%의 물 피해. 스킬 사이에는 물폭탄 평타를 사용합니다." },
     { id: "lava", name: "라바", latin: "Lava", gender: "남성", species: "인간", club: "바람의 무당", element: "wind", role: "치유", rarity: "SSR", hp: 142, atk: 15, cooldown: 5, skill: "바람의 부채 · 바람의 상처", passive: "신내림", passiveDesc: "본인의 평타가 10회 명중하면 체력 비율이 가장 낮은 생존 아군에게 공격력 200% + 대상 최대 체력 8%의 방어막을 줍니다. 방어막은 최대 체력 60%까지 쌓입니다.", passive2: "긴급생존", passive2Desc: "라바가 살아 있으면 웨이브당 한 번, 아군의 치명적인 피해를 HP 1로 버티게 하고 2초 동안 쓰러지지 않게 합니다. 보호 중에도 회복할 수 있습니다.", color: "#81c4ab", hair: "#91d7f1", outfit: "#9caa65", skirt: "#b9564d", weapon: "wind", desc: "5초 충전마다 교대로 사용합니다. 바람의 부채: 아군 전체 공격력 160% 회복 + 공격력 90% 방어막. 바람의 상처: 체력 비율이 가장 낮은 생존 아군 한 명을 공격력 450%만큼 회복." },
+    { id:"spica", name:"스피카", latin:"Spica", gender:"여성", species:"설녀", club:"겨울의 손님", element:"ice", role:"지원", rarity:"SSR", eventOnly:true, hp:148, atk:13, cooldown:SPICA_RULES.cooldown, skill:"설녀의 겨울", color:"#a8d9f0", hair:"#7796cf", outfit:"#c1d4e5", weapon:"ice", desc:"9초마다 적 전체에 공격력 110%의 마법 피해. 아군 전체의 기본 공격 속도 15% 증가(6초), 적의 기본 공격 속도 15% 감소(5초). 보스에게는 7.5% 감소하며 같은 효과는 중첩되지 않습니다. 스킬 충전 속도는 바뀌지 않습니다." },
     { id:"ryusion", name:"류시온", latin:"Ryusion", gender:"여성", species:"인간", club:"대지의 수호자", element:"earth", role:"수호", rarity:"SSR", hp:245, hpGrowth:18, atk:10, atkGrowth:2.4, cooldown:8, skill:"돌격 앞으로 · 방어막 추가", passive:"내가 대신 맞아줄게", passiveDesc:"전투 5초부터 5초마다 2초 동안 모든 적 공격을 대신 받습니다. 광역 공격은 각 아군에게 향한 타격을 전부 받습니다. 도발 중 본인이 받는 피해는 추가로 60% 감소합니다. 쓰러지면 도발은 끝납니다.", passive2:"피해감소", passive2Desc:"생존 중 자신을 포함한 아군 전체가 받는 피해 8% 감소. 다른 피해 감소와 곱해서 적용됩니다.", color:"#daa456", hair:"#674b40", outfit:"#28272b", weapon:"earth-shield", desc:"8초 충전마다 교대로 사용합니다. 돌격 앞으로: 전방 적 한 명에게 공격력 100% 피해·밀쳐내기·2초 기절. 방어막 추가: 생존 아군 각각에게 류시온 최대 HP 8%의 보호막을 6초간 부여. 같은 보호막은 중첩되지 않습니다." },
   ];
   HEROES.push({ id: "horas", name: "호라스", latin: "Horas", gender: "여성", club: "벚꽃의 의식", element: "blossom", role: "사수", rarity: "UR", hp: 128, atk: 22, cooldown: 5, skill: "벚꽃의식", passive: "별빛 축적", passiveDesc: "두 손짓의 느린 평타가 적중하거나 공격을 받으면 벚꽃 구슬을 1개 쌓습니다. 피격 획득은 1초당 한 번. 5개를 합쳐 벚꽃의식을 사용합니다.", passive2: "벚꽃의 잔향", passive2Desc: "기절 중인 적에게 주는 피해 1.5배. 의식이 적중한 주 대상에게 6초간 표식을 남깁니다. 아군 누구든 표식 대상을 처치하면 2스택을 한 번 회수합니다.", color: "#f3a2d0", hair: "#f2a6d0", outfit: "#d6e5ff", weapon: "blossom", desc: "2초 간격으로 공격력 220% 평타. 5스택을 소모하여 구슬을 합친 뒤 가까운 적이 많은 한 명에게 공격력 1350%, 인접한 적에게 250% 피해. 의식은 10% 확률로 빗나갑니다. 의식 시작 간격은 최소 3초입니다." });
@@ -297,6 +310,8 @@
     const def=GEAR_BY_ID[item]; if(!def?.owner)return null;
     stars=clamp(Math.floor(stars)||0,0,5);
     const strength=(10+stars*1.6)/100, skill=(12+stars*1.6)/100;
+    if(def.owner==='ryusion')return {id:item,owner:def.owner,name:def.passive,stars,tauntReduction:.68+.008*stars,shieldRatio:.105+.003*stars,tauntShieldRatio:.03+.004*stars,
+      description:`도발 중 피해 감소 ${68+.8*stars}%. 전체 보호막이 최대 HP ${(10.5+.3*stars).toFixed(1)}%로 증가. 도발 시작 시 본인에게 최대 HP ${3+.4*stars}%의 대지 보호막(기존 보호막과 중첩되지 않음). 아군 피해 감소 8%는 그대로 유지됩니다.`};
     return {id:item,owner:def.owner,name:def.passive,stars,strength,skill,
       description:def.owner==="osia"?`물 스킬 피해 +${Number((skill*100).toFixed(1))}%. 수룡 적중 후 자신에게 공격력 20%의 보호막.`:
       def.owner==="lava"?`회복·보호막 +${Number((strength*100).toFixed(1))}%. 바람의 상처의 초과 회복 15%를 보호막으로 전환(공격력 40% 한도).`:
@@ -419,9 +434,12 @@
   function winterDay(now) { return { day: day(now), exchanges: { gold: 0, gems: 0 } }; }
   function newWinter(now) { return { id: WINTER_EVENT.id, snowflakes: 0, earned: 0, exchanges: { gold: 0, gems: 0 }, ...(Number.isFinite(now) ? { daily: winterDay(now) } : {}) }; }
   function validWinter(w) {
-    const counts = (values, limit = Number.MAX_SAFE_INTEGER) => values && Object.keys(WINTER_EVENT.shop).every(id => (id==='horas'&&values[id]===undefined||Number.isSafeInteger(values[id]) && values[id] >= 0 && values[id] <= Math.min(limit,id==='horas'&&limit===10?2:limit)));
+    const counts = (values,daily=false) => values && Object.keys(WINTER_EVENT.shop).every(id => ((id==='horas'||id==='spica')&&values[id]===undefined) || Number.isSafeInteger(values[id])&&values[id]>=0&&values[id] <= (id==='spica'?1:daily?WINTER_EVENT.shop[id].limit:Number.MAX_SAFE_INTEGER));
+    const optionalCount = value => value===undefined||Number.isSafeInteger(value)&&value>=0;
     return w === undefined || !!(w && w.id === WINTER_EVENT.id && Number.isSafeInteger(w.snowflakes) && w.snowflakes >= 0 && Number.isSafeInteger(w.earned) && w.earned >= w.snowflakes &&
-      counts(w.exchanges) && (w.daily === undefined || w.daily && Number.isSafeInteger(w.daily.day) && w.daily.day >= 0 && counts(w.daily.exchanges, 10)));
+      counts(w.exchanges) && (w.daily === undefined || w.daily && Number.isSafeInteger(w.daily.day) && w.daily.day >= 0 && counts(w.daily.exchanges,true)) &&
+      optionalCount(w.snowmen)&&optionalCount(w.snowmenEarned)&&optionalCount(w.spins)&&Number.isSafeInteger((w.snowmen||0)+(w.spins||0))&&(w.snowmenEarned||0)>=(w.snowmen||0)+(w.spins||0)&&
+      (w.spicaClaimed===undefined||typeof w.spicaClaimed==='boolean'));
   }
   function refreshWinter(s, now) {
     const w = s.winter ||= newWinter(now);
@@ -435,9 +453,30 @@
     const w = s.winter || newWinter(at), currentDay = Math.max(w.daily?.day ?? day(at), day(at));
     const daily = w.daily?.day === currentDay ? w.daily : winterDay(at);
     const active = at >= WINTER_EVENT.startsAt && (WINTER_EVENT.endsAt === null || at < WINTER_EVENT.endsAt);
-    return { id: WINTER_EVENT.id, name: WINTER_EVENT.name, active, snowflakes: w.snowflakes, earned: w.earned, day: currentDay, resetsAt: (currentDay + 1) * 86400000 - 9 * 3600000,
-      items: Object.entries(WINTER_EVENT.shop).map(([id, item]) => ({ id, ...item, bought: daily.exchanges[id]||0, totalBought: w.exchanges[id]||0, remaining: item.limit - (daily.exchanges[id]||0), canBuy: active && (daily.exchanges[id]||0) < item.limit && w.snowflakes >= item.cost })) };
+    const spicaOwned=!!s.units.spica||!!w.spicaClaimed;
+    return { id: WINTER_EVENT.id, name: WINTER_EVENT.name, active, snowflakes: w.snowflakes, earned: w.earned, snowmen:w.snowmen||0,snowmenEarned:w.snowmenEarned||0,spins:w.spins||0,spicaOwned,roulette:WINTER_ROULETTE, day: currentDay, resetsAt: (currentDay + 1) * 86400000 - 9 * 3600000,
+      items: Object.entries(WINTER_EVENT.shop).map(([id, item]) => {const bought=item.lifetime?(spicaOwned?1:w.exchanges[id]||0):daily.exchanges[id]||0;return {id,...item,bought,totalBought:w.exchanges[id]||0,remaining:Math.max(0,item.limit-bought),canBuy:active&&bought<item.limit&&w.snowflakes>=item.cost};}) };
   }
+  function winterSpin(s,now,rng) {
+    fail(Number.isFinite(now)&&now>=0,'잘못된 시간입니다.');
+    const info=winterInfo(s,now);fail(info.active,'겨울 이벤트 기간이 아닙니다.');fail(info.snowmen>=1,'눈사람이 부족합니다. 예티 토벌로 모아 주세요.');
+    // Check every possible prize before sampling. A full inventory cannot be
+    // used to reject equipment outcomes repeatedly until gems are selected.
+    const normalGear=GEAR.filter(item=>!item.owner&&['R','SR','SSR'].includes(item.rarity));
+    fail(Number.isSafeInteger(s.gold+7800)&&Number.isSafeInteger(s.gems+10000)&&Number.isSafeInteger(info.spins+1),'보유 재화 한도를 확인하세요.');
+    fail(normalGear.every(item=>(s.equipment?.inventory?.[item.id]?.count||0)<GEAR_MAX_COUNT),'장비 보유 한도에 도달했습니다. 각성 후 다시 돌려주세요.');
+    const roll=()=>{const r=rng();fail(Number.isFinite(r)&&r>=0&&r<1,'추첨 정보를 확인하세요.');return r;};
+    const value=Math.floor(roll()*10000),index=value<10?0:value<110?1:value<1000?2:value<4500?3:4,slot=WINTER_ROULETTE[index];let reward;
+    if(slot.type==='equipment'){
+      const gradeRoll=Math.floor(roll()*100),rarity=gradeRoll<70?'R':gradeRoll<95?'SR':'SSR',pool=normalGear.filter(item=>item.rarity===rarity),item=pool[Math.floor(roll()*pool.length)].id;
+      reward={type:'equipment',amount:1,item,rarity};
+    }else reward={type:slot.type,amount:slot.type==='gold'?2600+Math.floor(roll()*5201):slot.amount};
+    const w=refreshWinter(s,Math.max(s.at,now));w.snowmen=(w.snowmen||0)-1;w.spins=(w.spins||0)+1;
+    if(reward.type==='equipment'){s.equipment ||= newEquipment();const old=s.equipment.inventory[reward.item];s.equipment.inventory[reward.item]={count:(old?.count||0)+1,stars:old?.stars||0};}
+    else s[reward.type==='gold'?'gold':'gems']+=reward.amount;
+    event(s,'winter-spin',{index,reward});return {kind:'winter-spin',reward,index,snowmenRemaining:w.snowmen};
+  }
+
   function winterDrop(s) {
     if (!s.battle.activity && !campaignRewardInfo(s).eligible) return 0;
     if (!winterInfo(s, s.at).active || random(s) >= WINTER_EVENT.dropChance) return 0;
@@ -703,7 +742,7 @@
     if (b.horasCast) return;
     if (hs.stacks >= HORAS_RULES.maxStacks && b.elapsed >= hs.lastCastAt + HORAS_RULES.minCastMs) {
       hs.stacks = 0; hs.lastCastAt = b.elapsed;
-      hs.nextBasicAt = b.elapsed + HORAS_RULES.impactDelay + HORAS_RULES.basicMs;
+      hs.nextBasicAt = b.elapsed + HORAS_RULES.impactDelay + HORAS_RULES.basicMs/basicAttackRate(hero,b.elapsed);
       // Aim at the living cluster with the most neighbours. Stable order breaks
       // ties, so reconnecting and the authoritative arena choose the same target.
       const nearby = target => enemies.filter(enemy => Math.abs(b.enemies.indexOf(enemy) - b.enemies.indexOf(target)) <= 1).length;
@@ -719,7 +758,7 @@
       return;
     }
     if (b.elapsed < hs.nextBasicAt) return;
-    hs.nextBasicAt = b.elapsed + HORAS_RULES.basicMs;
+    hs.nextBasicAt = spicaRhythm(b)?(hs.nextBasicAt>=b.elapsed-STEP_MS?hs.nextBasicAt:b.elapsed)+HORAS_RULES.basicMs/basicAttackRate(hero,b.elapsed):b.elapsed+HORAS_RULES.basicMs;
     const target = enemies[0], pose = hs.basicPose;
     hs.basicPose = pose === 1 ? 2 : 1;
     event(s, "horas-basic", { from: "horas", to: target.id, pose, duration: HORAS_RULES.basicMotionMs, element: "blossom" });
@@ -768,7 +807,7 @@
     let amount = Math.max(1, Math.round(raw * (stunBonus ? HORAS_RULES.stunMultiplier : 1)));
     if (stunBonus) detail = { ...detail, stunBonus: true };
     if (side === "hero") {
-      amount = Math.max(1, Math.round(amount * (1 - target.defense) * (earthGuard.hero ? 1-RYUSION_RULES.teamReduction : 1) * (earthGuard.taunting&&target===earthGuard.hero ? 1-RYUSION_RULES.tauntReduction : 1)));
+      amount = Math.max(1, Math.round(amount * (1 - target.defense) * (earthGuard.hero ? 1-RYUSION_RULES.teamReduction : 1) * (earthGuard.taunting&&target===earthGuard.hero ? 1-ryusionDefense(earthGuard.hero).tauntReduction : 1)));
       const shield = Math.min(target.shield, amount); target.shield -= shield; amount -= shield;
       absorbEarthShield(target,shield);
       if (shield) event(s, "shield", { to: target.id, amount: shield, ...(detail.redirectedFrom?{redirectedFrom:detail.redirectedFrom}:{}) });
@@ -890,7 +929,7 @@
   function ryusionStep(s) {
     const b=s.battle,guard=ryusionGuard(b.heroes,b.elapsed);
     for(const hero of b.heroes)expireEarthShield(hero,b.elapsed);
-    if(guard.taunting){const began=b.elapsed-b.elapsed%RYUSION_RULES.tauntEvery;if(guard.hero.lastTauntAt!==began){guard.hero.lastTauntAt=began;event(s,'ryusion-taunt',{from:'ryusion',to:'ryusion',until:began+RYUSION_RULES.tauntMs,duration:RYUSION_RULES.tauntMs,element:'earth'});}}
+    if(guard.taunting){const began=b.elapsed-b.elapsed%RYUSION_RULES.tauntEvery;if(guard.hero.lastTauntAt!==began){guard.hero.lastTauntAt=began;const ratio=ryusionDefense(guard.hero).tauntShieldRatio;if(ratio){const amount=addEarthShield(guard.hero,Math.max(guard.hero.earthShield||0,guard.hero.max*ratio),b.elapsed);event(s,'earth-guard',{from:'ryusion',to:'ryusion',amount,until:guard.hero.earthShieldUntil,element:'earth'});}event(s,'ryusion-taunt',{from:'ryusion',to:'ryusion',until:began+RYUSION_RULES.tauntMs,duration:RYUSION_RULES.tauntMs,element:'earth'});}}
     const cast=b.ryusionCast;if(!cast)return;
     if(!guard.hero){delete b.ryusionCast;return;}
     if(b.elapsed<cast.began+RYUSION_RULES.impactDelay)return;
@@ -900,6 +939,46 @@
       hurt(s,'ryusion',target,cast.power,'enemy',true,{element:'earth'});
       if(target.hp>0){target.stunUntil=Math.max(target.stunUntil||0,b.elapsed+RYUSION_RULES.stunMs);event(s,'stun',{from:'ryusion',to:target.id,duration:RYUSION_RULES.stunMs,until:target.stunUntil,element:'earth'});}
     }else{for(const hero of b.heroes.filter(h=>h.hp>0)){const amount=addEarthShield(hero,cast.shield,b.elapsed);event(s,'earth-guard',{from:'ryusion',to:hero.id,amount,until:hero.earthShieldUntil,element:'earth'});}}
+  }
+  function spicaRhythm(b) { return b.heroes.some(h=>h.id==='spica'); }
+  function basicDue(unit,time,base=1000,isBoss=false) {
+    unit.nextBasicAt ??= base;
+    if(time<unit.nextBasicAt)return false;
+    unit.nextBasicAt=(unit.nextBasicAt>=time-STEP_MS?unit.nextBasicAt:time)+base/basicAttackRate(unit,time,isBoss);
+    return true;
+  }
+  function heroBasic(s,hero,enemies) {
+    const b=s.battle,target=enemies[0];if(!target)return;
+    const critical=random(s)<(hero.critChance??CRITICAL.chance);
+    const dealt=hurt(s,hero.id,target,hero.atk*(hero.damageMultiplier||1)*(b.buff?1.3:1)*(.9+random(s)*.2)*(critical?hero.critMultiplier||CRITICAL.multiplier:1),'enemy',false,{critical});
+    if(hero.id==='lava'&&dealt>0){const unit=s.units.lava;unit.basicHits=(unit.basicHits||0)+1;if(unit.basicHits>=10){unit.basicHits=0;const friend=lowestAlive(b);if(friend)lavaGuard(s,hero,friend,hero.atk*2+friend.max*.08,'ten-hits');}}
+  }
+  function enemyBasic(s,enemy) {
+    const b=s.battle,alive=b.heroes.filter(h=>h.hp>0);if(!alive.length)return;
+    let target;
+    if(b.heroes.length<=3)target=random(s)<.75?alive[0]:alive[Math.floor(random(s)*alive.length)];
+    else{const front=b.heroes.slice(0,3).filter(h=>h.hp>0),back=b.heroes.slice(3).filter(h=>h.hp>0),pool=front.length&&(!back.length||random(s)<.8)?front:back.length?back:alive;
+      const weights=pool.map(h=>BY_ID[h.id].role==='수호'?3:1);let pick=random(s)*weights.reduce((a,v)=>a+v,0);target=pool[pool.length-1];for(let i=0;i<pool.length;i++){pick-=weights[i];if(pick<0){target=pool[i];break;}}}
+    const rage=1+Math.floor(b.elapsed/(enemy.rageEvery||Infinity))*(enemy.rageStep||0);
+    hurt(s,enemy.id,target,enemy.atk*rage*(.85+random(s)*.3),'hero');
+  }
+  function spicaHalfTurn(s) {
+    const b=s.battle;
+    for(const hero of b.heroes){if(hero.hp<=0)continue;const enemies=b.enemies.filter(e=>e.hp>0);if(!enemies.length)break;
+      if(hero.id==='horas'){horasTurn(s,hero,enemies);continue;}
+      if(hero.id==='osia'&&b.osiaCast)continue;
+      if(basicDue(hero,b.elapsed))heroBasic(s,hero,enemies);
+    }
+    if(b.enemies.every(e=>e.hp<=0)){victory(s);return;}
+    for(const enemy of b.enemies){if(enemy.hp<=0||b.elapsed<(enemy.stunUntil||0)||!b.heroes.some(h=>h.hp>0))continue;if(basicDue(enemy,b.elapsed,1000,!!enemy.boss)){enemyBasic(s,enemy);offerCounter(s,enemy);}}
+  }
+  function spicaSkill(s,hero,enemies) {
+    const b=s.battle,hasteUntil=b.elapsed+SPICA_RULES.hasteMs,slowUntil=b.elapsed+SPICA_RULES.slowMs;
+    const allies=b.heroes.filter(h=>h.hp>0);
+    event(s,'spica-skill',{from:hero.id,stage:1,name:'설녀의 겨울',targets:allies.map(h=>h.id),enemies:enemies.map(e=>e.id),hasteUntil,slowUntil,element:'ice'});
+    for(const friend of allies){friend.hasteUntil=Math.max(friend.hasteUntil||0,hasteUntil);event(s,'haste',{from:hero.id,to:friend.id,until:friend.hasteUntil,duration:SPICA_RULES.hasteMs,amount:SPICA_RULES.haste,element:'ice'});}
+    for(const enemy of enemies){enemy.slowUntil=Math.max(enemy.slowUntil||0,slowUntil);event(s,'slow',{from:hero.id,to:enemy.id,until:enemy.slowUntil,duration:SPICA_RULES.slowMs,amount:SPICA_RULES.slow*(enemy.boss?SPICA_RULES.bossSlowScale:1),element:'ice'});
+      const critical=random(s)<(hero.critChance??CRITICAL.chance);hurt(s,hero.id,enemy,hero.atk*SPICA_RULES.skillMultiplier*(hero.damageMultiplier||1)*(b.buff?1.3:1)*(.9+random(s)*.2)*(critical?hero.critMultiplier||CRITICAL.multiplier:1),'enemy',true,{critical,element:'ice'});}
   }
   function tick(s) {
     const b = s.battle;
@@ -930,13 +1009,13 @@
       enemy.warnedFor = enemy.nextAbilityAt;
       event(s, "boss-warning", { from: enemy.id, name: enemy.ability, targets: b.heroes.filter(h => h.hp > 0).map(h => h.id), atElapsed: enemy.nextAbilityAt, duration: Math.max(0, enemy.nextAbilityAt - b.elapsed) });
     }
-    if (b.elapsed % 1000) return;
+    if (b.elapsed % 1000) {if(spicaRhythm(b))spicaHalfTurn(s);return;}
     b.tick = b.elapsed / 1000;
     if (b.buff > 0) b.buff--;
     combatTurn(s, 0, osiaImpact);
   }
   function combatTurn(s, startIndex, osiaImpact) {
-    const b = s.battle;
+    const b = s.battle,rhythm=spicaRhythm(b);
     for (let index = startIndex; index < b.heroes.length; index++) {
       const hero = b.heroes[index]; if (hero.hp <= 0) continue;
       const enemies = b.enemies.filter(e => e.hp > 0); if (!enemies.length) break;
@@ -945,10 +1024,12 @@
       hero.energy++;
       if (hero.id === "osia" && (b.osiaCast || osiaImpact)) continue;
       const skill = hero.energy >= def.cooldown;
+      if(rhythm){const ready=basicDue(hero,b.elapsed);if(!skill&&!ready)continue;if(skill&&!ready)hero.nextBasicAt+=1000/basicAttackRate(hero,b.elapsed);}
       if (skill) { hero.energy = 0; event(s, "skill", { from: hero.id, name: hero.id === "osia" ? osiaSkill(s).name : hero.id === "lava" ? lavaSkill(s).name : hero.id === "ryusion" ? ryusionSkill(s).name : def.skill, role: def.role, ...(def.element ? { element: def.element } : {}) }); }
+      if(skill&&hero.id==='spica'){spicaSkill(s,hero,enemies);continue;}
       if(skill&&hero.id==='ryusion'){
         const step=ryusionSkill(s);s.units.ryusion.nextSkill=step.stage===1?2:1;
-        b.ryusionCast={began:b.elapsed,stage:step.stage,targetId:enemies[0].id,power:hero.atk*(hero.damageMultiplier||1)*(b.buff?1.3:1),shield:Math.round(hero.max*RYUSION_RULES.shieldRatio)};
+        b.ryusionCast={began:b.elapsed,stage:step.stage,targetId:enemies[0].id,power:hero.atk*(hero.damageMultiplier||1)*(b.buff?1.3:1),shield:Math.round(hero.max*ryusionDefense(hero).shieldRatio)};
         event(s,'ryusion-skill',{from:hero.id,to:step.stage===1?enemies[0].id:hero.id,stage:step.stage,name:step.name,element:'earth',impactDelay:RYUSION_RULES.impactDelay});continue;
       }
       if (skill && hero.id === "osia") {
@@ -1007,10 +1088,12 @@
       const rage = 1 + Math.floor(b.elapsed / (enemy.rageEvery || Infinity)) * (enemy.rageStep || 0);
       let attacked=true;
       if (enemy.ability && b.elapsed >= enemy.nextAbilityAt) {
+        if(rhythm&&!basicDue(enemy,b.elapsed,1000,!!enemy.boss))enemy.nextBasicAt+=1000/basicAttackRate(enemy,b.elapsed,!!enemy.boss);
         event(s, "boss-skill", { from: enemy.id, name: enemy.ability, targets: alive.map(h => h.id), rage, atElapsed: b.elapsed });
         for (const target of alive) hurt(s, enemy.id, target, enemy.atk * enemy.aoeMultiplier * rage * (.9 + random(s) * .2), "hero", true, { bossSkill: true });
         enemy.nextAbilityAt = b.elapsed + enemy.aoeEvery;
       } else if (enemy.monsterSkill && Number.isFinite(enemy.nextSkillAt) && b.elapsed >= enemy.nextSkillAt) {
+        if(rhythm&&!basicDue(enemy,b.elapsed,1000,!!enemy.boss))enemy.nextBasicAt+=1000/basicAttackRate(enemy,b.elapsed,!!enemy.boss);
         const role = enemy.combatRole;
         if (role === "healer") {
           attacked=false;
@@ -1027,15 +1110,8 @@
         }
         enemy.nextSkillAt = b.elapsed + enemy.skillEvery;
       } else {
-        let target;
-        if (b.heroes.length <= 3) target = random(s) < .75 ? alive[0] : alive[Math.floor(random(s) * alive.length)];
-        else {
-          const front = b.heroes.slice(0, 3).filter(h => h.hp > 0), back = b.heroes.slice(3).filter(h => h.hp > 0);
-          const pool = front.length && (!back.length || random(s) < .8) ? front : back.length ? back : alive;
-          const weights = pool.map(h => BY_ID[h.id].role === "수호" ? 3 : 1); let pick = random(s) * weights.reduce((a, v) => a + v, 0);
-          target = pool[pool.length - 1]; for (let i = 0; i < pool.length; i++) { pick -= weights[i]; if (pick < 0) { target = pool[i]; break; } }
-        }
-        hurt(s, enemy.id, target, enemy.atk * rage * (.85 + random(s) * .3), "hero");
+        if(rhythm&&!basicDue(enemy,b.elapsed,1000,!!enemy.boss))continue;
+        enemyBasic(s,enemy);
       }
       if(attacked)offerCounter(s,enemy);
     }
@@ -1149,22 +1225,24 @@
       s.gems -= info.cost; s.commanderName = name; s.nameChanges = info.changes + 1;
       return { kind, name, cost: info.cost };
     }
+    if (kind === "winter-spin") return winterSpin(s,now,rng);
     if (kind === "winter-exchange") {
       fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
       const info = winterInfo(s, now);
       fail(info.active, "겨울 이벤트 기간이 아닙니다.");
       fail(typeof input.item === "string" && Object.hasOwn(WINTER_EVENT.shop, input.item), "교환할 보상을 선택하세요.");
       const item = info.items.find(item => item.id === input.item);
-      fail(item.remaining > 0, "오늘의 교환 횟수를 모두 사용했어요. 자정에 초기화됩니다.");
+      fail(item.remaining > 0, item.lifetime?"이미 만난 이벤트 용병입니다.":"오늘의 교환 횟수를 모두 사용했어요. 자정에 초기화됩니다.");
       fail(info.snowflakes >= item.cost, "눈송이가 부족합니다.");
       fail(Number.isSafeInteger(s.gold + item.gold) && Number.isSafeInteger(s.gems + item.gems) && (s.winter?.exchanges[item.id] || 0) < Number.MAX_SAFE_INTEGER, "보유 재화를 확인하세요.");
-      if(item.hero)fail(Number.isSafeInteger((s.units[item.hero]?.shards||s.heroShards?.[item.hero]||0)+item.shards),"보유 조각을 확인하세요.");
+      if(item.hero&&!item.unlock)fail(Number.isSafeInteger((s.units[item.hero]?.shards||s.heroShards?.[item.hero]||0)+item.shards),"보유 조각을 확인하세요.");
       const w = refreshWinter(s, Math.max(s.at, now));
       w.snowflakes -= item.cost; w.exchanges[item.id]=(w.exchanges[item.id]||0)+1; w.daily.exchanges[item.id]=(w.daily.exchanges[item.id]||0)+1;
       s.gold += item.gold; s.gems += item.gems;
-      if(item.hero){if(s.units[item.hero])s.units[item.hero].shards+=item.shards;else{ s.heroShards ||= {};s.heroShards[item.hero]=(s.heroShards[item.hero]||0)+item.shards; }}
+      if(item.unlock){s.units[item.hero]={level:1,xp:0,stars:0,shards:s.heroShards?.[item.hero]||0};if(s.heroShards)delete s.heroShards[item.hero];w.spicaClaimed=true;}
+      else if(item.hero){if(s.units[item.hero])s.units[item.hero].shards+=item.shards;else{ s.heroShards ||= {};s.heroShards[item.hero]=(s.heroShards[item.hero]||0)+item.shards; }}
       event(s, "winter-exchange", { item: item.id, cost: item.cost, gold: item.gold, gems: item.gems });
-      return { kind, item: item.id, cost: item.cost, gold: item.gold, gems: item.gems, remaining: item.remaining - 1, ...(item.hero?{hero:item.hero,shards:item.shards}: {}) };
+      return { kind, item: item.id, cost: item.cost, gold: item.gold, gems: item.gems, remaining: item.remaining - 1, ...(item.hero?{hero:item.hero,shards:item.shards||0,...(item.unlock?{fresh:true}:{})}: {}) };
     }
     if (kind === "activity") {
       fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
@@ -1373,5 +1451,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });
