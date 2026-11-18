@@ -24,7 +24,7 @@ const hits = (s, skill) => s.events.filter(e=>e.kind==='hit'&&e.from==='horas'&&
 const draw = (s, roll, pick=.5) => {let n=0; return G.action(s,{kind:'recruit',banner:'horas',count:1},s.at,()=>n++%2?pick:roll).results[0];};
 
 test('UR hero is obtainable only from her own banner, not granted to old or new accounts',()=>{
-  assert.equal(G.CATALOG_VERSION,11);assert.equal(G.BY_ID.horas.rarity,'UR');assert.equal(G.BY_ID.horas.role,'사수');
+  assert.equal(G.CATALOG_VERSION,12);assert.equal(G.BY_ID.horas.rarity,'UR');assert.equal(G.BY_ID.horas.role,'사수');
   const old=G.create(NOW);delete old.banners.horas;const units=G.clone(old.units),money=[old.gold,old.gems];
   assert(G.validate(old));G.advance(old,old.at);assert.deepEqual(old.units,units);assert.deepEqual([old.gold,old.gems],money);
   assert.deepEqual(G.bannerState(old,'horas'),{pity:0,guaranteed:false});
@@ -53,7 +53,7 @@ test('SSR does not reset UR pity and all three banner records survive switching/
 });
 test('UR ten-pull pity evolves per slot, exact cost, duplicates and awakening persist',()=>{
   const s=G.create(NOW);s.banners.horas.pity=78;const r=G.action(s,{kind:'recruit',banner:'horas',count:10},s.at,()=>.99);
-  assert.equal(r.results[0].urChance,.203);assert.equal(r.results[1].id,'horas');assert.equal(r.results[1].pity,true);assert.equal(r.results[2].urChance,.003);assert.equal(s.banners.horas.pity,8);assert.equal(s.gems,900);
+  assert.equal(r.results[0].urChance,.203);assert.equal(r.results[1].id,'horas');assert.equal(r.results[1].pity,true);assert.equal(r.results[2].urChance,.003);assert.equal(s.banners.horas.pity,8);assert.equal(s.gems,200);
   const dupe=draw(s,0);assert.equal(dupe.shards,30);assert.equal(s.units.horas.shards,30);
   G.action(s,{kind:'awaken',hero:'horas'},s.at);assert.equal(s.units.horas.stars,1);assert.equal(s.units.horas.shards,20);
   G.action(s,{kind:'team',team:['taeo','horas','sua']},s.at);G.action(s,{kind:'train',hero:'horas'},s.at);

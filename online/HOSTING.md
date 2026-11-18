@@ -11,9 +11,9 @@
 
 카드게임 공개 API는 닉네임 기반 친선 게임용입니다. 방 코드로 입장하고 개인 복귀 토큰으로 행동 권한을 검증합니다. 방 목록과 타인 토큰/손패를 공개하는 API는 없습니다.
 
-## 학교용병단 카탈로그 11 운영
+## 학교용병단 카탈로그 12 운영
 
-학교용병단은 같은 계정과 D1을 사용하되 카드게임과 별도 저장·규칙으로 동작합니다. 정적 `school.html`, `school/engine.js`, `school/art.js`, `school/client.js`, `school/style.css`, `school/presentation.js`, `school/presentation.css`, 던전 이미지 3개를 서버의 RPG 엔진·모듈과 함께 갱신합니다. 설치형 웹앱은 `school.webmanifest`, `school-sw.js`, `school/install.js`, `school/install.css`, 앱 아이콘을 함께 배포합니다. SW는 `school.html`만 제어하며 정적 학교 파일 외 API·Google·카드게임은 캐시하지 않습니다. 클라이언트와 서버는 `catalogVersion: 11`로 맞춥니다. 구버전 계정 화면의 저장·재화 사용은 426으로 거부하고 새로고침을 안내합니다.
+학교용병단은 같은 계정과 D1을 사용하되 카드게임과 별도 저장·규칙으로 동작합니다. 정적 `school.html`, `school/engine.js`, `school/art.js`, `school/client.js`, `school/style.css`, `school/presentation.js`, `school/presentation.css`, 던전 이미지 3개를 서버의 RPG 엔진·모듈과 함께 갱신합니다. 설치형 웹앱은 `school.webmanifest`, `school-sw.js`, `school/install.js`, `school/install.css`, 앱 아이콘을 함께 배포합니다. SW는 `school.html`만 제어하며 정적 학교 파일 외 API·Google·카드게임은 캐시하지 않습니다. 클라이언트와 서버는 `catalogVersion: 12`로 맞춥니다. 구버전 계정 화면의 저장·재화 사용은 426으로 거부하고 새로고침을 안내합니다.
 
 기존 `school_saves` 행과 마이그레이션을 보존합니다. 저장 JSON의 `version: 1`은 유지하며 기존 레벨·재화·진행·미수령 방치 보상·모집 누적과 픽업 보장을 초기화하지 않습니다. [`migrations/0004_school_rankings.sql`](migrations/0004_school_rankings.sql)의 표현식 인덱스를 Sites의 다음 Drizzle 마이그레이션에 추가합니다. 별도 랭킹 테이블이나 점수 업로드 API는 없습니다.
 
@@ -41,3 +41,5 @@
 학교용병단 서버 v16 (2026-11-18): 소스 `277dd6012c298fdb3eab32291677a16bff8204a5`, 배포 `appgdep_6afc7ab30a1881918827a41be32846fc` 성공. 훈련비를 `50+16L+2L²`로 완화하고 카탈로그를 9로 올렸습니다. 기존 경험치·SSR 확률·스킬·저장 구조·공개 범위와 환경 변수 revision1은 유지했습니다. 추가 데이터베이스 마이그레이션은 없습니다. 엔진·던전·SQLite 서버 88개 검증 통과. 정적 화면 패치는 전투 렌더링·복도 결과 창·오시아/라바 모션·설치형 웹앱을 포함합니다.
 
 학교용병단 서버 v18 (2026-11-18): 소스 `a205a8d673fba71cfacdb5d34057a0f78ebc4698`, 배포 `appgdep_6afd04c493f4819184ac79e23cea4a09` 성공. 카탈로그11, UR 호라스의 독립 모집·저장되는 벚꽃의식·표식 회수·양쪽 아레나 및 피해75% 보정을 추가했다. 기존 공개 주소와 환경 변수revision1, D1스키마·기존 계정·기존 두 배너 보장을 유지한다. 구카탈로그 요청은426으로 거부하고 새화면을 안내한다.
+
+학교용병단 서버 v19 (2026-11-18): 소스 `dfbd1dc877ef444becbea8e9fae94612479bd319`, 배포 `appgdep_6afd067e22fc8191b40c7d8e16cf2884` 성공. 카탈로그12, 세 배너의 10회 모집 가격1,600보석을 적용했다. 1회100보석과 확률·보장·기존재화는 유지하고 구버전 요청은426으로 거부한다. 공개범위·환경변수revision1·D1스키마 유지.
