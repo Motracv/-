@@ -99,6 +99,7 @@ const finances=s=>({gold:s.gold,gems:s.gems,seed:s.seed,team:s.team,units:s.unit
   for(const slot of[1,2]){await p.click(`[data-preset-save="${slot}"]`);await p.waitForFunction(({key,slot})=>JSON.parse(localStorage.getItem(key)).presets[slot].team.length===6,{key:SAVE,slot});}
   await p.fill('[data-preset-name="1"]','보스 전용');await p.locator('[data-preset-rename="1"]').focus();await p.keyboard.press('Enter');
   await p.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).presets[1].name==='보스 전용',SAVE);
+  await p.waitForFunction(()=>document.querySelector('[data-preset-slot="1"] .preset-top strong')?.textContent==='보스 전용');
   for(const viewport of SIZES){await p.setViewportSize(viewport);for(const slot of[0,1,2])for(const kind of['save','apply','delete','rename'])await within(p,`[data-preset-${kind}="${slot}"]`);await p.locator('#preset-current-team').scrollIntoViewIfNeeded();await p.screenshot({path:path.join(OUT,`presets-${viewport.width}x${viewport.height}.png`)});}
   await p.setViewportSize(SIZES[0]);await p.click('[data-preset-apply="0"]');await p.waitForFunction(({key,team})=>JSON.stringify(JSON.parse(localStorage.getItem(key)).team)===JSON.stringify(team),{key:SAVE,team:teamA});
   await p.click('[data-preset-delete="1"]');await p.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).presets[1].team.length===0,SAVE);

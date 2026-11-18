@@ -20,7 +20,7 @@
 
   function create(context) {
     let generation = 0, loadEpoch = 0, view = '', data = null, busy = false, poll = null, cancelReplay = null, pending = null, stopped = false, winterSignature = '';
-    let arenaMode='season', seasonPanel='opponents', seasonData=null, seasonClock=null, seasonPending=null, seasonScope=null, seasonLoading=false, seasonContentKey='', seasonPortraitKey='', seasonCountdownSecond=-1, seasonPointer=false;
+    let arenaMode='season', seasonPanel='opponents', seasonData=null, seasonClock=null, seasonPending=null, seasonScope=null, seasonLoading=false, seasonContentKey='', seasonPortraitKey='', seasonCountdownSecond=-1, seasonPointer=false, seasonRolloverKey='';
     const own = () => !stopped && document.querySelector(`#school-social[data-view="${view}"]`)?.closest('dialog')?.open;
     const $ = id => document.getElementById(id);
     const now = () => context.serverNow?.() ?? Date.now();
@@ -245,10 +245,11 @@
       const duration=stamp=>{const seconds=Math.max(0,Math.ceil((stamp-at)/1000)),days=Math.floor(seconds/86400),hours=Math.floor(seconds%86400/3600),minutes=Math.floor(seconds%3600/60),rest=seconds%60;return `${days?days+'일 ':''}${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`;};
       setSeasonText('season-countdown',seasonData.season.phase==='upcoming'?`시작까지 ${duration(seasonData.season.startsAt)}`:seasonData.season.endsAt>at?`종료까지 ${duration(seasonData.season.endsAt)}`:'새 시즌 확인 중');
       setSeasonText('season-day-countdown',`도전 갱신 ${duration(seasonData.dayResetsAt)} · KST`);
-      if((seasonData.season.endsAt<=at||seasonData.dayResetsAt<=at)&&!busy&&!seasonLoading)fetchSeason(false);
+      const rolloverKey=`${seasonData.season.id}:${seasonData.dayResetsAt}`;
+      if((seasonData.season.endsAt<=at||seasonData.dayResetsAt<=at)&&!busy&&!seasonLoading&&context.isCloud()&&rolloverKey!==seasonRolloverKey){seasonRolloverKey=rolloverKey;fetchSeason(false);}
     }
     function scheduleSeasonPoll() {
-      clearTimeout(poll);poll=setTimeout(()=>{if(!own()||view!=='arena'||arenaMode!=='season'||cancelReplay)return;if(document.hidden||busy||seasonLoading){scheduleSeasonPoll();return;}fetchSeason(false);},10000);
+      clearTimeout(poll);poll=setTimeout(()=>{if(!own()||view!=='arena'||arenaMode!=='season'||cancelReplay)return;if(document.hidden||busy||seasonLoading||!context.isCloud()){scheduleSeasonPoll();return;}fetchSeason(false);},10000);
     }
     async function fetchSeason(manual=false) {
       if(!own()||!context.isCloud()||busy||seasonLoading||arenaMode!=='season'||cancelReplay)return;

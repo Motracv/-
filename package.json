@@ -22,7 +22,7 @@
     "test:school:progression-browser": "node tests/school-progression-browser.cjs",
     "test:school:blossom": "node tests/school-campaign-economy.cjs && node tests/school-winter-daily.cjs && node tests/school-winter-daily-server.cjs",
     "test:school:blossom-browser": "node tests/school-blossom2-browser.cjs",
-    "test:school:season": "node tests/school-presets.cjs && node tests/school-farming.cjs && node tests/school-seasons.cjs && node tests/school-seasons-security.cjs",
+    "test:school:season": "node tests/school-presets.cjs && node tests/school-farming.cjs && node tests/school-seasons.cjs && node tests/school-seasons-security.cjs && node tests/school-season-polling.cjs",
     "test:school:season-browser": "node tests/school-season1-browser.cjs"
   },
   "engines": {

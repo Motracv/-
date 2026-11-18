@@ -1,8 +1,8 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-season1',
+  version:'school-season1a',
   entries:Object.freeze([
-    {version:'school-season1',date:'2026.11.18',title:'편성부터 아레나까지',items:[
+    {version:'school-season1a',date:'2026.11.18',title:'편성부터 아레나까지',items:[
       '자주 쓰는 출전 편성을 3개까지 저장하고 불러올 수 있어요.',
       '모험 지도에서 현재 편성의 전투를 별도로 계산해 파밍 지역을 추천해요.',
       '시즌 아레나에서 시즌 전적과 순위, 보상을 확인할 수 있어요.',
