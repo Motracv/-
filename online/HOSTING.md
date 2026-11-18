@@ -13,11 +13,11 @@
 
 ## 학교용병단 카탈로그 12 운영
 
-학교용병단은 같은 계정과 D1을 사용하되 카드게임과 별도 저장·규칙으로 동작합니다. 정적 `school.html`, `school/engine.js`, `school/art.js`, `school/client.js`, `school/style.css`, `school/presentation.js`, `school/presentation.css`, 던전 이미지 3개를 서버의 RPG 엔진·모듈과 함께 갱신합니다. 설치형 웹앱은 `school.webmanifest`, `school-sw.js`, `school/install.js`, `school/install.css`, 앱 아이콘을 함께 배포합니다. SW는 `school.html`만 제어하며 정적 학교 파일 외 API·Google·카드게임은 캐시하지 않습니다. 클라이언트와 서버는 `catalogVersion: 20`로 맞춥니다. 구버전 계정 화면의 저장·재화 사용은 426으로 거부하고 새로고침을 안내합니다.
+학교용병단은 같은 계정과 D1을 사용하되 카드게임과 별도 저장·규칙으로 동작합니다. 정적 `school.html`, `school/engine.js`, `school/art.js`, `school/client.js`, `school/style.css`, `school/presentation.js`, `school/presentation.css`, 던전 이미지 3개를 서버의 RPG 엔진·모듈과 함께 갱신합니다. 설치형 웹앱은 `school.webmanifest`, `school-sw.js`, `school/install.js`, `school/install.css`, 앱 아이콘을 함께 배포합니다. SW는 `school.html`만 제어하며 정적 학교 파일 외 API·Google·카드게임은 캐시하지 않습니다. 클라이언트와 서버는 `catalogVersion: 21`로 맞춥니다. 구버전 계정 화면의 저장·재화 사용은 426으로 거부하고 새로고침을 안내합니다.
 
 기존 `school_saves` 행과 마이그레이션을 보존합니다. 저장 JSON의 `version: 1`은 유지하며 기존 레벨·재화·진행·미수령 방치 보상·모집 누적과 픽업 보장을 초기화하지 않습니다. [`migrations/0004_school_rankings.sql`](migrations/0004_school_rankings.sql)의 표현식 인덱스를 Sites의 다음 Drizzle 마이그레이션에 추가합니다. 별도 랭킹 테이블이나 점수 업로드 API는 없습니다.
 
-학교 저장·행동은 Google 인증을 완료한 게임 세션이 필요합니다. `POST /api/school/rankings`는 공개 읽기 경로이며 `{catalogVersion: 20, mode: "level" | "tower"}`로 상위 50명을 조회합니다. 유효한 `X-Account-Session`이 있으면 본인 전체 순위를 추가합니다. 공개 항목은 순위·게임 단장 이름·레벨·복도 최고 층이며 Google 신원·계정 ID·토큰·전체 저장은 반환하지 않습니다. 서버의 저장된 기록만 순위에 반영하고 게스트 기록은 받지 않습니다. 응답은 `no-store`이며 계정 삭제 시 저장과 순위도 함께 제거합니다.
+학교 저장·행동은 Google 인증을 완료한 게임 세션이 필요합니다. `POST /api/school/rankings`는 공개 읽기 경로이며 `{catalogVersion: 21, mode: "level" | "tower"}`로 상위 50명을 조회합니다. 유효한 `X-Account-Session`이 있으면 본인 전체 순위를 추가합니다. 공개 항목은 순위·게임 단장 이름·레벨·복도 최고 층이며 Google 신원·계정 ID·토큰·전체 저장은 반환하지 않습니다. 서버의 저장된 기록만 순위에 반영하고 게스트 기록은 받지 않습니다. 응답은 `no-store`이며 계정 삭제 시 저장과 순위도 함께 제거합니다.
 
 `GOOGLE_CLIENT_ID`는 기존 운영 값을 보존합니다. 새 OAuth 동의 범위나 클라이언트 비밀번호는 필요하지 않습니다. 배포 시 정적 화면·API의 카탈로그 일치, 무인증 저장 거부와 공개 랭킹 조회, 잘못된 버전 거부, 기존 계정 진행 보존, 계정별 순위·이름과 삭제 반영을 확인합니다. 실제 Google 계정 로그인의 검증과 테스트 서명 fixture 검증은 구분합니다. 공개 범위는 [개인정보 안내](../privacy.html)와 일치시킵니다.
 
@@ -63,3 +63,10 @@
 `online/guilds.mjs`를 학교 API보다 먼저 빌드에 포함합니다. 계정 인증과 저장/행동/출석은 기존 `school.mjs` 경로를 사용합니다. `0007_school_guilds.sql`의 테이블 4개와 트리거 2개를 추가하고 Sites에서는 기존 Drizzle 이력을 보존한 신규 마이그레이션으로 배포합니다. 길드 출석은 서버 한국 날짜·가입 자격·계정 원장과 저장 CAS를 같은 배치로 갱신합니다. 공개 범위를 바꾸지 않고 Google 설정과 기존 저장을 유지합니다.
 
 배포 v27 (2026-11-18): 소스 `881380d08f7980acd21670d961ab8c44dc738747`, 배포 `appgdep_6afd6bc53a388191a90e25a8fcabff1a` 성공. 카탈로그 20, 길드·출석·프로필과 2.6배 골드 수급을 반영했습니다. 기존 공개 범위·OAuth 환경 설정은 유지했습니다.
+
+
+## 벌룬 길드전 · 카탈로그 21
+
+`school/raid-engine.js` 및 `online/raids.mjs`를 번들에 추가합니다. D1 신규 `school_raids`, `school_raid_slots`, `school_raid_days`, `school_raid_scores`, `school_raid_rewards`와 계정 삭제 트리거는 새 마이그레이션으로만 추가합니다. `school_raids` CAS가 공동 HP·전투 시간을 보호하고 시작 횟수·기여·보상 생성은 같은 batch에서 처리합니다. 진행은 조회 시 서버 시각을 따라 정산되며 스케줄러·WebSocket·추가 호스팅이 필요하지 않습니다. 활성 전투는 약 1초 간격 HTTP 동기화, 화면은 별도로 보간합니다. 기존 OAuth와 공개 범위를 유지합니다.
+
+배포 v28 (2026-11-18): 소스 `1fd6ca13fab6f10a4a171865c98d4b807b639764`, 배포 `appgdep_6afd7884aefc8191a9d6fba9d6fccab1` 성공. 운영 Drizzle `0007_school_raids.sql`을 추가하고 기존 이력은 유지했습니다. 카탈로그 21, 기존 공개 범위·환경 변수 revision1 유지. 실제 빌드 번들과 운영 마이그레이션을 함께 적용한 SQLite 통합 검증을 통과했습니다.

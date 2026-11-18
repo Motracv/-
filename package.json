@@ -1,6 +1,6 @@
 {
   "name": "friends-card-table",
-  "version": "4.9.0",
+  "version": "4.10.0",
   "private": true,
   "scripts": {
     "start": "node server.cjs",
@@ -31,6 +31,8 @@
     "test:school:bag-browser": "node tests/school-bag-browser.cjs",
     "test:school:counter": "node tests/school-counter.cjs && node tests/school-counter-server.cjs",
     "test:school:counter-browser": "node tests/school-counter-browser.cjs",
+    "test:school:raid": "node tests/school-raid.cjs && node tests/school-raid-server.cjs",
+    "test:school:raid-browser": "node tests/school-raid-browser.cjs",
     "test:school:guild": "node tests/school-guild.cjs && node tests/school-guild-server.cjs",
     "test:school:guild-browser": "node tests/school-guild-browser.cjs",
     "test:school:ryusion": "node tests/school-ryusion.cjs && node tests/school-ryusion-server.cjs",

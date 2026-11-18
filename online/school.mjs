@@ -2,11 +2,13 @@ import "../school/engine.js";
 import { createSocial, ensureSchoolName, nameKey } from './social.mjs';
 
 import { createGuilds } from './guilds.mjs';
+import { createRaids } from './raids.mjs';
 
 export function createSchool() {
   const game = globalThis.SchoolRPG;
   const social = createSocial(game);
   const guilds = createGuilds(game);
+  const raids = createRaids(game);
   const requireSchool = (condition, message, status = 400) => {
     if (!condition) throw Object.assign(new Error(message), { status });
   };
@@ -46,6 +48,7 @@ export function createSchool() {
   return {
     async request(path, request, env, data, accounts) {
       try {
+      if (path === '/api/school/raid') return await raids.request(request, env, data, accounts);
       if (path === '/api/school/guild') return await guilds.request(request, env, data, accounts);
       if (path === '/api/school/social') return await social.request(request, env, data, accounts);
       requireSchool(["/api/school/state", "/api/school/action", "/api/school/rankings"].includes(path), "지원하지 않는 경로입니다.", 404);
@@ -116,6 +119,13 @@ export function createSchool() {
         }
         const checkingIn = action && data.action.kind === 'guild-checkin';
         let guildMember = null;
+        const raidClaim = action && data.action.kind === 'raid-claim';
+        let raidReward=null;
+        if(raidClaim){
+          raidReward=await env.DB.prepare('SELECT * FROM school_raid_rewards WHERE account_id=? AND room_id=?').bind(signed.id,String(data.action.roomId||'')).first();
+          requireSchool(raidReward && !raidReward.claimed, '이미 받았거나 받을 수 없는 길드전 보상이에요.');
+          requireSchool(Number.isSafeInteger(state.gold+raidReward.gold)&&Number.isSafeInteger(state.gems+raidReward.gems),'재화를 확인해 주세요.');
+        }
         if (checkingIn) {
           guildMember = await env.DB.prepare('SELECT guild_id,membership_key,joined_at FROM school_guild_members WHERE account_id=?').bind(signed.id).first();
           requireSchool(guildMember && guildMember.guild_id === data.action.guildId, '길드 정보를 다시 확인해 주세요.', 400);
@@ -128,7 +138,7 @@ export function createSchool() {
           // The client submits intentions only. Time, loot, draws and costs are server-owned.
           // Speed changes can consume a fractional combat step and settle a
           // dungeon too, so they share the same authoritative loot context.
-          try { if(checkingIn){state.gems+=30;result={kind:'guild-checkin',gems:30,day:game.day(now)};}else result = game.action(state, data.action, now, secure, { gearRng: secure }); }
+          try { if(raidClaim){state.gold+=raidReward.gold;state.gems+=raidReward.gems;result={kind:'raid-claim',gold:raidReward.gold,gems:raidReward.gems};}else if(checkingIn){state.gems+=30;result={kind:'guild-checkin',gems:30,day:game.day(now)};}else result = game.action(state, data.action, now, secure, { gearRng: secure }); }
           catch (error) { throw Object.assign(error, { status: 400 }); }
           state.receipts.push({ id: data.requestId, result }); state.receipts = state.receipts.slice(-20);
           if (renaming) state.nameNeedsClaim = false;
@@ -138,7 +148,12 @@ export function createSchool() {
         const update = env.DB.prepare("UPDATE school_saves SET payload = ?, revision = revision + 1, updated_at = ? WHERE account_id = ? AND revision = ?")
           .bind(payload, now, signed.id, row.revision);
         let written;
-        if (checkingIn) {
+        if(raidClaim){
+          const results=await env.DB.batch([
+            env.DB.prepare('UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=? AND EXISTS(SELECT 1 FROM school_raid_rewards WHERE account_id=? AND room_id=? AND claimed=0)').bind(payload,now,signed.id,row.revision,signed.id,raidReward.room_id),
+            env.DB.prepare("UPDATE school_raid_rewards SET claimed=1 WHERE account_id=? AND room_id=? AND claimed=0 AND EXISTS(SELECT 1 FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=?)").bind(signed.id,raidReward.room_id,signed.id,row.revision+1,data.requestId)
+          ]);written=results[0];
+        }else if (checkingIn) {
           const results = await env.DB.batch([
             env.DB.prepare(`UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=? AND EXISTS(SELECT 1 FROM school_guild_members WHERE account_id=? AND guild_id=? AND membership_key=?) AND NOT EXISTS(SELECT 1 FROM school_guild_attendance WHERE account_id=? AND day=?)`)
               .bind(payload,now,signed.id,row.revision,signed.id,guildMember.guild_id,guildMember.membership_key,signed.id,game.day(now)),

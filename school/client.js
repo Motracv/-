@@ -41,7 +41,7 @@
   const Presentation = window.SchoolPresentation;
   Presentation?.configure({soundEnabled:()=>sound, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
-  let social, guild, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
+  let social, guild, raid, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
   let lobby = null, worldMap = null, qol = null, equipmentUI = null;
   let questCategory = 'daily', questChapter = null, questRowsKey = '', questCacheKey = '', questCache = null;
@@ -93,11 +93,12 @@
     try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
     clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; cloudClock = null; clearPending();
     storage.remove(CLOUD_CACHE, true); storage.set(MODE, 'guest'); mode = 'guest'; connected = true; effects = [];
-    Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); social = createSocial(); guild=createGuild(); closeModal();
+    Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); raid?.destroy(); social = createSocial(); guild=createGuild(); raid=createRaid(); closeModal();
     try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
     catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
   }
-  function createGuild(){return window.SchoolGuild?.create({request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
+  function createRaid(){return window.SchoolRaid?.create({request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open()});}
+  function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
   function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openAccount:accountModal,openCaptain:captainModal}); }
   function damageModal() {
     const report = G.damageReport?.(state);
@@ -508,6 +509,7 @@
     else if (result.kind.startsWith('gear-')) { equipmentUI?.handleResult(result,completedActionKey); }
     else if (result.kind === 'winter-exchange') { play('reward'); social?.refresh(); }
     else if (result.kind === 'profile') { toast('프로필을 저장했어요.'); captainModal(); }
+    else if(result.kind==='raid-claim'){toast(`길드전 보상 · 보석 +${result.gems} · 골드 +${fmt(result.gold)}`);play('reward');}
     else if (result.kind === 'guild-checkin') { toast('길드 출석 · 보석 +30'); play('reward'); }
     else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); captainModal(); }
     else if (result.kind.startsWith('preset-')) { toast(({'preset-save':'현재 편성을 저장했어요.','preset-apply':'저장한 편성을 불러왔어요.','preset-delete':'저장한 편성을 비웠어요.','preset-rename':'편성 이름을 저장했어요.'})[result.kind] || '편성을 저장했어요.');qol?.refresh(); }
@@ -1036,7 +1038,7 @@
   function openModal(title, html, kind = '') {
     qol?.close();equipmentUI?.close();$('modal').classList.remove('qol-modal','equipment-modal');
     worldMap?.destroy(); worldMap = null;
-    $('modal').classList.toggle('world-map-modal', kind === 'map'); $('modal').classList.toggle('guild-modal',kind==='guild'); $('modal').classList.toggle('captain-modal',kind==='captain');
+    if(kind!=='raid')raid?.destroy(); $('modal').classList.toggle('raid-modal',kind==='raid'); $('modal').classList.toggle('world-map-modal', kind === 'map'); $('modal').classList.toggle('guild-modal',kind==='guild'); $('modal').classList.toggle('captain-modal',kind==='captain');
     loginGeneration++; modalKind = kind; delete $('modal').dataset.activityResult; $('modal-title').textContent = title; $('modal-content').innerHTML = html;
     if (!$('modal').open) $('modal').showModal(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
@@ -1044,7 +1046,7 @@
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
     qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
-    stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
+    raid?.destroy(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
   }
   function heroDetail(id) {
     const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
@@ -1199,7 +1201,7 @@
       qol.refreshCountdowns();
     }
     equipmentUI = window.SchoolEquipment?.create({getState:()=>state,accountScope,modalKind:()=>modalKind,isBlocked:()=>busy||!!pending||activityAwaitingConfirmation()||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,openHero:heroDetail,toast,play});
-    social = createSocial(); guild=createGuild();
+    social = createSocial(); guild=createGuild(); raid=createRaid();
     if ($('guild-button')) $('guild-button').onclick=()=>guild?.open();
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();

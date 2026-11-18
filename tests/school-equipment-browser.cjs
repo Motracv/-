@@ -101,7 +101,7 @@ const finances=s=>({gold:s.gold,gems:s.gems,pity:s.pity,banners:s.banners,team:s
  async function equipped(p,hero,item,cloud=false){await p.waitForFunction(({key,hero,item,cloud})=>{const s=cloud?JSON.parse(sessionStorage.getItem('school-confirmed-cloud-view')).state:JSON.parse(localStorage.getItem(key));return Object.values(s.equipment.equipped[hero]||{}).includes(item);},{key:SAVE,hero,item,cloud});}
  async function finish(p){serverTime+=30000;await p.clock.setFixedTime(new Date(serverTime));await refresh(p);await p.waitForSelector('#modal .dungeon-result');}
  try {
-  assert.equal(G.CATALOG_VERSION,20);
+  assert.equal(G.CATALOG_VERSION,21);
   const rich=seed();for(const item of G.GEAR)rich.equipment.inventory[item.id]={count:12,stars:0};
   if(process.env.SCHOOL_EQUIPMENT_CLOUD_ONLY!=='1'){
   const legacy=await open(LEGACY_V15,{wall:LEGACY_V15.at});
