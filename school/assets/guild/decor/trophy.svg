@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="160" viewBox="0 0 128 160" shape-rendering="crispEdges">
+  <title>협동의 별 트로피</title>
+  <path fill="#101b2d" opacity=".35" d="M16 146h96v8H16zM24 142h80v16H24z"/>
+  <path fill="#6a9bc4" opacity=".18" d="M48 4h32v8h12v12h12v32H92v12H80v12H48V68H36V56H24V24h12V12h12z"/>
+  <path fill="#a2e5ff" opacity=".18" d="M52 12h24v12h12v24H76v12H52V48H40V24h12z"/>
+  <path fill="#5b4635" d="M38 47H14v29h8v10h11v7h13v-9H35v-8h-9V59h12zM90 47h24v29h-8v10H95v7H82v-9h11v-8h9V59H90z"/>
+  <path fill="#ddb95e" d="M38 51H18v21h8v10h10v7h9v-5H35v-8h-9V56h12zM90 51h20v21h-8v10H92v7h-9v-5h10v-8h9V56H90z"/>
+  <path fill="#5b4635" d="M34 39h60v28h-6v17H78v10H50V84H40V67h-6zM54 92h20v23H54zM45 113h38v11H45z"/>
+  <path fill="#c79b4f" d="M39 46h50v20h-7v15H72v8H56v-8H46V66h-7zM58 91h12v22H58zM49 116h30v5H49z"/>
+  <path fill="#f2d77f" d="M39 46h50v7H39zM44 53h10v18h6v12h-4v-7h-7V64h-5zM59 92h4v20h-4z"/>
+  <path fill="#fff3b9" d="M37 41h54v5H37zM43 53h5v10h-5z"/>
+  <path fill="#232d4b" d="M31 121h66v25H31zM24 142h80v11H24z"/>
+  <path fill="#3f506f" d="M35 124h58v17H35zM28 146h72v4H28z"/>
+  <path fill="#cdaa65" d="M36 122h56v4H36zM47 129h34v10H47z"/>
+  <path fill="#f6df9f" d="M52 131h24v5H52z"/>
+  <path fill="#8d75bf" d="M60 6h8v12h9v9h13v9H77v10h-9v12h-8V46h-9V36H38v-9h13v-9h9z"/>
+  <path fill="#b8a5eb" d="M60 14h8v12h12v9H68v12h-8V35H48v-9h12z"/>
+  <path fill="#e4ecff" d="M61 17h6v10h8v6h-8v9h-6v-9h-8v-6h8z"/>
+  <path fill="#fff1bf" d="M18 20h4v7h7v4h-7v7h-4v-7h-7v-4h7zM105 13h3v5h5v3h-5v5h-3v-5h-5v-3h5zM110 101h3v4h4v3h-4v4h-3v-4h-4v-3h4zM11 103h3v5h5v3h-5v5h-3v-5H6v-3h5z"/>
+</svg>

@@ -1,6 +1,6 @@
 {
   "name": "friends-card-table",
-  "version": "4.10.0",
+  "version": "4.11.0",
   "private": true,
   "scripts": {
     "start": "node server.cjs",
@@ -36,7 +36,8 @@
     "test:school:guild": "node tests/school-guild.cjs && node tests/school-guild-server.cjs",
     "test:school:guild-browser": "node tests/school-guild-browser.cjs",
     "test:school:ryusion": "node tests/school-ryusion.cjs && node tests/school-ryusion-server.cjs",
-    "test:school:ryusion-browser": "node tests/school-ryusion-browser.cjs"
+    "test:school:ryusion-browser": "node tests/school-ryusion-browser.cjs",
+    "test:school:guild-projects": "node tests/school-guild-projects-server.cjs"
   },
   "engines": {
     "node": ">=20"

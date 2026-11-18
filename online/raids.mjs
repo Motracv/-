@@ -1,4 +1,5 @@
 import '../school/raid-engine.js';
+import { guildActivity } from './guild-progress.mjs';
 const raidRequire=(ok,msg,status=400)=>{if(!ok)throw Object.assign(new Error(msg),{status});};
 const raidId=()=>crypto.randomUUID();
 export function createRaids(game){
@@ -14,7 +15,9 @@ export function createRaids(game){
   const room=s.room,oldRoom=before.room;
   if(start)for(const m of room.members)statements.push(db.prepare(`INSERT INTO school_raid_days(account_id,day,used) SELECT ?,?,1 WHERE ${condition} ON CONFLICT(account_id,day) DO UPDATE SET used=used+1`).bind(m.account,game.day(now),gid,rev));
   if(room?.battle){for(const t of room.battle.teams){const old=oldRoom?.id===room.id?oldRoom.battle?.teams.find(x=>x.account===t.account)?.damage||0:0,delta=t.damage-old;if(delta>0)statements.push(db.prepare(`INSERT INTO school_raid_scores(guild_id,cycle,account_id,damage) SELECT ?,?,?,? WHERE ${condition} ON CONFLICT(guild_id,cycle,account_id) DO UPDATE SET damage=damage+excluded.damage`).bind(gid,s.cycle,t.account,delta,gid,rev));}
-   if(room.status==='finished'&&oldRoom?.status!=='finished')for(const t of room.battle.teams){const reward=R.reward(t.damage);statements.push(db.prepare(`INSERT OR IGNORE INTO school_raid_rewards(account_id,room_id,gold,gems,damage,created_at) SELECT ?,?,?,?,?,? WHERE ${condition}`).bind(t.account,room.id,reward.gold,reward.gems,t.damage,now,gid,rev));}
+   if(room.status==='finished'&&oldRoom?.status!=='finished')for(const t of room.battle.teams){const reward=R.reward(t.damage);statements.push(db.prepare(`INSERT OR IGNORE INTO school_raid_rewards(account_id,room_id,gold,gems,damage,created_at) SELECT ?,?,?,?,?,? WHERE ${condition}`).bind(t.account,room.id,reward.gold,reward.gems,t.damage,now,gid,rev));
+    if(t.damage>0){const at=room.battle.startedAt+room.battle.elapsed;statements.push(guildActivity(db,{key:'raid:'+room.id+':'+t.account,gid,account:t.account,week:game.week(at),kind:'raid',reference:room.id,amount:t.damage,coop:room.battle.teams.filter(p=>p.damage>0).length>=2?1:0,at,condition,bindings:[gid,rev]}));}
+   }
   }
   const slotsChanged=oldRoom?.id!==room?.id||oldRoom?.status!==room?.status||JSON.stringify(oldRoom?.members.map(m=>m.account))!==JSON.stringify(room?.members.map(m=>m.account));
   if(slotsChanged){statements.push(db.prepare(`DELETE FROM school_raid_slots WHERE guild_id=? AND ${condition}`).bind(gid,gid,rev));

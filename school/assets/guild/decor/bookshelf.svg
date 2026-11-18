@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="160" viewBox="0 0 128 160" shape-rendering="crispEdges">
+  <title>마도서 책장</title>
+  <path fill="#101b2d" opacity=".35" d="M12 146h104v8H12zM20 142h88v16H20z"/>
+  <path fill="#14243a" d="M16 20h96v128h-8v8H92v-8H36v8H24v-8h-8zM24 12h80v8H24zM48 6h32v6H48z"/>
+  <path fill="#33516a" d="M22 24h84v118H22z"/>
+  <path fill="#172b40" d="M30 31h68v30H30zM30 69h68v31H30zM30 108h68v28H30z"/>
+  <path fill="#ba884a" d="M18 21h92v7H18zM24 59h80v8H24zM24 98h80v8H24zM24 135h80v8H24z"/>
+  <path fill="#f0ce86" d="M20 21h88v3H20zM26 59h76v3H26zM26 98h76v3H26zM26 135h76v3H26zM21 29h4v106h-4zM103 29h4v106h-4z"/>
+  <path fill="#7f4763" d="M33 36h10v23H33zM70 111h12v24H70z"/>
+  <path fill="#528d85" d="M45 32h10v27H45zM32 111h14v24H32zM80 74h10v24H80z"/>
+  <path fill="#8586b8" d="M57 37h9v22h-9zM33 77h13v21H33zM49 115h10v20H49z"/>
+  <path fill="#c18e52" d="M68 33h11v26H68zM48 73h11v25H48zM61 110h7v25h-7z"/>
+  <path fill="#e5d29b" d="M35 40h6v3h-6zM35 51h6v3h-6zM47 36h6v3h-6zM47 50h6v3h-6zM59 41h5v3h-5zM70 37h7v3h-7zM35 81h9v3h-9zM50 78h7v3h-7zM82 79h6v3h-6zM34 116h10v3H34zM51 119h6v3h-6zM72 115h8v3h-8z"/>
+  <path fill="#83d7df" d="M88 33h5v5h5v15h-5v6h-5v-6h-5V38h5z"/>
+  <path fill="#dafcff" d="M88 38h4v13h-4z"/>
+  <path fill="#d0b064" d="M61 90h14v8H61zM63 87h10v3H63zM85 127h11v8H85zM87 124h7v3h-7z"/>
+  <path fill="#8bcbd7" d="M65 75h6v12h-6z"/>
+  <path fill="#fff0b8" d="M62 8h4v5h5v4h-5v5h-4v-5h-5v-4h5zM113 52h3v5h5v3h-5v5h-3v-5h-5v-3h5zM8 92h3v4h4v3h-4v4H8v-4H4v-3h4z"/>
+</svg>

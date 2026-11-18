@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="160" viewBox="0 0 128 160" shape-rendering="crispEdges">
+  <title>별잎 화분</title>
+  <path fill="#101b2d" opacity=".35" d="M20 146h84v8H20zM28 142h68v16H28z"/>
+  <path fill="#263c37" d="M60 41h6v77h-6zM42 63h6v28h-6zM48 85h14v6H48zM77 54h5v37h-5zM64 88h16v5H64z"/>
+  <path fill="#224b43" d="M52 9h14v6h10v9h6v17h-6v8H60v-5H49v-9h-7V22h5v-8h5zM13 40h23v6h12v8h8v21H42v-7H29v-7H20v-7h-7zM94 27h18v21h-7v10H93v7H76V47h7V36h11zM17 82h17v-7h15v7h10v13h-8v9H36v-7H24v-6h-7zM94 68h17v17h-7v9H91v7H70V84h10v-9h14z"/>
+  <path fill="#52956c" d="M53 17h12v8h8v14H62v-8h-9zM20 45h15v8h12v11H34v-6H24v-6h-4zM96 34h10v11h-8v10H83v-7h6V39h7zM26 83h9v-3h12v9h-7v7H29v-7h-3zM94 74h11v9h-9v9H79v-8h9v-6h6z"/>
+  <path fill="#aad58b" d="M53 17h6v12h-6zM20 45h15v5H20zM96 34h10v5H96zM26 83h9v5h-9zM94 74h11v5H94z"/>
+  <path fill="#15293a" d="M30 107h68v12h-4v25h-7v8H41v-8h-7v-25h-4z"/>
+  <path fill="#27636a" d="M38 119h52v21h-7v7H45v-7h-7z"/>
+  <path fill="#3f9290" d="M40 119h8v21h-4v-5h-4zM48 140h12v5H48z"/>
+  <path fill="#d3ad65" d="M32 109h64v7H32zM40 138h48v4H40zM59 122h10v5h5v7h-5v4H59v-4h-5v-7h5z"/>
+  <path fill="#ffe7a7" d="M34 109h58v3H34zM61 125h6v8h-6z"/>
+  <path fill="#c9f4dc" d="M18 21h4v5h5v4h-5v5h-4v-5h-5v-4h5zM99 101h3v4h4v3h-4v4h-3v-4h-4v-3h4z"/>
+</svg>

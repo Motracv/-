@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const G = require('../school/engine.js');
 const { fixture } = require('./account-fixture.cjs');
-const ROOT=path.resolve(__dirname,'..'), SAVE='school-mercenaries-v8', OUT='/tmp/school-raid';
+const ROOT=path.resolve(__dirname,'..'), SAVE='school-mercenaries-v8', OUT='/tmp/school-raid2';
 const NOW=Date.parse('2026-11-19T03:00:00Z');
 const SIZES=[{width:755,height:330},{width:568,height:280},{width:2560,height:1440}];
 function seed(now=NOW) {
@@ -95,7 +95,7 @@ function seed(now=NOW) {
   const made=await guild(members[0],'create',{name:'벌룬브라우저반',emblem:1});assert.equal(made.status,200);const gid=made.data.guild.id;
   for(let i=1;i<5;i++){await guild(members[0],'invite',{guildId:gid,name:'길드검증'+i});const s=await guild(members[i],'state');assert.equal((await guild(members[i],'accept',{inviteId:s.data.invites[0].id})).status,200);}
   const sessions=[];
-  for(let i=0;i<5;i++){const session=await open(null,{account:members[i],viewport:SIZES[i%3]});sessions.push(session);await session.p.click('#guild-button');await session.p.click('#guild-raid');await session.p.waitForSelector('[data-raid-send="create"]');}
+  for(let i=0;i<5;i++){const session=await open(null,{account:members[i],viewport:SIZES[i%3],motion:'full'});sessions.push(session);await session.p.click('#guild-button');await session.p.click('#guild-raid');await session.p.waitForSelector('[data-raid-send="create"]');}
   const a=sessions[0].p;await a.click('[data-raid-send="create"]');await a.waitForSelector('[data-raid-send="ready"]');
   for(let i=1;i<5;i++){const p=sessions[i].p;await p.waitForSelector('[data-raid-send="join"]');await p.click('[data-raid-send="join"]');await p.waitForSelector('[data-raid-send="ready"]');}
   for(const {p} of sessions){await within(p,'[data-raid-send="ready"]');await p.click('[data-raid-send="ready"]');await p.waitForFunction(()=>document.querySelector('[data-raid-send="ready"]')?.textContent==='준비 취소');}
@@ -106,11 +106,32 @@ function seed(now=NOW) {
   const hp=await a.locator('#raid-hp').innerText();for(const {p} of sessions)await p.waitForFunction(h=>document.getElementById('raid-hp').textContent===h,hp);
   const b=sessions[1].p;await b.reload();await ready(b);await b.click('#guild-button');await b.click('#guild-raid');await b.waitForFunction(()=>document.getElementById('raid-view')?.dataset.phase==='fighting');assert.equal(await b.locator('#raid-attempts').innerText(),'오늘 4 / 5회');
   await a.locator('[data-raid-focus="2"]').click();assert(await a.locator('[data-raid-focus="2"]').evaluate(e=>e.classList.contains('selected')));
-  for(let i=0;i<3;i++){const p=sessions[i].p;for(const sel of ['#raid-health','#raid-back','#raid-canvas']){const r=await p.locator(sel).boundingBox(),v=p.viewportSize();assert(r.y>=0&&r.y+r.height<=v.height,sel+' visible without scrolling');}const r=await p.locator('#raid-canvas').boundingBox();assert(r.height>=p.viewportSize().height*.29,'battle uses available height');}
+  for(let i=0;i<3;i++){const p=sessions[i].p;for(const sel of ['#raid-health','#raid-back','#raid-canvas']){const r=await p.locator(sel).boundingBox(),v=p.viewportSize();assert(r.y>=0&&r.y+r.height<=v.height,sel+' visible without scrolling');}const r=await p.locator('#raid-canvas').boundingBox();assert(r.height>=p.viewportSize().height*.49,'fullscreen battle uses available height');const modal=await p.locator('#modal').boundingBox();assert(modal.width>=p.viewportSize().width-2&&modal.height>=p.viewportSize().height-2,'edge-to-edge battlefield');}
   for(let i=0;i<3;i++)await sessions[i].p.screenshot({path:path.join(OUT,'raid-combat-'+i+'.png')});
+  // Poll after short server advances so impact/HP/absorption effects reach the
+  // real canvas, instead of only asserting a changed HP label after a jump.
+  let seenHurt=false;for(let tick=0;tick<7;tick++){serverTime+=750;for(const {p} of sessions)await p.clock.setFixedTime(new Date(serverTime));for(let sample=0;sample<6;sample++){await a.waitForTimeout(200);if(Number(await a.locator('#raid-canvas').getAttribute('data-hurt-effects'))>0){if(!seenHurt)await a.screenshot({path:path.join(OUT,'raid-impact.png')});seenHurt=true;}}}
+  assert.deepEqual(errors,[]);assert(seenHurt,'server damage events rendered on canvas during the active animation window');
+  const recorded=apiLog.filter(x=>x.path==='/api/school/raid'&&x.response.room?.battle).at(-1).response.room.battle;
+  assert(recorded.teams.some(t=>t.units.some(u=>u.taken>0)));assert(recorded.events.some(e=>e.kind==='hurt'&&e.absorbed>0));
+  const draws=await a.locator('#raid-canvas').getAttribute('data-draws');await a.waitForTimeout(250);assert(Number(await a.locator('#raid-canvas').getAttribute('data-draws'))>Number(draws));
   serverTime+=91000;for(const {p} of sessions)await p.clock.setFixedTime(new Date(serverTime));for(const {p} of sessions)await p.waitForFunction(()=>document.getElementById('raid-view')?.dataset.phase==='finished');
   const before=readCloud(members[0]).gems;await a.click('[data-raid-claim]');await a.waitForFunction(()=>document.querySelectorAll('[data-raid-claim]').length===0);assert(readCloud(members[0]).gems>before);
-  await a.screenshot({path:path.join(OUT,'raid-result.png')});for(const {context} of sessions)await context.close();
+  await a.screenshot({path:path.join(OUT,'raid-result.png')});
+  // Four more actual server battles finish the cooperative weekly project.
+  for(const {p} of sessions)await close(p);
+  const raid=async(who,kind,extra={})=>api(who,'/api/school/raid',{kind,requestId:crypto.randomUUID(),...extra});
+  for(let run=0;run<4;run++){const made=await raid(members[0],'create');assert.equal(made.status,200);const roomId=made.data.room.id;for(const m of members.slice(1))assert.equal((await raid(m,'join',{roomId})).status,200);for(const m of members)await raid(m,'ready',{roomId});assert.equal((await raid(members[0],'start',{roomId})).status,200);serverTime+=91000;assert.equal((await raid(members[0],'state')).data.room.status,'finished');}
+  for(const {p} of sessions)await p.clock.setFixedTime(new Date(serverTime));
+  for(let i=0;i<3;i++){const p=sessions[i].p;await p.click('#guild-button');await p.click('[data-guild-tab="quests"]');await p.waitForSelector('[data-guild-project="coop"]');assert.equal(await p.locator('.guild-project').count(),3);await within(p,'[data-guild-project="coop"]');await p.screenshot({path:path.join(OUT,'guild-projects-'+i+'.png')});}
+  const beforeQuest=readCloud(members[0]).gems;await a.click('[data-guild-project="coop"]');await a.waitForFunction(()=>document.querySelector('[data-guild-project="coop"]').textContent==='수령 완료');assert(readCloud(members[0]).gems>=beforeQuest+80);
+  await a.click('[data-guild-tab="decor"]');await within(a,'[data-decor-id="moon"]');await a.click('[data-decor-id="moon"]');await a.click('[data-decor-id="rose"]');await a.click('[data-decor-id="books"]');await within(a,'#guild-room-save');await a.click('#guild-room-save');await a.waitForFunction(()=>document.querySelector('#guild-message').textContent==='길드 정보를 저장했어요.');
+  await a.screenshot({path:path.join(OUT,'guild-decor.png')});
+  await a.click('[data-guild-tab="room"]');assert.equal(await a.locator('.guild-room').getAttribute('data-theme'),'moon');
+  const memberPage=sessions[1].p;await memberPage.click('.guild-refresh');await memberPage.click('[data-guild-tab="decor"]');assert(await memberPage.locator('#guild-room-save').isDisabled());assert.equal(await memberPage.locator('#guild-decor-preview .guild-room').getAttribute('data-theme'),'moon');
+  await a.reload();await ready(a);await a.click('#guild-button');assert.equal(await a.locator('.guild-room').getAttribute('data-theme'),'moon');
+  for(const {context} of sessions)await context.close();
+  console.log('PASS full-window raid, real hurt/absorption effects and continuous drawing; weekly quest claim, decoration persistence and member read-only view');
   assert.deepEqual(errors,[]);assert.deepEqual(badAssets,[]);console.log('PASS five independent signed browser sessions: room/ready/start, same HP, five teams, reconnect once, finish/rewards, 568x280 755x330 2560x1440; JS/errors0');
  }catch(error){if(lastPage&&!lastPage.isClosed()){await lastPage.screenshot({path:path.join(OUT,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(OUT,'failure-dom.txt'),await lastPage.locator('body').innerText());}throw error;}finally{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));t.sqlite.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

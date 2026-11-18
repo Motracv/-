@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="96" viewBox="0 0 192 96" shape-rendering="crispEdges">
+  <title>장밋빛 교실 카펫</title>
+  <path fill="#101b2d" opacity=".3" d="M45 16h102v7h10v11h11v12h10v13h10v17H4V59h10V46h10V34h11V23h10z"/>
+  <path fill="#be9c62" d="M48 12h96v8h10v12h10v12h10v12h10v16H8V56h10V44h10V32h10V20h10z"/>
+  <path fill="#552a47" d="M53 18h86v9h10v12h10v12h10v14H23V51h10V39h10V27h10z"/>
+  <path fill="#8b4b69" d="M58 23h76v11h10v12h10v14H38V46h10V34h10z"/>
+  <path fill="#d7a0ae" d="M61 26h70v3H61zM48 53h96v3H48z"/>
+  <path fill="#e8c984" d="M93 29h6v8h9v5h11v5h-11v5h-9v8h-6v-8h-9v-5H73v-5h11v-5h9z"/>
+  <path fill="#bc8092" d="M94 37h4v5h6v4h-6v5h-4v-5h-6v-4h6z"/>
+  <path fill="#e3c78b" d="M14 72h5v10h-5zM27 72h5v10h-5zM40 72h5v10h-5zM53 72h5v10h-5zM66 72h5v10h-5zM79 72h5v10h-5zM92 72h5v10h-5zM105 72h5v10h-5zM118 72h5v10h-5zM131 72h5v10h-5zM144 72h5v10h-5zM157 72h5v10h-5zM170 72h5v10h-5z"/>
+</svg>

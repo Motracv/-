@@ -1,3 +1,4 @@
+import { guildProjects, GUILD_DECOR } from './guild-progress.mjs';
 const guildFail=(ok,message,status=400)=>{if(!ok)throw Object.assign(new Error(message),{status});};
 const guildUid=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');
 export function normalizeGuildName(raw){if(typeof raw!=='string'||raw.length>80||/[\p{C}<>]/u.test(raw))return null;const name=raw.normalize('NFKC').trim().replace(/\p{Zs}+/gu,' ');return Array.from(name).length>=3&&Array.from(name).length<=16&&/^[\p{L}\p{N} _-]+$/u.test(name)?name:null;}
@@ -13,12 +14,12 @@ export function createGuilds(game){
   const members=rows.map(r=>{let s;try{s=JSON.parse(r.payload);}catch{s={};}const valid=game.validate(s),p=valid?game.profileInfo(s):null;return{id:r.account_id,name:r.display_name||'단장',role:r.role,memberKey:r.membership_key,joinedAt:r.joined_at,isMe:r.account_id===id,level:valid?s.captain.level:1,power:valid?game.power(s):0,avatar:p?.avatar||'leader',hero:valid?s.team[0]:'taeo',title:p?.title==='beta'&&p.beta?'beta':''};});
   const today=game.day(now),claimed=await db.prepare('SELECT 1 AS yes FROM school_guild_attendance WHERE account_id=? AND day=?').bind(id,today).first();
   let outgoing=[];if(own.role==='leader')outgoing=(await db.prepare(`SELECT i.id,i.expires_at,n.display_name AS name FROM school_guild_invites i JOIN school_names n ON n.account_id=i.target WHERE i.guild_id=? AND i.expires_at>? ORDER BY i.created_at DESC LIMIT 60`).bind(row.id,now).all()).results||[];
-  result.guild={id:row.id,name:row.name,emblem:row.emblem,notice:row.notice,createdAt:row.created_at,role:own.role,members,outgoing:outgoing.map(i=>({id:i.id,name:i.name,expiresAt:i.expires_at})),attendance:{gems:30,claimed:!!claimed,eligible:game.day(own.joined_at)<today,resetsAt:(today+1)*86400000-9*3600000}};return result;
+  result.guild={id:row.id,name:row.name,emblem:row.emblem,notice:row.notice,createdAt:row.created_at,role:own.role,members,outgoing:outgoing.map(i=>({id:i.id,name:i.name,expiresAt:i.expires_at})),attendance:{gems:30,claimed:!!claimed,eligible:game.day(own.joined_at)<today,resetsAt:(today+1)*86400000-9*3600000},projects:await guildProjects(db,game,row.id,id,now)};return result;
  }
  return {async request(request,env,data,accounts){
   const now=Date.now(),signed=await accounts.identity(request,env,now);guildFail(signed,'길드는 Google 계정으로 로그인해 주세요.',401);guildFail(data.catalogVersion===game.CATALOG_VERSION,'게임이 업데이트됐어요. 새로고침해 주세요.',426);
   const db=env.DB,id=signed.id,kind=data.kind;
-  guildFail(['state','create','invite','accept','decline','revoke','kick','leave','transfer','disband','decorate'].includes(kind),'지원하지 않는 길드 행동입니다.');
+  guildFail(['state','create','invite','accept','decline','revoke','kick','leave','transfer','disband','decorate','furnish'].includes(kind),'지원하지 않는 길드 행동입니다.');
   if(kind==='state')return state(db,id,now);
   guildFail(typeof data.requestId==='string'&&/^[A-Za-z0-9_-]{16,80}$/.test(data.requestId),'요청 번호를 확인해 주세요.');
   const ownName=await db.prepare('SELECT display_name FROM school_names WHERE account_id=?').bind(id).first();guildFail(ownName,'먼저 프로필에서 단장 이름을 정해 주세요.',409);
@@ -61,6 +62,18 @@ export function createGuilds(game){
       guildFail(data.memberId!==id,'다른 단원을 선택해 주세요.');
       const target=await db.prepare("SELECT account_id FROM school_guild_members WHERE account_id=? AND guild_id=? AND role='member' AND membership_key=?").bind(data.memberId||'',own.guild_id,data.memberKey).first();guildFail(target,'단원 정보를 새로고침해 주세요.',409);
       await db.batch([db.prepare(`UPDATE school_guild_members SET role='member' WHERE account_id=? AND guild_id=? AND role='leader' AND EXISTS(SELECT 1 FROM school_guild_members WHERE account_id=? AND guild_id=? AND membership_key=?)`).bind(id,own.guild_id,target.account_id,own.guild_id,data.memberKey),db.prepare(`UPDATE school_guild_members SET role='leader' WHERE account_id=? AND guild_id=? AND membership_key=? AND NOT EXISTS(SELECT 1 FROM school_guild_members WHERE guild_id=? AND role='leader')`).bind(target.account_id,own.guild_id,data.memberKey,own.guild_id)]);
+     }else if(kind==='furnish'){
+      const d=data.decor;guildFail(d&&GUILD_DECOR.themes.some(x=>x.id===d.theme)&&GUILD_DECOR.rugs.some(x=>x.id===d.rug)&&GUILD_DECOR.furniture.some(x=>x.id===d.furniture),'교실 장식을 다시 선택해 주세요.');
+      guildFail(Number.isInteger(data.revision)&&data.revision>=0,'교실 정보를 다시 불러와 주세요.');
+      const requestKey=id+':'+data.requestId,old=await db.prepare('SELECT revision,request_key FROM school_guild_rooms WHERE guild_id=?').bind(own.guild_id).first();
+      if(old?.request_key===requestKey)return state(db,id,now);
+      guildFail((old?.revision||0)===data.revision,'다른 교실 꾸미기가 먼저 저장됐어요. 새로고침해 주세요.',409);
+      const cost=GUILD_DECOR.furniture.find(x=>x.id===d.furniture).stars;
+      const written=await db.prepare(`INSERT INTO school_guild_rooms(guild_id,theme,rug,furniture,revision,request_key)
+       SELECT ?,?,?,?,1,? WHERE ${leader} AND (SELECT COALESCE(SUM(stars),0) FROM school_guild_projects WHERE guild_id=?)>=?
+       ON CONFLICT(guild_id) DO UPDATE SET theme=excluded.theme,rug=excluded.rug,furniture=excluded.furniture,revision=school_guild_rooms.revision+1,request_key=excluded.request_key WHERE school_guild_rooms.revision=?`)
+       .bind(own.guild_id,d.theme,d.rug,d.furniture,requestKey,id,own.guild_id,own.guild_id,cost,data.revision).run();
+      guildFail(written.meta.changes,'협동 별이 부족하거나 교실 정보가 변경됐어요. 새로고침해 주세요.',409);
      }else if(kind==='disband')await db.prepare(`DELETE FROM school_guilds WHERE id=? AND ${leader}`).bind(own.guild_id,id,own.guild_id).run();
      else if(kind==='decorate'){
       guildFail(Number.isInteger(data.emblem)&&data.emblem>=0&&data.emblem<=2,'길드 문장을 선택해 주세요.');guildFail(typeof data.notice==='string'&&Array.from(data.notice).length<=160&&!/[\p{C}]/u.test(data.notice),'공지사항은 한 줄로 160글자까지 입력해 주세요.');

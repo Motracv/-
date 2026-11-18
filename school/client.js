@@ -97,7 +97,7 @@
     try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
     catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
   }
-  function createRaid(){return window.SchoolRaid?.create({request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open()});}
+  function createRaid(){return window.SchoolRaid?.create({request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
   function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
   function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openAccount:accountModal,openCaptain:captainModal}); }
   function damageModal() {
@@ -509,7 +509,7 @@
     else if (result.kind.startsWith('gear-')) { equipmentUI?.handleResult(result,completedActionKey); }
     else if (result.kind === 'winter-exchange') { play('reward'); social?.refresh(); }
     else if (result.kind === 'profile') { toast('프로필을 저장했어요.'); captainModal(); }
-    else if(result.kind==='raid-claim'){toast(`길드전 보상 · 보석 +${result.gems} · 골드 +${fmt(result.gold)}`);play('reward');}
+    else if(result.kind==='raid-claim'||result.kind==='guild-project-claim'){toast(`${result.kind==='raid-claim'?'길드전':'협동 퀘스트'} 보상 · 보석 +${result.gems} · 골드 +${fmt(result.gold)}`);play('reward');}
     else if (result.kind === 'guild-checkin') { toast('길드 출석 · 보석 +30'); play('reward'); }
     else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); captainModal(); }
     else if (result.kind.startsWith('preset-')) { toast(({'preset-save':'현재 편성을 저장했어요.','preset-apply':'저장한 편성을 불러왔어요.','preset-delete':'저장한 편성을 비웠어요.','preset-rename':'편성 이름을 저장했어요.'})[result.kind] || '편성을 저장했어요.');qol?.refresh(); }

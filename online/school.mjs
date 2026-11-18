@@ -3,6 +3,7 @@ import { createSocial, ensureSchoolName, nameKey } from './social.mjs';
 
 import { createGuilds } from './guilds.mjs';
 import { createRaids } from './raids.mjs';
+import { guildActivity, guildProjectClaim } from './guild-progress.mjs';
 
 export function createSchool() {
   const game = globalThis.SchoolRPG;
@@ -119,6 +120,8 @@ export function createSchool() {
         }
         const checkingIn = action && data.action.kind === 'guild-checkin';
         let guildMember = null;
+        const claimingProject=action&&data.action.kind==='guild-project-claim';
+        const projectReward=claimingProject?await guildProjectClaim(env.DB,game,signed.id,data.action,now):null;
         const raidClaim = action && data.action.kind === 'raid-claim';
         let raidReward=null;
         if(raidClaim){
@@ -138,7 +141,7 @@ export function createSchool() {
           // The client submits intentions only. Time, loot, draws and costs are server-owned.
           // Speed changes can consume a fractional combat step and settle a
           // dungeon too, so they share the same authoritative loot context.
-          try { if(raidClaim){state.gold+=raidReward.gold;state.gems+=raidReward.gems;result={kind:'raid-claim',gold:raidReward.gold,gems:raidReward.gems};}else if(checkingIn){state.gems+=30;result={kind:'guild-checkin',gems:30,day:game.day(now)};}else result = game.action(state, data.action, now, secure, { gearRng: secure }); }
+          try { if(projectReward){requireSchool(Number.isSafeInteger(state.gold+projectReward.gold)&&Number.isSafeInteger(state.gems+projectReward.gems),'재화를 확인해 주세요.');state.gold+=projectReward.gold;state.gems+=projectReward.gems;result={kind:'guild-project-claim',gold:projectReward.gold,gems:projectReward.gems};}else if(raidClaim){state.gold+=raidReward.gold;state.gems+=raidReward.gems;result={kind:'raid-claim',gold:raidReward.gold,gems:raidReward.gems};}else if(checkingIn){state.gems+=30;result={kind:'guild-checkin',gems:30,day:game.day(now)};}else result = game.action(state, data.action, now, secure, { gearRng: secure }); }
           catch (error) { throw Object.assign(error, { status: 400 }); }
           state.receipts.push({ id: data.requestId, result }); state.receipts = state.receipts.slice(-20);
           if (renaming) state.nameNeedsClaim = false;
@@ -148,7 +151,19 @@ export function createSchool() {
         const update = env.DB.prepare("UPDATE school_saves SET payload = ?, revision = revision + 1, updated_at = ? WHERE account_id = ? AND revision = ?")
           .bind(payload, now, signed.id, row.revision);
         let written;
-        if(raidClaim){
+        if(projectReward){
+          const p=projectReward;
+          const results=await env.DB.batch([
+            env.DB.prepare(`UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=?
+             AND EXISTS(SELECT 1 FROM school_guild_members WHERE account_id=? AND guild_id=? AND membership_key=?)
+             AND EXISTS(SELECT 1 FROM school_guild_projects WHERE guild_id=? AND week=? AND quest_id=?)
+             AND NOT EXISTS(SELECT 1 FROM school_guild_project_claims WHERE account_id=? AND week=? AND quest_id=?)`)
+             .bind(payload,now,signed.id,row.revision,signed.id,p.guildId,p.memberKey,p.guildId,p.week,p.id,signed.id,p.week,p.id),
+            env.DB.prepare(`INSERT OR IGNORE INTO school_guild_project_claims(account_id,week,quest_id,guild_id,created_at)
+             SELECT account_id,?,?,?,? FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=?`)
+             .bind(p.week,p.id,p.guildId,now,signed.id,row.revision+1,data.requestId)
+          ]);written=results[0];
+        }else if(raidClaim){
           const results=await env.DB.batch([
             env.DB.prepare('UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=? AND EXISTS(SELECT 1 FROM school_raid_rewards WHERE account_id=? AND room_id=? AND claimed=0)').bind(payload,now,signed.id,row.revision,signed.id,raidReward.room_id),
             env.DB.prepare("UPDATE school_raid_rewards SET claimed=1 WHERE account_id=? AND room_id=? AND claimed=0 AND EXISTS(SELECT 1 FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=?)").bind(signed.id,raidReward.room_id,signed.id,row.revision+1,data.requestId)
@@ -158,7 +173,9 @@ export function createSchool() {
             env.DB.prepare(`UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=? AND EXISTS(SELECT 1 FROM school_guild_members WHERE account_id=? AND guild_id=? AND membership_key=?) AND NOT EXISTS(SELECT 1 FROM school_guild_attendance WHERE account_id=? AND day=?)`)
               .bind(payload,now,signed.id,row.revision,signed.id,guildMember.guild_id,guildMember.membership_key,signed.id,game.day(now)),
             env.DB.prepare(`INSERT INTO school_guild_attendance(account_id,day,created_at) SELECT account_id,?,? FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=? AND NOT EXISTS(SELECT 1 FROM school_guild_attendance WHERE account_id=? AND day=?)`)
-              .bind(game.day(now),now,signed.id,row.revision+1,data.requestId,signed.id,game.day(now))
+              .bind(game.day(now),now,signed.id,row.revision+1,data.requestId,signed.id,game.day(now)),
+            guildActivity(env.DB,{key:'attendance:'+signed.id+':'+game.day(now),gid:guildMember.guild_id,account:signed.id,week:game.week(now),kind:'attendance',reference:String(game.day(now)),at:now,
+              condition:"EXISTS(SELECT 1 FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=?)",bindings:[signed.id,row.revision+1,data.requestId]})
           ]); written=results[0];
         } else if (renaming) {
           try {
