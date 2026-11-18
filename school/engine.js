@@ -4,12 +4,18 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 22;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 23;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const PROFILE_AVATARS = Object.freeze(['knight','witch','scholar','bear','cat','bird']);
+  const PROFILE_REWARDS = Object.freeze([Object.freeze({id:'rank-first',name:'랭킹 1등 기념',code:'랭킹1등축하드립니다',receipt:'RANKING_FIRST_CONGRATS',image:'school/assets/profile/rank-first.webp?v=rank-profile1'})]);
+  const ownsProfileAvatar = (s, id) => id === 'leader' || PROFILE_AVATARS.includes(id) || PROFILE_REWARDS.some(p => p.id === id && Array.isArray(s.redeemedCodes) && s.redeemedCodes.includes(p.receipt));
+  function normalizeCouponCode(value) {
+    const code = String(value ?? '').normalize('NFC').trim().toUpperCase();
+    return PROFILE_REWARDS.find(p => p.code === code)?.receipt || code;
+  }
   const profileInfo = s => s.profile || {avatar:'leader',title:'',beta:true};
-  const validProfile = p => p === undefined || p && typeof p === 'object' && !Array.isArray(p) && (p.avatar === 'leader' || PROFILE_AVATARS.includes(p.avatar)) && typeof p.beta === 'boolean' && (p.title === '' || p.title === 'beta' && p.beta);
+  const validProfile = (p,s) => p === undefined || p && typeof p === 'object' && !Array.isArray(p) && ownsProfileAvatar(s,p.avatar) && typeof p.beta === 'boolean' && (p.title === '' || p.title === 'beta' && p.beta);
   const COUNTER_RULES = Object.freeze({ chance: .18, bossChance: .32, windowMs: 3500, cooldownMs: 10000, multiplier: 1.8 });
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
@@ -54,6 +60,7 @@
   });
   // Retired code names remain valid historical records, but cannot be redeemed.
   const COUPONS = Object.freeze({
+    RANKING_FIRST_CONGRATS: Object.freeze({ gold:0, gems:0, expiresAt:null, avatar:'rank-first' }),
     RYUSION_UPDATE: Object.freeze({ gold:5000, gems:2000, expiresAt:null }),
     THANKS_FOR_PLAYING: Object.freeze({ gold:10000, gems:1000, expiresAt:null }),
     THANKS_FOR_REPORTING: Object.freeze({ gold: 500, gems: 500, expiresAt: null }),
@@ -660,7 +667,7 @@
       (s.redeemedCodes === undefined || Array.isArray(s.redeemedCodes) && s.redeemedCodes.length <= 1000 && new Set(s.redeemedCodes).size === s.redeemedCodes.length && s.redeemedCodes.every(code => typeof code === "string" && /^[A-Z0-9_]{1,40}$/.test(code))) &&
       s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) &&
       (s.offline.captainXp === undefined || Number.isFinite(s.offline.captainXp) && s.offline.captainXp >= 0) &&
-      validProfile(s.profile) && s.captain && Number.isInteger(s.captain.level) && s.captain.level >= 1 && s.captain.level <= CAPTAIN_MAX_LEVEL && Number.isFinite(s.captain.xp) && s.captain.xp >= 0);
+      validProfile(s.profile,s) && s.captain && Number.isInteger(s.captain.level) && s.captain.level >= 1 && s.captain.level <= CAPTAIN_MAX_LEVEL && Number.isFinite(s.captain.xp) && s.captain.xp >= 0);
   }
   function newHoras(stacks = 0) {
     return { stacks, nextBasicAt: HORAS_RULES.basicMs, basicPose: 1, lastHitStackAt: -HORAS_RULES.hitStackMs, lastCastAt: -HORAS_RULES.minCastMs };
@@ -1126,7 +1133,7 @@
     const kind = input.kind;
     if (kind === 'profile') {
       const current = profileInfo(s), avatar = input.avatar ?? current.avatar, title = input.title ?? current.title;
-      fail(avatar === 'leader' || PROFILE_AVATARS.includes(avatar), '프로필 그림을 선택해 주세요.');
+      fail(ownsProfileAvatar(s,avatar), '해금한 프로필 그림만 사용할 수 있어요.');
       fail(title === '' || title === 'beta' && current.beta, '해금한 칭호만 사용할 수 있어요.');
       s.profile = {...current, avatar, title}; return {kind, avatar, title};
     }
@@ -1194,7 +1201,7 @@
     }
     if (kind === "redeem") {
       fail(typeof input.code === "string" && input.code.length <= 128, "코드를 확인해 주세요.");
-      const code = input.code.trim().toUpperCase();
+      const code = normalizeCouponCode(input.code);
       fail(code.length > 0, "코드를 입력하세요.");
       fail(/^[A-Z0-9_]{1,40}$/.test(code) && Object.hasOwn(COUPONS, code), "사용할 수 없는 코드입니다.");
       const coupon = COUPONS[code], redeemed = s.redeemedCodes || [];
@@ -1202,8 +1209,9 @@
       fail(Number.isFinite(now) && now >= 0 && (coupon.expiresAt === null || now < coupon.expiresAt), "사용 기간이 지난 코드입니다.");
       // Client-supplied rewards and timestamps never participate in redemption.
       s.redeemedCodes = [...redeemed, code]; s.gold += coupon.gold; s.gems += coupon.gems;
-      log(s, `CODE ${code} · 보석 +${coupon.gems} · 골드 +${coupon.gold}`);
-      return { kind, code, gold: coupon.gold, gems: coupon.gems, expiresAt: coupon.expiresAt };
+      const profileReward = PROFILE_REWARDS.find(p => p.id === coupon.avatar);
+      log(s, profileReward ? `${profileReward.name} 프로필 해금` : `CODE ${code} · 보석 +${coupon.gems} · 골드 +${coupon.gold}`);
+      return { kind, code, gold: coupon.gold, gems: coupon.gems, expiresAt: coupon.expiresAt, ...(profileReward ? {avatar:profileReward.id,avatarName:profileReward.name,displayCode:profileReward.code} : {}) };
     }
     if (kind === "weapon-recruit") return recruitWeapons(s,input.count,rng,input.banner,now);
     if (kind === "recruit") return recruit(s, input.count, rng, input.banner === undefined ? "osia" : input.banner, now);
@@ -1361,5 +1369,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

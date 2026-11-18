@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-pickup-pixel1a';
+const RELEASE = 'school-rank-profile1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -23,6 +23,7 @@ const required = [
   ...['plant','bookshelf','trophy','rug-teal','rug-wine','rug-blue'].map(id => `school/assets/guild/decor/${id}.svg?v=guild2`),
   'school/assets/ryusion/portrait.png?v=ryusion1', 'school/assets/ryusion/combat.png?v=ryusion1',
   ...['ryusion','osia','lava'].map(id => `school/assets/recruit/${id}.webp?v=pickup-pixel1`),
+  'school/assets/profile/rank-first.webp?v=rank-profile1',
   'school/assets/app-192.png', 'school/assets/app-512.png'
 ].map(url);
 const pictures = ['daily','weekly','tower'].map(id => url(`school/assets/dungeon-${id}.png?v=${RELEASE}`));
@@ -35,7 +36,7 @@ self.addEventListener('install', event => {
     const html = await (await cache.match(shell)).text();
     const engine = await (await cache.match(url(`school/engine.js?v=${RELEASE}`))).text();
     // A CDN rollout must not activate an old HTML with a new offline engine.
-    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*22\b/.test(engine)) {
+    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*23\b/.test(engine)) {
       await caches.delete(CACHE); throw Error('School release is not ready');
     }
   })());

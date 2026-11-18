@@ -1,7 +1,11 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-pickup-pixel1a',
+  version:'school-rank-profile1',
   entries:Object.freeze([
+    {version:'school-rank-profile1',date:'2026.11.18',title:'랭킹 1등 기념 프로필',items:[
+      '보급에서 랭킹1등축하드립니다 코드를 입력하면 기념 프로필을 받아요.',
+      '왼쪽 위 단장 프로필에서 선택할 수 있어요. 능력치 효과 없이 코드당 한 번 해금됩니다.'
+    ]},
     {version:'school-pickup-pixel1a',date:'2026.11.18',title:'세 용병의 새로운 모집 그림',items:[
       '류시온·오시아·라바의 모집 배너를 새 도트 일러스트로 바꿨어요.',
       '오시아는 수룡을 부르는 자세, 라바는 부채를 앞으로 휘두르는 자세로 등장해요. 라바의 남성적인 얼굴과 무당 의상을 살렸어요.',
