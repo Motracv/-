@@ -1,6 +1,6 @@
 /* Dedicated background analysis. Never reads storage or writes a game save. */
 'use strict';
-importScripts('./engine.js?v=school-pickup-pixel1');
+importScripts('./engine.js?v=school-pickup-pixel1a');
 const G = self.SchoolRPG, cache = new Map();
 let generation = 0;
 self.onmessage = async ({ data }) => {

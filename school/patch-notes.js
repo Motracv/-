@@ -1,8 +1,8 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-pickup-pixel1',
+  version:'school-pickup-pixel1a',
   entries:Object.freeze([
-    {version:'school-pickup-pixel1',date:'2026.11.18',title:'세 용병의 새로운 모집 그림',items:[
+    {version:'school-pickup-pixel1a',date:'2026.11.18',title:'세 용병의 새로운 모집 그림',items:[
       '류시온·오시아·라바의 모집 배너를 새 도트 일러스트로 바꿨어요.',
       '오시아는 수룡을 부르는 자세, 라바는 부채를 앞으로 휘두르는 자세로 등장해요. 라바의 남성적인 얼굴과 무당 의상을 살렸어요.',
       '모집 화면의 이름·확률·가격은 선명한 글씨로 표시하고, 캐릭터 그림을 눌러 상세 정보를 확인해요.'

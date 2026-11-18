@@ -1302,7 +1302,7 @@
     window.addEventListener('pagehide', () => { if (mode === 'guest') guestUpdate().catch(() => {}); });
     window.addEventListener('pageshow', () => { if (mode === 'guest') guestUpdate().catch(() => {}); else sync(true); });
     window.addEventListener('online', () => sync(true));
-    window.addEventListener('school-art-ready', () => { lobby?.invalidate(); renderKey = partyKey = ''; $('feature-osia').src = Art.portrait('osia'); $('feature-lava').src = Art.portrait('lava'); render(); if (modalKind === 'hero' && ['osia','lava','horas','ryusion'].includes(selectedHero)) heroDetail(selectedHero); });
+    window.addEventListener('school-art-ready', () => { lobby?.invalidate(); renderKey = partyKey = ''; render(); if (modalKind === 'hero' && ['osia','lava','horas','ryusion'].includes(selectedHero)) heroDetail(selectedHero); });
     window.addEventListener('storage', e => { if (e.key === SESSION && !e.newValue) { clearLogin(); connected = mode !== 'cloud'; if (mode === 'cloud') { note('다른 창에서 로그아웃했어요. 계정 메뉴에서 다시 로그인할 수 있어요.'); renderButtons(); } } if (e.key === SAVE && mode === 'guest' && !busy) guestUpdate().catch(() => {}); });
   }
   async function boot() {
