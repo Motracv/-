@@ -1,8 +1,8 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-dungeon-portal1',
+  version:'school-dungeon-portal2',
   entries:Object.freeze([
-    {version:'school-dungeon-portal1',date:'2026.11.19',title:'던전 · 문 너머로',items:[
+    {version:'school-dungeon-portal2',date:'2026.11.19',title:'던전 · 문 너머로',items:[
       '던전 메뉴를 전체 화면의 큰 그림 카드로 바꿨어요. 방과 후 보급고·뫼비우스의 복도·봉인된 이사장실을 선택하세요.',
       '던전에 들어갈 때 화면이 깊어지는 전환을, 카드를 선택할 때 그림 안으로 확대되는 연출을 추가했어요. 모션 줄이기 설정에서는 즉시 이동해요.',
       '선택 후 단계·보상·열쇠를 확인하고 도전할 수 있어요. 뒤로가기 또는 ESC로 상세 화면 → 던전 목록 → 안뜰 순서로 돌아갑니다.',

@@ -24,7 +24,7 @@ window.SchoolDungeonPortal=(()=>{
     function select(kind,button){
       if(!active||!kinds.includes(kind))return false;
       cancel();chosen=kind;const cover=button?.querySelector('img'),box=cover?.getBoundingClientRect(),area=root.getBoundingClientRect();
-      const art=$('dungeon-detail-art');art.src=`school/assets/dungeon-${kind}.png?v=school-dungeon-portal1`;art.alt='';
+      const art=$('dungeon-detail-art');art.src=`school/assets/dungeon-${kind}.png?v=school-dungeon-portal2`;art.alt='';
       screen='detail';layout();$('dungeon-detail').scrollTop=0;
       if(!reduced()&&box?.width>0&&box?.height>0&&root.animate){
         flight=document.createElement('img');const node=flight;node.className='dungeon-flight';node.src=art.src;node.alt='';node.setAttribute('aria-hidden','true');

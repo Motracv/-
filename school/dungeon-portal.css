@@ -4,7 +4,7 @@
 .app[data-tab=dungeons] .content-panel{width:100%;height:100%;max-width:none;max-height:none;padding:0;border:0;border-radius:0;background:#080e16;overflow:hidden}
 .app[data-tab=dungeons] .connection{position:absolute;inset:0 0 auto;z-index:35}
 .app[data-tab=dungeons]:has(.connection:not([hidden])) .dungeon-portal-header{padding-top:56px}
-.app #tab-dungeons{position:relative;isolation:isolate;display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;color:#f2ead9;background:#090f19;padding:0}
+.app #tab-dungeons{--cream:#101a28;--paper:#172638;--ink:#f1e5d0;--muted:#c5cddd;--line:#556479;--green:#e5bd7e;position:relative;isolation:isolate;display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;color:#f2ead9;background:#090f19;padding:0}
 .app #tab-dungeons[hidden]{display:none}
 .dungeon-atmosphere{position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,#04090fe8,#080e17c4 50%,#050a12ed),url('assets/lobby/courtyard.webp?v=lobby1') center/cover no-repeat}
 .dungeon-atmosphere::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 60%,transparent 15%,#0008 100%)}
