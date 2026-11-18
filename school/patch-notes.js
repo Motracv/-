@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-refinement1',
+  version:'school-dungeon-portal1',
   entries:Object.freeze([
+    {version:'school-dungeon-portal1',date:'2026.11.19',title:'던전 · 문 너머로',items:[
+      '던전 메뉴를 전체 화면의 큰 그림 카드로 바꿨어요. 방과 후 보급고·뫼비우스의 복도·봉인된 이사장실을 선택하세요.',
+      '던전에 들어갈 때 화면이 깊어지는 전환을, 카드를 선택할 때 그림 안으로 확대되는 연출을 추가했어요. 모션 줄이기 설정에서는 즉시 이동해요.',
+      '선택 후 단계·보상·열쇠를 확인하고 도전할 수 있어요. 뒤로가기 또는 ESC로 상세 화면 → 던전 목록 → 안뜰 순서로 돌아갑니다.',
+      '보상·열쇠·기존 진행 기록과 전투 규칙은 그대로 유지합니다.'
+    ]},
     {version:'school-refinement1',date:'2026.11.19',title:'조각 교환소 · 다섯 갈래 뫼비우스',items:[
       '하단 메뉴가 두 줄로 밀리던 배치를 수정하고 상점 전용 천막 아이콘을 추가했어요. 버튼의 클릭 영역과 글씨 대비도 높였어요.',
       '예티 얼음땡 입력 제한 시간을 7초로 늘렸어요. 실패한 단장의 용병 6명만 15초 멈추는 규칙은 유지해요.',

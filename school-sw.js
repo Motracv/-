@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-refinement1';
+const RELEASE = 'school-dungeon-portal1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -8,7 +8,7 @@ const url = path => new URL(path, base).href;
 const shell = url('school.html');
 const required = [
   'school.html', 'school.webmanifest',
-  ...['engine.js','ryusion.js','combat-feedback.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css','guild.js','guild.css','raid.js','raid.css','raid-engine.js','raid-vfx.js','yeti-engine.js','rescue.js','yeti.js','yeti.css','winter2.css','refinement.css'].map(p => `school/${p}?v=${RELEASE}`),
+  ...['engine.js','ryusion.js','combat-feedback.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css','guild.js','guild.css','raid.js','raid.css','raid-engine.js','raid-vfx.js','yeti-engine.js','rescue.js','yeti.js','yeti.css','winter2.css','refinement.css','dungeon-portal.js','dungeon-portal.css'].map(p => `school/${p}?v=${RELEASE}`),
   'school/assets/lobby/shop-shards.webp',
   'assets/fonts/Galmuri11.woff2', 'assets/fonts/PretendardVariable.woff2',
   'school/assets/osia-sprites.png?v=osia1', 'school/assets/lava.png?v=lava1',

@@ -43,7 +43,7 @@
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
   let social, guild, raid, yeti, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
-  let lobby = null, worldMap = null, qol = null, equipmentUI = null;
+  let dungeonPortal = null, lobby = null, worldMap = null, qol = null, equipmentUI = null;
   let questCategory = 'daily', questChapter = null, questRowsKey = '', questCacheKey = '', questCache = null;
   const questCategories = {daily:'일일',repeat:'반복',stage:'지역',milestone:'업적'};
   const graphics = {frames:0, lastFrame:0, lastDraw:0, failures:0, lastError:'', losses:0, recoveries:0, lost:false};
@@ -577,6 +577,8 @@
   function setTab(next, repaint = true) {
     if (!['lobby', 'adventure', 'roster', 'dungeons', 'recruit', 'supplies'].includes(next)) return;
     stopTraining();
+    const previousTab=tab;
+    if(previousTab==='dungeons'&&next!=='dungeons')dungeonPortal?.close();
     tab = next; $('app').dataset.tab = tab;
     setHidden($('lobby-panel'), tab !== 'lobby');
     setHidden(document.querySelector('.battle-panel'), tab !== 'adventure');
@@ -584,7 +586,9 @@
     setHidden(document.querySelector('.content-panel'), tab === 'lobby' || tab === 'adventure');
     for (const name of ['adventure', 'roster', 'dungeons', 'recruit', 'supplies']) $('tab-' + name).hidden = name !== tab;
     document.querySelectorAll('.bottom-nav>button').forEach(b => { const active = b.dataset.tab === tab || (tab === 'roster' && b.dataset.lobbyAction === 'codex') || (tab === 'adventure' && b.dataset.lobbyAction === 'map'); b.classList.toggle('active', active); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
-    document.querySelector('.content-panel').scrollTop = 0; document.querySelector('.workspace').scrollTop = 0; renderKey = dungeonRenderKey = ''; if (repaint) render(); if (tab === 'lobby') $('board-viewport').scrollLeft = 0; else boardJump(tab === 'adventure' ? 'battle' : 'party');
+    document.querySelector('.content-panel').scrollTop = 0; document.querySelector('.workspace').scrollTop = 0; renderKey = dungeonRenderKey = ''; if (repaint) render(); if (tab === 'lobby') $('board-viewport').scrollLeft = 0; else if(tab!=='dungeons')boardJump(tab === 'adventure' ? 'battle' : 'party');
+    if(tab==='dungeons'&&previousTab!=='dungeons')dungeonPortal?.open();
+    if(previousTab==='dungeons'&&tab==='lobby')document.querySelector('.lobby-menu[data-lobby-action=dungeons]')?.focus({preventScroll:true});
   }
   function lobbyAction(action) {
     if (action === 'resume') {
@@ -960,7 +964,9 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-ryusion1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    const portals=[{id:'daily',name:'방과 후 보급고',label:'일일 던전',desc:'잠든 보급고의 수호자를 물리치고<br>코인과 장비를 획득하세요.'},{id:'tower',name:'뫼비우스의 복도',label:'끝없는 도전',desc:'층마다 달라지는 특성을 공략하고<br>더 높은 곳에 도전하세요.'},{id:'weekly',name:'봉인된 이사장실',label:'주간 보스',desc:'봉인 너머의 강력한 보스를 쓰러뜨리고<br>풍성한 보상을 획득하세요.'}];
+    const portalMarkup=portals.map(p=>`<button class="dungeon-choice ${p.id}" data-dungeon="${p.id}" aria-label="${p.name} 선택"><span class="dungeon-choice-title">${p.name}</span><span class="dungeon-cover"><img src="school/assets/dungeon-${p.id}.png?v=school-dungeon-portal1" alt="" decoding="async"><span class="dungeon-choice-badge">${p.label}</span><span class="dungeon-choice-status">${p.id==='tower'?`최고 ${fmt(info.tower.best)}층 · 입장 무제한`:`열쇠 ${info[p.id].keys} / ${info[p.id].cap}`}</span><span class="dungeon-choice-enter" aria-hidden="true">선택 <b>›</b></span></span><span class="dungeon-choice-description">${p.desc}</span></button>`).join('');
+    if($('dungeon-selectors').innerHTML!==portalMarkup)$('dungeon-selectors').innerHTML=portalMarkup;
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -1241,6 +1247,8 @@
       if(!info?.active||tab!=='adventure'||document.hidden||$('modal').open)return;
       act({kind:'counter',battleId:info.opportunity.battleId,opportunityId:info.opportunity.id});
     };
+    dungeonPortal=window.SchoolDungeonPortal?.create($('tab-dungeons'),{reduced:()=>reduced});
+    $('dungeon-back').onclick=()=>{if(!dungeonPortal?.back())setTab('lobby');};
     lobby = window.SchoolLobby?.create($('lobby-party'), {game:G, art:Art});
     qol = window.SchoolQoL?.create({getState:()=>state,accountScope,serverNow,modalKind:()=>modalKind,activityActive,isBlocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,toast,openRoster:()=>{filter='owned';setTab('roster');},openHelp:help});
     if(qol){
@@ -1272,7 +1280,7 @@
       if (target.dataset.battleMode) changeBattleMode(target.dataset.battleMode);
       if (target.dataset.confirmBattleMode && !state.battle.activity) act({kind:'stage', stage:Number(target.dataset.confirmStage), mode:target.dataset.confirmBattleMode});
       if (target.dataset.boardJump) boardJump(target.dataset.boardJump);
-      if (target.dataset.dungeon) { selectedDungeon = target.dataset.dungeon; dungeonRenderKey = ''; render(); }
+      if (target.dataset.dungeon) { if(!['daily','weekly','tower'].includes(target.dataset.dungeon))return;selectedDungeon = target.dataset.dungeon; dungeonRenderKey = ''; dungeonPortal?.select(selectedDungeon,target);render();return; }
       if (target.dataset.ranking) rankingModal(target.dataset.ranking);
       if (target.dataset.hero) heroDetail(target.dataset.hero);
       if (target.dataset.gearSlot) equipmentUI?.open(target.dataset.gearHero,target.dataset.gearSlot);
@@ -1318,6 +1326,7 @@
       if(event.key!=='Escape'||event.repeat||event.isComposing)return;
       if($('school-presentation')?.open){event.preventDefault();Presentation?.skip();return;}
       if($('modal').open){event.preventDefault();requestModalClose();return;}
+      if(tab==='dungeons'&&dungeonPortal?.back()){event.preventDefault();return;}
       if(tab!=='lobby'){event.preventDefault();setTab('lobby');}
     });
     $('modal-close').title='닫기 · Esc';
