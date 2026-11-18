@@ -24,7 +24,7 @@
   const rarity = id => `<span class="rarity ${G.BY_ID[id].rarity}">${G.BY_ID[id].rarity}</span>`;
   const storage = { get(key, session = false) { try { return (session ? sessionStorage : localStorage).getItem(key); } catch { return null; } }, set(key, value, session = false) { try { (session ? sessionStorage : localStorage).setItem(key, value); return true; } catch { return false; } }, remove(key, session = false) { try { (session ? sessionStorage : localStorage).removeItem(key); } catch {} } };
   let state, mode = 'guest', profile = null, token = null, revision = 0, cloudClock = null, busy = false, pending = null, connected = true;
-  let formationUI=null;
+  let formationUI=null,coop=null;
   let tab = 'lobby', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
   let confirmedActivityScope = '', confirmedActivityResult = null, dismissedActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null, selectedDungeon = 'daily';
   let recruitCategory = 'heroes';
@@ -94,12 +94,12 @@
     try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
     clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; cloudClock = null; clearPending();
     storage.remove(CLOUD_CACHE, true); storage.set(MODE, 'guest'); mode = 'guest'; connected = true; effects = [];
-    formationUI?.cancel(); Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); raid?.destroy(); yeti?.destroy(); social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti(); closeModal();
+    coop?.reset(); formationUI?.cancel(); Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); raid?.destroy(); yeti?.destroy(); social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti(); closeModal();
     try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
     catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
   }
-  function createYeti(){return window.SchoolYeti?.create({request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,refreshRewards:()=>{lastSync=0;return sync();},dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
-  function createRaid(){return window.SchoolRaid?.create({request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
+  function createYeti(){return window.SchoolYeti?.create({openInvites:(mode,roomId,container)=>coop?.openPicker(mode,roomId,container),request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,refreshRewards:()=>{lastSync=0;return sync();},dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
+  function createRaid(){return window.SchoolRaid?.create({openInvites:(mode,roomId,container)=>coop?.openPicker(mode,roomId,container),request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
   function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
   function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openYeti:()=>yeti?.open(),openHero:heroDetail,openAccount:accountModal,openCaptain:captainModal}); }
   function damageModal() { insights?.report(state.lastCombatReport?'last':'current'); }
@@ -578,13 +578,13 @@
     stopTraining();formationUI?.cancel();
     const previousTab=tab;
     if(previousTab==='dungeons'&&next!=='dungeons')dungeonPortal?.close();
-    tab = next; $('app').dataset.tab = tab;
+    tab = next;if(tab==='roster')filter='owned'; $('app').dataset.tab = tab;
     setHidden($('lobby-panel'), tab !== 'lobby');
     setHidden(document.querySelector('.battle-panel'), tab !== 'adventure');
     setHidden(document.querySelector('.party-panel'), tab !== 'adventure');
     setHidden(document.querySelector('.content-panel'), tab === 'lobby' || tab === 'adventure');
     for (const name of ['adventure', 'roster', 'dungeons', 'recruit', 'supplies']) $('tab-' + name).hidden = name !== tab;
-    document.querySelectorAll('.bottom-nav>button').forEach(b => { const active = b.dataset.tab === tab || (tab === 'roster' && b.dataset.lobbyAction === 'codex') || (tab === 'adventure' && b.dataset.lobbyAction === 'map'); b.classList.toggle('active', active); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+    document.querySelectorAll('.bottom-nav>button').forEach(b => { const active = b.dataset.tab === tab || (tab === 'adventure' && b.dataset.lobbyAction === 'map'); b.classList.toggle('active', active); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     document.querySelector('.content-panel').scrollTop = 0; document.querySelector('.workspace').scrollTop = 0; renderKey = dungeonRenderKey = ''; if (repaint) render(); if (tab === 'lobby') $('board-viewport').scrollLeft = 0; else if(tab!=='dungeons')boardJump(tab === 'adventure' ? 'battle' : 'party');
     if(tab==='dungeons'&&previousTab!=='dungeons')dungeonPortal?.open();
     if(previousTab==='dungeons'&&tab==='lobby')document.querySelector('.lobby-menu[data-lobby-action=dungeons]')?.focus({preventScroll:true});
@@ -600,11 +600,8 @@
     if (action === 'map') return stageMap();
     if (action === 'ranking') return rankingModal('level');
     if (action === 'help') return help();
-    if (action === 'codex') {
-      filter = 'all';
-      document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === filter));
-      setTab('roster'); return;
-    }
+    if(action==='company'){filter='owned';setTab('roster');return;}
+    if(action==='codex')return codexModal();
     if (action === 'quests') {
       setTab('supplies');
       $('quests').scrollIntoView({block:'start',behavior:'instant'}); return;
@@ -803,7 +800,7 @@
     maybeShowActivityResult();
   }
   function renderButtons() {
-    formationUI?.controls();
+    formationUI?.controls();coop?.refresh();
     renderCounter();
     setHidden($('operation-status'), !operation || !busy || operation === 'counter');
     setText($('operation-message'), ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중',quest:'임무 보상 저장 중','quest-all':'임무 보상 모으는 중','gear-equip':'장비 착용 저장 중','gear-unequip':'장비 해제 저장 중','gear-awaken':'장비 각성 저장 중'})[operation] || '저장 확인 중');
@@ -969,7 +966,7 @@
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
     const portals=[{id:'daily',name:'방과 후 보급고',label:'일일 던전',desc:'잠든 보급고의 수호자를 물리치고<br>코인과 장비를 획득하세요.'},{id:'tower',name:'뫼비우스의 복도',label:'끝없는 도전',desc:'층마다 달라지는 특성을 공략하고<br>더 높은 곳에 도전하세요.'},{id:'weekly',name:'봉인된 이사장실',label:'주간 보스',desc:'봉인 너머의 강력한 보스를 쓰러뜨리고<br>풍성한 보상을 획득하세요.'}];
-    const portalMarkup=portals.map(p=>`<button class="dungeon-choice ${p.id}" data-dungeon="${p.id}" aria-label="${p.name} 선택"><span class="dungeon-choice-title">${p.name}</span><span class="dungeon-cover"><img src="school/assets/dungeon-${p.id}.png?v=school-formation1" alt="" decoding="async"><span class="dungeon-choice-badge">${p.label}</span><span class="dungeon-choice-status">${p.id==='tower'?`최고 ${fmt(info.tower.best)}층 · 입장 무제한`:`열쇠 ${info[p.id].keys} / ${info[p.id].cap}`}</span><span class="dungeon-choice-enter" aria-hidden="true">선택 <b>›</b></span></span><span class="dungeon-choice-description">${p.desc}</span></button>`).join('');
+    const portalMarkup=portals.map(p=>`<button class="dungeon-choice ${p.id}" data-dungeon="${p.id}" aria-label="${p.name} 선택"><span class="dungeon-choice-title">${p.name}</span><span class="dungeon-cover"><img src="school/assets/dungeon-${p.id}.png?v=school-coop-invites1" alt="" decoding="async"><span class="dungeon-choice-badge">${p.label}</span><span class="dungeon-choice-status">${p.id==='tower'?`최고 ${fmt(info.tower.best)}층 · 입장 무제한`:`열쇠 ${info[p.id].keys} / ${info[p.id].cap}`}</span><span class="dungeon-choice-enter" aria-hidden="true">선택 <b>›</b></span></span><span class="dungeon-choice-description">${p.desc}</span></button>`).join('');
     if($('dungeon-selectors').innerHTML!==portalMarkup)$('dungeon-selectors').innerHTML=portalMarkup;
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
@@ -1089,7 +1086,7 @@
     }
   }
   function openModal(title, html, kind = '') {
-    formationUI?.cancel();$('modal').classList.toggle('formation-hero-modal',kind==='hero');
+    formationUI?.cancel();$('modal').classList.toggle('formation-hero-modal',['hero','codex-hero'].includes(kind));
     qol?.close();equipmentUI?.close();$('modal').classList.remove('qol-modal','equipment-modal');
     worldMap?.destroy(); worldMap = null;
     if(kind!=='yeti')yeti?.destroy(); $('modal').classList.toggle('yeti-modal',kind==='yeti');$('modal').classList.toggle('winter-modal',kind==='social-winter');
@@ -1100,18 +1097,21 @@
     if (!$('modal').open) $('modal').showModal(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
   }
-  async function requestModalClose(){if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
+  async function requestModalClose(){if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
     qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
     raid?.destroy(); yeti?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
   }
-  function heroDetail(id) {
-    const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
-    const st = G.stats(id, u || {level:1, stars:0}, state);
+  function codexModal(){
+    openModal('용병 도감',`<p class="codex-note">역할과 스킬을 확인하세요. 편성·육성은 안뜰 맨 왼쪽 ‘학교 용병단’에서 할 수 있어요.</p><div class="codex-list">${G.HEROES.map(h=>`<button data-codex-hero="${h.id}" class="codex-entry ${h.rarity}"><span class="rarity ${h.rarity}">${h.rarity}</span><img src="${(Art.rosterPortrait||Art.portrait)(h.id)}" alt=""><strong>${h.name}</strong><small>${h.role} · ${state.units[h.id]?'보유':'미보유'}</small></button>`).join('')}</div>`,'codex');
+  }
+  function heroDetail(id, readOnly=false) {
+    const h = G.BY_ID[id], u = readOnly?null:state.units[id]; if (!h) return; selectedHero = id;
+    const st = G.stats(id, u || {level:1, stars:0}, readOnly?undefined:state);
     const skills = `<details class="hero-skills" ${u ? '' : 'open'}><summary>스킬 · 패시브</summary><div class="skill-box"><b>${h.skill} <span>· ${id === 'horas' ? '벚꽃 구슬 5개' : `${h.cooldown}초 충전`}</span></b>${h.desc}</div>${h.passive ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive}</b>${h.passiveDesc}</div>` : ''}${h.passive2 ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive2}</b>${h.passive2Desc}</div>` : ''}</details>`;
-    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'earth' ? '<p class="hero-element">Ryusion · 여성 · 인간 · 대지 속성</p>' : h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : id === 'horas' ? '<p class="hero-element">Horas · 여성 · 벚꽃 속성</p>' : id==='spica'?'<p class="hero-element">Spica · 여성 · 설녀 · 얼음 · 지원</p>':''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div><p class="detail-note">치명타 ${Math.round((st.critChance || .12)*100)}% · 피해 ${(st.critMultiplier || 1.5)}배</p>${u ? window.SchoolEquipment?.slotsMarkup(state,id)||'' : ''}${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">레벨업 · 꾹 누르기<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${Array.from({length:maxTeam()}, (_, i) => { const member = state.team[i]; return `<button data-slot="${i}" class="${member === id ? 'selected' : ''} ${member ? '' : 'empty'}">${member ? portrait(member) : '<span class="empty-slot-mark" aria-hidden="true">+</span>'}${slotName(i)}<br>${member ? G.BY_ID[member].name : '빈자리에 추가'}</button>`; }).join('')}</div>${state.team.includes(id) ? `<button class="text-button remove-hero-action" id="remove-hero">출전에서 빼기</button>` : ''}<p class="detail-note" id="formation-status">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">${id==='spica'?'겨울 이벤트에서 영입 →':'모집에서 만나기 →'}</button>`}</div>`, 'hero');
-    if(id==='osia'){$('modal-content').insertAdjacentHTML('afterbegin','<button class="bond-entry" id="osia-bond-entry"><span>✧ 인연 기록<small>수면 아래의 기억 · 이야기와 꾸미기 보상</small></span><span>›</span></button>');$('osia-bond-entry').onclick=()=>insights?.bond();}
+    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><div class="hero-detail-header">${portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'earth' ? '<p class="hero-element">Ryusion · 여성 · 인간 · 대지 속성</p>' : h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : id === 'horas' ? '<p class="hero-element">Horas · 여성 · 벚꽃 속성</p>' : id==='spica'?'<p class="hero-element">Spica · 여성 · 설녀 · 얼음 · 지원</p>':''}</div></div><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div><p class="detail-note">치명타 ${Math.round((st.critChance || .12)*100)}% · 피해 ${(st.critMultiplier || 1.5)}배</p>${u ? window.SchoolEquipment?.slotsMarkup(state,id)||'' : ''}${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">레벨업 · 꾹 누르기<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${Array.from({length:maxTeam()}, (_, i) => { const member = state.team[i]; return `<button data-slot="${i}" class="${member === id ? 'selected' : ''} ${member ? '' : 'empty'}">${member ? portrait(member) : '<span class="empty-slot-mark" aria-hidden="true">+</span>'}${slotName(i)}<br>${member ? G.BY_ID[member].name : '빈자리에 추가'}</button>`; }).join('')}</div>${state.team.includes(id) ? `<button class="text-button remove-hero-action" id="remove-hero">출전에서 빼기</button>` : ''}<p class="detail-note" id="formation-status">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : readOnly ? `${skills}<p class="detail-note">Lv.1 기본 능력치 · ${state.units[id]?'보유한 용병':'아직 만나지 못한 용병'}</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">${id==='spica'?'겨울 이벤트에서 영입 →':'모집에서 만나기 →'}</button>`}</div>`, readOnly?'codex-hero':'hero');
+    if(id==='osia'&&!readOnly){$('modal-content').insertAdjacentHTML('afterbegin','<button class="bond-entry" id="osia-bond-entry"><span>✧ 인연 기록<small>수면 아래의 기억 · 이야기와 꾸미기 보상</small></span><span>›</span></button>');$('osia-bond-entry').onclick=()=>insights?.bond();}
     if (u) {
       $('train-hero').style.touchAction = 'none'; $('train-hero').style.userSelect = 'none';
       $('train-hero').onpointerdown = event => beginTraining(event,id);
@@ -1128,7 +1128,7 @@
         act({kind:'team', team});
       }; });
       if ($('remove-hero')) $('remove-hero').onclick = () => act({kind:'team', team:state.team.filter(member => member !== id)});
-    } else $('to-recruit').onclick = () => { if(id==='spica'){closeModal();social?.openWinter();return;} if (Object.hasOwn(G.BANNERS, id)) { recruitCategory='heroes';selectedBanner = id; storage.set('school-pickup', id); } closeModal(); setTab('recruit'); };
+    } else if(!readOnly) $('to-recruit').onclick = () => { if(id==='spica'){closeModal();social?.openWinter();return;} if (Object.hasOwn(G.BANNERS, id)) { recruitCategory='heroes';selectedBanner = id; storage.set('school-pickup', id); } closeModal(); setTab('recruit'); };
     renderButtons();
   }
   function changeBattleMode(nextMode) {
@@ -1268,6 +1268,7 @@
     }
     equipmentUI = window.SchoolEquipment?.create({getState:()=>state,accountScope,modalKind:()=>modalKind,isBlocked:()=>busy||!!pending||activityAwaitingConfirmation()||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,openHero:heroDetail,toast,play});
     social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti();
+    coop=window.SchoolCoop?.create({request,scope:accountScope,now:serverNow,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,blocked:()=>busy||!!pending||resultPresentationBusy(),inEncounter:()=>['yeti','raid'].includes(modalKind)||activityActive(),openEncounter:kind=>kind==='yeti'?yeti.open():raid.open(),toast,play});
     if ($('guild-button')) $('guild-button').onclick=()=>guild?.open();
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();
@@ -1291,6 +1292,7 @@
       if (target.dataset.boardJump) boardJump(target.dataset.boardJump);
       if (target.dataset.dungeon) { if(!['daily','weekly','tower'].includes(target.dataset.dungeon))return;selectedDungeon = target.dataset.dungeon; dungeonRenderKey = ''; dungeonPortal?.select(selectedDungeon,target);render();return; }
       if (target.dataset.ranking) rankingModal(target.dataset.ranking);
+      if(target.dataset.codexHero){heroDetail(target.dataset.codexHero,true);return;}
       if (target.dataset.hero) heroDetail(target.dataset.hero);
       if (target.dataset.gearSlot) equipmentUI?.open(target.dataset.gearHero,target.dataset.gearSlot);
       if (target.dataset.recruitCategory) { recruitCategory=target.dataset.recruitCategory==='weapons'?'weapons':'heroes';if(recruitCategory==='weapons'&&!G.WEAPON_BANNERS[selectedBanner])selectedBanner='osia';renderKey='';render(); }

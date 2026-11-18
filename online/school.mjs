@@ -4,6 +4,7 @@ import { createSocial, ensureSchoolName, nameKey } from './social.mjs';
 import { createGuilds } from './guilds.mjs';
 import { createRaids } from './raids.mjs';
 import { createYeti, collectYetiRewards } from './yeti.mjs';
+import { createCoop } from './coop.mjs';
 import { guildActivity, guildProjectClaim } from './guild-progress.mjs';
 
 export function createSchool() {
@@ -12,6 +13,7 @@ export function createSchool() {
   const guilds = createGuilds(game);
   const raids = createRaids(game);
   const yeti = createYeti(game);
+  const coop = createCoop(game,yeti,raids);
   const requireSchool = (condition, message, status = 400) => {
     if (!condition) throw Object.assign(new Error(message), { status });
   };
@@ -58,6 +60,7 @@ export function createSchool() {
         const appearance=game.publicProfile(saved),info=game.profileInfo(saved);
         return {name:row.name,...appearance,title:info.title,level:saved.captain.level,power:game.power(saved),best:saved.best,tower:game.activityInfo(saved).tower.best,team:saved.team.map(id=>({id,name:game.BY_ID[id].name,rarity:game.BY_ID[id].rarity,level:saved.units[id].level,stars:saved.units[id].stars}))};
       }
+      if (path === '/api/school/coop') return await coop.request(request,env,data,accounts);
       if (path === '/api/school/yeti') return await yeti.request(request, env, data, accounts);
       if (path === '/api/school/raid') return await raids.request(request, env, data, accounts);
       if (path === '/api/school/guild') return await guilds.request(request, env, data, accounts);

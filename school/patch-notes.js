@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-formation1',
+  version:'school-coop-invites1',
   entries:Object.freeze([
+    {version:'school-coop-invites1',date:'2026.11.19',title:'학교 용병단 · 함께 도전해요',items:[
+      '안뜰 맨 왼쪽에 학교 용병단 문장을 추가했어요. 편성·교체·육성은 이곳에서, 도감은 용병 정보 확인용으로 분리했어요.',
+      '캐릭터 그림의 여백을 정리해 크기와 발 위치를 맞추고 늘어난 그림자를 수정했어요. 용병단 화면은 세로 휴대폰에서도 화면 너비에 맞춰 표시돼요.',
+      '예티 대기실에서 친구·길드원을, 벌룬 대기실에서 같은 길드원을 직접 초대할 수 있어요. 접속 중인 상대 화면에 수락·거절 알림이 표시돼요.',
+      '초대는 2분 동안 유효해요. 만석·시작된 방에는 입장할 수 없으며, 초대 수락만으로 길드 보스 도전 횟수가 차감되지 않아요.'
+    ]},
     {version:'school-formation1',date:'2026.11.19',title:'용병단 편성실 · 예티 보상 자동 지급',items:[
       '예티를 처치하면 두 단장의 눈송이·눈사람이 자동으로 저장됩니다. 이전에 받지 않은 토벌 보상도 재접속 시 자동 지급돼요.',
       '왼쪽 출전 편성과 오른쪽 보유 용병을 한 화면에 모았어요. 꾹 눌러 끌면 배치·교체, 짧게 누르면 육성 화면이 열립니다.',

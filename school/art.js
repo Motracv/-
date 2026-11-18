@@ -690,6 +690,18 @@ window.SchoolArt = (() => {
     if (h.weapon === "sword") { detail(c, "#fff9df", 11 + reach, -25, .5, 14); detail(c, "#b48c53", 10 + reach, -4, 3, .5); }
     c.restore();
   }
+  const rosterPortraits = new Map();
+  function rosterPortrait(id) {
+    const source = portrait(id), cached = rosterPortraits.get(id);
+    if (cached?.source === source) return cached.url;
+    const raw=document.createElement("canvas");raw.width=256;raw.height=320;
+    const c=raw.getContext("2d");c.imageSmoothingEnabled=false;hero(c,id,128,285,3,{time:0,reduced:true});
+    const pixels=c.getImageData(0,0,256,320).data;let left=256,right=-1,top=320,bottom=-1;
+    for(let y=0;y<320;y++)for(let x=0;x<256;x++)if(pixels[(y*256+x)*4+3]>20){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
+    const canvas=document.createElement("canvas");canvas.width=160;canvas.height=192;const out=canvas.getContext("2d");out.imageSmoothingEnabled=false;
+    if(right>=left){const w=right-left+1,h=bottom-top+1,k=Math.min(140/w,172/h),dw=Math.round(w*k),dh=Math.round(h*k);out.drawImage(raw,left,top,w,h,Math.round((160-dw)/2),180-dh,dw,dh);}
+    const url=canvas.toDataURL();rosterPortraits.set(id,{source,url});return url;
+  }
   function portrait(id) {
     if (!portraits.has(id)) { const canvas = document.createElement("canvas"); canvas.width = 160; canvas.height = 192;
       const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; c.scale(2, 2); hero(c, id, id === "lava" ? (lavaLoaded ? 40 : 30) : 36, 86, 2); portraits.set(id, canvas.toDataURL()); }
@@ -1863,5 +1875,5 @@ window.SchoolArt = (() => {
     if(!battle.cinematic&&battle.phase==='fight'&&battle.horasCast&&battle.heroes.some(h=>h.id==='horas'&&h.hp>0))horasCutin(c,Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation),reduced);
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { hitSprite, hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

@@ -16,7 +16,7 @@ window.SchoolFormation=(()=>{
   let role='all',sort='grade',selection=null,gesture=null,ghost=null,hold=0,suppressUntil=0,viewKey='',scope='',owned='owned',sending=false;
   const blocked=()=>sending||ctx.blocked()||ctx.activityActive();
   const active=()=>!root.hidden&&!document.hidden&&!ctx.modalOpen();
-  const portrait=id=>`<img src="${window.SchoolArt.portrait(id)}" alt="" draggable="false">`;
+  const portrait=id=>`<span class="formation-figure"><img src="${(window.SchoolArt.rosterPortrait||window.SchoolArt.portrait)(id)}" alt="" draggable="false"></span>`;
   const stars=u=>`<span class="formation-stars" aria-label="${u.stars}성">${'★'.repeat(u.stars)}${'☆'.repeat(5-u.stars)}</span>`;
   const say=text=>{$('formation-status-live').textContent=text;};
   function hint(){say(ctx.activityActive()?'던전 도전을 마친 뒤 편성을 바꿀 수 있어요.':selection?`${G.BY_ID[selection].name} · 넣을 자리를 누르세요. ESC로 취소`:'짧게 누르면 육성 · 꾹 눌러 끌면 배치');}
@@ -98,6 +98,7 @@ window.SchoolFormation=(()=>{
   document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel();});
   root.addEventListener('scroll',()=>{if(!gesture?.dragging)cleanup();},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&active()&&(gesture||selection)){e.preventDefault();e.stopImmediatePropagation();cancel();}},true);
+  window.addEventListener('school-art-ready',()=>{viewKey='';if(active())refresh();});
   return {refresh,controls,cancel};
  }
  return {create,place};
