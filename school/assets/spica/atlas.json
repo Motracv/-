@@ -1,54 +1,84 @@
 {
-  "image": "combat.png",
-  "width": 1536,
-  "height": 1024,
-  "columns": 3,
+  "image": "combat-horas.webp",
+  "version": 2,
+  "width": 1774,
+  "height": 887,
+  "columns": 4,
   "rows": 2,
-  "cellWidth": 512,
-  "cellHeight": 512,
+  "nominalBodyHeight": 413,
   "facing": "right",
   "poses": [
     {
       "id": "idle",
-      "column": 0,
-      "row": 0,
-      "anchorX": 277,
-      "anchorY": 485
+      "x": 0,
+      "y": 0,
+      "width": 444,
+      "height": 444,
+      "anchorX": 242.04,
+      "anchorY": 426
     },
     {
-      "id": "basic",
-      "column": 1,
-      "row": 0,
-      "anchorX": 212,
-      "anchorY": 485
+      "id": "basic-windup",
+      "x": 444,
+      "y": 0,
+      "width": 443,
+      "height": 444,
+      "anchorX": 238.99,
+      "anchorY": 426
     },
     {
-      "id": "haste",
-      "column": 2,
-      "row": 0,
-      "anchorX": 209,
-      "anchorY": 485
+      "id": "basic-release",
+      "x": 887,
+      "y": 0,
+      "width": 443,
+      "height": 444,
+      "anchorX": 221.88,
+      "anchorY": 426
     },
     {
-      "id": "slow",
-      "column": 0,
-      "row": 1,
-      "anchorX": 276,
-      "anchorY": 484
+      "id": "basic-recovery",
+      "x": 1330,
+      "y": 0,
+      "width": 444,
+      "height": 444,
+      "anchorX": 226.52,
+      "anchorY": 426
     },
     {
-      "id": "hurt",
-      "column": 1,
-      "row": 1,
-      "anchorX": 244,
-      "anchorY": 484
+      "id": "skill-windup",
+      "x": 0,
+      "y": 444,
+      "width": 444,
+      "height": 443,
+      "anchorX": 244.97,
+      "anchorY": 427
     },
     {
-      "id": "defeat",
-      "column": 2,
-      "row": 1,
-      "anchorX": 204,
-      "anchorY": 485
+      "id": "skill-haste",
+      "x": 444,
+      "y": 444,
+      "width": 443,
+      "height": 443,
+      "anchorX": 232.72,
+      "anchorY": 428
+    },
+    {
+      "id": "skill-frost",
+      "x": 887,
+      "y": 444,
+      "width": 443,
+      "height": 443,
+      "anchorX": 215.91,
+      "anchorY": 428
+    },
+    {
+      "id": "skill-recovery",
+      "x": 1330,
+      "y": 444,
+      "width": 444,
+      "height": 443,
+      "anchorX": 228.34,
+      "anchorY": 428
     }
   ]
 }

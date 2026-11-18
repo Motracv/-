@@ -67,10 +67,11 @@ window.SchoolYeti=(()=>{
    c.fillStyle='#142a45';c.fillRect(0,0,1000,560);if(bg.complete&&bg.naturalWidth)c.drawImage(bg,0,0,1000,560);
    const b=data?.room?.battle,live=data?.room?.status==='fighting',time=b?b.elapsed+(live?Math.min(1000,now-received):0):0,reduced=ctx.reduced?.();
    const myIndex=b?.teams.findIndex(t=>t.isMe)||0;events=events.filter(e=>now-e.shown<2200);
+   let winterUntil=0;if(live)for(const team of b?.teams||[])winterUntil=Math.max(winterUntil,window.SchoolArt.spicaFieldUntil(team.units));
    const pos=(ti,i)=>({x:120+(i%3)*120+(i>=3?30:0),y:ti===myIndex?365+(i>=3?78:0):205+(i>=3?78:0)});
    if(b)for(let ti=0;ti<b.teams.length;ti++){
     const team=b.teams[ti];c.fillStyle='#e0f7ff';c.font='bold 15px sans-serif';c.fillText(team.isMe?'나의 용병단':'동료 용병단',55,ti===myIndex?319:159);
-    team.units.forEach((u,i)=>{const p=pos(ti,i),hit=events.findLast(e=>e.kind==='hit'&&e.team===ti&&e.id===u.id&&now>=e.shown&&now-e.shown<600),cast=events.findLast(e=>e.kind==='cast'&&e.team===ti&&e.id===u.id&&now>=e.shown&&now-e.shown<(u.id==='spica'?1450:1300));
+    team.units.forEach((u,i)=>{const p=pos(ti,i),hit=events.findLast(e=>e.kind==='hit'&&e.team===ti&&e.id===u.id&&now>=e.shown&&now-e.shown<(u.id==='spica'?850:600)),cast=events.findLast(e=>e.kind==='cast'&&e.team===ti&&e.id===u.id&&now>=e.shown&&now-e.shown<(u.id==='spica'?1600:1300));
      const age=cast?(now-cast.shown)/1000:-1,motion=cast?window.SchoolArt.poseForSkill(u.id,cast.stage||1,age,reduced):null;
      window.SchoolArt.hero(c,u.id,p.x+(motion?.dx||0),p.y+(motion?.dy||0),1.55,{time:now/1000,reduced,dead:u.hp<=0,frozen:!!team.frozen,stunned:u.stunUntil>time,attack:!!hit,attackAge:hit?(now-hit.shown)/1000:undefined,pose:motion?.pose,motion,casting:!!cast,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0});
      if(u.id==='spica'&&cast&&u.hp>0&&!team.frozen)window.SchoolArt.spicaSkillEffect?.(c,p,team.units.flatMap((ally,ai)=>ally.hp>0?[pos(ti,ai)]:[]),[{x:805,y:350}],age,reduced,.8);
@@ -85,6 +86,7 @@ window.SchoolYeti=(()=>{
    const anchors=[424,424,423,408,407,405],scale=.83,bx=805-(impact?.pattern==='charge'&&!reduced?Math.sin((now-impact.shown)/900*Math.PI)*90:0),by=450;
    if(atlas.complete&&atlas.naturalWidth)c.drawImage(atlas,(pose%3)*512,Math.floor(pose/3)*512,512,512,bx-256*scale,by-anchors[pose]*scale,512*scale,512*scale);
    else{c.fillStyle='#c4edff';c.beginPath();c.ellipse(bx,by-100,100,110,0,0,Math.PI*2);c.fill();}
+   if(live)window.SchoolArt.spicaBlizzard(c,{x:0,y:86,width:1000,height:474},time,winterUntil,reduced,width<900);
    for(const e of events){const age=(now-e.shown)/1000;if(age<0||age>1.5)continue;
     c.save();c.globalAlpha=Math.max(0,1-age/1.5);
     if(['hit','heal','hurt','shield'].includes(e.kind)){
@@ -98,7 +100,7 @@ window.SchoolYeti=(()=>{
     }
     c.restore();
    }
-   if(!reduced){c.fillStyle='#d9f6ff88';for(let i=0;i<25;i++){const x=(i*173+now*.015)%1000,y=(i*67+now*.026)%560;c.fillRect(x,y,3,3);}}
+   if(!reduced&&winterUntil<=time){c.fillStyle='#d9f6ff88';for(let i=0;i<25;i++){const x=(i*173+now*.015)%1000,y=(i*67+now*.026)%560;c.fillRect(x,y,3,3);}}
    const maximum=b?.boss.max||data?.rules?.hp||Y.HP,hp=b?.boss.hp??maximum;c.fillStyle='#0b1d33cc';c.fillRect(260,26,480,40);c.fillStyle='#8ce0f4';c.fillRect(266,56,468*hp/maximum,4);c.fillStyle='#effbff';c.textAlign='center';c.font='bold 18px sans-serif';c.fillText(`만년설 예티 · ${fmt(hp)} / ${fmt(maximum)}`,500,48);c.textAlign='start';
    const warning=document.getElementById('yeti-warning'),label=cast?Y.PATTERNS.find(p=>p.id===cast.id)?.name:live?'동료가 얼면 얼음땡!':'두 단장이 함께하는 겨울 토벌';if(warning.textContent!==label)warning.textContent=label;
    document.getElementById('yeti-clock').textContent=live?`${Math.max(0,Math.ceil(((b?.yetiRules?.duration||(b?150000:data?.rules?.duration||Y.DURATION))-time)/1000))}초`:'어려움 · 권장 Lv.70 이상';

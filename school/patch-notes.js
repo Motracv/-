@@ -1,7 +1,12 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-winter2',
+  version:'school-spica-blizzard1',
   entries:Object.freeze([
+    {version:'school-spica-blizzard1',date:'2026.11.18',title:'스피카 · 필드에 머무는 눈보라',items:[
+      '스피카의 새 도트 그림과 여덟 가지 자세를 적용했어요. 손을 모아 얼음 결정을 날리는 평타, 양팔을 펼쳐 겨울을 부르는 스킬이 이어져요.',
+      '설녀의 겨울을 사용하면 필드 전체에 눈과 바람이 6초 동안 이어져요. 모험·던전·길드전·예티·아레나에서 볼 수 있어요.',
+      '멀티 전투에 다시 들어와도 남은 눈보라가 이어져요. 여러 스피카의 눈보라는 하나로 표시하며 모션 줄이기에서는 정적인 눈꽃으로 보여요.'
+    ]},
     {version:'school-winter2',date:'2026.11.18',title:'설원의 동료 · 겨울 룰렛',items:[
       '예티 협동 토벌은 HP 80만·210초·권장 Lv.70 이상의 어려움 난이도로 조정했어요. 강해진 공격과 얼음에 함께 대응하세요. 진행 중이던 전투는 시작할 때의 규칙을 유지해요.',
       '토벌 성공 시 눈송이 20~50개와 눈사람 1개! 눈사람 1개로 겨울 룰렛을 돌려요. 보석 10,000개 0.1%·1,000개 1%·100개 8.9%·일반 장비 35%·골드 55%예요.',

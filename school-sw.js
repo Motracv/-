@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-winter2';
+const RELEASE = 'school-spica-blizzard1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -23,7 +23,7 @@ const required = [
   ...['plant','bookshelf','trophy','rug-teal','rug-wine','rug-blue'].map(id => `school/assets/guild/decor/${id}.svg?v=guild2`),
   'school/assets/ryusion/portrait.png?v=ryusion1', 'school/assets/ryusion/combat.png?v=ryusion1',
   ...['ryusion','osia','lava'].map(id => `school/assets/recruit/${id}.webp?v=pickup-pixel1`),
-  'school/assets/spica/portrait.webp?v=spica1', 'school/assets/spica/combat.png?v=spica1',
+  'school/assets/spica/portrait.webp?v=spica1', 'school/assets/spica/combat-horas.webp?v=spica2',
   'school/assets/recruit/osia-lava.webp?v=winter2',
   'school/assets/profile/rank-first.webp?v=rank-profile1',
   ...['background.webp','poses.png'].map(p => `school/assets/yeti/${p}?v=yeti1`),

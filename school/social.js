@@ -428,7 +428,7 @@
     const canvas = document.getElementById('arena-canvas'), c = canvas.getContext('2d');
     const background = document.createElement('canvas'), bc = background.getContext('2d');
     let cancelled = false, finished = false, frame = 0, clock = 0, previous = 0, lastDraw = 0, lastDom = -1000, cursor = 0;
-    let events = [...(match.events || [])].sort((a,b) => a.t - b.t), effects = [];
+    let events = [...(match.events || [])].sort((a,b) => a.t - b.t), effects = [], spicaUntil = 0;
     const duration = Math.max(1, Number(match.durationMs) || Number(events.at(-1)?.t) || 1000);
     const units = match.teams.map((team,side) => team.units.map((unit,index) => ({...unit,hp:unit.max || unit.hp,shield:0,side,index,actAt:-10000,hitAt:-10000,actKind:'attack',skill:'',horasStacks:0,horasBasicAt:-10000,horasBasicPose:1,horasCastAt:-10000,horasImpactAt:-10000,horasCast:null})));
     const byKey = new Map(units.flat().map(unit => [`${unit.side}:${unit.id}`,unit]));
@@ -460,6 +460,7 @@
     }
     function apply(event) {
       const from = byKey.get(`${event.side}:${event.from}`), target = byKey.get(`${event.toSide}:${event.target}`);
+      if(event.kind==='spica-wind'&&from?.id==='spica')spicaUntil=Math.max(spicaUntil,event.hasteUntil||event.t+6000);
       if (from && ['attack','skill','heal','shield','spica-wind'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind==='spica-wind'?'skill':event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
       if(from?.id==='ryusion'){if(event.kind==='ryusion-skill'){from.earthCastAt=event.t;from.earthStage=event.stage;}if(event.kind==='ryusion-taunt')from.earthTauntUntil=event.until;}
       if (from?.id==='horas') {
@@ -511,17 +512,18 @@
       units.flat().sort((a,b)=>positions.get(`${a.side}:${a.id}`).y-positions.get(`${b.side}:${b.id}`).y).forEach(unit=>{
         const position=positions.get(`${unit.side}:${unit.id}`),actAge=(clock-unit.actAt)/1000,hitAge=clock-unit.hitAt;
         const horasAge=(clock-unit.horasBasicAt)/1000,horasCastAge=unit.horasCast?(clock-unit.horasCastAt)/1000:1.5+(clock-unit.horasImpactAt)/1000;
-        const casting=unit.id==='horas'?(!!unit.horasCast||horasCastAge>=1.5&&horasCastAge<2.1)&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<(unit.id==='spica'?1.45:1.15)&&unit.hp>0;
-        const attacking=(unit.id==='horas'?horasAge>=0&&horasAge<.9:actAge>=0&&actAge<.48)&&unit.hp>0, direction=unit.side?-1:1;
-        const move=attacking&&!reduced?Math.sin(actAge/.48*Math.PI)*15*direction:0;
+        const casting=unit.id==='horas'?(!!unit.horasCast||horasCastAge>=1.5&&horasCastAge<2.1)&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<(unit.id==='spica'?1.6:1.15)&&unit.hp>0;
+        const attacking=(unit.id==='horas'?horasAge>=0&&horasAge<.9:actAge>=0&&actAge<(unit.id==='spica'?.85:.48))&&unit.hp>0, direction=unit.side?-1:1;
+        const move=attacking&&!reduced?Math.sin(Math.min(1,actAge/(unit.id==='spica'?.85:.48))*Math.PI)*15*direction:0;
         const earthAge=(clock-(unit.earthCastAt??-10000))/1000;
         const motion=unit.id==='ryusion'&&earthAge>=0&&earthAge<1.4?window.SchoolArt?.poseForSkill?.('ryusion',unit.earthStage,earthAge,reduced):casting&&['osia','lava','spica'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
-        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:unit.id==='horas'?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{time:clock/1000,dead:unit.hp<=0,stunned:unit.stunUntil>clock,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):null,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
+        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:unit.id==='horas'?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{time:clock/1000,dead:unit.hp<=0,stunned:unit.stunUntil>clock,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):undefined,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(unit.id==='spica'?undefined:attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
         if(unit.id==='spica'&&casting&&!(unit.stunUntil>clock))window.SchoolArt?.spicaSkillEffect?.(c,position,units[unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),units[1-unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),actAge,reduced,1.2);
         c.fillStyle='#14222ce6';c.fillRect(position.x-38,position.y+8,76,8);c.fillStyle=unit.side===me?'#a4c478':'#dc8d7f';c.fillRect(position.x-37,position.y+9,74*Math.max(0,unit.hp)/Math.max(1,unit.max),6);
         if(unit.shield>0){c.fillStyle='#9dd4e2';c.fillRect(position.x-37,position.y+16,74*Math.min(1,unit.shield/Math.max(1,unit.max)),3);}
         c.font='9px Galmuri,monospace';c.textAlign='center';c.fillStyle=unit.hp>0?'#edf0e5':'#93a0a6';c.fillText(unit.name || window.SchoolRPG.BY_ID[unit.id]?.name || unit.id,position.x,position.y+30);
       });
+      if(!finished)window.SchoolArt?.spicaBlizzard?.(c,{x:0,y:95,width:960,height:325},clock,spicaUntil,reduced,cssWidth<640);
       effects=effects.filter(event=>clock-event.t<(event.kind.startsWith('horas-')?2600:800));
       for(let side=0;side<2;side++){
         const caster=byKey.get(`${side}:horas`);if(!caster)continue;

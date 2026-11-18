@@ -50,6 +50,7 @@ window.SchoolRaidFX=(()=>{
   for(const e of own.filter(e=>e.kind==='spica-wind'&&now-e.shown<1600).slice(-1)){
    const p=positions[units.findIndex(u=>u.id==='spica')];if(p)SchoolArt.spicaSkillEffect(c,p,positions.filter((_,i)=>units[i].hp>0),[{x:bossX,y:bossY}],(now-e.shown)/1000,reduced,scale);
   }
+  if(live){let until=0;for(const team of battle?.teams||[])until=Math.max(until,SchoolArt.spicaFieldUntil(team.units));SchoolArt.spicaBlizzard(c,{x:0,y:0,width:w,height:h},t,until,reduced,c.canvas.width<1000);}
   // Boss effects terminate at the actual server-selected target (including taunt).
   if(impact){const id=impact.pattern,fade=1-age;c.save();c.globalAlpha=fade;
    if(id==='basic'||id==='pull'||id==='dash'){

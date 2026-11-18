@@ -5,11 +5,12 @@ window.SchoolArt = (() => {
   const healthTrackers = new WeakMap();
   window.addEventListener('school-art-ready',()=>{for(const id of ['ryusion','spica']){portraits.delete(id);frontPortraits.delete(id);}});
   const spicaImage=new Image(),spicaPortraitImage=new Image(),spicaPoses=new Map();
+  const SPICA_FRAMES=[[0,0,444,444,242.04,426],[444,0,443,444,238.99,426],[887,0,443,444,221.88,426],[1330,0,444,444,226.52,426],[0,444,444,443,244.97,427],[444,444,443,443,232.72,428],[887,444,443,443,215.91,428],[1330,444,444,443,228.34,428]];
   let spicaLoaded=false,spicaPortraitLoaded=false;
-  const spicaReady=Promise.all([[spicaImage,'combat.png'],[spicaPortraitImage,'portrait.webp']].map(([image,file])=>new Promise(resolve=>{
+  const spicaReady=Promise.all([[spicaImage,'combat-horas.webp'],[spicaPortraitImage,'portrait.webp']].map(([image,file])=>new Promise(resolve=>{
     const timer=setTimeout(()=>resolve(false),5000);
-    image.onload=()=>{if(file==='combat.png'){spicaLoaded=true;spicaPoses.clear();}else spicaPortraitLoaded=true;clearTimeout(timer);resolve(true);window.dispatchEvent(new Event('school-art-ready'));};
-    image.onerror=()=>{clearTimeout(timer);resolve(false);};image.src=`school/assets/spica/${file}?v=spica1`;
+    image.onload=()=>{if(image===spicaImage){spicaLoaded=true;spicaPoses.clear();}else spicaPortraitLoaded=true;clearTimeout(timer);resolve(true);window.dispatchEvent(new Event('school-art-ready'));};
+    image.onerror=()=>{clearTimeout(timer);resolve(false);};image.src=`school/assets/spica/${file}?v=${image===spicaImage?'spica2':'spica1'}`;
   })));
   const osiaImage = new Image(), osiaFrontImage = new Image(), lavaImage = new Image();
   const osiaFrontSources = new Map();
@@ -113,8 +114,8 @@ window.SchoolArt = (() => {
   function castingMotion(id, stage, age, reduced = false) {
     if(id==="ryusion")return window.SchoolRyusion.motion(stage,age,reduced);
     if(id==='spica'){
-      const p=clamp01(age/1.45),wave=reduced?0:Math.sin(p*Math.PI);
-      return {dx:age>.65?wave*3:-wave*1.5,dy:age<.65?-wave*2:0,lean:reduced?0:wave*(age>.65?.025:-.015),stretch:1+wave*.012,cloth:wave,pose:p<.13?0:age<.65?2:3,stage,age,reduced};
+      const p=clamp01(age/1.6),wave=reduced?0:Math.sin(p*Math.PI);
+      return {dx:age>.85?wave*3:-wave*1.5,dy:age<.85?-wave*2:0,lean:reduced?0:wave*(age>.85?.025:-.015),stretch:1+wave*.012,cloth:wave,pose:reduced?6:age<.12?0:age<.45?4:age<.85?5:age<1.3?6:age<1.6?7:0,stage,age,reduced};
     }
     if (reduced) return {dx:0, dy:0, lean:0, stretch:1, cloth:0, pose:stage === 1 ? 2 : 1, stage, age, reduced};
     if (age < 0) return {dx:0, dy:0, lean:0, stretch:1.025, cloth:0, pose:1, stage, age, reduced};
@@ -570,7 +571,7 @@ window.SchoolArt = (() => {
   // canvases or ever-growing frame cache. Different cadences avoid a chorus
   // of identical movement, while static portraits remain perfectly still.
   function idleBreath(id,frame={}){
-    if(!Number.isFinite(frame.time)||frame.reduced||frame.dead||frame.frozen||frame.stunned||frame.hit||frame.attack||frame.casting||frame.passive||frame.motion||frame.attackAge>=0||frame.horasCastAge>=0)return null;
+    if(!Number.isFinite(frame.time)||frame.reduced||frame.dead||frame.frozen||frame.stunned||frame.hit||frame.attack||frame.casting||frame.passive||frame.motion||Number.isFinite(frame.attackAge)&&frame.attackAge>=0||Number.isFinite(frame.horasCastAge)&&frame.horasCastAge>=0)return null;
     let seed=0;for(let i=0;i<id.length;i++)seed=(seed*31+id.charCodeAt(i))>>>0;
     const breath=(Math.sin(frame.time*(1.4+(seed%5)*.08)+(seed%17)*.35)+1)*.5;
     return {x:1+breath*.007,y:1+breath*.018};
@@ -579,16 +580,20 @@ window.SchoolArt = (() => {
     c.save();c.translate(x,y);c.scale(scale*(frame.flip?-1:1),scale);
     if(frame.dead)c.globalAlpha*=.42;
     rect(c,'#1b334333',-10,1,21,2);
-    const age=Number.isFinite(frame.attackAge)?frame.attackAge:0,attack=!!frame.attack||frame.attackAge>=0&&frame.attackAge<.85;
-    const pose=Math.max(0,Math.min(5,Math.trunc(frame.dead?5:frame.hit?4:frame.pose??(frame.casting?2:attack?1:0))));
+    const age=Number.isFinite(frame.attackAge)?frame.attackAge:frame.attack?.3:0,attack=!!frame.attack||Number.isFinite(frame.attackAge)&&frame.attackAge>=0&&frame.attackAge<.85;
+    const basicPose=frame.reduced?2:age<.18?1:age<.52?2:age<.78?3:0;
+    const pose=Math.max(0,Math.min(7,Math.trunc(frame.dead?7:frame.hit?0:frame.pose??(frame.casting?5:attack?basicPose:0))));
     if(frame.motion)c.transform(1,0,frame.motion.lean||0,frame.motion.stretch||1,0,0);
+    if(frame.dead)c.transform(1,0,-.14,.8,0,0);
+    else if(frame.hit&&!frame.reduced)c.transform(1,0,-.065,.98,0,0);
     if(spicaLoaded){
       const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d)),res=density>4?6:density>2?4:2,key=pose+':'+res;
-      let source=spicaPoses.get(key);if(!source){source=document.createElement('canvas');source.width=source.height=64*res;const sc=source.getContext('2d');sc.imageSmoothingEnabled=false;const w=spicaImage.naturalWidth/3,h=spicaImage.naturalHeight/2;sc.drawImage(spicaImage,pose%3*w,Math.floor(pose/3)*h,w,h,0,0,source.width,source.height);spicaPoses.set(key,source);}
+      const cell=SPICA_FRAMES[pose];
+      let source=spicaPoses.get(key);if(!source){source=document.createElement('canvas');source.width=64*res;source.height=Math.round(source.width*cell[3]/cell[2]);const sc=source.getContext('2d');sc.imageSmoothingEnabled=false;sc.drawImage(spicaImage,cell[0],cell[1],cell[2],cell[3],0,0,source.width,source.height);spicaPoses.set(key,source);}
       // Poses were drawn with different hand extensions. Align measured feet,
       // not cell centers, so switching between haste and slow never teleports.
-      const anchors=[[277,485],[212,485],[209,485],[276,484],[244,484],[204,485]],unit=46/432;
-      c.drawImage(source,-anchors[pose][0]*unit,-anchors[pose][1]*unit,512*unit,512*unit);
+      const unit=46/413;
+      c.drawImage(source,-cell[4]*unit,-cell[5]*unit,cell[2]*unit,cell[3]*unit);
     }else{
       // Right-facing, deliberately modest pixel fallback matching the supplied
       // indigo hair, pale tips, black choker and slate winter dress.
@@ -1448,6 +1453,34 @@ window.SchoolArt = (() => {
     c.save();c.translate(x,y);c.rotate(turn);c.lineWidth=Math.max(.7,r*.1);c.strokeStyle='#d9f7ff';c.beginPath();
     for(let i=0;i<6;i++){const a=i*Math.PI/3,dx=Math.cos(a),dy=Math.sin(a);c.moveTo(0,0);c.lineTo(dx*r,dy*r);c.moveTo(dx*r*.6,dy*r*.6);c.lineTo(dx*r*.45-dy*r*.22,dy*r*.45+dx*r*.22);c.moveTo(dx*r*.6,dy*r*.6);c.lineTo(dx*r*.45+dy*r*.22,dy*r*.45-dx*r*.22);}c.stroke();c.restore();
   }
+  // Read the authoritative buff deadline, not the short-lived hit/event queue.
+  // This survives reconnects and merges multiple casters into one field.
+  function spicaFieldUntil(units){
+    let until=0;for(const unit of units||[])if(Number.isFinite(unit.hasteUntil))until=Math.max(until,unit.hasteUntil);return until;
+  }
+  const SPICA_SNOW=Array.from({length:36},(_,i)=>({x:(i*.61803398875)%1,y:(i*.41421356237)%1,depth:.55+(i%5)*.16,phase:i*2.399963}));
+  function spicaBlizzard(c,area,elapsed,until,reduced=false,economy=false){
+    const duration=(S.SPICA_RULES?.hasteMs||6000)/1000,remaining=(until-elapsed)/1000;
+    if(!Number.isFinite(remaining)||remaining<=0||remaining>duration||!area||area.width<=0||area.height<=0)return 0;
+    const age=duration-remaining,fade=Math.min(1,.3+age*2,remaining/.65),time=reduced?0:elapsed/1000;
+    const count=reduced?8:economy?18:36,unit=Math.min(2,Math.max(.7,area.width/480));
+    c.save();c.beginPath();c.rect(area.x,area.y,area.width,area.height);c.clip();c.translate(area.x,area.y);c.globalAlpha*=fade;
+    // Thin ice wash plus bounded wind ribbons leave enemy tells and HP readable.
+    c.fillStyle='#c1eaff0b';c.fillRect(0,0,area.width,area.height);
+    if(!reduced){
+      c.strokeStyle='#bce9ff38';c.lineWidth=1.2*unit;
+      c.beginPath();for(let i=0;i<3;i++){const y=area.height*(.22+i*.27)+Math.sin(time*.9+i*2)*10*unit;c.moveTo(-20,y+12*unit);c.bezierCurveTo(area.width*.28,y-24*unit,area.width*.6,y+24*unit,area.width+20,y-18*unit);}c.stroke();
+      c.strokeStyle='#d8f6ff62';c.lineWidth=.85*unit;c.beginPath();
+      for(let i=0;i<count;i++){const p=SPICA_SNOW[i],x=(p.x*area.width+time*57*p.depth)%(area.width+20)-10,y=(p.y*area.height+time*17*p.depth+Math.sin(time*.8+p.phase)*5*unit+area.height) % area.height;c.moveTo(x-7*p.depth*unit,y-2*unit);c.lineTo(x,y);}c.stroke();
+    }
+    c.fillStyle='#e3f8ffbf';
+    for(let i=0;i<count;i++){
+      const p=SPICA_SNOW[i],x=(p.x*area.width+time*57*p.depth)%(area.width+20)-10,y=(p.y*area.height+time*17*p.depth+Math.sin(time*.8+p.phase)*5*unit+area.height)%area.height,size=(.8+p.depth)*unit;
+      c.fillRect(x,y,size,size);
+      if(i%9===0||reduced&&i%3===0){c.save();c.globalAlpha*=.65;frostCrystal(c,x,y,3.1*unit,reduced?0:time*.2+p.phase);c.restore();}
+    }
+    c.restore();return count;
+  }
   // Shared by campaign, guild raids and the duo encounter. Geometry is
   // deliberately capped at six allies and three foes; nothing persists.
   function spicaSkillEffect(c,source,allies,foes,age,reduced=false,scale=1){
@@ -1675,6 +1708,10 @@ window.SchoolArt = (() => {
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy);
     lavaEffects(c, effects, visualPositions, time, reduced,economy);
     spicaEffects(c,battle,effects,visualPositions,time,reduced);
+    if(battle.phase==='fight'){
+      const fieldTime=battle.elapsed+(battle.cinematic?0:Math.max(0,Math.min(500,time*1000-(state.simTime||0))));
+      spicaBlizzard(c,{x:0,y:0,width:480,height:280},fieldTime,spicaFieldUntil(battle.heroes),reduced,economy);
+    }
     horasVisualEffects(c,battle,effects,visualPositions,time,reduced,economy,horasInterpolation,true);
     window.SchoolRyusion?.effects(c,battle,effects,positions,time,reduced);
     monsterSkillEffects(c,effects,positions,time,reduced);
@@ -1755,5 +1792,5 @@ window.SchoolArt = (() => {
     if(!battle.cinematic&&battle.phase==='fight'&&battle.horasCast&&battle.heroes.some(h=>h.id==='horas'&&h.hp>0))horasCutin(c,Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation),reduced);
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { hero, portrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();
