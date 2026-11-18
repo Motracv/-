@@ -2,6 +2,7 @@
 window.SchoolArt = (() => {
   const portraits = new Map(), frontPortraits = new Map(), osiaPoses = new Map(), lavaPoses = new Map(), lavaSources = new Map(), combatLabels = new Map(), S = SchoolRPG;
   let lavaPosePixels = 0, combatLabelPixels = 0;
+  const healthTrackers = new WeakMap();
   const osiaImage = new Image(), osiaFrontImage = new Image(), lavaImage = new Image();
   const osiaFrontSources = new Map();
   let osiaLoaded = false, osiaFrontLoaded = false, lavaLoaded = false;
@@ -1455,6 +1456,9 @@ window.SchoolArt = (() => {
     c.setTransform(c.canvas.width / 480, 0, 0, c.canvas.height / 280, 0, 0); c.imageSmoothingEnabled = false;
     const economy=Number(c.canvas.dataset?.renderScale||1)<.8;
     const battle = state.battle, extendedParty = Math.max(battle.heroes.length, state.team?.length || 0) > 3, cinematicEvent = lastEffect(effects, e => e.kind === "cinematic" && e.castId === battle.cinematic?.castId);
+    let health=healthTrackers.get(c.canvas);
+    if(!health&&window.SchoolCombatFeedback){health=window.SchoolCombatFeedback.createHealthTracker();healthTrackers.set(c.canvas,health);}
+    health?.begin(battle.id,time);
     const sceneTime = battle.cinematic ? cinematicEvent?.time ?? time : time;
     // A slightly closer background camera brings the floor up behind both
     // formation rows; rear allies must not appear to stand on the classroom wall.
@@ -1469,6 +1473,7 @@ window.SchoolArt = (() => {
     for (const event of effects) {
       const age = time - event.time;
       if (event.kind === "hit") { actor(event.to).incoming = event; actor(event.from).outgoing = event; }
+      if (event.kind === 'heal'||event.kind === 'enemy-heal') actor(event.to).heal=event;
       if (event.kind === "skill" && age < .8) actor(event.from).casting = true;
       if (event.kind === "skill-stage" && event.from === "osia" && age < (event.stage === 4 ? 1.8 : 1.1) + (event.cinematicDuration || 0) / 1000) actor("osia").combo = event;
       if (event.kind === "lava-skill" && age < 1.8) actor("lava").combo = event;
@@ -1528,7 +1533,10 @@ window.SchoolArt = (() => {
       if (item.side === "enemy" && item.hp <= 0) c.globalAlpha *= 1-clamp01((time-lifecycle.enemies.get(item.id).diedAt)/.45);
       const w = item.boss ? 62 : item.side === "hero" && extendedParty ? 31 : 37, by = p.y + 9;
       rect(c, "#28362f", p.x - w / 2 - 1, by - 1, w + 2, 6); rect(c, "#4d5146", p.x - w / 2, by, w, 4);
-      rect(c, item.side === "hero" ? "#9dbd7b" : "#d99c73", p.x - w / 2, by, Math.max(0, w * item.hp / item.max), 4);
+      const hpVisual=health?.sample(item.id,item.hp,item.max,time,reduced,visual.heal)||{ratio:Math.max(0,item.hp/item.max),trail:0,healing:0};
+      rect(c,'#e9be8e',p.x-w/2,by,w*hpVisual.trail,4);
+      rect(c, hpVisual.healing>0?'#a4f6b6':item.side === "hero" ? "#9dbd7b" : "#d99c73", p.x - w / 2, by, w*hpVisual.ratio, 4);
+      if(hpVisual.healing>0&&item.hp>0){c.globalAlpha*=hpVisual.healing;rect(c,'#d9ffe4',p.x-w/2+Math.max(0,w*hpVisual.ratio-2),by-1,2,6);c.globalAlpha=1;}
       if (item.side === "hero") { rect(c, "#536270", p.x - w / 2, by + 7, w, 2); rect(c, item.id === "horas" ? "#eda8d5" : "#e2c679", p.x - w / 2, by + 7, w * (item.id === "horas" ? (battle.horas?.stacks || 0) / 5 : item.energy / S.BY_ID[item.id].cooldown), 2); }
       c.restore();
     }
@@ -1538,12 +1546,20 @@ window.SchoolArt = (() => {
     monsterSkillEffects(c,effects,positions,time,reduced);
     impactEffects(c,effects,positions,time,reduced,economy);
     bossEffects(c, battle, positions, effects, time, reduced);
+    for(const n of window.SchoolCombatFeedback?.numbers(effects,time)||[]){
+      const p=positions[n.to];if(!p)continue;const age=time-n.time;
+      c.save();c.globalAlpha=Math.min(1,(1.35-age)*2.7);
+      const x=p.x+[0,-17,17][n.lane],y=p.y-66-n.lane*17-(reduced?age*7:age*24);
+      const pop=reduced?1:1+Math.max(0,1-age/.18)*(n.critical?.3:.12);c.translate(x,y);c.scale(pop,pop);
+      combatNumber(c,n.text,0,0,n.critical?16:n.heavy||n.type==='heal'?13:11,n.type==='heal'?'#a9ffd0':n.type==='shield'?'#a9dbff':n.counter?'#a9faff':n.critical?'#ffd274':n.heavy?'#ffe5a1':'#fff6dd',n.critical);
+      c.restore();
+    }
     for (const e of effects) {
       const age = time - e.time; if (age > 1.1 || age < 0) continue;
       const p = positions[e.to] || positions[e.from]; if (!p) continue;
       c.save(); c.globalAlpha = Math.min(1, (1.1 - age) * 2);
       const y = p.y - 65 - age * 22;
-      if (e.kind === "hit" || e.kind === "heal" || e.kind === "enemy-heal" || e.kind === "shield") {
+      if (!window.SchoolCombatFeedback && (e.kind === "hit" || e.kind === "heal" || e.kind === "enemy-heal" || e.kind === "shield")) {
         const text = e.kind === "heal" || e.kind === "enemy-heal" ? `+${e.amount}` : e.kind === "shield" ? "방어" : `${e.amount}`;
         const pop=reduced?1:1+Math.max(0,1-age/.18)*(e.critical?.38:.13);
         c.translate(p.x,y);c.scale(pop,pop);c.translate(-p.x,-y);
@@ -1553,6 +1569,10 @@ window.SchoolArt = (() => {
       }
       if (e.kind === "skill" && e.from !== "osia" && e.from !== "horas") { c.font = "9px Galmuri, monospace"; c.textAlign = "center"; const width = c.measureText(e.name).width + 14; rect(c, "#2b3d37dc", p.x - width / 2, p.y - 89 - age * 9, width, 16); c.fillStyle = "#f6df9b"; c.fillText(e.name, p.x, p.y - 77 - age * 9); }
       if (e.kind === "hit" && (e.skill || e.bossSkill) && age < .3) { c.strokeStyle = e.element === "water" ? "#bafaff" : e.bossSkill ? "#ffc3a1" : "#fff3bb"; c.lineWidth = 3; c.beginPath(); c.moveTo(p.x - 18, p.y - 60); c.lineTo(p.x + 17, p.y - 19); c.stroke(); }
+      if(e.kind==='counter'&&age<.8){
+        const radius=18+(reduced?8:age*55);c.strokeStyle='#a7f6ff';c.lineWidth=3*(1-age/.8);c.beginPath();c.arc(p.x,p.y-28,radius,0,Math.PI*2);c.stroke();
+        c.font='bold 12px Galmuri, monospace';c.textAlign='center';c.lineWidth=3;c.strokeStyle='#142c42';c.strokeText('반격!',p.x,p.y-101-age*10);c.fillStyle='#c1fbff';c.fillText('반격!',p.x,p.y-101-age*10);
+      }
       c.restore();
     }
     // Draw control status last so the large water effect cannot hide it.

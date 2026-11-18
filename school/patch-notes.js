@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-bag1',
+  version:'school-counter1',
   entries:Object.freeze([
+    {version:'school-counter1',date:'2026.11.18',title:'직접 누르는 반격 · 선명한 전투 피드백',items:[
+      '모험·던전에서 적이 공격하면 가끔 반격 기회가 나타나요. 3.5초 안에 누르면 강한 추가 공격! 놓쳐도 자동 전투는 계속돼요.',
+      '일반 적 18%·보스 32%, 기회 사이 최소 10초. 가장 강한 생존 용병의 공격력 180% 피해이며 한 기회에 한 번만 사용할 수 있어요.',
+      '같은 순간에 들어온 피해 숫자를 합쳐 겹침을 줄였어요. 회복은 초록색 +숫자, 보호막 흡수는 파란 방어 숫자로 표시해요.',
+      'HP 바에 부드러운 회복 애니메이션과 피해 잔상을 추가했어요. 표시만 부드럽게 움직이며 실제 전투 판정은 즉시 적용돼요.'
+    ]},
     {version:'school-bag1',date:'2026.11.18',title:'장비 가방 · 읽기 편한 창',items:[
       '가방에 남은 장비와 용병이 착용한 장비를 나누어 보여줘요. 장착한 사본을 가방 수량에 다시 표시하지 않아요.',
       '전체 소유 수량, 가방 수량, 착용자와 각성 재료를 구분해서 확인할 수 있어요.',

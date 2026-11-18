@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-bag1';
+const RELEASE = 'school-counter1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -8,7 +8,7 @@ const url = path => new URL(path, base).href;
 const shell = url('school.html');
 const required = [
   'school.html', 'school.webmanifest',
-  ...['engine.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css'].map(p => `school/${p}?v=${RELEASE}`),
+  ...['engine.js','combat-feedback.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css'].map(p => `school/${p}?v=${RELEASE}`),
   'assets/fonts/Galmuri11.woff2', 'assets/fonts/PretendardVariable.woff2',
   'school/assets/osia-sprites.png?v=osia1', 'school/assets/lava.png?v=lava1',
   'school/assets/lava-fan-basic.webp?v=lava-fan1', 'school/assets/osia-front.webp?v=osia-front1',
@@ -30,7 +30,7 @@ self.addEventListener('install', event => {
     const html = await (await cache.match(shell)).text();
     const engine = await (await cache.match(url(`school/engine.js?v=${RELEASE}`))).text();
     // A CDN rollout must not activate an old HTML with a new offline engine.
-    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*17\b/.test(engine)) {
+    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*18\b/.test(engine)) {
       await caches.delete(CACHE); throw Error('School release is not ready');
     }
   })());

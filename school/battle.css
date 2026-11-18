@@ -1,5 +1,12 @@
 /* Full-screen battle presentation; the simulation and original character art
    are shared with the rest of the game. All rules are scoped to adventure. */
+.counter-button{display:none}
+.app[data-tab=adventure] .counter-button:not([hidden]){position:absolute;z-index:8;left:min(50%,50vw);bottom:calc(var(--battle-portrait) + 32px);transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:10px;min-width:146px;min-height:60px;padding:9px 18px 13px;border:2px solid #c6f6ff;border-radius:9px;background:linear-gradient(145deg,#1d647a,#142e4b);box-shadow:0 0 0 3px #112838b8,0 0 18px #6ee3f455,inset 0 1px #e1ffff66;color:#e0fcff;cursor:pointer;touch-action:manipulation;animation:counter-enter .2s ease-out}
+.counter-button .counter-symbol{font-size:27px}.counter-button b{display:block;font-size:18px;letter-spacing:.06em}.counter-button small{display:block;font-size:11px;color:#c8f3fa;font-variant-numeric:tabular-nums}.counter-track{position:absolute;bottom:4px;left:7px;right:7px;height:3px;background:#091c2e;border-radius:2px;overflow:hidden}.counter-track i{display:block;height:100%;background:#91edfa;transition:width .24s linear}.app[data-tab=adventure] .counter-button:active{transform:translateX(-50%) scale(.95)}.counter-button:disabled{filter:saturate(.45);cursor:wait}.counter-button:focus-visible{outline:3px solid #fff6c7;outline-offset:4px}
+.party-hp i,#boss-fill{transition:width .23s ease-out}.party-hp i[data-hp-motion=heal],#boss-fill[data-hp-motion=heal]{transition-duration:.58s}.party-hp i[data-hp-motion=instant],#boss-fill[data-hp-motion=instant]{transition:none}
+@keyframes counter-enter{from{opacity:0;transform:translateX(-50%) scale(.85)}to{opacity:1;transform:translateX(-50%) scale(1)}}
+@media(max-height:370px){.app[data-tab=adventure] .counter-button:not([hidden]){min-width:124px;min-height:52px;bottom:calc(var(--battle-portrait) + 24px);padding:5px 13px 9px;gap:7px}.counter-button b{font-size:15px}.counter-button .counter-symbol{font-size:23px}}
+html[data-motion=reduced] .counter-button{animation:none!important}html[data-motion=reduced] .party-hp i,html[data-motion=reduced] #boss-fill{transition-duration:.12s}
 .app[data-tab=adventure] {
   --battle-edge:#af9066; --battle-gold:#e6cca0; --battle-glass:#241f20d9;
   --battle-inset:14px; --battle-button:48px; --battle-portrait:80px;

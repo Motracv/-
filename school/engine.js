@@ -4,7 +4,8 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 17;
+  const MAX_STAGE = 60, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 18;
+  const COUNTER_RULES = Object.freeze({ chance: .18, bossChance: .32, windowMs: 3500, cooldownMs: 10000, multiplier: 1.8 });
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
   const OSIA_SKILLS = [
@@ -552,6 +553,7 @@
     return enemy;
   }
   function spawn(s, carry = false) {
+    if (s.counter) delete s.counter.opportunity;
     const boss = s.wave === 4, zone = chapter(s.stage);
     // Existing in-progress battles keep their saved stats. New late-game waves
     // accommodate six units, while the first ten areas retain their old curve.
@@ -570,6 +572,7 @@
     event(s, "wave", { stage: s.stage, wave: s.wave, boss });
   }
   function spawnActivity(s) {
+    if (s.counter) delete s.counter.opportunity;
     const run = s.activities.run, tower = run.kind === "tower", stage = tower ? Math.min(MAX_STAGE, Math.ceil(run.floor / 5)) : DUNGEONS[run.kind].stages[run.tier - 1];
     const boss = !tower || run.floor % 5 === 0, scale = campaignScale(stage), weekly = run.kind === "weekly";
     const difficulty = weekly ? 1.25 : 1.05, hp = tower ? (80 + 20 * run.floor + 2 * run.floor * run.floor) * (boss ? 3.2 : 1) : 155 * scale.hp * difficulty;
@@ -585,7 +588,7 @@
   function settleActivity(s, won, reason) {
     const a = refreshActivities(s, s.at), run = a.run;
     if (!run || run.settled) return a.lastResult;
-    run.settled = true;
+    run.settled = true; if (s.counter) delete s.counter.opportunity;
     let reward = { gold: 0, gems: 0, xp: 0 }, refunded = false;
     const firstClear = won && run.kind === "tower" && run.floor > a.towerBest;
     if (won && (run.kind !== "tower" || firstClear)) reward = activityReward(run.kind, run.kind === "tower" ? run.floor : run.tier);
@@ -620,7 +623,7 @@
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
       s.units && Object.keys(s.units).every(id => Object.hasOwn(BY_ID, id) && Number.isInteger(s.units[id].level) && s.units[id].level >= 1 && s.units[id].level <= MAX_LEVEL && Number.isFinite(s.units[id].xp) && Number.isInteger(s.units[id].stars) && s.units[id].stars >= 0 && s.units[id].stars <= 5 && Number.isFinite(s.units[id].shards)) &&
       Array.isArray(s.team) && s.team.length >= 1 && s.team.length <= MAX_TEAM && new Set(s.team).size === s.team.length && s.team.every(id => typeof id === "string" && Object.hasOwn(BY_ID, id) && Object.hasOwn(s.units, id)) &&
-      validPresets(s) && validEquipment(s) && validWeaponRecruit(s) &&
+      validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
       (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)) && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean")) &&
@@ -743,10 +746,11 @@
       }
       if (b.elapsed < (target.indomitableUntil || 0)) amount = Math.min(amount, target.hp - 1);
     }
+    const hpBefore = target.hp;
     amount = Math.min(target.hp, amount); target.hp -= amount;
     if (side === "enemy") { meter(s, from, "damage", amount); if (detail.critical && amount > 0) meter(s, from, "criticals", 1); }
     else meter(s, target.id, "taken", amount);
-    event(s, "hit", { from, to: target.id, side, amount, skill, critical: !!detail.critical, impact: detail.critical ? "critical" : skill ? "heavy" : "normal", ...(BY_ID[from]?.element ? { element: BY_ID[from].element } : {}), ...detail });
+    event(s, "hit", { from, to: target.id, side, amount, hpBefore, hpAfter:target.hp, skill, critical: !!detail.critical, impact: detail.critical ? "critical" : skill ? "heavy" : "normal", ...(BY_ID[from]?.element ? { element: BY_ID[from].element } : {}), ...detail });
     if (side === "hero" && target.id === "horas" && target.hp > 0) {
       const hs = s.battle.horas ||= newHoras();
       if (s.battle.elapsed >= hs.lastHitStackAt + HORAS_RULES.hitStackMs) {
@@ -777,9 +781,10 @@
     const amount = Math.min(target.max - target.hp, healing); target.hp += amount;
     if(stage===2&&hero.exclusive&&healing>amount)lavaGuard(s,hero,target,Math.min(hero.atk*.4,(healing-amount)*.15)/(1+hero.exclusive.strength),"weapon-overheal");
     meter(s, hero.id, "healing", amount);
-    if (amount) event(s, "heal", { from: hero.id, to: target.id, amount, stage, element: "wind" });
+    if (amount) event(s, "heal", { from: hero.id, to: target.id, amount, hpBefore:target.hp-amount, hpAfter:target.hp, stage, element: "wind" });
   }
   function victory(s) {
+    if (s.counter) delete s.counter.opportunity;
     if (s.battle.activity) { settleActivity(s, true, "victory"); return; }
     const b = s.battle, reward = campaignRewardInfo(s), { gold, xp } = reward;
     if (reward.eligible) { questProgress(s, "waves"); if (b.boss) questProgress(s, "bosses"); }
@@ -816,6 +821,38 @@
     }
     delete b.osiaCast;
     return true;
+  }
+  function validCounter(s) {
+    const c=s.counter,o=c?.opportunity;
+    const time=v=>Number.isSafeInteger(v)&&v>=0;
+    return c===undefined||!!(c&&time(c.cooldownUntil)&&(o===undefined||o&&typeof o.id==='string'&&o.id.length<=80&&Number.isSafeInteger(o.battleId)&&typeof o.enemyId==='string'&&time(o.openedAt)&&time(o.expiresAt)&&o.expiresAt-o.openedAt===COUNTER_RULES.windowMs));
+  }
+  function counterInfo(s, now=s.at) {
+    const b=s.battle,o=s.counter?.opportunity,at=Math.max(s.at,Number.isFinite(now)?now:s.at);
+    const enemy=o&&b.enemies.find(e=>e.id===o.enemyId&&e.hp>0);
+    const active=!!(o&&b.id===o.battleId&&b.phase==='fight'&&!b.cinematic&&enemy&&b.heroes.some(h=>h.hp>0)&&at<o.expiresAt);
+    return {active,opportunity:active?{...o,enemyName:enemy.name,remainingMs:o.expiresAt-at}:null};
+  }
+  function offerCounter(s, enemy) {
+    const b=s.battle,c=s.counter||{cooldownUntil:0};
+    if (b.phase!=='fight'||b.cinematic||!b.heroes.some(h=>h.hp>0)||s.at<c.cooldownUntil||enemy.hp<=0) return;
+    // Separate deterministic roll: ignoring the prompt never consumes combat RNG.
+    let bits=(s.seed^Math.imul(b.elapsed+(Number(enemy.id.slice(1))||0)+1,0x9e3779b1))>>>0;
+    bits=Math.imul(bits^(bits>>>16),0x85ebca6b)>>>0;bits=Math.imul(bits^(bits>>>13),0xc2b2ae35)>>>0;bits=(bits^(bits>>>16))>>>0;
+    if (bits/4294967296 >= (enemy.boss?COUNTER_RULES.bossChance:COUNTER_RULES.chance)) return;
+    s.counter=c;c.cooldownUntil=s.at+COUNTER_RULES.cooldownMs;
+    c.opportunity={id:`${b.id}:${s.seq+1}`,battleId:b.id,enemyId:enemy.id,openedAt:s.at,expiresAt:s.at+COUNTER_RULES.windowMs};
+    event(s,'counter-ready',{from:enemy.id,opportunityId:c.opportunity.id,expiresAt:c.opportunity.expiresAt});
+  }
+  function counterAttack(s,input,now) {
+    const info=counterInfo(s,now),o=info.opportunity;
+    fail(info.active&&typeof input.opportunityId==='string'&&input.opportunityId===o.id&&input.battleId===o.battleId,'반격 기회가 끝났어요. 다음 기회를 노려주세요.');
+    const b=s.battle,enemy=b.enemies.find(e=>e.id===o.enemyId),hero=b.heroes.filter(h=>h.hp>0).reduce((best,h)=>!best||h.atk>best.atk?h:best,null);
+    delete s.counter.opportunity;
+    event(s,'counter',{from:hero.id,to:enemy.id,name:'반격 성공',opportunityId:o.id});
+    const amount=hurt(s,hero.id,enemy,hero.atk*COUNTER_RULES.multiplier*(hero.damageMultiplier||1),'enemy',true,{counter:true});
+    if(b.enemies.every(e=>e.hp<=0))victory(s);
+    return {kind:'counter',amount,hero:hero.id,target:enemy.id,opportunityId:o.id};
   }
   function tick(s) {
     const b = s.battle;
@@ -892,7 +929,7 @@
         for (const friend of b.heroes.filter(h => h.hp > 0)) {
           const heal = Math.min(friend.max - friend.hp, Math.round(hero.atk * 2.2 * (hero.healMultiplier || 1))); friend.hp += heal;
           meter(s, hero.id, "healing", heal);
-          if (heal) event(s, "heal", { from: hero.id, to: friend.id, amount: heal });
+          if (heal) event(s, "heal", { from: hero.id, to: friend.id, amount: heal, hpBefore:friend.hp-heal, hpAfter:friend.hp });
         }
         continue;
       }
@@ -915,6 +952,7 @@
       if (b.elapsed < (enemy.stunUntil || 0)) continue;
       const alive = b.heroes.filter(h => h.hp > 0); if (!alive.length) break;
       const rage = 1 + Math.floor(b.elapsed / (enemy.rageEvery || Infinity)) * (enemy.rageStep || 0);
+      let attacked=true;
       if (enemy.ability && b.elapsed >= enemy.nextAbilityAt) {
         event(s, "boss-skill", { from: enemy.id, name: enemy.ability, targets: alive.map(h => h.id), rage, atElapsed: b.elapsed });
         for (const target of alive) hurt(s, enemy.id, target, enemy.atk * enemy.aoeMultiplier * rage * (.9 + random(s) * .2), "hero", true, { bossSkill: true });
@@ -922,11 +960,12 @@
       } else if (enemy.monsterSkill && Number.isFinite(enemy.nextSkillAt) && b.elapsed >= enemy.nextSkillAt) {
         const role = enemy.combatRole;
         if (role === "healer") {
+          attacked=false;
           const friend = b.enemies.filter(e => e.hp > 0).reduce((a, e) => !a || e.hp / e.max < a.hp / a.max ? e : a, null);
           const amount = Math.max(0, Math.min(friend.max - friend.hp, Math.round((enemy.atk * 2 + friend.max * .025) * enemy.skillPower)));
           event(s, "monster-skill", { from: enemy.id, name: enemy.monsterSkill, role, targets: [friend.id], element: "healing" });
           friend.hp += amount;
-          if (amount) event(s, "enemy-heal", { from: enemy.id, to: friend.id, side: "enemy", amount });
+          if (amount) event(s, "enemy-heal", { from: enemy.id, to: friend.id, side: "enemy", amount, hpBefore:friend.hp-amount, hpAfter:friend.hp });
         } else {
           const back = b.heroes.slice(3).filter(h => h.hp > 0), pool = role === "ranged" && back.length ? back : alive;
           const target = role === "ranged" ? pool.reduce((a, h) => h.hp / h.max < a.hp / a.max ? h : a) : alive[0];
@@ -945,10 +984,11 @@
         }
         hurt(s, enemy.id, target, enemy.atk * rage * (.85 + random(s) * .3), "hero");
       }
+      if(attacked)offerCounter(s,enemy);
     }
     if (b.heroes.every(h => h.hp <= 0) || b.tick >= 120) {
       if (b.activity) { settleActivity(s, false, b.tick >= 120 ? "timeout" : "defeat"); return; }
-      b.phase = "defeat"; b.wait = 5; s.wave = 1; s.losses++; delete b.osiaCast; delete b.horasCast; delete b.cinematic;
+      b.phase = "defeat"; b.wait = 5; s.wave = 1; s.losses++; delete b.osiaCast; delete b.horasCast; delete b.cinematic; if(s.counter)delete s.counter.opportunity;
       event(s, "defeat", { boss: b.boss, stage: b.stage, reason: b.tick >= 120 ? "timeout" : "defeat", report: damageReport(s) }); log(s, "잠시 쉬어 갑니다. 용병을 훈련하거나 편성을 바꿔보세요.");
       if (s.losses >= 3 && s.best >= 1) { s.mode = "farm"; s.stage = s.best; s.losses = 0; log(s, "클리어한 지역에서 자동으로 성장합니다. 도전 버튼으로 다시 출발하세요."); }
     }
@@ -974,6 +1014,7 @@
     const steps = Math.floor((now - s.at) / STEP_MS);
     if (!steps) return { seconds: 0, offline: false };
     if (seconds > 90) {
+      if(s.counter)delete s.counter.opportunity;
       const add = Math.min(seconds, Math.max(0, OFFLINE_CAP - s.offline.seconds)), rate = rates(s);
       const xp = Math.floor(rate.xp * add / 60);
       s.offline.seconds += add; s.offline.gold += Math.floor(rate.gold * add / 60); s.offline.xp += xp;
@@ -1037,6 +1078,7 @@
   function actionCore(s, input, now, rng) {
     fail(input && typeof input === "object" && !Array.isArray(input), "잘못된 행동입니다.");
     const kind = input.kind;
+    if (kind === 'counter') return counterAttack(s,input,now);
     if (kind === "rename") {
       const name = normalizeCommanderName(input.name);
       fail(name !== null, "단장 이름은 문자·숫자·공백·_·-를 사용해 2~12자로 입력하세요.");
@@ -1267,5 +1309,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

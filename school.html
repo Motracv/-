@@ -20,29 +20,30 @@
   <link rel="preload" href="school/assets/lava.png?v=lava1" as="image">
   <link rel="preload" href="school/assets/lava-fan-basic.webp?v=lava-fan1" as="image">
   <link rel="preload" href="school/assets/osia-front.webp?v=osia-front1" as="image">
-  <link rel="stylesheet" href="school/style.css?v=school-bag1">
-  <script defer src="school/engine.js?v=school-bag1"></script>
-  <script defer src="school/art.js?v=school-bag1"></script>
-  <link rel="stylesheet" href="school/presentation.css?v=school-bag1">
-  <script defer src="school/presentation.js?v=school-bag1"></script>
-  <link rel="stylesheet" href="school/install.css?v=school-bag1">
-  <script defer src="school/install.js?v=school-bag1"></script>
-  <link rel="stylesheet" href="school/social.css?v=school-bag1">
-  <script defer src="school/social.js?v=school-bag1"></script>
+  <link rel="stylesheet" href="school/style.css?v=school-counter1">
+  <script defer src="school/engine.js?v=school-counter1"></script>
+  <script defer src="school/combat-feedback.js?v=school-counter1"></script>
+  <script defer src="school/art.js?v=school-counter1"></script>
+  <link rel="stylesheet" href="school/presentation.css?v=school-counter1">
+  <script defer src="school/presentation.js?v=school-counter1"></script>
+  <link rel="stylesheet" href="school/install.css?v=school-counter1">
+  <script defer src="school/install.js?v=school-counter1"></script>
+  <link rel="stylesheet" href="school/social.css?v=school-counter1">
+  <script defer src="school/social.js?v=school-counter1"></script>
   <link rel="preload" href="school/assets/lobby/courtyard.webp?v=lobby1" as="image">
-  <link rel="stylesheet" href="school/lobby.css?v=school-bag1">
-  <link rel="stylesheet" href="school/world-map.css?v=school-bag1">
-  <link rel="stylesheet" href="school/qol.css?v=school-bag1">
-  <link rel="stylesheet" href="school/equipment.css?v=school-bag1">
-  <link rel="stylesheet" href="school/battle.css?v=school-bag1">
-  <link rel="stylesheet" href="school/horas.css?v=school-bag1">
-  <link rel="stylesheet" href="school/quests.css?v=school-bag1">
-  <script defer src="school/lobby.js?v=school-bag1"></script>
-  <script defer src="school/world-map.js?v=school-bag1"></script>
-  <script defer src="school/patch-notes.js?v=school-bag1"></script>
-  <script defer src="school/qol.js?v=school-bag1"></script>
-  <script defer src="school/equipment.js?v=school-bag1"></script>
-  <script defer src="school/client.js?v=school-bag1"></script>
+  <link rel="stylesheet" href="school/lobby.css?v=school-counter1">
+  <link rel="stylesheet" href="school/world-map.css?v=school-counter1">
+  <link rel="stylesheet" href="school/qol.css?v=school-counter1">
+  <link rel="stylesheet" href="school/equipment.css?v=school-counter1">
+  <link rel="stylesheet" href="school/battle.css?v=school-counter1">
+  <link rel="stylesheet" href="school/horas.css?v=school-counter1">
+  <link rel="stylesheet" href="school/quests.css?v=school-counter1">
+  <script defer src="school/lobby.js?v=school-counter1"></script>
+  <script defer src="school/world-map.js?v=school-counter1"></script>
+  <script defer src="school/patch-notes.js?v=school-counter1"></script>
+  <script defer src="school/qol.js?v=school-counter1"></script>
+  <script defer src="school/equipment.js?v=school-counter1"></script>
+  <script defer src="school/client.js?v=school-counter1"></script>
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -105,6 +106,7 @@
     <section class="battle-panel" aria-label="자동 전투">
       <div class="battle-top-left"><button id="battle-back" data-tab="lobby" aria-label="학교 안뜰로 돌아가기" title="안뜰"><span aria-hidden="true">‹</span></button><span class="battle-time" title="현재 웨이브의 전투 진행 시간"><svg aria-hidden="true"><use href="#i-clock"/></svg><time id="battle-clock">00:00</time></span></div>
       <button class="icon-button" id="battle-settings" aria-label="전투 설정" title="설정"><svg aria-hidden="true"><use href="#i-settings"/></svg></button>
+      <button type="button" id="counter-button" class="counter-button" hidden aria-label="반격 기회 · 눌러서 반격"><span class="counter-symbol" aria-hidden="true">⚔</span><span><b id="counter-title">반격!</b><small id="counter-time"></small></span><span class="counter-track" aria-hidden="true"><i id="counter-fill"></i></span></button>
       <div class="battle-mode-controls" role="group" aria-label="사냥 방식"><button id="battle-progress" data-battle-mode="progress" aria-pressed="true" title="지역을 돌파하면 다음 지역으로 자동 진행">자동 진행</button><button id="battle-farm" data-battle-mode="farm" aria-pressed="false" title="선택한 지역을 계속 반복">자동 반복</button></div>
       <div class="battle-heading"><div><h1><button id="battle-stage" aria-label="현재 지역과 모험 지도"><span id="stage-number">1-1</span> <span id="stage-name">오래된 교실</span> <span class="map-arrow">⌄</span></button></h1></div><div class="battle-tools"><span class="auto-badge"><i></i> AUTO</span><div class="speed-controls" role="group" aria-label="전투 속도"><button type="button" data-speed="1" aria-pressed="true" aria-label="전투 속도 1배">1.0×</button><button type="button" data-speed="1.5" aria-pressed="false" aria-label="전투 속도 1.5배">1.5×</button></div></div></div>
       <div class="battle-frame"><canvas id="battle" data-layout="panorama" width="480" height="280" role="img" aria-label="출전 용병이 자동으로 싸우는 도트 전투 장면"></canvas><div class="battle-recovery" id="battle-recovery" role="status" hidden><span id="battle-recovery-message">전투 화면을 복구하고 있어요.</span><button class="secondary" id="recover-battle">화면 복구</button></div><div class="wave-label" id="wave-label">WAVE 1 / 4</div></div>

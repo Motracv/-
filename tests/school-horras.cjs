@@ -24,7 +24,7 @@ const hits = (s, skill) => s.events.filter(e=>e.kind==='hit'&&e.from==='horas'&&
 const draw = (s, roll, pick=.5) => {let n=0; return G.action(s,{kind:'recruit',banner:'horas',count:1},s.at,()=>n++%2?pick:roll).results[0];};
 
 test('UR hero is obtainable only from her own banner, not granted to old or new accounts',()=>{
-  assert.equal(G.CATALOG_VERSION,17);assert.equal(G.BY_ID.horas.rarity,'UR');assert.equal(G.BY_ID.horas.role,'사수');
+  assert.equal(G.CATALOG_VERSION,18);assert.equal(G.BY_ID.horas.rarity,'UR');assert.equal(G.BY_ID.horas.role,'사수');
   const old=G.create(NOW);delete old.banners.horas;const units=G.clone(old.units),money=[old.gold,old.gems];
   assert(G.validate(old));G.advance(old,old.at);assert.deepEqual(old.units,units);assert.deepEqual([old.gold,old.gems],money);
   assert.deepEqual(G.bannerState(old,'horas'),{pity:0,guaranteed:false});

@@ -9,6 +9,10 @@
   const setHidden = (node, value) => { if (node.hidden !== value) node.hidden = value; };
   const setDisabled = (node, value) => { if (node.disabled !== value) node.disabled = value; };
   const setWidth = (node, value) => { if (node.style.width !== value) node.style.width = value; };
+  function setHealthWidth(node,value){
+    const battle=String(state.battle.id),same=node.dataset.hpBattle===battle;
+    if(!same||node.style.width!==`${value}%`){node.dataset.hpMotion=!same||value<=0?'instant':value>parseFloat(node.style.width||'0')?'heal':'damage';node.dataset.hpBattle=battle;setWidth(node,`${value}%`);}
+  }
   const toggleClass = (node, name, value) => { if (node.classList.contains(name) !== value) node.classList.toggle(name, value); };
   const fmt = n => Math.floor(n).toLocaleString('ko-KR');
   const duration = seconds => seconds >= 3600 ? `${Math.floor(seconds / 3600)}시간 ${Math.floor(seconds % 3600 / 60)}분` : `${Math.floor(seconds / 60)}분`;
@@ -508,6 +512,7 @@
     else if (result.kind === 'activity') { closeModal(); setTab('adventure'); toast('던전에 입장했어요. 전투가 끝나면 결과를 확인하세요.'); }
     else if (result.kind === 'activity-exit') { closeModal(); setTab('adventure'); toast(result.result?.refunded ? '입장 열쇠를 돌려받고 모험으로 돌아왔어요.' : '모험으로 돌아왔어요.'); }
     else if (result.kind === 'speed') { toast(`전투 속도 ${result.speed.toFixed(1)}×`); }
+    else if (result.kind === 'counter') { play('critical'); toast(`반격 성공! ${fmt(result.amount)} 피해`); }
     else if (result.kind === 'stage') { closeModal(); setTab('adventure'); toast('선택한 지역으로 출발합니다.'); }
     else if (result.kind === 'offline') { toast(`골드 +${fmt(result.reward.gold)} · 용병마다 경험치 +${fmt(result.reward.xp)}`); play('reward'); if (modalKind === 'offline') closeModal(); }
     else { toast(`골드 +${fmt(result.gold)} · 보석 +${fmt(result.gems)}`); play('reward'); }
@@ -744,7 +749,7 @@
       const skill = casting && id === 'osia' ? G.OSIA_SKILLS[step - 1].name : next?.name || def.skill;
       const charge = fallen ? '✕' : !h || state.battle.phase !== 'fight' ? '대기' : casting ? '시전' : horasStatus ? `${horasStatus.stacks}/${horasStatus.maxStacks}` : seconds ? String(seconds) : '준비';
       setText(el.querySelector('small'), `Lv.${u.level} · ${def.role}`);
-      setWidth(el.querySelector('.party-hp i'), `${hp}%`); setAttr(el.querySelector('.party-hp'), 'aria-valuenow', String(Math.round(hp)));
+      setHealthWidth(el.querySelector('.party-hp i'),hp); setAttr(el.querySelector('.party-hp'), 'aria-valuenow', String(Math.round(hp)));
       setWidth(el.querySelector('.party-energy i'), `${energy}%`); setAttr(el.querySelector('.party-energy'), 'aria-valuenow', String(Math.round(energy)));
       setAttr(el.querySelector('.party-energy'), 'aria-label', horasStatus ? `호라스 벚꽃 구슬 ${horasStatus.stacks}/${horasStatus.maxStacks}` : `${def.name} 스킬 충전`);
       setText(el.querySelector('.party-cooldown'), charge); setText(el.querySelector('.party-skill'), step ? `${step}/${id === 'osia' ? 4 : 2}` : '');
@@ -774,7 +779,8 @@
     maybeShowActivityResult();
   }
   function renderButtons() {
-    setHidden($('operation-status'), !operation || !busy);
+    renderCounter();
+    setHidden($('operation-status'), !operation || !busy || operation === 'counter');
     setText($('operation-message'), ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중',quest:'임무 보상 저장 중','quest-all':'임무 보상 모으는 중','gear-equip':'장비 착용 저장 중','gear-unequip':'장비 해제 저장 중','gear-awaken':'장비 각성 저장 중'})[operation] || '저장 확인 중');
     setAttr($('app'), 'aria-busy', String(busy));
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
@@ -819,6 +825,16 @@
       }
     }
   }
+  function renderCounter(){
+    const button=$('counter-button');if(!button)return;
+    const info=state&&G.counterInfo(state,serverNow()),visible=info?.active&&tab==='adventure'&&!document.hidden&&!$('modal').open&&!resultPresentationBusy()&&$('rotate-prompt').hidden;
+    setHidden(button,!visible);if(!visible)return;
+    const o=info.opportunity,blocked=busy||!!pending||(mode==='cloud'&&(!connected||verifiedToken!==token))||(mode==='guest'&&!hasGuestState);
+    setDisabled(button,blocked);setText('counter-title',operation==='counter'?'반격 확인 중':'반격!');setText('counter-time',`${(o.remainingMs/1000).toFixed(1)}초`);
+    setWidth($('counter-fill'),`${Math.max(0,o.remainingMs/G.COUNTER_RULES.windowMs*100)}%`);
+    setAttr(button,'aria-label',`${o.enemyName}에게 반격 · ${(o.remainingMs/1000).toFixed(1)}초 남음`);
+    setAttr(button,'data-opportunity',o.id);
+  }
   function renderBossHUD() {
     const boss = state.battle.enemies.find(enemy => enemy.boss && enemy.hp > 0) || state.battle.enemies.find(enemy => enemy.boss);
     setHidden($('boss-hud'), !boss);
@@ -827,7 +843,7 @@
     setText($('boss-name'), boss.name);
     setText($('boss-hp'), `${fmt(Math.max(0, boss.hp))} / ${fmt(boss.max)}`);
     const percent = Math.max(0, Math.min(100, boss.hp / boss.max * 100));
-    setWidth($('boss-fill'), `${percent}%`); setAttr($('boss-track'), 'aria-valuenow', String(Math.round(percent)));
+    setHealthWidth($('boss-fill'),percent); setAttr($('boss-track'), 'aria-valuenow', String(Math.round(percent)));
     const remaining = Math.max(0, Math.ceil(((boss.nextAbilityAt || 0) - state.battle.elapsed) / 1000));
     const ability = typeof boss.ability === 'string' ? boss.ability : boss.ability?.name;
     setText($('boss-warning'), state.battle.phase !== 'fight' ? (state.battle.phase === 'victory' ? '보스 격파' : '도전 종료') : ability && remaining <= 3 ? `${ability} · ${remaining ? `${remaining}초 뒤 전체 공격` : '공격 준비'}` : '');
@@ -889,7 +905,7 @@
     $('dungeon-current').hidden = !run;
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
-    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-bag1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
+    $('dungeon-selectors').innerHTML = ['daily','weekly','tower'].map(kind => `<button class="dungeon-choice ${kind}" data-dungeon="${kind}" aria-pressed="${selectedDungeon === kind}" aria-label="${activityTitle(kind)} 선택"><img src="school/assets/dungeon-${kind}.png?v=school-counter1" alt="" loading="lazy"><span><b>${kind === 'daily' ? '보급고' : kind === 'weekly' ? '이사장실' : '뫼비우스'}</b><small>${kind === 'daily' ? '일일 던전' : kind === 'weekly' ? '주간 던전' : '끝없는 복도'}</small></span></button>`).join('');
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
       selectedTiers[kind] = chosen.tier;
@@ -1015,13 +1031,13 @@
     worldMap?.destroy(); worldMap = null;
     $('modal').classList.toggle('world-map-modal', kind === 'map');
     loginGeneration++; modalKind = kind; delete $('modal').dataset.activityResult; $('modal-title').textContent = title; $('modal-content').innerHTML = html;
-    if (!$('modal').open) $('modal').showModal(); $('modal').scrollTop = 0;
+    if (!$('modal').open) $('modal').showModal(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
   }
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
     qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
-    stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
+    stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
   }
   function heroDetail(id) {
     const h = G.BY_ID[id], u = state.units[id]; if (!h) return; selectedHero = id;
@@ -1082,7 +1098,7 @@
     openModal('모집 확률 안내', `<div class="modal-copy"><p><strong>${banner.name}</strong><br>1회 보석 ${fmt(G.recruitCost(selectedBanner,1))}개 / 10회 ${fmt(G.recruitCost(selectedBanner,10))}개.</p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회</th><th>용병별 실제 확률</th></tr></thead><tbody>${rows}</tbody></table><p>현재 누적 ${progress.pity}회 · <strong>다음 ${progress.pity + 1}회째 확률</strong>입니다.</p>${rules}<p>단일·10회 모집 모두 한 번씩 계산합니다. 10회의 앞 9명에 SR 이상이 없고 마지막 결과가 R이면 SR로 올립니다. 최고 등급 천장을 먼저 적용합니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개 / UR 30개. 최대 5성까지 각성할 수 있습니다. 표의 소수점은 반올림하여 합계가 조금 다를 수 있습니다.</p></div>`, 'rates');
   }
   function help() {
-    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>안뜰의 용병을 눌러 육성하고, 모험 지도에서 구역과 지역을 골라 출발하세요. 전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>최대 6명의 용병이 자동으로 싸웁니다. 1~3명은 맨 앞 용병이, 4~6명은 전열 3명이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>던전은 일일 열쇠 3개·주간 열쇠 2개로 도전합니다. 패배·포기하면 입장 열쇠가 돌아옵니다.</li><li>뫼비우스의 복도는 열쇠 없이 도전하며 층별 첫 클리어 때만 보상을 받습니다.</li><li>단장은 최대 Lv.${G.CAPTAIN_MAX_LEVEL}까지 성장하며, 새 단장 레벨마다 보석 160개와 골드를 받아요. 단장 버튼에서 이름을 정하고 레벨·복도 랭킹을 볼 수 있습니다. Google 계정에 저장한 기록과 게임 안에서 정한 이름만 공개됩니다.</li><li>기본 SSR 확률은 ${Number((G.RECRUIT_RATES.SSR * 100).toFixed(2))}%입니다. 픽업별 확률과 확정 횟수는 모집 화면의 확률 안내에서 확인하세요.</li><li>가로 화면에서는 전장과 용병을 함께 볼 수 있어요. 세로에서는 좌우로 밀어 이동하세요. 설정에서 다크 모드·효과음·모션을 바꿀 수 있고, 모집·각성·단장 성장 연출은 바로 건너뛸 수 있습니다.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
+    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>안뜰의 용병을 눌러 육성하고, 모험 지도에서 구역과 지역을 골라 출발하세요. 전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>적의 공격 뒤 가끔 반격 버튼이 떠요. 3.5초 안에 누르면 생존 용병 중 공격력이 가장 높은 한 명이 공격력 180%로 추가 공격합니다. 놓쳐도 불이익 없이 자동 전투가 이어져요. 모험·던전에서만 적용되며 기회 간격은 최소 10초입니다.</li><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>최대 6명의 용병이 자동으로 싸웁니다. 1~3명은 맨 앞 용병이, 4~6명은 전열 3명이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>던전은 일일 열쇠 3개·주간 열쇠 2개로 도전합니다. 패배·포기하면 입장 열쇠가 돌아옵니다.</li><li>뫼비우스의 복도는 열쇠 없이 도전하며 층별 첫 클리어 때만 보상을 받습니다.</li><li>단장은 최대 Lv.${G.CAPTAIN_MAX_LEVEL}까지 성장하며, 새 단장 레벨마다 보석 160개와 골드를 받아요. 단장 버튼에서 이름을 정하고 레벨·복도 랭킹을 볼 수 있습니다. Google 계정에 저장한 기록과 게임 안에서 정한 이름만 공개됩니다.</li><li>기본 SSR 확률은 ${Number((G.RECRUIT_RATES.SSR * 100).toFixed(2))}%입니다. 픽업별 확률과 확정 횟수는 모집 화면의 확률 안내에서 확인하세요.</li><li>가로 화면에서는 전장과 용병을 함께 볼 수 있어요. 세로에서는 좌우로 밀어 이동하세요. 설정에서 다크 모드·효과음·모션을 바꿀 수 있고, 모집·각성·단장 성장 연출은 바로 건너뛸 수 있습니다.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
   }
   async function sdk() {
     if (window.google?.accounts?.id) return;
@@ -1162,6 +1178,11 @@
     } catch (error) { if (version === loginGeneration && $('login-message')) $('login-message').textContent = error.message; }
   }
   function bind() {
+    $('counter-button').onclick=()=>{
+      const info=state&&G.counterInfo(state,serverNow());
+      if(!info?.active||tab!=='adventure'||document.hidden||$('modal').open)return;
+      act({kind:'counter',battleId:info.opportunity.battleId,opportunityId:info.opportunity.id});
+    };
     lobby = window.SchoolLobby?.create($('lobby-party'), {game:G, art:Art});
     qol = window.SchoolQoL?.create({getState:()=>state,accountScope,serverNow,modalKind:()=>modalKind,activityActive,isBlocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,toast,openRoster:()=>{filter='owned';setTab('roster');},openHelp:help});
     if(qol){
