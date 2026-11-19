@@ -107,7 +107,7 @@ window.SchoolYeti=(()=>{
    const bossHit=events.findLast(e=>e.kind==='hit'&&e.amount>0&&e.shown<=now&&now-e.shown<200);
    if(atlas.complete&&atlas.naturalWidth)window.SchoolArt.hitSprite(c,atlas,[(pose%3)*512,Math.floor(pose/3)*512,512,512,bx-256*scale,by-anchors[pose]*scale,512*scale,512*scale],bossHit?(now-bossHit.shown)/1000:1);
    else{c.fillStyle='#c4edff';c.beginPath();c.ellipse(bx,by-100,100,110,0,0,Math.PI*2);c.fill();}
-   for(const berserker of berserkers)window.SchoolHyeokjinArt?.effects(c,{...berserker,targets:[{x:bx,y:by,aimY:by-165}]});
+   for(const berserker of berserkers)window.SchoolHyeokjinArt?.effects(c,{...berserker,viewport:{width:1000,height:560},targets:[{x:bx,y:by,aimY:by-165}]});
    for(const gunner of gunners)window.SchoolKazuaArt?.effects(c,{...gunner,targets:[{x:bx,y:by,aimY:by-165}]});
    if(live&&window.SchoolOsiaWeaponArt)for(const e of events.filter(e=>e.shown<=now&&now-e.shown<(e.breath?4750:e.kind==='osia-drowning'?2150:1850)&&['dragon','osia-drowning'].includes(e.kind)).slice(-6)){
     const team=b?.teams[e.team],index=team?.units.findIndex(u=>u.id==='osia'),unit=team?.units[index];

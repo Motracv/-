@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 37;
+  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 38;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -220,10 +220,10 @@
   ];
   HEROES.push({ id: "horas", name: "호라스", latin: "Horas", gender: "여성", club: "벚꽃의 의식", element: "blossom", role: "사수", rarity: "UR", hp: 128, atk: 22, cooldown: 5, skill: "벚꽃의식", passive: "별빛 축적", passiveDesc: "두 손짓의 느린 평타가 적중하거나 공격을 받으면 벚꽃 구슬을 1개 쌓습니다. 피격 획득은 1초당 한 번. 5개를 합쳐 벚꽃의식을 사용합니다.", passive2: "벚꽃의 잔향", passive2Desc: "기절 중인 적에게 주는 피해 1.5배. 의식이 적중한 주 대상에게 6초간 표식을 남깁니다. 아군 누구든 표식 대상을 처치하면 2스택을 한 번 회수합니다.", color: "#f3a2d0", hair: "#f2a6d0", outfit: "#d6e5ff", weapon: "blossom", desc: "2초 간격으로 공격력 220% 평타. 5스택을 소모하여 구슬을 합친 뒤 가까운 적이 많은 한 명에게 공격력 1350%, 인접한 적에게 250% 피해. 의식은 10% 확률로 빗나갑니다. 의식 시작 간격은 최소 3초입니다." });
   HEROES.push({id:'kazua',name:'카즈아',latin:'Kazua',gender:'남성',species:'인간',club:'붉은 탄막',role:'사수',rarity:'SSR',hp:100,hpGrowth:12,atk:24,atkGrowth:3,cooldown:20,skill:'붉은총알',passive:'권총 · 바주카포',passiveDesc:'5초마다 권총으로 단일 240%, 15초마다 바주카포로 적 전체 320% 물리 피해. 무기를 바꾸는 동안 머신건 사격은 잠시 멈춥니다.',passive2:'최후의 생존자',passive2Desc:'함께 출전한 아군이 쓰러질 때마다 피해 +12%(최대 60%). 원래 2명 이상 출전했고 혼자 남으면 추가 +20%. 빈 편성이나 부활 반복으로 중첩되지 않습니다. 회피 10%, 일반 공격 표적 우선도 감소. 광역·도발은 별도입니다.',color:'#f65d55',hair:'#a62428',outfit:'#24242c',weapon:'gatling',desc:'끝없는 총알: 3초간 초고속 연사 후 2초 장전. 연사 중 0.5초마다 공격력 55%의 물리 피해를 묶어 적용합니다. 붉은총알: 20초마다 3초간 초당 50발의 붉은 유도탄. 주 대상 총 1600%, 다른 적 각각 총 560% 물리 피해. 낮은 체력을 감수하는 극딜 사수.'});
-  HEROES.push({id:'hyeokjin',name:'서혁진',latin:'Seo Hyeokjin',gender:'남성',species:'이계의 인간',element:'dark',club:'지켜온 맹세',role:'전사',rarity:'UR',hp:175,hpGrowth:16,atk:45,atkGrowth:5,cooldown:10,skill:'죽지 않는 청년 · 어둠의 잠식',passive:'폼 체인지 · 피 보는 자',passiveDesc:'HP 35% 이하가 되는 타격부터 전투당 1회 8초 각성. 각성 중 HP가 1 아래로 내려가지 않으며 직접 가한 피해의 20%를 흡혈합니다(초당 최대 HP 8%). 공격 피해 +50%, 평타 간격 1.4초. 기본형 평타 간격은 1.8초입니다.',passive2:'책임감',passive2Desc:'함께 출전한 아군이 모두 쓰러지면 전투당 1회 5초간 피해 면역·피해 +30%. 처음부터 혼자 출전하면 발동하지 않습니다. 각성과 동시에 시간이 흐릅니다.',color:'#e25c83',hair:'#22202f',outfit:'#edeaf0',weapon:'greatsword',desc:'평타: 주 대상 660%·추가 전방 2명 각각 230% 물리 피해. 기본형: 10초마다 주 대상 900%·추가 전방 2명 각각 400%, 명중 시 HP 10% 회복. 각성형: 블랙 전방 최대 3명 각각 900%, 참수 단일 1400%(대상 HP 30% 이하 2100%, 처치 시 HP 15% 회복). 각성 중 HP 20% 이하가 되면 전투당 한 번 궁극기: 공격력 2000% + 직접 누적한 실제 HP 피해 150%(합계 최대 공격력 12000%) 방출. 주 대상 70%·나머지 적에게 총 30% 분배, 단일 적은 100%. 모든 공격은 물리이며 기절·빙결로 시전이 중단될 수 있습니다.'});
+  HEROES.push({id:'hyeokjin',name:'서혁진',latin:'Seo Hyeokjin',gender:'남성',species:'이계의 인간',element:'dark',club:'지켜온 맹세',role:'전사',rarity:'UR',hp:175,hpGrowth:16,atk:45,atkGrowth:5,cooldown:10,skill:'죽지 않는 청년 · 어둠의 잠식',passive:'폼 체인지 · 피 보는 자',passiveDesc:'HP 35% 이하가 되는 타격부터 전투당 1회 8초 각성. 각성 중 HP가 1 아래로 내려가지 않으며 직접 가한 피해의 20%를 흡혈합니다(초당 최대 HP 8%). 공격 피해 +50%, 평타 간격 1.4초. 기본형 평타 간격은 1.8초입니다.',passive2:'책임감',passive2Desc:'함께 출전한 아군이 모두 쓰러지면 전투당 1회 5초간 피해 면역·피해 +30%. 처음부터 혼자 출전하면 발동하지 않습니다. 각성과 동시에 시간이 흐릅니다.',color:'#e25c83',hair:'#22202f',outfit:'#edeaf0',weapon:'greatsword',desc:'평타: 주 대상 660%·추가 전방 2명 각각 230% 물리 피해. 기본형: 10초마다 주 대상 900%·추가 전방 2명 각각 400%, 명중 시 HP 10% 회복. 각성형: 블랙 전방 최대 3명 각각 900%, 참수 단일 X자 6연타(0.25초 간격), 총 1400%(첫 타격 시 대상 HP 30% 이하이면 총 2100%, 처치 시 HP 15% 회복). 각성 중 HP 20% 이하가 되면 전투당 한 번 궁극기: 공격력 2000% + 직접 누적한 실제 HP 피해 150%(합계 최대 공격력 12000%) 방출. 주 대상 70%·나머지 적에게 총 30% 분배, 단일 적은 100%. 모든 공격은 물리이며 기절·빙결로 시전이 중단될 수 있습니다.'});
   const BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
-  const HYEOKJIN_RULES=Object.freeze({awakeMs:8000,lastMs:5000,basicMs:1800,awakeBasicMs:1400,basicMultiplier:6.6,basicSplash:2.3,recoveryMultiplier:9,recoverySplash:4,blackMultiplier:9,executionMultiplier:14,executionLowMultiplier:21,awakeMultiplier:1.5,healMs:10000,blackMs:4000,lifesteal:.2,healCap:.08,ultimateBase:20,ultimateStored:1.5,ultimateCap:120});
-  const HYEOKJIN_MOVES=Object.freeze({basic:{name:'대검 내려베기',hit:800,duration:1300},recovery:{name:'죽지 않는 청년',hit:400,duration:1100},transform:{name:'어둠의 잠식',hit:0,duration:1000},black:{name:'블랙',hit:600,duration:1000},execution:{name:'참수',hit:650,duration:1100},ultimate:{name:'내가 지켜온 모든 것',hit:1300,duration:2300}});
+  const HYEOKJIN_RULES=Object.freeze({awakeMs:8000,lastMs:5000,basicMs:1800,awakeBasicMs:1400,basicMultiplier:6.6,basicSplash:2.3,recoveryMultiplier:9,recoverySplash:4,blackMultiplier:9,executionMultiplier:14,executionLowMultiplier:21,executionTicks:6,executionTickMs:250,awakeMultiplier:1.5,healMs:10000,blackMs:4000,lifesteal:.2,healCap:.08,ultimateBase:20,ultimateStored:1.5,ultimateCap:120});
+  const HYEOKJIN_MOVES=Object.freeze({basic:{name:'대검 내려베기',hit:800,duration:1300},recovery:{name:'죽지 않는 청년',hit:400,duration:1100},transform:{name:'어둠의 잠식',hit:0,duration:1000},black:{name:'블랙',hit:600,duration:1000},execution:{name:'참수',hit:450,duration:2200},ultimate:{name:'내가 지켜온 모든 것',hit:1300,duration:2300}});
   function hyeokjinInit(u,allies){if(u.id!=='hyeokjin')return null;return u.hyeokjin||=( {used:false,until:0,lastUsed:false,lastUntil:0,ultimateUsed:false,ultimateArmed:false,executeUsed:false,total:0,healWindow:0,healUsed:0,initial:allies.filter(a=>a.hp>0).map(a=>a.id),mode:'idle',began:0,modeUntil:0,nextBasic:1800,nextHeal:10000,nextBlack:0,nextExecute:0,cast:null} );}
   function hyeokjinAwake(u,time){return !!u?.hyeokjin?.used&&time<u.hyeokjin.until;}
   function hyeokjinRefresh(u,allies,time,emit=()=>{}){
@@ -249,14 +249,28 @@
     const window=Math.floor(time/1000);if(q.healWindow!==window){q.healWindow=window;q.healUsed=0;}
     const room=Math.max(0,Math.floor(u.max*.08)-q.healUsed);q.healUsed+=hyeokjinHeal(u,Math.min(room,amount*.2),emit);
   }
-  function validHyeokjin(q){return q===undefined||!!(q&&['idle',...Object.keys(HYEOKJIN_MOVES)].includes(q.mode)&&['used','lastUsed','ultimateUsed','ultimateArmed','executeUsed'].every(k=>typeof q[k]==='boolean')&&['until','lastUntil','total','healWindow','healUsed','began','modeUntil','nextBasic','nextHeal','nextBlack','nextExecute'].every(k=>Number.isFinite(q[k])&&q[k]>=0)&&q.total<=1e12&&Array.isArray(q.initial)&&q.initial.length>=1&&q.initial.length<=6&&new Set(q.initial).size===q.initial.length&&q.initial.every(id=>Object.hasOwn(BY_ID,id))&&(q.cast===null||q.cast&&Object.hasOwn(HYEOKJIN_MOVES,q.cast.mode)&&Number.isFinite(q.cast.at)&&q.cast.at>=0&&Number.isFinite(q.cast.amount)&&q.cast.amount>=0&&q.cast.amount<=1e12&&Array.isArray(q.cast.targets)&&q.cast.targets.length<=30&&q.cast.targets.every(id=>typeof id==='string')&&typeof q.cast.done==='boolean'&&typeof q.cast.awakened==='boolean'));}
+  function validHyeokjin(q){return q===undefined||!!(q&&['idle',...Object.keys(HYEOKJIN_MOVES)].includes(q.mode)&&['used','lastUsed','ultimateUsed','ultimateArmed','executeUsed'].every(k=>typeof q[k]==='boolean')&&['until','lastUntil','total','healWindow','healUsed','began','modeUntil','nextBasic','nextHeal','nextBlack','nextExecute'].every(k=>Number.isFinite(q[k])&&q[k]>=0)&&q.total<=1e12&&Array.isArray(q.initial)&&q.initial.length>=1&&q.initial.length<=6&&new Set(q.initial).size===q.initial.length&&q.initial.every(id=>Object.hasOwn(BY_ID,id))&&(q.cast===null||q.cast&&Object.hasOwn(HYEOKJIN_MOVES,q.cast.mode)&&Number.isFinite(q.cast.at)&&q.cast.at>=0&&Number.isFinite(q.cast.amount)&&q.cast.amount>=0&&q.cast.amount<=1e12&&Array.isArray(q.cast.targets)&&q.cast.targets.length<=30&&q.cast.targets.every(id=>typeof id==='string')&&typeof q.cast.done==='boolean'&&typeof q.cast.awakened==='boolean'&&(q.cast.tick===undefined||Number.isInteger(q.cast.tick)&&q.cast.tick>=0&&q.cast.tick<=HYEOKJIN_RULES.executionTicks)&&(q.cast.pulseAmount===undefined||Number.isFinite(q.cast.pulseAmount)&&q.cast.pulseAmount>=0&&q.cast.pulseAmount<=1e12)));}
   function hyeokjinStep(u,allies,enemies,time,dt,hit,emit=()=>{},blocked=false,haste=1){
     if(u.id!=='hyeokjin')return;const q=hyeokjinRefresh(u,allies,time,emit);u.energy=Math.min(10,Math.max(0,10-(q.nextHeal-time)/1000));
     if(u.hp<=0||blocked){if(q.cast){q.cast=null;q.mode='idle';q.modeUntil=time;emit('hyeokjin-cancel',{});}return;}
     // Injuries from older saves and non-attack damage still trigger the same gate.
     hyeokjinGuard(u,allies,time,0,emit);
     if(q.cast){const cast=q.cast;
-      if(!cast.done&&time>=cast.at){cast.done=true;const saved=enemies.filter(e=>e.hp>0&&cast.targets.includes(e.id));const targets=saved.length?saved:enemies.filter(e=>e.hp>0);let dealt=0;
+      if(cast.mode==='execution'&&!cast.done)q.modeUntil=Math.max(q.modeUntil,cast.at+HYEOKJIN_RULES.executionTickMs*(HYEOKJIN_RULES.executionTicks-1)+Math.min(dt,300));
+      if(cast.mode==='execution'&&!cast.done&&time>=cast.at){
+        const r=HYEOKJIN_RULES,weights=[.1,.13,.15,.17,.2,.25],target=enemies.find(e=>e.id===cast.targets[0]&&e.hp>0);
+        if(!target){cast.done=true;}else{
+          cast.tick??=0;
+          cast.pulseAmount??=u.atk*(target.hp/target.max<=.3?r.executionLowMultiplier:r.executionMultiplier)*(cast.awakened?r.awakeMultiplier:1)*(time<q.lastUntil?1.3:1);
+          while(cast.tick<r.executionTicks&&time>=cast.at+cast.tick*r.executionTickMs&&target.hp>0){
+            const tick=cast.tick++,dealt=hit(target,cast.pulseAmount*weights[tick],{mode:'execution',skill:'참수',comboTick:tick,comboTicks:r.executionTicks});
+            emit('hyeokjin-impact',{mode:'execution',name:'참수',targets:[target.id],amount:dealt,tick,ticks:r.executionTicks});
+            if(dealt>0&&target.hp<=0)hyeokjinHeal(u,u.max*.15,emit,'참수');
+          }
+          cast.done=cast.tick>=r.executionTicks||target.hp<=0;
+        }
+      }
+      if(cast.mode!=='execution'&&!cast.done&&time>=cast.at){cast.done=true;const saved=enemies.filter(e=>e.hp>0&&cast.targets.includes(e.id));const targets=saved.length?saved:enemies.filter(e=>e.hp>0);let dealt=0;
         if(cast.mode==='ultimate'){
           if(targets.length&&cast.amount>0){const pool=Math.min(cast.amount,u.atk*HYEOKJIN_RULES.ultimateCap),primary=targets.length>1?pool*.7:pool,splash=targets.length>1?pool*.3/(targets.length-1):0;targets.forEach((e,i)=>{dealt+=hit(e,i?splash:primary,{mode:cast.mode,skill:HYEOKJIN_MOVES[cast.mode].name,fixed:true,ultimate:true});});}
         }else{
@@ -268,7 +282,7 @@
         }
         emit('hyeokjin-impact',{mode:cast.mode,name:HYEOKJIN_MOVES[cast.mode].name,targets:targets.map(e=>e.id),amount:dealt});
       }
-      if(time<q.modeUntil)return;q.cast=null;q.mode='idle';
+      if(time<q.modeUntil||cast.mode==='execution'&&!cast.done)return;q.cast=null;q.mode='idle';
     }
     if(time<q.modeUntil||!enemies.some(e=>e.hp>0))return;
     const awake=hyeokjinAwake(u,time);let mode;
@@ -280,8 +294,8 @@
     const speed=mode==='basic'?Math.max(.5,Math.min(2,haste)):1,def=HYEOKJIN_MOVES[mode];
     const began=mode==='basic'&&q.nextBasic>time-dt?Math.min(time,q.nextBasic):time;
     q.mode=mode;q.began=began;q.modeUntil=began+def.duration/speed;q.nextBasic=began+(awake?1400:1800)/speed;
-    q.cast={mode,at:Math.ceil((began+def.hit/speed)/dt)*dt,amount:mode==='ultimate'?Math.min(u.atk*HYEOKJIN_RULES.ultimateBase+q.total*HYEOKJIN_RULES.ultimateStored,u.atk*HYEOKJIN_RULES.ultimateCap):0,targets:enemies.filter(e=>e.hp>0).map(e=>e.id),done:false,awakened:awake};
-    q.modeUntil=Math.max(q.modeUntil,q.cast.at+Math.min(dt,300));
+    q.cast={mode,at:Math.ceil((began+def.hit/speed)/dt)*dt,amount:mode==='ultimate'?Math.min(u.atk*HYEOKJIN_RULES.ultimateBase+q.total*HYEOKJIN_RULES.ultimateStored,u.atk*HYEOKJIN_RULES.ultimateCap):0,targets:enemies.filter(e=>e.hp>0).slice(0,mode==='execution'?1:30).map(e=>e.id),done:false,awakened:awake,...(mode==='execution'?{tick:0}:{})};
+    q.modeUntil=Math.max(q.modeUntil,q.cast.at+(mode==='execution'?(HYEOKJIN_RULES.executionTicks-1)*HYEOKJIN_RULES.executionTickMs:0)+Math.min(dt,300));
     emit('hyeokjin-mode',{mode,name:def.name,duration:q.modeUntil-time,impactDelay:q.cast.at-time,awakened:awake,until:q.until});
   }
 

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#18111f"><title>서혁진 · 어둠의 여섯 참격</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#120f19;color:#fff1f6;font:16px/1.6 system-ui,sans-serif}main{max-width:1120px;margin:auto;padding:28px 20px 44px}.eyebrow{font-size:14px;letter-spacing:.08em;color:#eca5be}.eyebrow b{background:#452535;color:#ffe6a0;padding:4px 10px;border:1px solid #b58356;border-radius:7px;margin-right:10px}h1{font-size:clamp(26px,4vw,40px);letter-spacing:-.04em;margin:12px 0 8px}header p{color:#d4bfce;margin:0 0 22px}figure{margin:0;border:1px solid #5b344b;border-radius:16px;overflow:hidden;background:#08090d;box-shadow:0 12px 48px #0005}video,.fallback{width:100%;height:auto;display:block;aspect-ratio:1280/746;object-fit:contain}figcaption{background:#241725;padding:12px 18px;font-size:15px;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:space-between}#current{font-weight:750;color:#ffd5e6}#detail{color:#cdbaca}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:18px 0}button,a.download,select{font:600 16px system-ui;color:#fcebf5;border:1px solid #765367;border-radius:10px;background:#2a1d2f;padding:12px 16px;min-height:48px;cursor:pointer}button:hover,a.download:hover{background:#4c2941;border-color:#e9a0be}button[aria-pressed=true]{background:#e8b3c8;color:#261221;border-color:#ffe5ef}button:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #ffe6a0;outline-offset:3px}.clips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0}.clips button{padding:12px 10px;text-align:left}.clips small{display:block;color:#cdb8c7;font-weight:400;font-size:14px;margin-top:4px}.clips button[aria-pressed=true] small{color:#49213a}select{appearance:none;padding-right:42px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='10'%3E%3Cpath d='m2 2 6 6 6-6' fill='none' stroke='%23ffdfec' stroke-width='2'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}.note{color:#c3afbf;font-size:14px}.downloads{display:flex;flex-wrap:wrap;gap:10px;padding-top:18px;border-top:1px solid #453043}a{color:#f6c8df}a.download{text-decoration:none}#loading{font-size:14px;color:#d6c5d2;min-height:23px;margin:10px 0}[hidden]{display:none!important}@media(max-width:650px){main{padding:20px 12px 30px}.clips{grid-template-columns:1fr 1fr}.controls{gap:8px}.controls button{flex:1}.downloads a{flex:1;text-align:center}figcaption{padding:12px}header p{font-size:15px}}
+</style>
+</head>
+<body><main>
+<header><span class="eyebrow"><b>UR</b> SEO HYEOKJIN</span><h1>서혁진 · 어둠의 여섯 참격</h1><p>작은 검기 · 거대한 블랙 · X자 6연타 · 전장 전체를 뒤덮는 궁극기.<br>보고 싶은 동작을 누르면 해당 구간을 반복 재생해요.</p></header>
+<figure>
+<video id="video" controls autoplay muted loop playsinline preload="metadata" poster="poster.webp"><source src="hyeokjin-combat.mp4" type="video/mp4">영상 재생이 지원되지 않아요. 아래 GIF로 확인하세요.</video>
+<img id="gif" class="fallback" src="ultimate.gif" alt="서혁진이 대검에 힘을 모아 적 전체에 붉은 참격을 터뜨리는 궁극기" hidden>
+<figcaption><span id="current">전체 모션</span><span id="detail">평타 · 각성 · 스킬 · 궁극기 · 책임감</span></figcaption>
+</figure>
+<div class="controls"><button id="toggle">일시정지</button><button id="replay">처음부터</button><label for="speed">속도</label><select id="speed"><option value="0.5">0.5배 · 천천히</option><option value="1" selected>1배</option><option value="1.5">1.5배</option></select></div>
+<nav class="clips" aria-label="스킬별 애니메이션">
+<button data-mode="all" aria-pressed="true">전체 보기<small>24초 시연 전투</small></button>
+<button data-mode="basic" aria-pressed="false">대검 평타<small>작은 검기 하나를 발사</small></button>
+<button data-mode="transform" aria-pressed="false">어둠의 잠식<small>몸에서 계속 번지는 붉은 기운</small></button>
+<button data-mode="black" aria-pressed="false">블랙<small>칼날에서 펼쳐지는 거대 검기</small></button>
+<button data-mode="execution" aria-pressed="false">참수<small>0.25초 간격 X자 6연타</small></button>
+<button data-mode="recovery" aria-pressed="false">죽지 않는 청년<small>공격 후 붉은 기운 회수</small></button>
+<button data-mode="ultimate" aria-pressed="false">내가 지켜온 모든 것<small>전장을 뒤덮는 빛과 폭발</small></button>
+<button data-mode="last" aria-pressed="false">책임감<small>홀로 남은 순간의 보호</small></button>
+</nav>
+<p id="loading" role="status">스킬 구간을 불러오고 있어요.</p>
+<p class="note">현재 게임에 적용된 모션과 이펙트예요. 각성·궁극기·책임감을 보여주기 위해 발동 조건을 맞춘 시연 전투입니다.</p>
+<div class="downloads"><button id="fallback">궁극기 GIF로 보기</button><a class="download" href="black.gif">블랙 GIF</a><a class="download" href="execution.gif">참수 GIF</a><a class="download" href="all-motions.gif">전체 모션 GIF</a><a class="download" href="hyeokjin-combat.mp4" download>영상 저장</a><a class="download" href="../../school.html">게임 열기</a></div>
+</main>
+<script src="preview.js"></script>
+</body></html>

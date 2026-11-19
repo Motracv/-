@@ -28,13 +28,21 @@ function ult(count=3,blocked=false,pool=10000){const u=fighter(),enemies=Array.f
 const a=ult();assert.equal(a.events.filter(e=>e.kind==='hyeokjin-mode'&&e.mode==='ultimate').length,1);const burst=a.hits.filter(h=>h.ultimate);assert.equal(burst.length,3);assert.deepEqual(burst.map(h=>h.n),[8400,1800,1800]);assert(burst.every(h=>h.fixed));assert.equal(ult(1).hits.filter(h=>h.ultimate)[0].n,12000);assert.equal(ult(1,false,0).hits.filter(h=>h.ultimate)[0].n,2000);assert.equal(ult(3,true).hits.filter(h=>h.ultimate).length,0);assert(ult(3,true).events.some(e=>e.kind==='hyeokjin-cancel'));
 console.log('PASS one ultimate, 12000% cap, 70/30 split or full solo damage, minimum 2000% strike without previous hits and interrupted cast cancellation');
 // Cleave must stop at three living enemies; execution remains strictly single-target.
-for(const [mode,expected] of [['basic',[660,230,230]],['recovery',[900,400,400]],['black',[900,900,900]],['execution',[1400]]]){
+for(const [mode,expected] of [['basic',[660,230,230]],['recovery',[900,400,400]],['black',[900,900,900]]]){
  const u=fighter(),enemies=Array.from({length:5},(_,i)=>({id:'e'+i,hp:10000,max:10000})),hits=[];
  const q=G.hyeokjinInit(u,[u]);q.mode=mode;q.began=1000;q.modeUntil=2500;q.cast={mode,at:2000,amount:0,targets:enemies.map(e=>e.id),done:false,awakened:false};
  G.hyeokjinStep(u,[u],enemies,2000,250,(e,n)=>{hits.push(n);e.hp-=n;return n;});assert.equal(hits.length,expected.length);assert(hits.every((n,i)=>Math.abs(n-expected[i])<1e-8));assert.equal(enemies[4].hp,10000);
  G.hyeokjinStep(u,[u],enemies,2250,250,()=>assert.fail('same cast dealt damage twice'));
 }
-console.log('PASS stronger primary/cleave damage, three-target limit, single-target execution and no duplicate impact');
+console.log('PASS stronger primary/cleave damage, three-target limit and no duplicate impact');
+// A six-hit execution is serialized mid-combo; no re-target, extra full damage or heal farming.
+function executionFixture(low=false){const u=fighter(),enemies=[{id:'one',max:100000,hp:low?30000:100000},{id:'two',max:100000,hp:100000}];const q=G.hyeokjinInit(u,[u]);q.mode='execution';q.began=1000;q.modeUntil=3200;q.cast={mode:'execution',at:1500,amount:0,targets:['one'],tick:0,done:false,awakened:false};return{u,enemies,hits:[],heals:[]};}
+function executionStep(f,time,blocked=false){G.hyeokjinStep(f.u,[f.u],f.enemies,time,250,(e,n,d)=>{const actual=Math.min(e.hp,n);e.hp-=actual;f.hits.push({amount:actual,tick:d.comboTick,to:e.id});return actual;},(kind,e)=>{if(kind==='heal')f.heals.push(e);},blocked);}
+for(const low of [false,true]){const f=executionFixture(low);executionStep(f,1499);assert.equal(f.hits.length,0);executionStep(f,1500);assert.equal(f.hits.length,1);const copy=G.clone(f);for(let t=1750;t<=2750;t+=250){executionStep(f,t);executionStep(copy,t);}assert.deepEqual(f,copy);assert.equal(f.hits.length,6);assert.deepEqual(f.hits.map(h=>h.tick),[0,1,2,3,4,5]);assert(Math.abs(f.hits.reduce((n,h)=>n+h.amount,0)-(low?2100:1400))<1e-8);assert.equal(f.enemies[1].hp,100000);assert(G.validHyeokjin(f.u.hyeokjin));executionStep(f,3000);assert.equal(f.hits.length,6);}
+for(const stop of ['stun','death','target-death']){const f=executionFixture();executionStep(f,1500);if(stop==='death')f.u.hp=0;if(stop==='target-death')f.enemies[0].hp=0;executionStep(f,1750,stop==='stun');assert.equal(f.hits.length,1);assert.equal(f.enemies[1].hp,100000);}
+{const f=executionFixture();f.u.hp=500;f.enemies[0].hp=100;executionStep(f,1500);executionStep(f,2000);assert.equal(f.heals.length,1);assert.equal(f.u.hp,650);assert.equal(f.hits.length,1);}
+{const f=executionFixture();for(const value of [-1,6.1,Infinity])assert(!G.validHyeokjin({...f.u.hyeokjin,cast:{...f.u.hyeokjin.cast,tick:value}}));}
+console.log('PASS six timed X hits, preserved total damage, replay/save parity, one kill heal, locked target and interruption cancellation');
 for(const speed of [1,1.5]){
  const a=make();a.speed=speed;for(const h of a.battle.heroes)h.hp=h.max=1e7;for(const e of a.battle.enemies){e.hp=e.max=1e9;e.atk=1;}
  a.battle.heroes[0].hp=1e6;const b=G.clone(a);G.advance(a,NOW+20000);for(let i=0;i<40;i++)G.advance(b,b.at+500);assert.deepEqual(a,b);assert(G.validate(a));assert(a.battle.heroes[0].hyeokjin.used);assert(a.events.some(e=>e.kind==='hyeokjin-impact'));

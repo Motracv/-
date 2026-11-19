@@ -1893,7 +1893,7 @@ window.SchoolArt = (() => {
       c.restore();
     }
     const berserker=battle.heroes.find(u=>u.id==='hyeokjin');
-    if(battle.phase==='fight')window.SchoolHyeokjinArt?.effects(c,{unit:berserker,time:battle.elapsed+horasInterpolation*1000,source:visualPositions.hyeokjin,targets:battle.enemies.map(e=>({...visualPositions[e.id],id:e.id})),scale:extendedParty?1.3:1.8,reduced,economy});
+    if(battle.phase==='fight')window.SchoolHyeokjinArt?.effects(c,{unit:berserker,time:battle.elapsed+horasInterpolation*1000,source:visualPositions.hyeokjin,targets:battle.enemies.map(e=>({...visualPositions[e.id],id:e.id})),scale:extendedParty?1.3:1.8,reduced,economy,viewport:{width:480,height:280}});
     const gunner=battle.heroes.find(u=>u.id==='kazua');
     if(gunner&&gunner.hp>0&&battle.phase==='fight'&&!(gunner.stunUntil>battle.elapsed)&&!lastEffect(effects,e=>e.kind==='dodge'&&e.to==='kazua'&&time-e.time<.35))window.SchoolKazuaArt?.effects(c,{source:visualPositions.kazua,targets:battle.enemies.filter(e=>e.hp>0).map(e=>visualPositions[e.id]),mode:gunner.kazua?.mode||'idle',age:kazuaFrame(gunner,battle.elapsed+horasInterpolation*1000,battle.elapsed).kazuaAge,time:sceneTime,scale:extendedParty?1.3:1.8,reduced,economy});
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy,window.SchoolOsiaWeaponArt?.equipped(battle.heroes.find(h=>h.id==='osia')));
