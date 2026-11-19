@@ -15,6 +15,15 @@ try{
  assert.equal((await call(null,'coop',{kind:'state'})).status,401);assert.equal((await call(a,'coop',{kind:'state',catalogVersion:1})).status,426);
  let r=await cmd(a,'yeti','create'),id=r.data.room.id;
  await cmd(b,'coop','state');r=await cmd(a,'coop','candidates',{mode:'yeti',roomId:id});assert.equal(r.status,200);assert(r.data.candidates.some(x=>x.id===b.profile.id&&x.online));assert(!r.data.candidates.some(x=>x.id===d.profile.id));assert(!JSON.stringify(r.data).includes('receipts'));assert(!JSON.stringify(r.data).includes('equipment'));
+ // Presence is per window: backgrounding one window cannot hide another active one.
+ t.sqlite.prepare('DELETE FROM school_coop_presence WHERE account_id=?').run(b.profile.id);
+ const one=crypto.randomUUID(),two=crypto.randomUUID(),presence=()=>cmd(a,'coop','candidates',{mode:'yeti',roomId:id});
+ await cmd(b,'coop','state',{clientId:one});assert((await presence()).data.candidates.find(x=>x.id===b.profile.id).online);
+ await cmd(b,'coop','state',{clientId:two});await cmd(b,'coop','presence',{clientId:one,online:false});assert((await presence()).data.candidates.find(x=>x.id===b.profile.id).online);
+ await cmd(b,'coop','presence',{clientId:two,online:false});assert(!(await presence()).data.candidates.find(x=>x.id===b.profile.id).online);
+ await cmd(b,'coop','state',{clientId:one});now+=16000;assert(!(await presence()).data.candidates.find(x=>x.id===b.profile.id).online,'disconnected windows expire');await cmd(b,'coop','state',{clientId:one});assert((await presence()).data.candidates.find(x=>x.id===b.profile.id).online);
+ assert.equal((await cmd(b,'coop','state',{clientId:'invalid'})).status,400);await cmd(c,'coop','state',{clientId:crypto.randomUUID()});
+ console.log('PASS per-window online/offline presence, immediate background departure, remaining active window, timeout and reconnect');
  assert.equal((await invite(d,b,'yeti',id)).status,409);assert.equal((await invite(a,d,'yeti',id)).status,403);
  const requestId=crypto.randomUUID();const sends=await Promise.all([invite(a,b,'yeti',id,{requestId}),invite(a,b,'yeti',id,{requestId})]);assert(sends.every(x=>x.status===200));assert.equal(sends[0].data.id,sends[1].data.id);let invitation=sends[0].data.id;
  r=await cmd(b,'coop','state');assert.equal(r.data.incoming.length,1);assert.equal(r.data.incoming[0].name,'초대단장0');assert.equal((await accept(d,invitation)).status,404);
@@ -43,5 +52,6 @@ try{
  await cmd(a,'raid','ready',{roomId:raidId});await cmd(b,'raid','ready',{roomId:raidId});assert.equal((await cmd(a,'raid','start',{roomId:raidId})).status,200);assert.equal((await cmd(b,'raid','state')).data.remaining,4);
  console.log('PASS revoked friendship, guild-only raid invitations, cross-mode accept locking; entry spent only at explicit start');
  t.sqlite.prepare('DELETE FROM accounts WHERE id=?').run(c.profile.id);assert.equal(t.sqlite.prepare('SELECT COUNT(*) n FROM school_coop_invites WHERE sender=? OR target=?').get(c.profile.id,c.profile.id).n,0);assert.equal(t.sqlite.prepare('SELECT COUNT(*) n FROM school_coop_presence WHERE account_id=?').get(c.profile.id).n,0);
+ assert.equal(t.sqlite.prepare('SELECT COUNT(*) n FROM school_coop_sessions WHERE account_id=?').get(c.profile.id).n,0);
  console.log('PASS deleted accounts leave no invitations or presence');
 }finally{Date.now=native;t.sqlite.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

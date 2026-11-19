@@ -745,7 +745,7 @@
   const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||title==='osia-oath'&&!!s.bonds?.osia?.read?.includes(3);
 
   const SHARD_LIMIT=1000000000;
-  function shardInfo(s){return {unlocked:s.captain.level>=20,SR:s.shardExchange?.SR||0,SSR:s.shardExchange?.SSR||0,choices:[...STANDARD_SSR],recyclable:Object.entries(s.units).filter(([id,u])=>u.stars===5&&['SR','SSR'].includes(BY_ID[id].rarity)).map(([id,u])=>({id,rarity:BY_ID[id].rarity,shards:u.shards,batch:BY_ID[id].rarity==='SSR'?20:10}))};}
+  function shardInfo(s){return {unlocked:s.captain.level>=20,SR:s.shardExchange?.SR||0,SSR:s.shardExchange?.SSR||0,choices:STANDARD_SSR.filter(id=>!!s.units[id]),recyclable:Object.entries(s.units).filter(([id,u])=>u.stars===5&&['SR','SSR'].includes(BY_ID[id].rarity)).map(([id,u])=>({id,rarity:BY_ID[id].rarity,shards:u.shards,batch:BY_ID[id].rarity==='SSR'?20:10}))};}
   function validShards(s){return s.shardExchange===undefined||s.shardExchange&&typeof s.shardExchange==='object'&&!Array.isArray(s.shardExchange)&&Object.keys(s.shardExchange).length===2&&['SR','SSR'].every(r=>Number.isSafeInteger(s.shardExchange[r])&&s.shardExchange[r]>=0&&s.shardExchange[r]<=SHARD_LIMIT);}
   function validate(s) {
     return !!(s && s.version === 1 && Number.isFinite(s.at) && s.at >= 0 && Number.isInteger(s.seed) &&
@@ -1316,10 +1316,10 @@
         source='SR';cost=count*50;reward=count*5;rarity='SSR';
         fail(w.SR>=cost,'공용 SR 조각이 부족해요.');fail(w.SSR+reward<=SHARD_LIMIT,'공용 조각 보유 한도입니다.');
       }else if(kind==='shard-select'){
-        hero=input.hero;fail(STANDARD_SSR.includes(hero),'상시 SSR만 선택할 수 있어요.');
+        hero=input.hero;fail(STANDARD_SSR.includes(hero),'상시 SSR만 선택할 수 있어요.');fail(!!s.units[hero],'보유한 SSR 캐릭터만 교환할 수 있어요.');
         source='SSR';cost=count*10;reward=count*5;rarity='character';
         fail(w.SSR>=cost,'공용 SSR 조각이 부족해요.');
-        fail(Number.isSafeInteger((s.units[hero]?.shards||s.heroShards?.[hero]||0)+reward),'캐릭터 조각 보유량을 확인해 주세요.');
+        fail(Number.isSafeInteger(s.units[hero].shards+reward),'캐릭터 조각 보유량을 확인해 주세요.');
       }else{
         hero=input.hero;const u=s.units[hero];rarity=BY_ID[hero]?.rarity;
         fail(u?.stars===5&&['SR','SSR'].includes(rarity),'풀각성 SR·SSR만 변환할 수 있어요.');
@@ -1328,7 +1328,7 @@
       }
       s.shardExchange||={SR:0,SSR:0};
       if(source==='character')s.units[hero].shards-=cost;else s.shardExchange[source]-=cost;
-      if(rarity==='character'){if(s.units[hero])s.units[hero].shards+=reward;else{s.heroShards||={};s.heroShards[hero]=(s.heroShards[hero]||0)+reward;}}
+      if(rarity==='character')s.units[hero].shards+=reward;
       else s.shardExchange[rarity]+=reward;
       return {kind,hero,source,cost,rarity,reward,count};
     }

@@ -7,13 +7,16 @@ for(const [roll,rarity] of [[.02,'SR'],[0,'SSR']]){const draws=[roll,0];const re
 const lv19=make();full(lv19);lv19.captain.level=19;let rolls=[.02,0];const r=act(lv19,{kind:'recruit',count:1,banner:'osia'},()=>rolls.shift());assert(!r.results[0].converted);assert.equal(lv19.units[r.results[0].id].shards,10);lv19.captain.level=20;act(lv19,{kind:'shard-recycle',hero:r.results[0].id});assert.equal(lv19.shardExchange.SR,10);
 const ur=make();full(ur);ur.banners.horas.pity=79;rolls=[.99,0];const h=act(ur,{kind:'recruit',count:1,banner:'horas'},()=>rolls.shift());assert.equal(h.results[0].id,'horas');assert.equal(ur.units.horas.shards,30);assert(!h.results[0].converted);
 s.shardExchange={SR:500,SSR:100};const before=G.clone(s);act(s,{kind:'shard-refine',count:5,reward:999999});assert.deepEqual(s.shardExchange,{SR:250,SSR:125});assert.equal(s.gems,before.gems);assert.equal(s.gold,before.gold);
-delete s.units.lava;act(s,{kind:'shard-select',hero:'lava',count:2});assert.equal(s.heroShards.lava,10);assert(!s.units.lava);assert.equal(s.shardExchange.SSR,105);s.banners.osia.guaranteed=false;rolls=[0,.999];const first=act(s,{kind:'recruit',count:1,banner:'osia'},()=>rolls.shift());assert.equal(first.results[0].id,'lava');assert.equal(s.units.lava.shards,10);assert(!s.heroShards.lava);
+delete s.units.lava;assert(!G.shardInfo(s).choices.includes('lava'));const wallet=G.clone(s.shardExchange);reject(s,{kind:'shard-select',hero:'lava',count:2});assert.deepEqual(s.shardExchange,wallet);
+// Legacy banked shards remain available upon first recruitment, but cannot be bought again.
+s.heroShards={lava:10};reject(s,{kind:'shard-select',hero:'lava'});s.banners.osia.guaranteed=false;rolls=[0,.999];const first=act(s,{kind:'recruit',count:1,banner:'osia'},()=>rolls.shift());assert.equal(first.results[0].id,'lava');assert.equal(s.units.lava.shards,10);assert(!s.heroShards.lava);assert(G.shardInfo(s).choices.includes('lava'));act(s,{kind:'shard-select',hero:'lava',count:2});assert.equal(s.units.lava.shards,20);assert.equal(s.shardExchange.SSR,105);
+
 for(const hero of ['spica','horas','ryusion','taeo','__proto__'])reject(s,{kind:'shard-select',hero});
 for(const count of [0,-1,.5,101,'1',Infinity])reject(s,{kind:'shard-refine',count});
 s.units.osia.shards=45;act(s,{kind:'shard-recycle',hero:'osia',count:2});assert.equal(s.units.osia.shards,5);assert.equal(s.shardExchange.SSR,125);reject(s,{kind:'shard-recycle',hero:'osia'});
 const chain=make();full(chain);chain.shardExchange={SR:0,SSR:40};act(chain,{kind:'shard-select',hero:'osia',count:4});act(chain,{kind:'shard-recycle',hero:'osia'});assert.equal(chain.shardExchange.SSR,10,'round trip cannot mint currency');
 assert(G.validate(JSON.parse(JSON.stringify(s))));for(const bad of [{SR:-1,SSR:0},{SR:0.1,SSR:0},{SR:1},{SR:0,SSR:Infinity},{SR:0,SSR:0,UR:1}])assert(!G.validate({...s,shardExchange:bad}));
-console.log('PASS Lv.20 gate, full-awaken SR/SSR conversion, level-19/UR preservation, exact batches, unowned banking/first recruitment, allowlist, invalid inputs, leftovers, no recycling arbitrage, save validation');
+console.log('PASS Lv.20 gate, full-awaken SR/SSR conversion, level-19/UR preservation, exact batches, unowned rejection, owned selection, legacy banking/first recruitment, allowlist, invalid inputs, leftovers, no recycling arbitrage, save validation');
 function tower(floor,id='taeo'){
  const s=make();s.units[id]={level:40,xp:0,stars:0,shards:0};s.team=[id];s.activities.towerBest=floor-1;act(s,{kind:'activity',mode:'tower',floor});
  return s;

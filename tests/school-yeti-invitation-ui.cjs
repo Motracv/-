@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {document,Node}=require('./school-ui-dom.cjs')();document.getElementById=id=>document.querySelector('#'+id);
+const window=new Node();window.SchoolYetiRules={};window.SchoolGuild={avatar:()=>'<img>'};window.SchoolRescue={create:()=>({destroy(){},update(){}})};
+const timers=new Map();let id=0,coop,opened=0,room=null;
+const context={window,document,crypto,performance,Image:class{},sessionStorage:{getItem:()=>null,removeItem(){},setItem(){}},setTimeout:(fn,ms)=>{timers.set(++id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),requestAnimationFrame:()=>1,cancelAnimationFrame(){}};
+vm.runInNewContext(fs.readFileSync('school/yeti.js','utf8')+'\n'+fs.readFileSync('school/coop.js','utf8'),context);
+const modal=new Node('dialog');document.body.append(modal);const request=async(path,data)=>path.endsWith('/yeti')?{room,rewards:[]}:data.kind==='candidates'?{candidates:[]}:{incoming:[]};
+const yeti=window.SchoolYeti.create({scope:()=> 'owner',isCloud:()=>true,isBlocked:()=>false,request,openInvites:(mode,id)=>{opened++;coop.openPicker(mode,id);},openModal(title,html){modal.innerHTML=html;modal.showModal();}});
+coop=window.SchoolCoop.create({request,scope:()=> 'owner',isCloud:()=>true,now:Date.now,blocked:()=>false,inEncounter:()=>true,isLobby:(mode,id)=>yeti.canInvite(id)});
+const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
+const pollYeti=async()=>{const [id,t]=[...timers].find(([,t])=>t.ms===2000);timers.delete(id);await t.fn();await flush();};
+(async()=>{
+ yeti.open();await flush();assert(document.getElementById('yeti-lobby-toolbar').hidden,'empty-room render must not throw');
+ room={id:'yeti-room',status:'lobby',code:'ABCDEFGH',members:[{isMe:true,host:true,name:'단장',online:true,ready:false}]};await pollYeti();
+ const toolbar=document.getElementById('yeti-lobby-toolbar');assert(!toolbar.hidden);assert.equal(document.getElementById('yeti-view').children[0],toolbar,'invitation entry precedes tall battlefield');assert(yeti.canInvite(room.id));
+ document.getElementById('yeti-invite-friends').onclick();await flush();assert.equal(opened,1);const picker=document.getElementById('coop-picker-dialog');assert(picker.open);assert.equal(picker.parentNode,document.body);assert(modal.open);
+ coop.closePicker();assert(modal.open);assert(yeti.canInvite(room.id),'closing invitation window keeps encounter membership');
+ room={...room,members:[...room.members,{isMe:false,host:false,name:'친구',online:true,ready:false}]};await pollYeti();assert(!yeti.canInvite(room.id));assert.equal(document.getElementById('yeti-invite-friends').dataset.unavailable,'true');
+ room={...room,status:'finished'};await pollYeti();assert(toolbar.hidden);yeti.destroy();coop.destroy();assert.equal(timers.size,0);
+ console.log('PASS actual Yeti renderer: empty room, top invitation entry, independent dialog, return to lobby, full-room and finished-room guards');
+})().catch(e=>{console.error(e);process.exitCode=1;});

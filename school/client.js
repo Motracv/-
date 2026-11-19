@@ -24,7 +24,7 @@
   const rarity = id => `<span class="rarity ${G.BY_ID[id].rarity}">${G.BY_ID[id].rarity}</span>`;
   const storage = { get(key, session = false) { try { return (session ? sessionStorage : localStorage).getItem(key); } catch { return null; } }, set(key, value, session = false) { try { (session ? sessionStorage : localStorage).setItem(key, value); return true; } catch { return false; } }, remove(key, session = false) { try { (session ? sessionStorage : localStorage).removeItem(key); } catch {} } };
   let state, mode = 'guest', profile = null, token = null, revision = 0, cloudClock = null, busy = false, pending = null, connected = true;
-  let formationUI=null,coop=null;
+  let formationUI=null,coop=null,notice=null;
   let tab = 'lobby', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
   let confirmedActivityScope = '', confirmedActivityResult = null, dismissedActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null, selectedDungeon = 'daily';
   let recruitCategory = 'heroes';
@@ -91,6 +91,7 @@
     if (busy || pending) return toast('진행 중인 저장을 먼저 확인해 주세요.');
     qol?.close();
     stopTraining(); busy = true;
+    coop?.depart();
     try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
     clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; cloudClock = null; clearPending();
     storage.remove(CLOUD_CACHE, true); storage.set(MODE, 'guest'); mode = 'guest'; connected = true; effects = [];
@@ -98,8 +99,8 @@
     try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
     catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
   }
-  function createYeti(){return window.SchoolYeti?.create({openInvites:(mode,roomId,container)=>coop?.openPicker(mode,roomId,container),request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,refreshRewards:()=>{lastSync=0;return sync();},dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
-  function createRaid(){return window.SchoolRaid?.create({openInvites:(mode,roomId,container)=>coop?.openPicker(mode,roomId,container),request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
+  function createYeti(){return window.SchoolYeti?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,refreshRewards:()=>{lastSync=0;return sync();},dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
+  function createRaid(){return window.SchoolRaid?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
   function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
   function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openYeti:()=>yeti?.open(),openHero:heroDetail,openAccount:accountModal,openCaptain:captainModal}); }
   function damageModal() { insights?.report(state.lastCombatReport?'last':'current'); }
@@ -409,7 +410,7 @@
     const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
     return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
   }
-  async function request(path, data, auth = 'school') {
+  async function request(path, data, auth = 'school', options = {}) {
     let response;
     const payload = path.startsWith('/api/school/') ? { ...data, catalogVersion: G.CATALOG_VERSION } : data || {};
     // Older Android browsers support AbortController but not AbortSignal.timeout.
@@ -417,7 +418,7 @@
     const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), 14000);
     try {
       try {
-        response = await fetch(BASE + path, { method: path.endsWith('/config') ? 'GET' : 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token && auth !== 'public' ? auth === 'school' ? { 'X-Account-Session': token } : { Authorization: `Bearer ${token}` } : {}) }, ...(path.endsWith('/config') ? {} : { body: JSON.stringify(payload) }), signal: controller.signal });
+        response = await fetch(BASE + path, { method: path.endsWith('/config') ? 'GET' : 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token && auth !== 'public' ? auth === 'school' ? { 'X-Account-Session': token } : { Authorization: `Bearer ${token}` } : {}) }, ...(path.endsWith('/config') ? {} : { body: JSON.stringify(payload) }), signal: controller.signal, keepalive:!!options.keepalive });
       } catch { throw Error('저장 서버에 연결하지 못했습니다. 연결 후 다시 시도하세요.'); }
       let body; try { body = await response.json(); } catch { throw Error('저장 서버의 응답을 읽지 못했습니다.'); }
       if (!response.ok && !body.conflict) throw Object.assign(Error(body.error || '요청을 처리하지 못했습니다.'), { status: response.status });
@@ -800,7 +801,7 @@
     maybeShowActivityResult();
   }
   function renderButtons() {
-    formationUI?.controls();coop?.refresh();
+    formationUI?.controls();coop?.refresh();notice?.refresh();
     renderCounter();
     setHidden($('operation-status'), !operation || !busy || operation === 'counter');
     setText($('operation-message'), ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중',quest:'임무 보상 저장 중','quest-all':'임무 보상 모으는 중','gear-equip':'장비 착용 저장 중','gear-unequip':'장비 해제 저장 중','gear-awaken':'장비 각성 저장 중'})[operation] || '저장 확인 중');
@@ -920,13 +921,13 @@
   function refreshShards(){
     const w=G.shardInfo(state);setText($('shard-sr'),fmt(w.SR));setText($('shard-ssr'),fmt(w.SSR));
     document.querySelectorAll('[data-shard-action]').forEach(b=>{const n=Number(b.dataset.count||1),kind=b.dataset.shardAction,u=state.units[b.dataset.hero];
-      b.dataset.unavailable=String(!w.unlocked||(kind==='shard-refine'?w.SR<50*n:kind==='shard-select'?w.SSR<10*n:!u||u.stars!==5||u.shards<Number(b.dataset.cost)));
+      b.dataset.unavailable=String(!w.unlocked||(kind==='shard-refine'?w.SR<50*n:kind==='shard-select'?!w.choices.includes(b.dataset.hero)||w.SSR<10*n:!u||u.stars!==5||u.shards<Number(b.dataset.cost)));
     });
   }
   function shardsModal(count=1){
     const w=G.shardInfo(state);
     const button=(kind,label,extra='')=>`<button class="primary" data-action="${kind}" data-shard-action="${kind}" data-count="${count}" ${extra}>${label}</button>`;
-    openModal('조각 교환소',`<div class="shard-wallet"><span class="shard-sr">◆ 공용 SR 조각<b id="shard-sr">${fmt(w.SR)}</b></span><span class="shard-ssr">◆ 공용 SSR 조각<b id="shard-ssr">${fmt(w.SSR)}</b></span></div>${!w.unlocked?`<div class="shard-section"><h3>단장 Lv.20에 개방</h3><p>현재 Lv.${state.captain.level} · 개방 후 풀각성 SR·SSR 중복 영입이 공용 조각으로 바뀌어요. 지금 모은 캐릭터 조각은 그대로 보관됩니다.</p></div>`:''}<p class="detail-note">풀각 SR 중복 → 공용 SR 10개 · 풀각 SSR 중복 → 공용 SSR 10개<br>R·UR 조각은 기존 방식으로 지급됩니다. 교환에는 보석과 코인이 들지 않아요.</p><section class="shard-section"><h3>교환 수량</h3><select id="shard-batch" aria-label="교환 횟수">${[1,5,10].map(n=>`<option value="${n}" ${count===n?'selected':''}>${n}회 묶음</option>`).join('')}</select><p>공용 SR ${50*count}개 → 공용 SSR ${5*count}개</p>${button('shard-refine',`SR ${50*count}개 소모 · SSR ${5*count}개 받기`)}</section><section class="shard-section"><h3>상시 SSR 캐릭터 조각 선택</h3><p>공용 SSR ${10*count}개 → 선택 캐릭터 조각 ${5*count}개<br>미보유 캐릭터는 조각만 보관되며, 모집으로 처음 영입하면 합쳐집니다.</p><div class="shard-choices">${w.choices.map(id=>`<article class="shard-choice">${portrait(id)}<b>${G.BY_ID[id].name}</b><small>${state.units[id]?`각성 ${state.units[id].stars}/5 · 조각 ${fmt(state.units[id].shards)}`:`미영입 · 보관 조각 ${fmt(state.heroShards?.[id]||0)}`}</small>${button('shard-select',`SSR ${10*count}개 → ${5*count}조각`,`data-hero="${id}" aria-label="${G.BY_ID[id].name} 조각 ${5*count}개 교환"`)}</article>`).join('')}</div><p class="detail-note">UR·한정 SSR·이벤트 전용 캐릭터는 선택 대상에서 제외됩니다.</p></section><section class="shard-section"><h3>기존 풀각 조각 변환</h3><p>SR 캐릭터 조각 10개 → 공용 SR 10개<br>SSR 캐릭터 조각 20개 → 공용 SSR 10개<br>선택한 묶음만 소모하며 남는 조각은 보관됩니다.</p>${w.recyclable.length?w.recyclable.map(u=>`<div class="shard-recycle"><span><b>${G.BY_ID[u.id].name}</b><br>보유 ${fmt(u.shards)}개</span>${button('shard-recycle',`${u.batch*count}개 → ${count*10}개`,`data-hero="${u.id}" data-cost="${u.batch*count}"`)}</div>`).join(''):'<p class="detail-note">풀각성 SR·SSR을 보유하면 이곳에 표시됩니다.</p>'}</section>`,'shards');
+    openModal('조각 교환소',`<div class="shard-wallet"><span class="shard-sr">◆ 공용 SR 조각<b id="shard-sr">${fmt(w.SR)}</b></span><span class="shard-ssr">◆ 공용 SSR 조각<b id="shard-ssr">${fmt(w.SSR)}</b></span></div>${!w.unlocked?`<div class="shard-section"><h3>단장 Lv.20에 개방</h3><p>현재 Lv.${state.captain.level} · 개방 후 풀각성 SR·SSR 중복 영입이 공용 조각으로 바뀌어요. 지금 모은 캐릭터 조각은 그대로 보관됩니다.</p></div>`:''}<p class="detail-note">풀각 SR 중복 → 공용 SR 10개 · 풀각 SSR 중복 → 공용 SSR 10개<br>R·UR 조각은 기존 방식으로 지급됩니다. 교환에는 보석과 코인이 들지 않아요.</p><section class="shard-section"><h3>교환 수량</h3><select id="shard-batch" aria-label="교환 횟수">${[1,5,10].map(n=>`<option value="${n}" ${count===n?'selected':''}>${n}회 묶음</option>`).join('')}</select><p>공용 SR ${50*count}개 → 공용 SSR ${5*count}개</p>${button('shard-refine',`SR ${50*count}개 소모 · SSR ${5*count}개 받기`)}</section><section class="shard-section"><h3>보유한 상시 SSR 조각 선택</h3><p>공용 SSR ${10*count}개 → 선택 캐릭터 조각 ${5*count}개<br>이미 영입한 상시 SSR 캐릭터만 선택할 수 있어요.</p><div class="shard-choices">${w.choices.map(id=>`<article class="shard-choice">${portrait(id)}<b>${G.BY_ID[id].name}</b><small>각성 ${state.units[id].stars}/5 · 조각 ${fmt(state.units[id].shards)}</small>${button('shard-select',`SSR ${10*count}개 → ${5*count}조각`,`data-hero="${id}" aria-label="${G.BY_ID[id].name} 조각 ${5*count}개 교환"`)}</article>`).join('')||'<p class="detail-note">아직 교환할 수 있는 상시 SSR을 보유하지 않았어요.</p>'}</div><p class="detail-note">UR·한정 SSR·이벤트 전용 캐릭터는 선택 대상에서 제외됩니다.</p></section><section class="shard-section"><h3>기존 풀각 조각 변환</h3><p>SR 캐릭터 조각 10개 → 공용 SR 10개<br>SSR 캐릭터 조각 20개 → 공용 SSR 10개<br>선택한 묶음만 소모하며 남는 조각은 보관됩니다.</p>${w.recyclable.length?w.recyclable.map(u=>`<div class="shard-recycle"><span><b>${G.BY_ID[u.id].name}</b><br>보유 ${fmt(u.shards)}개</span>${button('shard-recycle',`${u.batch*count}개 → ${count*10}개`,`data-hero="${u.id}" data-cost="${u.batch*count}"`)}</div>`).join(''):'<p class="detail-note">풀각성 SR·SSR을 보유하면 이곳에 표시됩니다.</p>'}</section>`,'shards');
     $('shard-batch').onchange=e=>shardsModal(Number(e.target.value));renderButtons();
   }
   function towerTraitMarkup(floor){const t=G.towerEncounter(floor);return `<strong>${esc(t.name)} · ${t.sectionStart}~${t.sectionEnd}층</strong>${t.bossFloor?'보스: '+esc(t.boss)+' · ':''}${esc(t.trait)}<small>${esc(t.tip)} · 5층마다 구역 변경</small>`;}
@@ -966,7 +967,7 @@
     $('dungeon-current').innerHTML = !run ? '' : `<div class="run-summary"><h3>${activityTitle(run.kind)} · ${activityLevel(run)}</h3><p>${run.settled ? result ? `${result.won ? '클리어' : '도전 종료'} · ${result.won ? rewardText(result.reward) : result.refunded ? '입장 열쇠 반환 완료' : '보상 없음'}` : '결과 저장 확인 중… 연결되면 결과를 확인할 수 있어요.' : '도전 중이에요. 전투 화면에서 보스의 특수 공격을 확인하세요.'}</p><div class="run-actions">${run.settled ? result ? `<button class="primary" data-activity-result>결과 보기</button>${resultActions(result, info)}` : '<button class="secondary" disabled>저장 확인 중…</button>' : `<button class="primary" data-tab="adventure">전투 보기</button><button class="secondary" data-activity-exit>${run.kind === 'tower' ? '도전 중단 · 모험 복귀' : '포기 · 열쇠 반환'}</button>`}</div></div>`;
     if ($('tower-floor') === document.activeElement) return false;
     const portals=[{id:'daily',name:'방과 후 보급고',label:'일일 던전',desc:'잠든 보급고의 수호자를 물리치고<br>코인과 장비를 획득하세요.'},{id:'tower',name:'뫼비우스의 복도',label:'끝없는 도전',desc:'층마다 달라지는 특성을 공략하고<br>더 높은 곳에 도전하세요.'},{id:'weekly',name:'봉인된 이사장실',label:'주간 보스',desc:'봉인 너머의 강력한 보스를 쓰러뜨리고<br>풍성한 보상을 획득하세요.'}];
-    const portalMarkup=portals.map(p=>`<button class="dungeon-choice ${p.id}" data-dungeon="${p.id}" aria-label="${p.name} 선택"><span class="dungeon-choice-title">${p.name}</span><span class="dungeon-cover"><img src="school/assets/dungeon-${p.id}.png?v=school-coop-invites1" alt="" decoding="async"><span class="dungeon-choice-badge">${p.label}</span><span class="dungeon-choice-status">${p.id==='tower'?`최고 ${fmt(info.tower.best)}층 · 입장 무제한`:`열쇠 ${info[p.id].keys} / ${info[p.id].cap}`}</span><span class="dungeon-choice-enter" aria-hidden="true">선택 <b>›</b></span></span><span class="dungeon-choice-description">${p.desc}</span></button>`).join('');
+    const portalMarkup=portals.map(p=>`<button class="dungeon-choice ${p.id}" data-dungeon="${p.id}" aria-label="${p.name} 선택"><span class="dungeon-choice-title">${p.name}</span><span class="dungeon-cover"><img src="school/assets/dungeon-${p.id}.png?v=school-coop-invites2" alt="" decoding="async"><span class="dungeon-choice-badge">${p.label}</span><span class="dungeon-choice-status">${p.id==='tower'?`최고 ${fmt(info.tower.best)}층 · 입장 무제한`:`열쇠 ${info[p.id].keys} / ${info[p.id].cap}`}</span><span class="dungeon-choice-enter" aria-hidden="true">선택 <b>›</b></span></span><span class="dungeon-choice-description">${p.desc}</span></button>`).join('');
     if($('dungeon-selectors').innerHTML!==portalMarkup)$('dungeon-selectors').innerHTML=portalMarkup;
     let cards = ['daily', 'weekly'].map(kind => {
       const item = info[kind], chosen = item.tiers.find(tier => tier.tier === selectedTiers[kind]) || item.tiers[0];
@@ -1097,7 +1098,7 @@
     if (!$('modal').open) $('modal').showModal(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
   }
-  async function requestModalClose(){if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
+  async function requestModalClose(){if(coop?.closePicker())return;if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
     qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
@@ -1268,7 +1269,8 @@
     }
     equipmentUI = window.SchoolEquipment?.create({getState:()=>state,accountScope,modalKind:()=>modalKind,isBlocked:()=>busy||!!pending||activityAwaitingConfirmation()||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,openHero:heroDetail,toast,play});
     social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti();
-    coop=window.SchoolCoop?.create({request,scope:accountScope,now:serverNow,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,blocked:()=>busy||!!pending||resultPresentationBusy(),inEncounter:()=>['yeti','raid'].includes(modalKind)||activityActive(),openEncounter:kind=>kind==='yeti'?yeti.open():raid.open(),toast,play});
+    notice=window.SchoolNotice?.create({now:serverNow,reduced:()=>reduced});
+    coop=window.SchoolCoop?.create({request,isLobby:(kind,id)=>kind==='yeti'?yeti?.canInvite(id):raid?.canInvite(id),scope:accountScope,now:serverNow,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,blocked:()=>busy||!!pending||resultPresentationBusy(),inEncounter:()=>['yeti','raid'].includes(modalKind)||activityActive(),openEncounter:kind=>kind==='yeti'?yeti.open():raid.open(),toast,play});
     if ($('guild-button')) $('guild-button').onclick=()=>guild?.open();
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();
@@ -1335,6 +1337,7 @@
     // A single Escape goes back exactly one layer; raid exits still reach the server.
     document.addEventListener('keydown',event=>{
       if(event.key!=='Escape'||event.repeat||event.isComposing)return;
+      if(coop?.closePicker()){event.preventDefault();return;}
       if($('school-presentation')?.open){event.preventDefault();Presentation?.skip();return;}
       if($('modal').open){event.preventDefault();requestModalClose();return;}
       if(tab==='dungeons'&&dungeonPortal?.back()){event.preventDefault();return;}

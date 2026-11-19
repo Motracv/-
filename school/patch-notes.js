@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-coop-invites1',
+  version:'school-coop-invites2',
   entries:Object.freeze([
+    {version:'school-coop-invites2',date:'2026.11.19',title:'가려지지 않는 초대 · 접속 상태 확인',items:[
+      '예티 대기실 위쪽의 초대 버튼을 누르면 별도 창에서 친구·길드원을 선택할 수 있어요. 벌룬 초대도 같은 창을 사용해요.',
+      '온라인·오프라인 상태를 자동으로 갱신하고, 받은 초대가 다른 창 뒤로 가려지는 문제를 수정했어요. ESC는 초대 창만 닫아요.',
+      '실험실의 SSR 조각 교환은 보유한 상시 SSR만 선택할 수 있어요. 기존에 보관한 조각은 유지돼요.',
+      '업데이트 예고용 상단 공지 기능을 준비했어요. 실제 공지가 있을 때만 작게 흘러가며, 예정된 표시 시간이 끝나면 사라져요.'
+    ]},
     {version:'school-coop-invites1',date:'2026.11.19',title:'학교 용병단 · 함께 도전해요',items:[
       '안뜰 맨 왼쪽에 학교 용병단 문장을 추가했어요. 편성·교체·육성은 이곳에서, 도감은 용병 정보 확인용으로 분리했어요.',
       '캐릭터 그림의 여백을 정리해 크기와 발 위치를 맞추고 늘어난 그림자를 수정했어요. 용병단 화면은 세로 휴대폰에서도 화면 너비에 맞춰 표시돼요.',

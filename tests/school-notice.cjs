@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {document,Node}=require('./school-ui-dom.cjs')();
+const window={};let now=Date.parse('2026-11-19T03:00:00Z'),config={enabled:false},calls=0,failing=false,held=null,id=0;
+const timers=new Map(),flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
+vm.runInNewContext(fs.readFileSync('school/notice.js','utf8'),{window,document,AbortController,Date,setTimeout:(fn,ms)=>{timers.set(++id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id)});
+const read=()=>document.querySelector('#school-notice'),future=n=>new Date(now+n).toISOString();
+const ui=window.SchoolNotice.create({now:()=>now,fetch:async(url,options)=>{calls++;assert.equal(options.cache,'no-store');assert(url.startsWith('school/notice.json?t='));if(held)return new Promise(r=>held=r);if(failing)throw Error('offline');return{ok:true,json:async()=>config};}});
+const tick=async()=>{const item=[...timers].find(([,x])=>x.ms===15000);assert(item);timers.delete(item[0]);await item[1].fn();await flush();};
+(async()=>{
+ await flush();assert(!read(),'no default update warning');
+ config={enabled:true,message:'<b>곧 업데이트</b>',startsAt:future(-1000),endsAt:future(600000)};await tick();assert(read().popoverOpen);assert.equal(read().querySelector('.notice-track').textContent,config.message,'HTML stays plain text');const node=read();
+ ui.refresh();assert.equal(read(),node);const dialog=new Node('dialog');document.body.append(dialog);dialog.showModal();ui.refresh();assert.equal(read().parentNode,dialog);
+ document.hidden=true;document.emit('visibilitychange');assert(!read());const count=calls;await tick();assert.equal(calls,count);document.hidden=false;document.emit('visibilitychange');await flush();assert(read());
+ failing=true;now+=119000;await tick();assert(read());now+=1001;ui.refresh();assert(!read(),'stale notices cannot persist offline');failing=false;await tick();assert(read());
+ config={enabled:false};await tick();assert(!read());
+ for(const invalid of [{enabled:true,message:'soon'}, {enabled:true,message:'soon',endsAt:'invalid'}, {enabled:true,message:'soon',startsAt:future(10000),endsAt:future(20000)}, {enabled:true,message:'soon',endsAt:future(-1)}, {enabled:true,message:'x'.repeat(181),endsAt:future(20000)}])assert.equal(window.SchoolNotice.active(invalid,now),'');
+ config={enabled:true,message:'끝나는 공지',endsAt:future(1000)};await tick();assert(read());now+=1001;ui.refresh();assert(!read());
+ held=true;const scheduled=[...timers].find(([,t])=>t.ms===15000);timers.delete(scheduled[0]);const pending=scheduled[1].fn();await flush();ui.destroy();const resolve=held;held=null;resolve({ok:true,json:async()=>({enabled:true,message:'늦은 응답',endsAt:future(10000)})});await pending;await flush();assert(!read());assert.equal(timers.size,0);
+ console.log('PASS disabled-by-default notice, scheduled window/expiry, safe plain text, modal visibility, background pause, offline expiry and stale response cleanup');
+})().catch(e=>{console.error(e);process.exitCode=1;});

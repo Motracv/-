@@ -26,8 +26,15 @@ export function createCoop(game,yeti,raids){
   const r=await room(db,invite.mode,invite.room_id,invite.guild_id);
   return live(r,now)&&r.members.some(m=>m.account===invite.sender&&now-m.seen<120000)&&r.members.length<(invite.mode==='yeti'?2:5)&&!r.members.some(m=>m.account===invite.target);
  }
- async function inbox(db,id,now){
-  await db.prepare('INSERT INTO school_coop_presence(account_id,seen_at) VALUES(?,?) ON CONFLICT(account_id) DO UPDATE SET seen_at=excluded.seen_at WHERE seen_at<?').bind(id,now,now-10000).run();
+ async function presence(db,id,now,clientId,online=true){
+  if(!clientId){if(online)await db.prepare('INSERT INTO school_coop_presence(account_id,seen_at) VALUES(?,?) ON CONFLICT(account_id) DO UPDATE SET seen_at=excluded.seen_at WHERE seen_at<?').bind(id,now,now-10000).run();return;}
+  requireCoop(typeof clientId==='string'&&/^[\w-]{16,80}$/.test(clientId),'접속 정보를 다시 확인해 주세요.');
+  if(!online){await db.prepare('DELETE FROM school_coop_sessions WHERE account_id=? AND client_id=?').bind(id,clientId).run();return;}
+  await db.prepare('DELETE FROM school_coop_sessions WHERE account_id=? AND seen_at<?').bind(id,now-60000).run();
+  await db.prepare('INSERT INTO school_coop_sessions(account_id,client_id,seen_at) VALUES(?,?,?) ON CONFLICT(account_id,client_id) DO UPDATE SET seen_at=excluded.seen_at WHERE seen_at<?').bind(id,clientId,now,now-4000).run();
+ }
+ async function inbox(db,id,now,clientId){
+  await presence(db,id,now,clientId);
   const rows=(await db.prepare("SELECT i.*,n.display_name AS name,s.payload FROM school_coop_invites i JOIN school_names n ON n.account_id=i.sender JOIN school_saves s ON s.account_id=i.sender WHERE i.target=? AND i.status='pending' AND i.expires_at>? ORDER BY i.created_at DESC LIMIT 5").bind(id,now).all()).results||[];
   const incoming=[];
   for(const i of rows)if(await valid(db,i,now))incoming.push({id:i.id,mode:i.mode,name:i.name,expiresAt:i.expires_at,...game.publicProfile(JSON.parse(i.payload))});
@@ -45,20 +52,22 @@ export function createCoop(game,yeti,raids){
   const now=Date.now(),signed=await accounts.identity(request,env,now);requireCoop(signed,'계정에 로그인한 뒤 초대할 수 있어요.',401);
   requireCoop(data.catalogVersion===game.CATALOG_VERSION,'게임을 새로고침해 주세요.',426);
   const db=env.DB,id=signed.id;
-  requireCoop(['state','candidates','invite','accept','decline'].includes(data.kind),'지원하지 않는 초대 요청이에요.');
-  if(data.kind==='state')return inbox(db,id,now);
+  requireCoop(['state','presence','candidates','invite','accept','decline'].includes(data.kind),'지원하지 않는 초대 요청이에요.');
+  if(data.kind==='presence'){requireCoop(!!data.clientId&&data.online===false,'접속 정보를 확인해 주세요.');await presence(db,id,now,data.clientId,false);return {serverTime:now};}
+  if(data.kind==='state')return inbox(db,id,now,data.clientId);
   if(data.kind==='candidates'||data.kind==='invite'){
    const {r,gid}=await source(db,id,data,now);
    if(data.kind==='candidates'){
-    const rows=(await db.prepare(`SELECT n.account_id AS id,n.display_name AS name,s.payload,p.seen_at,
+    const rows=(await db.prepare(`SELECT n.account_id AS id,n.display_name AS name,s.payload,
+     CASE WHEN COALESCE(p.seen_at,0)>? OR EXISTS(SELECT 1 FROM school_coop_sessions c WHERE c.account_id=n.account_id AND c.seen_at>?) THEN 1 ELSE 0 END AS online,
      CASE WHEN EXISTS(SELECT 1 FROM school_guild_members a JOIN school_guild_members b ON b.guild_id=a.guild_id WHERE a.account_id=? AND b.account_id=n.account_id) THEN 1 ELSE 0 END AS guildmate
      FROM school_names n JOIN school_saves s ON s.account_id=n.account_id LEFT JOIN school_coop_presence p ON p.account_id=n.account_id
      WHERE n.account_id<>? AND (
        EXISTS(SELECT 1 FROM school_guild_members a JOIN school_guild_members b ON b.guild_id=a.guild_id WHERE a.account_id=? AND b.account_id=n.account_id)
        OR (?='yeti' AND EXISTS(SELECT 1 FROM school_friends f WHERE f.status='accepted' AND ((f.requester=? AND f.target=n.account_id) OR (f.target=? AND f.requester=n.account_id))))
-     ) ORDER BY COALESCE(p.seen_at,0) DESC,n.display_name LIMIT 100`).bind(id,id,id,data.mode,id,id).all()).results||[];
+     ) ORDER BY online DESC,n.display_name LIMIT 100`).bind(now-30000,now-15000,id,id,id,data.mode,id,id).all()).results||[];
     const sent=(await db.prepare("SELECT target,expires_at FROM school_coop_invites WHERE sender=? AND mode=? AND room_id=? AND status='pending' AND expires_at>?").bind(id,data.mode,r.id,now).all()).results||[];
-    return {candidates:rows.filter(n=>!r.members.some(m=>m.account===n.id)).map(n=>({id:n.id,name:n.name,online:now-(n.seen_at||0)<30000,guildmate:!!n.guildmate,invitedUntil:sent.find(i=>i.target===n.id)?.expires_at||0,...game.publicProfile(JSON.parse(n.payload))})),serverTime:now};
+    return {candidates:rows.filter(n=>!r.members.some(m=>m.account===n.id)).map(n=>({id:n.id,name:n.name,online:!!n.online,guildmate:!!n.guildmate,invitedUntil:sent.find(i=>i.target===n.id)?.expires_at||0,...game.publicProfile(JSON.parse(n.payload))})),serverTime:now};
    }
    requireCoop(typeof data.requestId==='string'&&/^[\w-]{16,80}$/.test(data.requestId),'요청 번호를 확인해 주세요.');
    const previous=await db.prepare('SELECT id,expires_at FROM school_coop_invites WHERE sender=? AND request_id=?').bind(id,data.requestId).first();if(previous)return {sent:true,id:previous.id,expiresAt:previous.expires_at,repeated:true};
@@ -76,7 +85,7 @@ export function createCoop(game,yeti,raids){
    return {sent:true,id:result.id,expiresAt:result.expires_at};
   }
   const invite=await db.prepare('SELECT * FROM school_coop_invites WHERE id=? AND target=?').bind(String(data.inviteId||''),id).first();requireCoop(invite,'받은 초대를 찾지 못했어요.',404);
-  if(data.kind==='decline'){const result=await db.prepare("UPDATE school_coop_invites SET status='declined' WHERE id=? AND target=? AND status='pending' AND NOT EXISTS(SELECT 1 FROM school_coop_accepts WHERE account_id=? AND expires_at>?)").bind(invite.id,id,id,now).run();requireCoop(result.meta.changes===1||invite.status!=='pending','초대를 수락하고 있어요. 잠시 기다려 주세요.',409);return inbox(db,id,now);}
+  if(data.kind==='decline'){const result=await db.prepare("UPDATE school_coop_invites SET status='declined' WHERE id=? AND target=? AND status='pending' AND NOT EXISTS(SELECT 1 FROM school_coop_accepts WHERE account_id=? AND expires_at>?)").bind(invite.id,id,id,now).run();requireCoop(result.meta.changes===1||invite.status!=='pending','초대를 수락하고 있어요. 잠시 기다려 주세요.',409);return inbox(db,id,now,data.clientId);}
   const r=await room(db,invite.mode,invite.room_id,invite.guild_id);
   if(invite.status==='accepted'){requireCoop(r&&['lobby','fighting'].includes(r.status)&&r.members.some(m=>m.account===id),'이미 종료되었거나 나간 전투방이에요.',409);return {joined:true,mode:invite.mode,roomId:invite.room_id,repeated:true};}
   const alreadyJoined=r&&['lobby','fighting'].includes(r.status)&&r.members.some(m=>m.account===id)&&await related(db,invite.sender,id,invite.mode,invite.guild_id);
