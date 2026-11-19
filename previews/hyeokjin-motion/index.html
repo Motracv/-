@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111b29"><title>서혁진 · 모션 시안</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101823;color:#eef3fc;font-family:system-ui,sans-serif}main{max-width:900px;margin:auto;padding:28px 18px 40px}header small{color:#9fb5cb;letter-spacing:.12em;font-size:12px}h1{font-size:30px;margin:10px 0}p{color:#adc0d4;line-height:1.7;font-size:14px}nav{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0}button,select,a.download{min-height:46px;border:1px solid #4c6681;border-radius:10px;background:#233449;color:#eef3fc;padding:10px 16px;font:600 15px system-ui;cursor:pointer}button[aria-pressed=true]{background:#cbdcf0;color:#111b29;border-color:#dfecff}button:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #f2cc88;outline-offset:3px}.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}article{border:1px solid #354b63;border-radius:16px;background:#172332;overflow:hidden}article h2{font-size:18px;margin:20px 20px 0}article:nth-child(2) h2{color:#f2b5c0}canvas{display:block;width:100%;height:auto;image-rendering:pixelated}article p{margin:0 20px 18px;font-size:13px}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:18px 0}.controls label{font-size:14px}#status{min-height:24px}footer{border-top:1px solid #354b63;margin-top:24px;padding-top:20px;display:flex;gap:12px;flex-wrap:wrap}a{color:#c2deff}a.download{text-decoration:none}details{margin-top:20px;color:#b7c9dc;font-size:14px;line-height:1.8}summary{cursor:pointer}code{color:#e3eaff}@media(max-width:580px){main{padding:22px 14px}.cards{grid-template-columns:1fr}nav button{flex:1;padding:10px}canvas{max-width:390px;margin:auto}h1{font-size:26px}}
+[hidden]{display:none!important}#skill-panel{max-width:720px;margin:auto}#skill-panel canvas{max-width:640px;margin:auto}#skill-description{min-height:24px}
+</style>
+</head>
+<body><main>
+<header><small>CHARACTER MOTION STUDY</small><h1>서혁진 · 모션 시안</h1><p>기본형·각성형의 대기·이동·평타와 스킬 5종을 확인하세요.<br>기본 모션은 이펙트 없이, 스킬은 전용 동작과 이펙트를 함께 재생합니다.</p></header>
+<nav aria-label="모션 선택"><button data-clip="idle" aria-pressed="false">대기</button><button data-clip="walk" aria-pressed="false">이동</button><button data-clip="attack" aria-pressed="false">평타</button></nav>
+<nav aria-label="스킬 선택"><button data-clip="recovery" aria-pressed="false">죽지 않는 청년</button><button data-clip="transform" aria-pressed="false">폼 체인지</button><button data-clip="black" aria-pressed="false">블랙</button><button data-clip="execution" aria-pressed="false">참수</button><button data-clip="ultimate" aria-pressed="true">궁극기</button></nav>
+<section id="base-cards" class="cards" hidden><article><h2>기본형</h2><canvas id="normal" width="350" height="330" aria-label="서혁진 기본형 애니메이션"></canvas><p>무게를 실어 준비하고, 크게 내려베는 평타</p></article><article><h2>각성형</h2><canvas id="awakened" width="350" height="330" aria-label="서혁진 각성형 애니메이션"></canvas><p>몸을 낮추고, 짧게 준비해 몰아치는 평타</p></article></section>
+<article id="skill-panel"><h2 id="skill-name">내가 지켜온 모든 것</h2><canvas id="skill-canvas" width="640" height="500" aria-label="서혁진 스킬 애니메이션"></canvas><p id="skill-description"></p></article>
+<div class="controls"><button id="play" disabled>불러오는 중…</button><label>재생 속도 <select id="speed"><option value="0.5">0.5배 · 천천히</option><option value="1" selected>1배</option><option value="1.5">1.5배</option></select></label></div>
+<p id="status" role="status">투명 스프라이트를 불러오고 있어요.</p>
+<footer><a class="download" href="hyeokjin-motion-assets.zip" download>스프라이트·애니메이션 자료 받기</a><a class="download" href="ultimate.gif">궁극기 GIF</a><a class="download" href="black.gif">블랙 GIF</a><a class="download" href="execution.gif">참수 GIF</a><a class="download" href="recovery.gif">흡혈 GIF</a><a class="download" href="transform.gif">폼 체인지 GIF</a><a class="download" href="attack.gif">평타 GIF 보기</a><a class="download" href="idle.gif">대기 GIF</a><a class="download" href="walk.gif">이동 GIF</a></footer>
+<details><summary>게임 적용용 자료</summary><p>기본 모션 32프레임·스킬 32프레임, 총 64프레임의 투명 PNG와 프레임 좌표·발 기준점·재생시간이 들어 있는 <code>animation.json</code>을 제공합니다. PNG는 1254×1254이므로 4등분을 정수로 가정하지 말고 JSON의 프레임 좌표를 사용해 주세요. 평타·스킬의 연출상 명중 기준은 각 클립의 hitIndex에 기록되어 있습니다. 실제 전투 판정과 캐릭터 출시는 이번 시안에 포함되지 않습니다.</p></details>
+</main><script>
+
+'use strict';
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let clip='ultimate',playing=!reduced,elapsed=0,last=0,speed=1,data,images={};
+const status=document.getElementById('status'),play=document.getElementById('play');
+function at(frames,a,ms){const total=a.durations.reduce((x,y)=>x+y,0);let t=ms%total;for(let i=0;i<a.frames.length;i++){if(t<a.durations[i])return frames[a.frames[i]];t-=a.durations[i]}return frames[a.frames[0]]}
+function draw(){
+ const skill=data.skills[clip];
+ if(skill){const sheet=data.sheets[skill.sheet],f=at(sheet.frames,skill,elapsed),c=document.getElementById('skill-canvas').getContext('2d'),scale=1.65;c.clearRect(0,0,640,500);c.strokeStyle='#31475f';c.beginPath();c.moveTo(110,400.5);c.lineTo(530,400.5);c.stroke();c.imageSmoothingEnabled=false;c.drawImage(images[skill.sheet],f.x,f.y,f.w,f.h,320-f.pivot.x*scale,400-f.pivot.y*scale,f.w*scale,f.h*scale);return}
+ for(const id of ['normal','awakened']){const form=data.forms[id],c=document.getElementById(id).getContext('2d'),f=at(form.frames,form.animations[clip],elapsed);c.clearRect(0,0,350,330);c.strokeStyle='#31475f';c.beginPath();c.moveTo(35,300.5);c.lineTo(315,300.5);c.stroke();c.imageSmoothingEnabled=false;c.drawImage(images[id],f.x,f.y,f.w,f.h,175-f.pivot.x,300-f.pivot.y,f.w,f.h)}
+}
+function select(){if(!data)return;const skill=data.skills[clip];document.getElementById('base-cards').hidden=!!skill;document.getElementById('skill-panel').hidden=!skill;if(skill){document.getElementById('skill-name').textContent=skill.name+' · '+skill.form;document.getElementById('skill-description').textContent=skill.description;document.getElementById('skill-canvas').setAttribute('aria-label',skill.name+' 애니메이션')}document.querySelectorAll('[data-clip]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.clip===clip)));draw()}
+function tick(now){if(last&&playing&&!document.hidden)elapsed+=Math.min(now-last,100)*speed;last=now;draw();requestAnimationFrame(tick)}
+document.querySelectorAll('[data-clip]').forEach(b=>b.onclick=()=>{clip=b.dataset.clip;elapsed=0;select()});
+play.onclick=()=>{playing=!playing;play.textContent=playing?'일시정지':'재생'};
+document.getElementById('speed').onchange=e=>{speed=Number(e.target.value)};
+document.addEventListener('visibilitychange',()=>{last=0});
+(async()=>{const res=await fetch('animation.json');if(!res.ok)throw Error('metadata');data=await res.json();await Promise.all(Object.entries({...data.forms,...data.sheets}).map(([id,sheet])=>new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>{images[id]=image;resolve()};image.onerror=reject;image.src=sheet.image})));play.disabled=false;play.textContent=playing?'일시정지':'재생';status.textContent='총 64프레임 · 기본 모션 3종 + 스킬 5종 · 발 기준점 적용';select();requestAnimationFrame(tick)})().catch(()=>{status.textContent='그림을 불러오지 못했어요. 아래 GIF 링크로 확인하거나 새로고침해 주세요.'});
+</script></body></html>
