@@ -22,6 +22,9 @@
 .lobby-snow::after{opacity:.22;transform:translateX(41px);animation-duration:36s;background-size:227px 191px,311px 241px}
 .app[data-tab=lobby] .lobby-snow::before,.app[data-tab=lobby] .lobby-snow::after{animation-play-state:running}
 @keyframes lobby-snow-drift{from{translate:-12px -8%}to{translate:18px 42%}}
+.app[data-modal-open=true] :is(#lobby-panel,#tab-recruit) *,
+.app[data-modal-open=true] .lobby-snow::before,
+.app[data-modal-open=true] .lobby-snow::after{animation-play-state:paused!important}
 html[data-motion=reduced] .lobby-snow{display:none}
 @media(prefers-reduced-motion:reduce){.lobby-snow{display:none}}
 @media(max-height:620px) and (orientation:landscape){

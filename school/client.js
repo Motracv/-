@@ -391,7 +391,7 @@
       saveStatus('saved', '기기 저장 완료');
       if (recovered) note('자동 저장 사본에서 기록을 복구했습니다.');
       else if (recoveredWrite) note('');
-      consumeEvents(); if (clientReady) render(); if (actionError) throw actionError; return result;
+      consumeEvents(); if (clientReady) render(!input); if (actionError) throw actionError; return result;
     });
     guestQueue = task.catch(() => {});
     return task.catch(error => {
@@ -714,8 +714,12 @@
     const a = state.activities || {}, run = a.run;
     return [accountScope(),run?.kind,run?.tier,run?.floor,a.daily?.period,a.daily?.used,a.weekly?.period,a.weekly?.used,a.towerBest,run?.id,run?.settled,confirmedActivityResult?.runId,state.best,G.day(serverNow()),selectedTiers.daily,selectedTiers.weekly,selectedTowerFloor,selectedDungeon].join('|');
   }
-  function render() {
-    if (!state) return;
+  let lastUIRender = -Infinity;
+  function render(periodic = false) {
+    if (!state || document.hidden) return;
+    const now = performance.now();
+    if (periodic && now-lastUIRender < (tab==='adventure'&&!$('modal').open?240:480)) return;
+    lastUIRender = now;
     const quests = questSnapshot();
     lobby?.render(state, serverNow(), quests);
     setText($('gold'), fmt(state.gold)); setText($('gems'), fmt(state.gems));
@@ -729,6 +733,29 @@
     setAttr($('captain-button'), 'aria-label', `${state.commanderName || '단장'} Lv.${state.captain.level} · 이름과 랭킹`);
     setWidth($('captain-xp'), `${state.captain.level >= G.CAPTAIN_MAX_LEVEL ? 100 : state.captain.xp / G.captainNeed(state.captain.level) * 100}%`);
     setText($('account-label'), mode === 'cloud' ? '계정 저장' : '게스트'); toggleClass($('account-button'), 'cloud', mode === 'cloud');
+    if (tab === 'adventure' && !$('modal').open) renderBattleHUD();
+    social?.refresh();
+    setText($('offline-summary'), state.offline.seconds ? `${duration(state.offline.seconds)} · 골드 ${fmt(state.offline.gold)} 수령 가능` : '자리를 비워도 최대 8시간까지');
+    const key = panelContentKey();
+    if (key !== renderKey) {
+      renderKey = key;
+      if (tab === 'adventure') renderChapters();
+      if (tab === 'roster') renderRoster();
+      if (tab === 'recruit') renderRecruitment();
+      if (tab === 'supplies') renderSupplies();
+
+    }
+    if (tab === 'dungeons') {
+      const dungeonKey = dungeonContentKey();
+      if (dungeonKey !== dungeonRenderKey && renderDungeons() !== false) dungeonRenderKey = dungeonContentKey();
+    }
+    setHidden($('recruit-dot'), state.gems < G.SSR_RECRUIT_COST[10]);
+    setHidden($('supply-dot'), !(state.offline.seconds || state.daily < G.day(serverNow()) || quests.readyCount > 0));
+    renderButtons();
+    maybeShowActivityResult();
+  }
+  // The campaign still advances while browsing; its hidden DOM need not.
+  function renderBattleHUD() {
     const activity = state.battle.activity;
     setText('stage-number', activity ? `${activityLevel(activity)}${state.activities?.run?.settled && !activityAwaitingConfirmation() ? ' · 결과 보기' : ''}` : G.stageName(state.battle.stage));
     setText('stage-name', activity ? activityTitle(activity.kind) : G.CHAPTERS[G.chapter(state.battle.stage)]);
@@ -738,7 +765,7 @@
     setText($('battle-map').querySelector('span'), activity ? state.activities?.run?.settled ? '결과' : '던전' : '지도');
     setText('wave-label', activity ? activity.kind === 'tower' ? `CORRIDOR · ${fmt(activity.floor)}F` : `BOSS · ${activityLevel(activity)}` : state.battle.boss ? 'BOSS · ' + G.BOSSES[G.chapter(state.battle.stage)] : `WAVE ${state.battle.wave} / 4`);
     toggleClass($('wave-label'), 'boss', !!state.battle.boss);
-    renderBossHUD(); social?.refresh();
+    renderBossHUD();
     const synergy = G.partySynergies?.(state); const synergyText = synergy?.active.map(x=>x.name).join(' · ');
     if ($('party-count')) $('party-count').title = synergyText || '같은 역할 3명 편성 시 파티 보너스';
     if ($('party-synergies')) setText('party-synergies', synergyText || '수호·딜러·치유 3명 → 파티 보너스');
@@ -794,24 +821,6 @@
       setAttr(el, 'aria-label', `${def.name} Lv.${u.level} · 체력 ${Math.round(hp)}% · ${status}${shield ? ` · 보호막 ${fmt(shield)}` : ''} · 눌러서 육성`);
       setAttr(el, 'title', `${def.name} · ${status}`);
     });
-    setText($('offline-summary'), state.offline.seconds ? `${duration(state.offline.seconds)} · 골드 ${fmt(state.offline.gold)} 수령 가능` : '자리를 비워도 최대 8시간까지');
-    const key = panelContentKey();
-    if (key !== renderKey) {
-      renderKey = key;
-      if (tab === 'adventure') renderChapters();
-      if (tab === 'roster') renderRoster();
-      if (tab === 'recruit') renderRecruitment();
-      if (tab === 'supplies') renderSupplies();
-
-    }
-    if (tab === 'dungeons') {
-      const dungeonKey = dungeonContentKey();
-      if (dungeonKey !== dungeonRenderKey && renderDungeons() !== false) dungeonRenderKey = dungeonContentKey();
-    }
-    setHidden($('recruit-dot'), state.gems < G.SSR_RECRUIT_COST[10]);
-    setHidden($('supply-dot'), !(state.offline.seconds || state.daily < G.day(serverNow()) || quests.readyCount > 0));
-    renderButtons();
-    maybeShowActivityResult();
   }
   function renderButtons() {
     formationUI?.controls();coop?.refresh();notice?.refresh();
@@ -1111,14 +1120,14 @@
     $('modal').classList.toggle('shards-modal',kind==='shards');
     $('modal').classList.toggle('insights-modal',['damage','bond'].includes(kind));
     loginGeneration++; modalKind = kind; delete $('modal').dataset.activityResult; $('modal-title').textContent = title; $('modal-content').innerHTML = html;
-    if (!$('modal').open) $('modal').showModal(); $('modal').scrollTop = 0; renderCounter();
+    if (!$('modal').open) $('modal').showModal(); setAttr($('app'), 'data-modal-open', 'true'); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
   }
   async function requestModalClose(){if(coop?.closePicker())return;if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
     qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
-    raid?.destroy(); yeti?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); modalKind = ''; loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
+    raid?.destroy(); yeti?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); setAttr($('app'), 'data-modal-open', 'false'); modalKind = ''; loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
   }
   function codexModal(){
     const owned=Object.keys(state.units).length,claimed=new Set(state.codexClaimed||[]);
@@ -1371,6 +1380,7 @@
     $('modal').addEventListener('close', () => {
       stopTraining();
       if ($('modal').open) return;
+      setAttr($('app'), 'data-modal-open', 'false');
       if (modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
       qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
       delete $('modal').dataset.activityResult; modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
@@ -1451,12 +1461,12 @@
     finishBoot();
     setInterval(() => {
       if (document.hidden || !state) return;
-      if (mode === 'guest' && Date.now() - lastGuestTick >= 250 && !busy && !guestTickPending && (!guestSaveFailed || Date.now() - lastSave > 2000)) {
+      if (mode === 'guest' && Date.now() - lastGuestTick >= 250 && (Date.now()-state.at >= 500 || guestSaveFailed) && !busy && !guestTickPending && (!guestSaveFailed || Date.now() - lastSave > 2000)) {
         lastGuestTick = Date.now(); guestTickPending = true; guestUpdate().then(() => { document.querySelector('.workspace').style.visibility = ''; }).catch(() => {}).finally(() => { guestTickPending = false; });
       }
       // Saving serializes account actions, not the deterministic combat preview.
       // Only confirmed balances are spendable; applyCloud reconciles the result.
-      if (mode === 'cloud' && hasCloudState) { advanceCloudPreview(); consumeEvents(); render(); }
+      if (mode === 'cloud' && hasCloudState) { advanceCloudPreview(); consumeEvents(); render(true); }
       if (mode === 'cloud' && token && Date.now() - lastSync > 3000) { lastSync = Date.now(); sync(); }
     }, 250);
     let canvas = $('battle'), ctx = canvas.getContext('2d', {alpha:false, desynchronized:true});

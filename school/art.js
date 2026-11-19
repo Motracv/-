@@ -1363,6 +1363,7 @@ window.SchoolArt = (() => {
   // A restored main canvas may share a GPU context with cached canvases.
   // Rebuild their pixels lazily; decoded source images and portrait URLs stay.
   function resetRenderCache() {
+    labelMeasure=null;
     backgrounds = new WeakMap();
     osiaPoses.clear(); osiaFrontSources.clear(); lavaPoses.clear(); lavaSources.clear(); spicaPoses.clear(); sprites.clear(); combatLabels.clear(); horasPoses.clear(); horasPortraitSources.clear(); horasFxSources.clear(); horasCutinSource=null;
     lavaPosePixels = spritePixels = combatLabelPixels = horasPosePixels = 0;
@@ -1672,21 +1673,39 @@ window.SchoolArt = (() => {
     }
     for(const u of [...battle.heroes,...battle.enemies]){if(u.hp<=0)continue;const p=positions[u.id];if(!p)continue;const buff=(u.hasteUntil||0)>battle.elapsed,slow=(u.slowUntil||0)>battle.elapsed;if(!buff&&!slow)continue;c.save();c.globalAlpha=.8;c.fillStyle=buff?'#b5f2dd':'#aacbff';c.font='bold 9px sans-serif';c.fillText(buff?'↑↑':'❄',p.x+18,p.y-39);c.restore();}
   }
+  // Size the text cache using the actual drawing transform. Cooperative scenes
+  // draw in a wider logical viewport than campaign; canvas.width/480 inflated
+  // their text to 4x/6x, evicting still-visible amounts on every rapid-fire frame.
+  let labelMeasure=null;
+  const COMBAT_LABEL_PIXELS=4*1024*1024;
   function combatNumber(c,text,x,y,size,color,critical){
-    const resolution=c.canvas.width/480>4?6:c.canvas.width/480>2?4:2;
+    const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d));
+    const resolution=density>2?4:2;
+    text=String(text);
     const key=`${text}:${size}:${color}:${+critical}:${fontRevision}:${resolution}`;
     let label=combatLabels.get(key);
     if(!label){
-      const measure=document.createElement("canvas"),mc=measure.getContext("2d");mc.font=`${size}px Galmuri, monospace`;
-      const textWidth=Math.ceil(mc.measureText(text).width),width=textWidth+(critical?30:8),height=size+14;
+      labelMeasure ||= document.createElement('canvas').getContext('2d');
+      labelMeasure.font=`${size}px Galmuri, monospace`;
+      const textWidth=Math.ceil(labelMeasure.measureText(text).width),width=textWidth+(critical?30:8),height=size+14;
+      const pixels=width*height*resolution*resolution;
+      let measure;
+      // Recycle an evicted surface instead of allocating a new backing store
+      // for every new amount during long sessions. Live labels remain cached.
+      while(combatLabels.size&&combatLabelPixels+pixels>COMBAT_LABEL_PIXELS){
+        const oldest=combatLabels.keys().next().value,old=combatLabels.get(oldest);
+        combatLabelPixels-=old.canvas.width*old.canvas.height;combatLabels.delete(oldest);
+        measure ||= old.canvas;
+      }
+      measure ||= document.createElement('canvas');
       measure.width=width*resolution;measure.height=height*resolution;
+      const mc=measure.getContext('2d');
       mc.scale(resolution,resolution);mc.font=`${size}px Galmuri, monospace`;mc.textAlign="left";
       const tx=critical?25:3,base=size+2;
       mc.lineJoin='round';mc.lineWidth=3.5;mc.strokeStyle='#102038';mc.strokeText(text,tx,base);mc.fillStyle='#102038';mc.fillText(text,tx+1,base+2);mc.fillStyle=color;mc.fillText(text,tx,base);
       mc.fillStyle='#ffffff45';mc.fillRect(tx,base+3,Math.min(textWidth,16),1);
       if(critical)criticalMark(mc,11,base-6,.9);
       label={canvas:measure,width,height,baseline:base,anchor:tx+textWidth/2};
-      while(combatLabels.size&&combatLabelPixels+measure.width*measure.height>2*1024*1024){const oldest=combatLabels.keys().next().value,old=combatLabels.get(oldest);combatLabelPixels-=old.canvas.width*old.canvas.height;combatLabels.delete(oldest);}
       combatLabels.set(key,label);combatLabelPixels+=measure.width*measure.height;
     }else{combatLabels.delete(key);combatLabels.set(key,label);}
     c.drawImage(label.canvas,x-label.anchor,y-label.baseline,label.width,label.height);

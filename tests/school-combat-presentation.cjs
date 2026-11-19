@@ -70,5 +70,5 @@ const context={mode:'cloud',connected:false,hasCloudState:true,hasGuestState:fal
 vm.runInNewContext(animation+'; globalThis.read=animationTime;',context);
 assert.equal(context.read(),1.25,'Losing a save connection does not freeze the independent combat presentation clock');
 assert(client.includes("mode === 'cloud' && hasCloudState && serverNow()-state.at >= 500"),'Visible combat advances its preview while saving/reconnecting');
-assert(client.includes("mode === 'cloud' && hasCloudState) { advanceCloudPreview(); consumeEvents(); render(); }"));
+assert(client.includes("mode === 'cloud' && hasCloudState) { advanceCloudPreview(); consumeEvents(); render(true); }"));
 console.log('PASS campaign preview keeps animating through saving/reconnection; spending authority remains separate');

@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-balance1';
+const RELEASE = 'school-smooth-bond1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -17,7 +17,7 @@ const required = [
   'school/assets/osia/divine-dragon-motion.webp?v=osia-motion1',
   'school/assets/battlefields/chapters-13-15.webp?v=expansion1',
   'school/assets/lobby/shop-shards.webp', 'school/assets/bonds/osia-memory.webp',
-  ...['osia','ian','lumi','lava','ryusion','kazua','spica','horas'].flatMap(id => ['illustration','profile'].map(kind => `school/assets/bonds/${id}-${kind}.webp?v=bond-art1`)),
+  ...['osia','ian','lumi','lava','ryusion','kazua','spica','horas','hyeokjin'].flatMap(id => ['illustration','profile'].map(kind => `school/assets/bonds/${id}-${kind}.webp?v=bond-art1`)),
   'assets/fonts/Galmuri11.woff2', 'assets/fonts/PretendardVariable.woff2',
   'school/assets/osia-sprites.png?v=osia-look4', 'school/assets/lava.png?v=lava1',
   'school/assets/lava-fan-basic.webp?v=lava-fan1', 'school/assets/osia-front.webp?v=osia-look1',
@@ -49,7 +49,7 @@ self.addEventListener('install', event => {
     const html = await (await cache.match(shell)).text();
     const engine = await (await cache.match(url(`school/engine.js?v=${RELEASE}`))).text();
     // A CDN rollout must not activate an old HTML with a new offline engine.
-    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*35\b/.test(engine)) {
+    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*40\b/.test(engine)) {
       await caches.delete(CACHE); throw Error('School release is not ready');
     }
   })());

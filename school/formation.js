@@ -38,7 +38,7 @@ window.SchoolFormation=(()=>{
   function cleanup(){clearTimeout(hold);hold=0;const g=gesture;gesture=null;if(g?.node.hasPointerCapture?.(g.pointer))g.node.releasePointerCapture(g.pointer);ghost?.remove();ghost=null;root.classList.remove('is-placing');root.querySelectorAll('.drop-target').forEach(n=>n.classList.remove('drop-target'));}
   function cancel(){cleanup();selection=null;root.querySelectorAll('[data-form-select]').forEach(n=>{n.setAttribute('aria-pressed','false');n.textContent=ctx.getState()?.team.includes(n.dataset.formSelect)?'자리 변경':'배치';});root.querySelectorAll('.formation-card').forEach(n=>n.classList.remove('is-selected'));controls();hint();}
   function controls(){
-   if(!active())cleanup();
+   if(!active()){if(gesture||ghost)cleanup();return;}
    root.classList.toggle('has-selection',!!selection);
    const team=ctx.getState()?.team||[];
    quickPlace.hidden=!selection||team.length===6||team.includes(selection);

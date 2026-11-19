@@ -27,5 +27,22 @@ const assert=require('node:assert/strict');const {fixture}=require('./account-fi
  for(let chapter=2;chapter<=4;chapter++)assert.equal((await call(a,'action',action(a,{kind:'bond-read',hero:'ryusion',episode:chapter}))).status,200);
  assert.equal((await call(a,'action',action(a,{kind:'profile',avatar:'ryusion-memory',title:'ryusion-oath'}))).status,200);
  const ryusionProfile=await call(a,'profile',{name:'파도의 단장'});assert.equal(ryusionProfile.data.avatar,'ryusion-memory');assert.equal(ryusionProfile.data.title,'ryusion-oath');assert(G.validate(saved(a)));
- console.log('PASS account-owned bond progression, forged rewards rejected, concurrent retry once, duplicate missions, relog persistence, ranked/profile projection and catalog compatibility');
+ // The new UR shares the same authoritative story, reward and public-profile path.
+ assert.equal((await call(b,'action',action(b,{kind:'bond-read',hero:'hyeokjin',episode:1}))).status,400);
+ assert.equal((await call(b,'action',action(b,{kind:'profile',avatar:'hyeokjin-memory',title:'hyeokjin-oath'}))).status,400);
+ next=saved(a);next.units.hyeokjin={level:29,xp:0,stars:0,shards:0};next.bonds.hyeokjin={xp:650,read:[],daily:{day:G.day(next.at),waves:0,bosses:0,dragons:0,earned:0,claimed:[]}};
+ t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(next),a.profile.id);
+ assert.equal((await call(a,'action',action(a,{kind:'bond-read',hero:'hyeokjin',episode:1}))).status,200);
+ assert.equal((await call(a,'action',action(a,{kind:'bond-read',hero:'hyeokjin',episode:2,level:100}))).status,400);
+ for(const [chapter,level]of [[2,30],[3,50],[4,70]]){
+  next=saved(a);next.units.hyeokjin.level=level;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(next),a.profile.id);
+  const read=action(a,{kind:'bond-read',hero:'hyeokjin',episode:chapter});const retries=await Promise.all([call(a,'action',read),call(a,'action',read)]);assert(retries.every(r=>r.status===200));
+ }
+ assert.deepEqual(saved(a).bonds.hyeokjin.read,[1,2,3,4]);
+ assert.equal((await call(a,'action',action(a,{kind:'profile',avatar:'hyeokjin-memory',title:'hyeokjin-oath'}))).status,200);
+ const renewed=(await t.login('bond-a')).data,persisted=(await call(renewed,'state')).data.state;
+ assert(G.bondInfo(persisted,persisted.at,'hyeokjin').dialogue);assert.equal(persisted.profile.avatar,'hyeokjin-memory');assert.equal(persisted.profile.title,'hyeokjin-oath');
+ const hyeokjinRank=await call(renewed,'rankings',{mode:'level'});assert.equal(hyeokjinRank.data.me.avatar,'hyeokjin-memory');
+ const hyeokjinProfile=await call(renewed,'profile',{name:'파도의 단장'});assert.equal(hyeokjinProfile.data.avatar,'hyeokjin-memory');assert.equal(hyeokjinProfile.data.title,'hyeokjin-oath');assert(G.validate(saved(a)));
+ console.log('PASS account-owned bond progression, forged rewards rejected, concurrent retry once, duplicate missions, relog persistence, ranked/profile projection and catalog compatibility; Hyeokjin chapters, growth gates, avatar/title/dialogue and public display');
  }finally{Date.now=nativeNow;t.sqlite.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

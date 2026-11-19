@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 39;
+  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 40;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -928,7 +928,8 @@
     ['ryusion','방패 뒤의 자리','대지의 수호자','함께 버티는 방패','내 뒤에만 숨지 않아도 돼. 오늘은 나란히 서자.',['낡은 방패의 흠집','구하지 못한 문','대신 맞는다는 것','나란히 선 사람들']],
     ['kazua','마지막 탄피','귀환의 사수','살아 돌아온 마지막 탄환','마지막 한 발은 남겨 둘게. 끝을 내려고가 아니라, 함께 돌아가려고.',['이름 없는 탄피','혼자 남은 교전','방아쇠에서 뗀 손','귀환 신호']],
     ['spica','녹지 않는 편지','첫봄의 설녀','겨울 끝의 약속','천천히 가도 괜찮아. 이번 봄은 너희와 같이 기다릴게.',['눈 속의 우편함','멈춘 겨울','기다리는 속도','첫봄의 답장']],
-    ['horas','떨어지지 않은 별','벚꽃 아래의 별','별의 귀환을 기다리는 자','오늘 밤의 별은 같이 세자. 하나쯤 놓쳐도 다시 찾으면 되니까.',['다섯 개의 빈자리','빗나간 별','의식 밖의 소원','돌아오는 별빛']]
+    ['horas','떨어지지 않은 별','벚꽃 아래의 별','별의 귀환을 기다리는 자','오늘 밤의 별은 같이 세자. 하나쯤 놓쳐도 다시 찾으면 되니까.',['다섯 개의 빈자리','빗나간 별','의식 밖의 소원','돌아오는 별빛']],
+    ['hyeokjin','돌아오는 사람의 이름','새벽에 돌아온 청년','너까지 지켜낸 약속','다녀올게. 이번에 지켜야 할 사람에는 나도 넣어 뒀어.',['웃음 뒤의 빈자리','거울 너머의 목소리','다섯 초 뒤의 약속','내가 지켜갈 모든 것']]
   ].map(([id,name,avatarName,titleName,quote,titles])=>[id,Object.freeze({id,name,avatar:id+'-memory',title:id+'-oath',avatarName,titleName,quote,titles})])));
   const BOND_EPISODES = Object.freeze([
     {id:1,level:1,unitLevel:1,title:'낯선 교실의 파도',reward:'이야기'},

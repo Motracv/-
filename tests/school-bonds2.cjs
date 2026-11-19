@@ -22,4 +22,4 @@ for(const id of ['ryusion','kazua']){assert(!G.shardInfo(s).choices.includes(id)
 assert.equal(s.shardExchange.SSR,30);for(const id of ['horas','spica','__proto__']){const before=G.clone(s);assert.throws(()=>G.action(s,{kind:'shard-select',hero:id},now));assert.deepEqual(s,before);}
 for(const id of ['taeo','__proto__','missing'])assert.throws(()=>G.action(s,{kind:'bond-read',hero:id,episode:1},now));
 s.units.osia=unit(1);s.bonds={osia:record(650,[1,2,3,4])};s.bonds.osia.daily.earned=200;s.profile={avatar:'osia-memory',title:'osia-oath',beta:true};assert(G.validate(s));assert(G.bondInfo(s).episodes.every(e=>e.unlocked));assert.equal(G.publicProfile(s).avatar,'osia-memory');
-console.log('PASS all eight companions, growth gates, retained old unlocks, per-companion daily caps, real combat gain, forged cosmetic rejection and owned pickup shard exchange');
+console.log('PASS all nine companions, growth gates, retained old unlocks, per-companion daily caps, real combat gain, forged cosmetic rejection and owned pickup shard exchange');

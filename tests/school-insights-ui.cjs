@@ -20,7 +20,7 @@ const ui=window.SchoolInsights.create({getState:()=>s,scope:()=>scope,now:()=>s.
  s.bonds.osia.daily.waves=10;ui.refresh(true);const claim=select('[data-bond-mission]').filter(b=>b.dataset.bondMission==='waves').at(-1);await claim.onclick();assert.equal(dispatches.at(-1).kind,'bond-mission');assert.equal(s.bonds.osia.xp,8);assert(s.bonds.osia.daily.claimed.includes('waves'));
  for(const id of Object.keys(G.BOND_CHARACTERS)){
   s.units[id]={level:70,xp:0,stars:1,shards:0};s.bonds[id]={xp:650,read:[],daily:{day:G.day(s.at),waves:0,bosses:0,dragons:0,earned:0,claimed:[]}};
-  ui.bond(id);assert.equal(select('[data-bond-hero]').length,8);assert(nodes.get('bond-content').innerHTML.includes(G.BOND_CHARACTERS[id].name));
+  ui.bond(id);assert.equal(select('[data-bond-hero]').length,Object.keys(G.BOND_CHARACTERS).length);assert(nodes.get('bond-content').innerHTML.includes(G.BOND_CHARACTERS[id].name));
   select('[data-episode]').find(b=>b.dataset.episode==='1').onclick();const story=id==='osia'?window.SchoolInsights.STORIES:window.SchoolBondStories[id];
   for(let n=1;n<story[0].length;n++)await nodes.get('bond-next').onclick();await nodes.get('bond-next').onclick();
   assert.equal(dispatches.at(-1).hero,id);assert.deepEqual(s.bonds[id].read,[1]);
