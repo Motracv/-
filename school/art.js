@@ -1838,6 +1838,7 @@ window.SchoolArt = (() => {
       else if(strongHit){const age=time-strongHit.time,decay=1-age/.16;c.translate(Math.sin(age*75)*1.4*decay,Math.cos(age*65)*.7*decay);}
     }
     const horasInterpolation = Math.max(0, Math.min(.5, time - (state.simTime || 0) / 1000));
+    if(battle.phase==='fight'){const h=battle.heroes.find(u=>u.id==='hyeokjin'),clock=battle.elapsed+horasInterpolation*1000;window.SchoolHyeokjinArt?.field(c,h,clock,480,280,reduced);const shake=window.SchoolHyeokjinArt?.shake(h,clock,reduced);if(shake)c.translate(shake.x,shake.y);}
     const lifecycle = sceneLife(c.canvas, battle, time, effects);
     const positions = {};
     const partyPositions = extendedParty ? partyFront : partySmall;
@@ -1892,7 +1893,7 @@ window.SchoolArt = (() => {
       c.restore();
     }
     const berserker=battle.heroes.find(u=>u.id==='hyeokjin');
-    if(battle.phase==='fight')window.SchoolHyeokjinArt?.effects(c,{unit:berserker,time:battle.elapsed+horasInterpolation*1000,source:visualPositions.hyeokjin,targets:battle.enemies.map(e=>visualPositions[e.id]),scale:extendedParty?1.3:1.8,reduced,economy});
+    if(battle.phase==='fight')window.SchoolHyeokjinArt?.effects(c,{unit:berserker,time:battle.elapsed+horasInterpolation*1000,source:visualPositions.hyeokjin,targets:battle.enemies.map(e=>({...visualPositions[e.id],id:e.id})),scale:extendedParty?1.3:1.8,reduced,economy});
     const gunner=battle.heroes.find(u=>u.id==='kazua');
     if(gunner&&gunner.hp>0&&battle.phase==='fight'&&!(gunner.stunUntil>battle.elapsed)&&!lastEffect(effects,e=>e.kind==='dodge'&&e.to==='kazua'&&time-e.time<.35))window.SchoolKazuaArt?.effects(c,{source:visualPositions.kazua,targets:battle.enemies.filter(e=>e.hp>0).map(e=>visualPositions[e.id]),mode:gunner.kazua?.mode||'idle',age:kazuaFrame(gunner,battle.elapsed+horasInterpolation*1000,battle.elapsed).kazuaAge,time:sceneTime,scale:extendedParty?1.3:1.8,reduced,economy});
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy,window.SchoolOsiaWeaponArt?.equipped(battle.heroes.find(h=>h.id==='osia')));

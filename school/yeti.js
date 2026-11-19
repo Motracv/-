@@ -73,8 +73,9 @@ window.SchoolYeti=(()=>{
    const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;c.setTransform(width/1000,0,0,height/560,0,0);c.imageSmoothingEnabled=false;
    c.fillStyle='#142a45';c.fillRect(0,0,1000,560);if(bg.complete&&bg.naturalWidth)c.drawImage(bg,0,0,1000,560);
    events=timeline?.events(now)||events.filter(e=>now-e.shown<(e.breath?4750:2200));
-   const visual=timeline?.view(now),b=visual||data?.room?.battle,live=data?.room?.status==='fighting',time=b?(visual?timeline.clock(now):b.elapsed+(live?Math.max(0,now-received):0)):0,reduced=ctx.reduced?.(),gunners=[];
+   const visual=timeline?.view(now),b=visual||data?.room?.battle,live=data?.room?.status==='fighting',time=b?(visual?timeline.clock(now):b.elapsed+(live?Math.max(0,now-received):0)):0,reduced=ctx.reduced?.(),gunners=[],berserkers=[];
    events=[...events];
+   if(live){const units=(b?.teams||[]).filter(t=>!t.frozen&&!t.withdrawn).flatMap(t=>t.units).filter(u=>u.id==='hyeokjin');window.SchoolHyeokjinArt?.field(c,units,time,1000,560,reduced);const shake=window.SchoolHyeokjinArt?.shake(units[0],time,reduced);if(shake)c.translate(shake.x,shake.y);}
    if(live)for(let ti=0;ti<(b?.teams.length||0);ti++)for(const u of b.teams[ti].units)if(u.breath&&!events.some(e=>e.team===ti&&e.id===u.id&&e.kind==='cast'&&e.breath)){
     const shown=now-(time-u.breath.began);events.push({kind:'cast',team:ti,id:u.id,breath:true,stage:4,shown},{kind:'dragon',team:ti,id:u.id,breath:true,shown});
    }
@@ -91,7 +92,7 @@ window.SchoolYeti=(()=>{
      const age=cast?(now-cast.shown)/1000:-1,breath=breaths.findLast(e=>e.team===ti&&e.id===u.id),breathAge=breath?(now-breath.shown)/1000:undefined,motion=breath&&window.SchoolOsiaBreathArt?window.SchoolOsiaBreathArt.motion(breathAge,reduced):cast?window.SchoolArt.poseForSkill(u.id,cast.stage||1,age,reduced):null;
      const sampledFrame=window.SchoolArt.kazuaFrame(u,time,b.elapsed),gunFrame=window.SchoolCombatFeedback?.kazuaPresentation?.(u,ti,events,now,sampledFrame)||sampledFrame,spear=u.id==='osia'?events.findLast(e=>e.kind==='osia-drowning'&&e.team===ti&&e.shown<=now):null;
      window.SchoolArt.hero(c,u.id,p.x+(motion?.dx||0),p.y+(motion?.dy||0),1.3,{kazuaActive:live,...gunFrame,...window.SchoolArt.hyeokjinFrame?.(u,time),exclusive:u.exclusive,osiaBreathAge:breathAge,osiaSpearAge:spear?(now-spear.shown)/1000:undefined,time:now/1000,reduced,dead:u.hp<=0,frozen:!!team.frozen,stunned:u.stunUntil>time,taunting:u.id==='ryusion'&&window.SchoolRPG.ryusionGuard(team.units,time).taunting,attack:!!hit,attackAge:hit?(now-hit.shown)/1000:undefined,pose:motion?.pose,motion,casting:!!cast,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0});
-     if(live&&u.id==='hyeokjin'&&!team.frozen&&!team.withdrawn)window.SchoolHyeokjinArt?.effects(c,{unit:u,time,source:p,targets:[{x:790,y:450,aimY:285}],scale:1.3,reduced,economy:width<900});
+     if(live&&u.id==='hyeokjin'&&!team.frozen&&!team.withdrawn)berserkers.push({unit:u,time,source:p,scale:1.3,reduced,economy:width<900});
      if(live&&u.id==='kazua'&&u.hp>0&&!team.frozen&&!team.withdrawn&&!(u.stunUntil>time))gunners.push({source:p,mode:gunFrame.kazuaMode||u.kazua?.mode||'idle',age:gunFrame.kazuaAge,time:now/1000,scale:1.3,reduced,economy:width<900});
      if(u.id==='spica'&&cast&&u.hp>0&&!team.frozen)window.SchoolArt.spicaSkillEffect?.(c,p,team.units.flatMap((ally,ai)=>ally.hp>0?[pos(ti,ai)]:[]),[{x:790,y:350}],age,reduced,.8);
      const heal=events.findLast(e=>e.kind==='heal'&&e.team===ti&&e.id===u.id&&e.shown<=now),visual=health?.sample(ti+':'+u.id,u.hp,u.max,now/1000,reduced,heal?{time:heal.shown/1000}:null)||{ratio:u.hp/u.max};
@@ -106,6 +107,7 @@ window.SchoolYeti=(()=>{
    const bossHit=events.findLast(e=>e.kind==='hit'&&e.amount>0&&e.shown<=now&&now-e.shown<200);
    if(atlas.complete&&atlas.naturalWidth)window.SchoolArt.hitSprite(c,atlas,[(pose%3)*512,Math.floor(pose/3)*512,512,512,bx-256*scale,by-anchors[pose]*scale,512*scale,512*scale],bossHit?(now-bossHit.shown)/1000:1);
    else{c.fillStyle='#c4edff';c.beginPath();c.ellipse(bx,by-100,100,110,0,0,Math.PI*2);c.fill();}
+   for(const berserker of berserkers)window.SchoolHyeokjinArt?.effects(c,{...berserker,targets:[{x:bx,y:by,aimY:by-165}]});
    for(const gunner of gunners)window.SchoolKazuaArt?.effects(c,{...gunner,targets:[{x:bx,y:by,aimY:by-165}]});
    if(live&&window.SchoolOsiaWeaponArt)for(const e of events.filter(e=>e.shown<=now&&now-e.shown<(e.breath?4750:e.kind==='osia-drowning'?2150:1850)&&['dragon','osia-drowning'].includes(e.kind)).slice(-6)){
     const team=b?.teams[e.team],index=team?.units.findIndex(u=>u.id==='osia'),unit=team?.units[index];

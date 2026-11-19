@@ -15,6 +15,10 @@ for(const mode of Object.keys(G.HYEOKJIN_MOVES)){
 }
 const u={id:'hyeokjin',hp:10,hyeokjin:{mode:'ultimate',began:2000,modeUntil:4300,used:true,until:9000,cast:{at:3300}}};
 const f=A.frame(u,3300),p=A.pose(f),clip=A.DATA.skills.ultimate;assert.equal(p.rect,A.DATA.sheets[clip.sheet].frames[clip.frames[clip.hitIndex]]);
+const start=A.phase(u,2000),hit=A.phase(u,3300);assert.equal(start.flight,0);assert(Math.abs(hit.flight-1)<1e-8);assert.equal(hit.after,0);
+const launchAt=2000+start.launch*1000;assert(A.phase(u,launchAt+100).flight>0);assert(A.phase(u,3299).flight<1);
+for(const reduced of [false,true]){A.field(c,[u,u],3300,500,320,reduced);assert.equal(c.globalAlpha,1);assert.equal(c.globalCompositeOperation,'source-over');const shake=A.shake(u,3350,reduced);assert(Math.abs(shake.x)<=2.4&&Math.abs(shake.y)<=1.2);if(reduced)assert.equal(shake.x+shake.y,0);}
+u.stunUntil=9999;assert.equal(A.phase(u,3300),null);u.stunUntil=0;u.hp=0;assert.equal(A.phase(u,3300),null);
 for(const file of ['school.html','school-sw.js'])assert(fs.readFileSync(file,'utf8').includes('hyeokjin-art.js'));
 console.log('PASS real decoded atlases, all 8 motions × both forms × reduced/normal, bounded crops, stable transforms, death/stun and exact ultimate impact-frame mapping');
 })().catch(e=>{console.error(e);process.exitCode=1;});

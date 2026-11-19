@@ -22,11 +22,19 @@ console.log('PASS independent UR pity, SSR preserves UR count, hard pity only Hy
  assert.equal(G.hyeokjinGuard(u,all,2000,9999),0);assert.equal(u.hyeokjin.lastUntil,7000);assert.equal(u.hyeokjin.until,9000);G.hyeokjinRefresh(u,all,3000);assert.equal(u.hyeokjin.lastUntil,7000);
 }
 console.log('PASS lethal threshold protection, exact 8s expiry, once-only last survivor, independent overlapping clocks and actual-damage capped lifesteal');
-function ult(count=3,blocked=false,pool=5000){const u=fighter(),enemies=Array.from({length:count},(_,i)=>({id:'e'+i,hp:1e5,max:1e5})),hits=[],events=[];G.hyeokjinInit(u,[u]);u.hp-=G.hyeokjinGuard(u,[u],1000,900);u.hyeokjin.total=pool;
+function ult(count=3,blocked=false,pool=10000){const u=fighter(),enemies=Array.from({length:count},(_,i)=>({id:'e'+i,hp:1e5,max:1e5})),hits=[],events=[];G.hyeokjinInit(u,[u]);u.hp-=G.hyeokjinGuard(u,[u],1000,900);u.hyeokjin.total=pool;
  const step=t=>G.hyeokjinStep(u,[u],enemies,t,250,(e,n,d)=>{e.hp-=n;hits.push({n,...d});return n;},(kind,e)=>events.push({kind,...e}),blocked&&t>=3000);
  for(let t=2000;t<=8000;t+=250)step(t);return{u,enemies,hits,events};}
-const a=ult();assert.equal(a.events.filter(e=>e.kind==='hyeokjin-mode'&&e.mode==='ultimate').length,1);const burst=a.hits.filter(h=>h.ultimate);assert.equal(burst.length,3);assert.deepEqual(burst.map(h=>h.n),[2100,450,450]);assert(burst.every(h=>h.fixed));assert.equal(ult(1).hits.filter(h=>h.ultimate)[0].n,3000);assert.equal(ult(1,false,0).hits.filter(h=>h.ultimate).length,0);assert.equal(ult(3,true).hits.filter(h=>h.ultimate).length,0);assert(ult(3,true).events.some(e=>e.kind==='hyeokjin-cancel'));
-console.log('PASS one ultimate, 3000% cap, 70/30 split or full solo damage, zero-pool suppression and interrupted cast cancellation');
+const a=ult();assert.equal(a.events.filter(e=>e.kind==='hyeokjin-mode'&&e.mode==='ultimate').length,1);const burst=a.hits.filter(h=>h.ultimate);assert.equal(burst.length,3);assert.deepEqual(burst.map(h=>h.n),[8400,1800,1800]);assert(burst.every(h=>h.fixed));assert.equal(ult(1).hits.filter(h=>h.ultimate)[0].n,12000);assert.equal(ult(1,false,0).hits.filter(h=>h.ultimate)[0].n,2000);assert.equal(ult(3,true).hits.filter(h=>h.ultimate).length,0);assert(ult(3,true).events.some(e=>e.kind==='hyeokjin-cancel'));
+console.log('PASS one ultimate, 12000% cap, 70/30 split or full solo damage, minimum 2000% strike without previous hits and interrupted cast cancellation');
+// Cleave must stop at three living enemies; execution remains strictly single-target.
+for(const [mode,expected] of [['basic',[660,230,230]],['recovery',[900,400,400]],['black',[900,900,900]],['execution',[1400]]]){
+ const u=fighter(),enemies=Array.from({length:5},(_,i)=>({id:'e'+i,hp:10000,max:10000})),hits=[];
+ const q=G.hyeokjinInit(u,[u]);q.mode=mode;q.began=1000;q.modeUntil=2500;q.cast={mode,at:2000,amount:0,targets:enemies.map(e=>e.id),done:false,awakened:false};
+ G.hyeokjinStep(u,[u],enemies,2000,250,(e,n)=>{hits.push(n);e.hp-=n;return n;});assert.equal(hits.length,expected.length);assert(hits.every((n,i)=>Math.abs(n-expected[i])<1e-8));assert.equal(enemies[4].hp,10000);
+ G.hyeokjinStep(u,[u],enemies,2250,250,()=>assert.fail('same cast dealt damage twice'));
+}
+console.log('PASS stronger primary/cleave damage, three-target limit, single-target execution and no duplicate impact');
 for(const speed of [1,1.5]){
  const a=make();a.speed=speed;for(const h of a.battle.heroes)h.hp=h.max=1e7;for(const e of a.battle.enemies){e.hp=e.max=1e9;e.atk=1;}
  a.battle.heroes[0].hp=1e6;const b=G.clone(a);G.advance(a,NOW+20000);for(let i=0;i<40;i++)G.advance(b,b.at+500);assert.deepEqual(a,b);assert(G.validate(a));assert(a.battle.heroes[0].hyeokjin.used);assert(a.events.some(e=>e.kind==='hyeokjin-impact'));

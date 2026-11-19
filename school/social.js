@@ -526,6 +526,7 @@
     }
     function draw() {
       scenery();c.setTransform(1,0,0,1,0,0);c.drawImage(background,0,0);c.setTransform(scale,0,0,scale,0,0);c.imageSmoothingEnabled=false;
+      if(!finished){const hyeok=units.flat().filter(u=>u.id==='hyeokjin');window.SchoolHyeokjinArt?.field(c,hyeok,clock,960,420,reduced);const shake=window.SchoolHyeokjinArt?.shake(hyeok[0],clock,reduced);if(shake)c.translate(shake.x,shake.y);}
       const breathCaster=units.flat().find(u=>Number.isFinite(u.breathAt)&&clock-u.breathAt>=0&&clock-u.breathAt<4750&&u.hp>0&&!(u.stunUntil>clock));
       if(!finished&&breathCaster)window.SchoolOsiaBreathArt?.field(c,(clock-breathCaster.breathAt)/1000,960,420,reduced);
       let impact=null;
@@ -549,7 +550,7 @@
         if(unit.shield>0){c.fillStyle='#9dd4e2';c.fillRect(position.x-37,position.y+16,74*Math.min(1,unit.shield/Math.max(1,unit.max)),3);}
         c.font='9px Galmuri,monospace';c.textAlign='center';c.fillStyle=unit.hp>0?'#edf0e5':'#93a0a6';c.fillText(unit.name || window.SchoolRPG.BY_ID[unit.id]?.name || unit.id,position.x,position.y+30);
       });
-      if(!finished)for(const unit of units.flat().filter(u=>u.id==='hyeokjin'))window.SchoolHyeokjinArt?.effects(c,{unit,time:clock,source:positions.get(`${unit.side}:${unit.id}`),targets:units[1-unit.side].map(u=>positions.get(`${u.side}:${u.id}`)),scale:2.3,reduced,economy:cssWidth<640});
+      if(!finished)for(const unit of units.flat().filter(u=>u.id==='hyeokjin'))window.SchoolHyeokjinArt?.effects(c,{unit,time:clock,source:positions.get(`${unit.side}:${unit.id}`),targets:units[1-unit.side].map(u=>({...positions.get(`${u.side}:${u.id}`),id:u.id})),scale:2.3,reduced,economy:cssWidth<640});
       for(const gunner of gunners)window.SchoolKazuaArt?.effects(c,gunner);
       if(!finished)window.SchoolArt?.spicaBlizzard?.(c,{x:0,y:95,width:960,height:325},clock,spicaUntil,reduced,cssWidth<640);
       effects=effects.filter(event=>clock-event.t<(event.kind==='osia-breath'?4750:event.kind.startsWith('horas-')?2600:event.from==='osia'&&(event.kind==='osia-drowning'||event.kind==='skill'&&event.stage===4)?2200:800));
