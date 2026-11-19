@@ -581,6 +581,7 @@
         c.save();if(side){c.translate(960,0);c.scale(-1,1);}
         window.SchoolArt?.horasVisualEffects?.(c,battle,recent,p,clock/1000,reduced,false,0,!!window.SchoolBattlePolish);c.restore();
       }
+      window.SchoolCombatFeedback?.drawNumbers(c,effects,clock/1000,id=>positions.get(id),{format:'arena',scale:1.3,reduced,limit:96});
       for(const event of effects){
         if(event.kind.startsWith('horas-'))continue;
         const age=(clock-event.t)/800;if(age<0||age>=1)continue;
@@ -589,7 +590,7 @@
         const healing=event.kind==='heal', shield=event.kind==='shield';
         c.save();c.globalAlpha=Math.min(1,(1-age)*2);
         if(from&&!['horas','kazua'].includes(event.from)&&['attack','skill'].includes(event.kind)&&age<.28){c.strokeStyle=event.crit?'#ffe69d':event.kind==='skill'?'#b7e8ff':'#f7f1dc';c.lineWidth=event.crit?5:3;c.beginPath();c.moveTo(from.x,from.y-47);c.lineTo(p.x,p.y-48);c.stroke();}
-        if(event.amount){c.textAlign='center';c.font=`${event.crit?20:15}px Galmuri,monospace`;c.fillStyle=healing?'#b8efb5':shield?'#acdbf0':event.crit?'#ffcf71':'#fff1df';c.strokeStyle='#233244';c.lineWidth=3;const label=(healing?'+':shield?'+':'')+number(event.amount),y=p.y-79-age*24;c.strokeText(label,p.x,y);c.fillText(label,p.x,y);if(event.crit){c.fillStyle='#ffe49a';c.fillRect(p.x-6,y-29,12,5);c.fillRect(p.x-2,y-33,4,13);c.fillRect(p.x-12,y-26,4,4);c.fillRect(p.x+8,y-26,4,4);}}
+
         c.restore();
       }
       const cutin=units.flat().find(unit=>unit.id==='horas'&&unit.hp>0&&unit.horasCast&&clock-unit.horasCastAt>=580&&clock-unit.horasCastAt<1160);

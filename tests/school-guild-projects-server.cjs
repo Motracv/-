@@ -5,7 +5,7 @@ try{
  const request=(who,path,data={})=>t.call('/api/school/'+path,{catalogVersion:G.CATALOG_VERSION,...data},null,{'X-Account-Session':who.token});
  const guild=(who,kind,more={})=>request(who,'guild',{kind,requestId:crypto.randomUUID(),...more});
  const raid=(who,kind,more={})=>request(who,'raid',{kind,requestId:crypto.randomUUID(),...more});
- const players=[];for(let i=0;i<3;i++){const who=(await t.login('project-'+i)).data,s=G.create(now);s.commanderName='협동테스트'+i;s.team=['horas','osia','lumi','lava','ryusion','nari'];for(const id of s.team)s.units[id]={level:100,stars:5,xp:0,shards:0,nextSkill:1,basicHits:0};t.sqlite.prepare('INSERT INTO school_saves(account_id,payload,revision,updated_at) VALUES(?,?,0,?)').run(who.profile.id,JSON.stringify(s),now);await request(who,'social',{kind:'state'});players.push(who);}
+ const players=[];for(let i=0;i<3;i++){const who=(await t.login('project-'+i)).data,s=G.create(now);s.captain.level=10;s.commanderName='협동테스트'+i;s.team=['horas','osia','lumi','lava','ryusion','nari'];for(const id of s.team)s.units[id]={level:100,stars:5,xp:0,shards:0,nextSkill:1,basicHits:0};t.sqlite.prepare('INSERT INTO school_saves(account_id,payload,revision,updated_at) VALUES(?,?,0,?)').run(who.profile.id,JSON.stringify(s),now);await request(who,'social',{kind:'state'});players.push(who);}
  const[a,b,c]=players;const created=await guild(a,'create',{name:'공동퀘스트반',emblem:0});assert.equal(created.status,200);const gid=created.data.guild.id;
  async function invite(who){assert.equal((await guild(a,'invite',{guildId:gid,name:'협동테스트'+players.indexOf(who)})).status,200);const s=await guild(who,'state');assert.equal((await guild(who,'accept',{inviteId:s.data.invites[0].id})).status,200);}
  await invite(b);

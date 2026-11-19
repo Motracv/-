@@ -15,11 +15,26 @@ window.SchoolBattlePolish=(()=>{
   }
   return found;
  }
- function focus(c,events,now,w,h,reduced=false,appearance=()=>null){
-  const shot=latest(events,now);if(!shot)return false;
+ const noticeQueues=new WeakMap();
+ function queued(canvas,events,now,key){
+  let state=noticeQueues.get(canvas);
+  if(!state||state.key!==key||now<state.last||now-state.last>3000){state={key,last:now,current:null,queue:[],seen:new Map()};noticeQueues.set(canvas,state);}
+  state.last=now;for(const [id,at] of state.seen)if(now-at>8000)state.seen.delete(id);
+  for(const e of events||[]){const shot=latest([e],now);if(!shot)continue;const at=e.shown??e.t??e.time*1000;
+   const identity=[e.battleId||key,shot.team??shot.side??'',shot.id,e.castId??Math.round(at/100),shot.stage].join(':');
+   if(state.seen.has(identity))continue;state.seen.set(identity,now);
+   if(state.queue.some(n=>n.id===shot.id&&n.team===shot.team&&n.side===shot.side&&now-n.arrived<300))continue;
+   if(state.queue.length<4)state.queue.push({...shot,arrived:now});
+  }
+  if(state.current&&now-state.current.started>=1800)state.current=null;
+  if(!state.current){state.queue=state.queue.filter(n=>now-n.arrived<6000);const next=state.queue.shift();if(next)state.current={...next,started:now};}
+  return state.current?{...state.current,age:(now-state.current.started)/1000,pending:state.queue.length}:null;
+ }
+ function focus(c,events,now,w,h,reduced=false,appearance=()=>null,key='combat'){
+  const shot=queued(c.canvas,events,now,key);if(!shot)return false;
   const def=window.SchoolRPG.BY_ID[shot.id],color=({water:'#7eeaff',blossom:'#ffb6e8',ice:'#b1edff',earth:'#e5c676',wind:'#9fe5bd',dark:'#ef8fbd'})[def.element]||'#f0bc86';
   c.save();c.beginPath();c.rect(0,0,w,h);c.clip();
-  const fade=clamp(shot.age/.075)*clamp((.72-shot.age)/.16);c.globalAlpha*=fade;
+  const fade=clamp(shot.age/.075)*clamp((1.8-shot.age)/.22);c.globalAlpha*=fade;
   // A compact bottom-left notice keeps the battlefield and targets visible.
   const unit=Math.min(w/480,h/280,1.6),x=8*unit;
   const panelW=156*unit,panelH=(reduced?42:56)*unit,y=h-panelH-8*unit;
@@ -38,6 +53,7 @@ window.SchoolBattlePolish=(()=>{
   const textX=x+(reduced?10:50)*unit,textY=y+(reduced?15:20)*unit,textW=panelW-(reduced?20:57)*unit;
   c.textAlign='left';c.fillStyle=color;c.font=`bold ${10*unit}px Galmuri, sans-serif`;c.fillText(def.name,textX,textY,textW);
   c.fillStyle='#ffffff';c.font=`bold ${11*unit}px Galmuri, sans-serif`;c.fillText(shot.name,textX,textY+17*unit,textW);
+  if(shot.pending){c.font=`bold ${7*unit}px Galmuri, sans-serif`;c.fillStyle='#becfe3';c.fillText('+'+shot.pending,x+panelW-14*unit,y+9*unit);}
   c.restore();return true;
  }
  function speedField(c,allies,enemies,time,w,y=32){
@@ -53,5 +69,5 @@ window.SchoolBattlePolish=(()=>{
   const width=Math.min(w-16,c.measureText(text).width+20);c.fillStyle='#10374bf0';c.fillRect((w-width)/2,y,width,font+13);c.strokeStyle='#8fe3f1';c.lineWidth=1;c.strokeRect((w-width)/2,y,width,font+13);c.fillStyle='#d5fbff';c.fillText(text,w/2,y+font+3,width-10);c.restore();return true;
  }
  faceImage();
- return Object.freeze({latest,focus,speedField});
+ return Object.freeze({latest,queued,focus,speedField});
 })();

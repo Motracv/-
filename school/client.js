@@ -45,6 +45,7 @@
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
   let social, guild, raid, yeti, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
+  let community = null, campus = null;
   let insights = null, dungeonPortal = null, lobby = null, worldMap = null, qol = null, equipmentUI = null;
   let questCategory = 'daily', questChapter = null, questRowsKey = '', questCacheKey = '', questCache = null;
   const questCategories = {daily:'일일',repeat:'반복',stage:'지역',milestone:'업적'};
@@ -765,7 +766,7 @@
     if (periodic && now-lastUIRender < (battleVisible() || modalKind==='damage'?240:480)) return;
     lastUIRender = now;
     const quests = questSnapshot();
-    lobby?.render(state, serverNow(), quests);
+    lobby?.render(state, serverNow(), quests);campus?.render(state);
     setText($('gold'), fmt(state.gold)); setText($('gems'), fmt(state.gems));
     setText($('captain-level'), `Lv.${state.captain.level}`);
     if (modalKind === 'captain' && $('captain-level-rewards')) {
@@ -793,7 +794,7 @@
       const dungeonKey = dungeonContentKey();
       if (dungeonKey !== dungeonRenderKey && renderDungeons() !== false) dungeonRenderKey = dungeonContentKey();
     }
-    setHidden($('recruit-dot'), state.gems < G.SSR_RECRUIT_COST[10]);
+    setHidden($('recruit-dot'), true);
     setHidden($('supply-dot'), !(state.offline.seconds || state.daily < G.day(serverNow()) || quests.readyCount > 0));
     renderButtons();
     maybeShowActivityResult();
@@ -833,37 +834,20 @@
     setAttr($('battle-status'), 'data-reduced', String(reducedRewards));
     setAttr($('battle-status'), 'title', reducedRewards ? '저레벨 지역: 보상 감소 · 반복/일일 임무와 눈송이는 집계하지 않아요. 최근 돌파 지역에서 사냥해 주세요.' : battleStatus);
     setAttr($('battle-status'), 'aria-label', reducedRewards ? `${$('battle-status').textContent} · 반복·일일 임무와 눈송이 미집계` : battleStatus);
-    const pk = state.team.join('|');
+    const pk = state.team.map(id=>id+':'+G.equippedSkin(state,id)).join('|');
     setText($('party-count'), `${state.team.length} / ${maxTeam()}`);
     if (pk !== partyKey) {
       partyKey = pk;
       $('party').innerHTML = Array.from({length:maxTeam()}, (_, i) => {
         const id = state.team[i];
-        return id ? `<button class="party-card" data-hero="${id}" data-rarity="${G.BY_ID[id].rarity}" aria-label="${G.BY_ID[id].name} 육성·교체">${portrait(id)}<span class="party-cooldown" aria-hidden="true"></span><span class="party-skill" aria-hidden="true"></span><span class="party-shield" hidden></span><span class="party-info"><b>${G.BY_ID[id].name}</b><small></small><span class="party-hp" role="progressbar" aria-label="${G.BY_ID[id].name} 체력" aria-valuemin="0" aria-valuemax="100"><i></i></span></span><span class="party-energy" role="progressbar" aria-label="${G.BY_ID[id].name} 스킬 충전" aria-valuemin="0" aria-valuemax="100"><i></i></span></button>` : `<button class="party-card empty" data-tab="roster" aria-label="${i + 1}번 빈자리, 출전 용병 추가"><span class="empty-slot-mark" aria-hidden="true">+</span><span class="party-info"><b>빈자리</b><small>용병 추가</small></span></button>`;
+        return id ? `<button class="party-card" data-hero="${id}" data-rarity="${G.BY_ID[id].rarity}" aria-label="${G.BY_ID[id].name} 육성·교체">${window.SchoolSkillCards.layers(id,G.equippedSkin?.(state,id))}</button>` : `<button class="party-card empty" data-tab="roster" aria-label="${i+1}번 빈자리"><span class="empty-slot-mark">＋</span></button>`;
       }).join('');
     }
-    document.querySelectorAll('.party-card[data-hero]').forEach(el => {
-      const id = el.dataset.hero, h = state.battle.heroes.find(h => h.id === id), u = state.units[id], def = G.BY_ID[id];
-      const horasStatus = id === 'horas' ? G.horasInfo(state) : null;
-      const fallen = !!h && h.hp <= 0, casting = !fallen && (id === 'osia' && !!state.battle.osiaCast || id === 'ryusion' && !!state.battle.ryusionCast || !!horasStatus?.casting);
-      const hp = h ? Math.max(0, Math.min(100, h.hp / h.max * 100)) : 100;
-      const energy = h && !fallen ? horasStatus ? horasStatus.stacks / horasStatus.maxStacks * 100 : Math.max(0, Math.min(100, h.energy / def.cooldown * 100)) : 0;
-      const seconds = Math.ceil(Math.max(0, def.cooldown - (h?.energy || 0)));
-      const next = id === 'osia' ? G.osiaSkill(state) : id === 'lava' ? G.lavaSkill(state) : id === 'ryusion' ? G.ryusionSkill(state) : null;
-      const step = casting && id === 'osia' ? state.battle.osiaCast.stage : casting && id === 'ryusion' ? state.battle.ryusionCast.stage : next?.stage;
-      const skill = casting && id === 'osia' ? G.OSIA_SKILLS[step - 1].name : casting && id === 'ryusion' ? G.RYUSION_SKILLS[step - 1].name : next?.name || def.skill;
-      const hyeokStatus=id==='hyeokjin'&&h?.hyeokjin?G.hyeokjinAwake(h,state.battle.elapsed)?`각성 ${Math.ceil((h.hyeokjin.until-state.battle.elapsed)/1000)}초`:h.hyeokjin.ultimateUsed?'궁 사용 완료':h.hyeokjin.used?'각성 종료':'HP 35% 각성':null;
-      const charge = fallen ? '✕' : !h || state.battle.phase !== 'fight' ? '대기' : casting ? '시전' : horasStatus ? `${horasStatus.stacks}/${horasStatus.maxStacks}` : seconds ? String(seconds) : '준비';
-      setText(el.querySelector('small'), `Lv.${u.level} · ${def.role}`);
-      setHealthWidth(el.querySelector('.party-hp i'),hp); setAttr(el.querySelector('.party-hp'), 'aria-valuenow', String(Math.round(hp)));
-      setWidth(el.querySelector('.party-energy i'), `${energy}%`); setAttr(el.querySelector('.party-energy'), 'aria-valuenow', String(Math.round(energy)));
-      setAttr(el.querySelector('.party-energy'), 'aria-label', horasStatus ? `호라스 벚꽃 구슬 ${horasStatus.stacks}/${horasStatus.maxStacks}` : `${def.name} 스킬 충전`);
-      setText(el.querySelector('.party-cooldown'), charge); setText(el.querySelector('.party-skill'), hyeokStatus|| (step ? `${step}/${id === 'osia' ? 4 : 2}` : ''));
-      const shield = Math.max(0, h?.shield || 0); setHidden(el.querySelector('.party-shield'), !shield || fallen); setText(el.querySelector('.party-shield'), `◆ ${fmt(shield)}`);
-      toggleClass(el, 'fallen', fallen); toggleClass(el, 'casting', casting); toggleClass(el, 'ready', !fallen && !!h && state.battle.phase === 'fight' && !casting && (horasStatus ? horasStatus.stacks === horasStatus.maxStacks : seconds === 0));
-      const status = fallen ? '전투불능' : charge === '대기' ? '다음 전투 대기' : hyeokStatus ? hyeokStatus : casting ? `${skill} 시전 중` : horasStatus ? `벚꽃 구슬 ${horasStatus.stacks}/${horasStatus.maxStacks} · 기절한 적에게 피해 1.5배` : `${skill} · 충전 ${seconds}초 (전투 시간)`;
-      setAttr(el, 'aria-label', `${def.name} Lv.${u.level} · 체력 ${Math.round(hp)}% · ${status}${shield ? ` · 보호막 ${fmt(shield)}` : ''} · 눌러서 육성`);
-      setAttr(el, 'title', `${def.name} · ${status}`);
+    $('party').querySelectorAll('.party-card[data-hero]').forEach(el => {
+      const id=el.dataset.hero,h=state.battle.heroes.find(u=>u.id===id);if(!h)return;
+      const now=animationTime(),shot=effects.findLast(e=>(e.from||e.id)===id&&now>=e.time&&now-e.time<.85&&(['skill','skill-stage','spica-skill','lava-skill','ryusion-skill','horas-cast'].includes(e.kind)||e.kind==='kazua-mode'&&e.mode==='red'||e.kind==='hyeokjin-mode'&&!['basic','idle'].includes(e.mode)));
+      const horas=id==='horas'?G.horasInfo(state):null;
+      window.SchoolSkillCards.update(el,h,{elapsed:state.battle.elapsed,phase:state.battle.phase,casting:!!shot||!!horas?.casting||id==='osia'&&!!state.battle.osiaCast||id==='ryusion'&&!!state.battle.ryusionCast,stacks:horas?horas.stacks:null});
     });
   }
   function renderButtons() {
@@ -1127,8 +1111,8 @@
   }
   function renderRoster() { formationUI?.refresh(filter); }
   function renderSupplies() {
-    setText('coupon-announcement', '기존에 발급된 모든 보상 코드의 사용 기간이 종료되었습니다.');
-    setText('coupon-note', '현재 사용 가능한 코드 없음 · 기존 수령 보상은 유지됩니다.');
+    setText('coupon-announcement', '대규모 개편 보상 코드가 도착했어요. 영문 코드를 입력해 주세요.');
+    setText('coupon-note', 'MAJOR_UPDATE_OVERHAUL · SORRY_FOR_FREQUENT_UPDATES / 계정당 코드별 1회');
     $('offline-detail').innerHTML = state.offline.seconds ? `<b>${duration(state.offline.seconds)}의 모험</b><br>골드 ${fmt(state.offline.gold)} · 용병마다 경험치 ${fmt(state.offline.xp)}` : '90초 넘게 자리를 비우면<br>다시 돌아올 때 보상을 모아 드려요.';
     const rate = G.rates(state); $('offline-rate').textContent = `분당 골드 ${rate.gold} · 용병 경험치 ${rate.xp} / 최고 클리어 지역 기준`;
     $('claim-daily').textContent = state.daily >= G.day(serverNow()) ? '수령 완료' : '받기';
@@ -1181,6 +1165,7 @@
     }
   }
   function openModal(title, html, kind = '') {
+    if(kind!=='community')community?.stop();$('modal').classList.toggle('community-modal',kind==='community');
     skinsUI?.destroy();$('modal').classList.toggle('skin-modal',kind==='skin');
     formationUI?.cancel();$('modal').classList.toggle('formation-hero-modal',['hero','codex-hero'].includes(kind));
     qol?.close();equipmentUI?.close();$('modal').classList.remove('qol-modal','equipment-modal');
@@ -1196,7 +1181,7 @@
   async function requestModalClose(){if(coop?.closePicker())return;if(modalKind==='skin'){heroDetail('horas');return;}if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
-    skinsUI?.destroy();qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
+    community?.stop();skinsUI?.destroy();qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
     raid?.destroy(); yeti?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); setAttr($('app'), 'data-modal-open', 'false'); modalKind = ''; syncBattleOverlay(); loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
   }
   function codexModal(){
@@ -1230,7 +1215,7 @@
       }; });
       if ($('remove-hero')) $('remove-hero').onclick = () => act({kind:'team', team:state.team.filter(member => member !== id)});
     } else if(!readOnly) $('to-recruit').onclick = () => { if(id==='spica'){closeModal();social?.openWinter();return;} if (Object.hasOwn(G.BANNERS, G.canonicalBanner(id))) { recruitCategory='heroes';selectedBanner = G.canonicalBanner(id); storage.set('school-pickup', id); } closeModal(); setTab('recruit'); };
-    renderButtons();
+    window.SchoolCampus?.enhanceHero($('modal-content'));renderButtons();
   }
   function changeBattleMode(nextMode) {
     if (!['progress', 'farm'].includes(nextMode) || state.mode === nextMode || busy || pending || state.battle.activity) return;
@@ -1348,6 +1333,8 @@
     battlePassUI=window.SchoolBattlePass?.create({getState:()=>state,scope:accountScope,now:serverNow,modalKind:()=>modalKind,blocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal});
     skinsUI=window.SchoolSkins?.create({getState:()=>state,scope:accountScope,blocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,openHero:heroDetail,reduced:()=>reduced});
     lobby = window.SchoolLobby?.create($('lobby-party'), {game:G, art:Art});
+    const campusContext={request,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,openAccount:accountModal,openModal};
+    community=window.SchoolCommunity?.create(campusContext);campus=window.SchoolCampus?.create(campusContext);$('community-button').onclick=()=>community?.open();
     qol = window.SchoolQoL?.create({getState:()=>state,accountScope,serverNow,modalKind:()=>modalKind,activityActive,isBlocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,toast,openRoster:()=>{filter='owned';setTab('roster');},openHelp:help});
     $('formation-bond-open').onclick=()=>insights?.bond();
     formationUI=window.SchoolFormation?.create($('tab-roster'),{getState:()=>state,scope:accountScope,blocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),activityActive,modalOpen:()=>$('modal').open,dispatch:act,openHero:heroDetail,toast});
@@ -1458,7 +1445,7 @@
       setAttr($('app'), 'data-modal-open', 'false');
       syncBattleOverlay();
       if (modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
-      skinsUI?.destroy();qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
+      community?.stop();skinsUI?.destroy();qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
       delete $('modal').dataset.activityResult; modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
     });
     document.addEventListener('close', event => { if (event.target.id === 'school-presentation') queueMicrotask(maybeShowActivityResult); }, true);

@@ -4,10 +4,12 @@ const guildUid=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.to
 export function normalizeGuildName(raw){if(typeof raw!=='string'||raw.length>80||/[\p{C}<>]/u.test(raw))return null;const name=raw.normalize('NFKC').trim().replace(/\p{Zs}+/gu,' ');return Array.from(name).length>=3&&Array.from(name).length<=16&&/^[\p{L}\p{N} _-]+$/u.test(name)?name:null;}
 export function createGuilds(game){
  const membership=(db,id)=>db.prepare('SELECT * FROM school_guild_members WHERE account_id=?').bind(id).first();
+ async function level(db,id){const row=await db.prepare("SELECT json_extract(payload,'$.captain.level') AS level FROM school_saves WHERE account_id=?").bind(id).first();return Math.max(1,Number(row?.level)||1);}
  async function state(db,id,now){
   const own=await membership(db,id),name=await db.prepare('SELECT display_name FROM school_names WHERE account_id=?').bind(id).first();
   const invites=(await db.prepare(`SELECT i.id,i.expires_at,g.name,g.emblem,(SELECT COUNT(*) FROM school_guild_members WHERE guild_id=g.id) AS size FROM school_guild_invites i JOIN school_guilds g ON g.id=i.guild_id WHERE i.target=? AND i.expires_at>? ORDER BY i.created_at DESC LIMIT 20`).bind(id,now).all()).results||[];
-  const result={guild:null,invites:invites.map(i=>({id:i.id,name:i.name,emblem:i.emblem,size:i.size,expiresAt:i.expires_at})),canName:!name,limit:30,serverTime:now};
+  const captainLevel=await level(db,id);
+  const result={minLevel:10,level:captainLevel,locked:!own&&captainLevel<10,guild:null,invites:invites.map(i=>({id:i.id,name:i.name,emblem:i.emblem,size:i.size,expiresAt:i.expires_at})),canName:!name,limit:30,serverTime:now};
   if(!own)return result;
   const row=await db.prepare('SELECT id,name,emblem,notice,created_at FROM school_guilds WHERE id=?').bind(own.guild_id).first();if(!row)return result;
   const rows=(await db.prepare(`SELECT m.account_id,m.role,m.joined_at,m.membership_key,n.display_name,s.payload FROM school_guild_members m LEFT JOIN school_names n ON n.account_id=m.account_id JOIN school_saves s ON s.account_id=m.account_id WHERE m.guild_id=? ORDER BY m.role='leader' DESC,m.joined_at,m.account_id LIMIT 30`).bind(row.id).all()).results||[];
@@ -27,7 +29,7 @@ export function createGuilds(game){
   try{
    if(kind==='create'){
     const key=id+':'+data.requestId,prior=await db.prepare('SELECT id FROM school_guilds WHERE creation_key=?').bind(key).first();if(prior)return state(db,id,now);
-    guildFail(!own,'이미 길드에 가입되어 있어요.',409);const name=normalizeGuildName(data.name);guildFail(name,'길드 이름은 문자·숫자·공백·_·-로 3~16글자예요.');guildFail(Number.isInteger(data.emblem)&&data.emblem>=0&&data.emblem<=2,'길드 문장을 선택해 주세요.');
+    guildFail(!own,'이미 길드에 가입되어 있어요.',409);guildFail(await level(db,id)>=10,'길드는 단장 Lv.10부터 이용할 수 있어요.',403);const name=normalizeGuildName(data.name);guildFail(name,'길드 이름은 문자·숫자·공백·_·-로 3~16글자예요.');guildFail(Number.isInteger(data.emblem)&&data.emblem>=0&&data.emblem<=2,'길드 문장을 선택해 주세요.');
     const gid=guildUid();await db.batch([
      db.prepare(`INSERT INTO school_guilds(id,name_key,name,emblem,creation_key,created_at) SELECT ?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM school_guild_members WHERE account_id=?)`).bind(gid,name.toLocaleLowerCase('en-US'),name,data.emblem,key,now,id),
      db.prepare(`INSERT INTO school_guild_members(account_id,guild_id,role,joined_at,membership_key) SELECT ?,id,'leader',?,? FROM school_guilds WHERE id=? AND NOT EXISTS(SELECT 1 FROM school_guild_members WHERE account_id=?)`).bind(id,now,guildUid(),gid,id),
@@ -37,7 +39,7 @@ export function createGuilds(game){
     const invite=await db.prepare('SELECT * FROM school_guild_invites WHERE id=? AND target=?').bind(data.inviteId||'',id).first();
     if(!invite&&own)return state(db,id,now);guildFail(invite,'초대를 찾지 못했어요.',404);
     if(kind==='decline')await db.prepare('DELETE FROM school_guild_invites WHERE id=? AND target=?').bind(invite.id,id).run();
-    else{guildFail(!own,'한 길드에만 가입할 수 있어요.',409);guildFail(invite.expires_at>now,'초대가 만료됐어요.',409);
+    else{guildFail(!own,'한 길드에만 가입할 수 있어요.',409);guildFail(await level(db,id)>=10,'길드는 단장 Lv.10부터 이용할 수 있어요.',403);guildFail(invite.expires_at>now,'초대가 만료됐어요.',409);
      await db.batch([db.prepare(`INSERT INTO school_guild_members(account_id,guild_id,role,joined_at,membership_key) SELECT ?,guild_id,'member',?,? FROM school_guild_invites WHERE id=? AND target=? AND expires_at>? AND NOT EXISTS(SELECT 1 FROM school_guild_members WHERE account_id=?)`).bind(id,now,guildUid(),invite.id,id,now,id),db.prepare('DELETE FROM school_guild_invites WHERE target=? AND EXISTS(SELECT 1 FROM school_guild_members WHERE account_id=?)').bind(id,id)]);
      guildFail(await membership(db,id),'초대가 취소됐어요. 다시 확인해 주세요.',409);
     }

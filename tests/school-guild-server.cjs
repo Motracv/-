@@ -8,7 +8,7 @@ const assert=require('node:assert/strict'),G=require('../school/engine.js'),{fix
  const guild=(a,kind,more={})=>call(a,'guild',{kind,requestId:key(),...more});
  const state=async a=>(await guild(a,'state')).data;
  const ok=r=>{assert.equal(r.status,200,JSON.stringify(r.data));return r.data;};
- const account=async letter=>{const a=(await t.login('guild-player-'+letter)).data;ok(await call(a,'state'));ok(await act(a,{kind:'rename',name:'단장'+letter}));return a;};
+ const account=async letter=>{const a=(await t.login('guild-player-'+letter)).data;ok(await call(a,'state'));ok(await act(a,{kind:'rename',name:'단장'+letter}));const initial=saved(a);initial.captain.level=10;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(initial),a.profile.id);return a;};
  const invite=async(a,b,gid)=>{ok(await guild(a,'invite',{guildId:gid,name:saved(b).commanderName}));return (await state(b)).invites[0].id;};
  try{
   const a=await account('A'),b=await account('B'),c=await account('C');assert.equal((await guild(null,'state')).status,401);assert.equal((await call(a,'guild',{kind:'state',catalogVersion:19})).status,426);assert.equal((await guild(a,'create',{name:'ab',emblem:0})).status,400);

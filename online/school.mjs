@@ -2,6 +2,7 @@ import "../school/engine.js";
 import { createSocial, ensureSchoolName, nameKey } from './social.mjs';
 
 import { createGuilds } from './guilds.mjs';
+import { createCommunity } from './community.mjs';
 import { createRaids } from './raids.mjs';
 import { createYeti, collectYetiRewards } from './yeti.mjs';
 import { createCoop } from './coop.mjs';
@@ -12,6 +13,7 @@ export function createSchool() {
   const game = globalThis.SchoolRPG;
   const social = createSocial(game);
   const guilds = createGuilds(game);
+  const community = createCommunity(game);
   const raids = createRaids(game);
   const yeti = createYeti(game);
   const coop = createCoop(game,yeti,raids);
@@ -66,6 +68,7 @@ export function createSchool() {
       if (path === '/api/school/coop') return await coop.request(request,env,data,accounts);
       if (path === '/api/school/yeti') return await yeti.request(request, env, data, accounts);
       if (path === '/api/school/raid') return await raids.request(request, env, data, accounts);
+      if (path === '/api/school/community') return await community.request(request, env, data, accounts);
       if (path === '/api/school/guild') return await guilds.request(request, env, data, accounts);
       if (path === '/api/school/social') return await social.request(request, env, data, accounts);
       requireSchool(["/api/school/state", "/api/school/action", "/api/school/rankings"].includes(path), "지원하지 않는 경로입니다.", 404);

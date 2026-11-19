@@ -67,18 +67,52 @@
     const shot=events.findLast(e=>e.kind==='kazua-shot'&&e.team===team&&e.shown<=now&&['pistol','bazooka'].includes(e.mode)&&now-e.shown<(e.mode==='bazooka'?1500:550));
     return shot?{...frame,kazuaMode:shot.mode,kazuaAge:(now-shot.shown)/1000}:frame;
   }
-  function numbers(effects,time) {
-    const groups=new Map();
+  const numberCache=new WeakMap();
+  const hash=s=>{let n=2166136261;for(const ch of String(s))n=Math.imul(n^ch.charCodeAt(0),16777619);return n>>>0;};
+  function numbers(effects,time,{format='campaign',limit=96}={}) {
+    const stamp=e=>format==='campaign'?e.time:(format==='arena'?e.t:e.shown)/1000;
+    const shotKey=e=>`${e.team??e.side??''}:${e.from||e.id}:${stamp(e)}`;
+    const shots=new Map();for(const e of effects)if(e.kind==='kazua-shot')shots.set(shotKey(e),e.mode);
+    const output=[];
     for(const e of effects){
-      const age=time-e.time;
-      if(age<0||age>=1.55||!['hit','heal','enemy-heal','shield'].includes(e.kind)||!(e.amount>0))continue;
-      const type=e.kind==='hit'?'damage':e.kind==='shield'?'shield':'heal',key=`${e.battleId}:${e.to}:${type}:${e.time}`;
-      let g=groups.get(key);
-      if(!g){g={to:e.to,type,side:e.side,time:e.time,amount:0,count:0,critical:false,heavy:false,counter:false};groups.set(key,g);}
-      g.amount+=e.amount;g.count++;g.critical ||= !!e.critical;g.heavy ||= !!e.skill||!!e.bossSkill;g.counter ||= !!e.counter;
+      if(!(e.amount>0)||!Number.isFinite(e.amount))continue;
+      const type=['heal','enemy-heal'].includes(e.kind)?'heal':e.kind==='shield'?'shield':(format==='arena'?['attack','skill']:['hit','hurt']).includes(e.kind)?'damage':null;
+      if(!type)continue;const at=stamp(e);if(!Number.isFinite(at)||time<at||time-at>1.8)continue;
+      const from=e.from||e.id,mode=e.kazuaMode||e.mode||shots.get(shotKey(e));
+      const rapid=from==='kazua'&&type==='damage'&&e.kind!=='hurt'&&['fire','red'].includes(mode);
+      let cached=numberCache.get(e);const cacheKey=format+':'+mode;
+      if(!cached||cached.key!==cacheKey){
+        const count=rapid&&Number.isSafeInteger(e.amount)?Math.min(e.amount,mode==='red'?25:10):1;
+        const base=Math.floor(e.amount/count),remainder=e.amount-base*count;
+        const to=format==='campaign'?e.to:format==='arena'?`${e.toSide}:${e.target}`:e.kind==='hit'?'boss':`${e.team??0}:${e.id}`;
+        const seed=hash(`${e.battleId||''}:${e.seq??e.t??e.time}:${from}:${to}`);
+        cached={key:cacheKey,parts:Array.from({length:count},(_,i)=>{
+          const amount=count===1?e.amount:base+(i<remainder?1:0),word=amount.toLocaleString('en-US');
+          return {to,from,type,side:format==='campaign'?e.side:e.kind==='hurt'?'hero':'enemy',time:at+(rapid?i*(mode==='red'?.02:.05):0),amount,count:1,critical:!!(e.critical||e.crit),heavy:!!(e.skill||e.bossSkill||e.kind==='skill'),counter:!!e.counter,lane:seed%3,stack:rapid?i%5:0,rapid,text:type==='heal'?`+${word}`:type==='shield'?`방어 ${word}`:word};
+        })};numberCache.set(e,cached);
+      }
+      for(const n of cached.parts)if(time>=n.time&&time-n.time<(n.rapid?.82:1.2))output.push(n);
     }
-    const lanes=new Map();
-    return [...groups.values()].slice(-36).map(g=>{const lane=(lanes.get(g.to)||0)%3;lanes.set(g.to,lane+1);const amount=g.amount.toLocaleString('en-US');return {...g,lane,text:g.type==='heal'?`+${amount}`:g.type==='shield'?`방어 ${amount}`:amount};});
+    output.sort((a,b)=>a.time-b.time);
+    if(output.length<=limit)return output;
+    // Under heavy load coalesce the oldest visible labels by recipient/type;
+    // retain their exact amounts, instead of discarding or inventing damage.
+    const groups=new Map();let cursor=0;
+    while(cursor<output.length&&output.length-cursor+groups.size>limit){
+      const n=output[cursor++],key=n.to+':'+n.type;let g=groups.get(key);if(!g)groups.set(key,g={...n,rapid:false,stack:0,amount:0,count:0});g.amount+=n.amount;g.count++;g.time=Math.max(g.time,n.time);g.critical ||= n.critical;
+    }
+    return [...groups.values()].map(n=>({...n,text:(n.type==='heal'?'+':n.type==='shield'?'방어 ':'')+n.amount.toLocaleString('en-US')})).concat(output.slice(cursor));
+  }
+  function drawNumbers(c,effects,time,position,{format='campaign',scale=1,reduced=false,limit=96}={}){
+    for(const n of numbers(effects,time,{format,limit})){
+      const p=position(n.to);if(!p)continue;const age=time-n.time,life=n.rapid?.82:1.2;
+      const x=p.x+([0,-12,12][n.lane]+(n.rapid?(n.stack%2?3:-3):0))*scale;
+      const y=(p.numberY??p.y-62*scale)-(n.stack*12+n.lane*9+age*(reduced?7:25))*scale;
+      c.save();c.globalAlpha*=Math.min(1,age/.035+.45,(life-age)/.28);
+      const pop=reduced?1:1+Math.max(0,1-age/.14)*(n.critical?.16:.08);c.translate(x,Math.max(16*scale,y));c.scale(pop,pop);
+      const color=n.type==='heal'?'#99ffd0':n.type==='shield'?'#a3dcff':n.side==='hero'?'#ff9eac':n.critical?'#ffda77':n.heavy?'#ffeabb':'#fff9ed';
+      globalThis.SchoolArt?.combatNumber(c,n.text,0,0,(n.rapid?11:n.critical?16:n.type==='heal'?14:12)*scale,color,n.critical);c.restore();
+    }
   }
   function createHealthTracker(){
     let battleId=null,lastTime=-Infinity;const entries=new Map();
@@ -106,5 +140,5 @@
     if(healing>0&&r>0){c.globalAlpha*=clamp(healing);c.fillStyle='#e5fff5';c.fillRect(left+width*r-1,top-1,2,h+2);c.fillRect(left+width+5,top+1,2,6);c.fillRect(left+width+3,top+3,6,2);}
     c.restore();
   }
-  return Object.freeze({basicMs,castMs,hyeokjinPresentation,numbers,createHealthTracker,drawHealth,createSnapshotTimeline,kazuaPresentation});
+  return Object.freeze({basicMs,castMs,hyeokjinPresentation,numbers,drawNumbers,createHealthTracker,drawHealth,createSnapshotTimeline,kazuaPresentation});
 });

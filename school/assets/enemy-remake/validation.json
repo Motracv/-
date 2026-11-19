@@ -1,0 +1,583 @@
+{
+  "frames": 96,
+  "alpha": true,
+  "transparentGutters": true,
+  "checks": [
+    {
+      "family": "chalk",
+      "pose": "idle",
+      "opaquePixels": 7072,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "chalk",
+      "pose": "windup",
+      "opaquePixels": 6177,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "chalk",
+      "pose": "attack",
+      "opaquePixels": 7383,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "chalk",
+      "pose": "cast",
+      "opaquePixels": 7487,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clock",
+      "pose": "idle",
+      "opaquePixels": 6799,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clock",
+      "pose": "windup",
+      "opaquePixels": 6067,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clock",
+      "pose": "attack",
+      "opaquePixels": 7291,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clock",
+      "pose": "cast",
+      "opaquePixels": 9228,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "book",
+      "pose": "idle",
+      "opaquePixels": 7162,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "book",
+      "pose": "windup",
+      "opaquePixels": 6373,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "book",
+      "pose": "attack",
+      "opaquePixels": 9280,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "book",
+      "pose": "cast",
+      "opaquePixels": 9687,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "plant",
+      "pose": "idle",
+      "opaquePixels": 5839,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "plant",
+      "pose": "windup",
+      "opaquePixels": 4757,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "plant",
+      "pose": "attack",
+      "opaquePixels": 6248,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "plant",
+      "pose": "cast",
+      "opaquePixels": 6074,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "sport",
+      "pose": "idle",
+      "opaquePixels": 10937,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "sport",
+      "pose": "windup",
+      "opaquePixels": 9251,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "sport",
+      "pose": "attack",
+      "opaquePixels": 12555,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "sport",
+      "pose": "cast",
+      "opaquePixels": 11292,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "telescope",
+      "pose": "idle",
+      "opaquePixels": 6934,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "telescope",
+      "pose": "windup",
+      "opaquePixels": 6047,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "telescope",
+      "pose": "attack",
+      "opaquePixels": 8535,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "telescope",
+      "pose": "cast",
+      "opaquePixels": 7504,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "frostbell",
+      "pose": "idle",
+      "opaquePixels": 8239,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "frostbell",
+      "pose": "windup",
+      "opaquePixels": 8045,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "frostbell",
+      "pose": "attack",
+      "opaquePixels": 10720,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "frostbell",
+      "pose": "cast",
+      "opaquePixels": 9396,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "uniform",
+      "pose": "idle",
+      "opaquePixels": 6028,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "uniform",
+      "pose": "windup",
+      "opaquePixels": 5802,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "uniform",
+      "pose": "attack",
+      "opaquePixels": 7648,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "uniform",
+      "pose": "cast",
+      "opaquePixels": 6540,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "flask",
+      "pose": "idle",
+      "opaquePixels": 9673,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "flask",
+      "pose": "windup",
+      "opaquePixels": 9738,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "flask",
+      "pose": "attack",
+      "opaquePixels": 11310,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "flask",
+      "pose": "cast",
+      "opaquePixels": 12012,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "umbrella",
+      "pose": "idle",
+      "opaquePixels": 7998,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "umbrella",
+      "pose": "windup",
+      "opaquePixels": 7318,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "umbrella",
+      "pose": "attack",
+      "opaquePixels": 8450,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "umbrella",
+      "pose": "cast",
+      "opaquePixels": 9298,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "compass",
+      "pose": "idle",
+      "opaquePixels": 9634,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "compass",
+      "pose": "windup",
+      "opaquePixels": 9356,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "compass",
+      "pose": "attack",
+      "opaquePixels": 10969,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "compass",
+      "pose": "cast",
+      "opaquePixels": 11426,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "foxmask",
+      "pose": "idle",
+      "opaquePixels": 9695,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "foxmask",
+      "pose": "windup",
+      "opaquePixels": 9369,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "foxmask",
+      "pose": "attack",
+      "opaquePixels": 11335,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "foxmask",
+      "pose": "cast",
+      "opaquePixels": 12477,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "plaster",
+      "pose": "idle",
+      "opaquePixels": 8826,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "plaster",
+      "pose": "windup",
+      "opaquePixels": 9148,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "plaster",
+      "pose": "attack",
+      "opaquePixels": 12285,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "plaster",
+      "pose": "cast",
+      "opaquePixels": 9353,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "constellation",
+      "pose": "idle",
+      "opaquePixels": 5526,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "constellation",
+      "pose": "windup",
+      "opaquePixels": 4974,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "constellation",
+      "pose": "attack",
+      "opaquePixels": 5996,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "constellation",
+      "pose": "cast",
+      "opaquePixels": 5862,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clockguard",
+      "pose": "idle",
+      "opaquePixels": 9037,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clockguard",
+      "pose": "windup",
+      "opaquePixels": 7862,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clockguard",
+      "pose": "attack",
+      "opaquePixels": 9631,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clockguard",
+      "pose": "cast",
+      "opaquePixels": 9339,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "chalk-warden",
+      "pose": "idle",
+      "opaquePixels": 13508,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "chalk-warden",
+      "pose": "windup",
+      "opaquePixels": 12041,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "chalk-warden",
+      "pose": "attack",
+      "opaquePixels": 13989,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "chalk-warden",
+      "pose": "cast",
+      "opaquePixels": 13723,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "armory-lord",
+      "pose": "idle",
+      "opaquePixels": 9528,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "armory-lord",
+      "pose": "windup",
+      "opaquePixels": 8801,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "armory-lord",
+      "pose": "attack",
+      "opaquePixels": 10678,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "armory-lord",
+      "pose": "cast",
+      "opaquePixels": 9519,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "library-lord",
+      "pose": "idle",
+      "opaquePixels": 12269,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "library-lord",
+      "pose": "windup",
+      "opaquePixels": 9560,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "library-lord",
+      "pose": "attack",
+      "opaquePixels": 13361,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "library-lord",
+      "pose": "cast",
+      "opaquePixels": 15166,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "garden-heart",
+      "pose": "idle",
+      "opaquePixels": 12882,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "garden-heart",
+      "pose": "windup",
+      "opaquePixels": 9720,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "garden-heart",
+      "pose": "attack",
+      "opaquePixels": 13482,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "garden-heart",
+      "pose": "cast",
+      "opaquePixels": 13614,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clock-warden",
+      "pose": "idle",
+      "opaquePixels": 10337,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clock-warden",
+      "pose": "windup",
+      "opaquePixels": 9038,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clock-warden",
+      "pose": "attack",
+      "opaquePixels": 10703,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "clock-warden",
+      "pose": "cast",
+      "opaquePixels": 11205,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "astral-core",
+      "pose": "idle",
+      "opaquePixels": 6410,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "astral-core",
+      "pose": "windup",
+      "opaquePixels": 5813,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "astral-core",
+      "pose": "attack",
+      "opaquePixels": 7608,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "astral-core",
+      "pose": "cast",
+      "opaquePixels": 7542,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "supply-chest",
+      "pose": "idle",
+      "opaquePixels": 11506,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "supply-chest",
+      "pose": "windup",
+      "opaquePixels": 9358,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "supply-chest",
+      "pose": "attack",
+      "opaquePixels": 12547,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "supply-chest",
+      "pose": "cast",
+      "opaquePixels": 12931,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "headmaster",
+      "pose": "idle",
+      "opaquePixels": 6199,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "headmaster",
+      "pose": "windup",
+      "opaquePixels": 6008,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "headmaster",
+      "pose": "attack",
+      "opaquePixels": 7228,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "headmaster",
+      "pose": "cast",
+      "opaquePixels": 9272,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "abyss-queen",
+      "pose": "idle",
+      "opaquePixels": 5989,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "abyss-queen",
+      "pose": "windup",
+      "opaquePixels": 5251,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "abyss-queen",
+      "pose": "attack",
+      "opaquePixels": 7000,
+      "opaqueEdgePixels": 0
+    },
+    {
+      "family": "abyss-queen",
+      "pose": "cast",
+      "opaquePixels": 7993,
+      "opaqueEdgePixels": 0
+    }
+  ]
+}

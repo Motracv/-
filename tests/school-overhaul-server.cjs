@@ -1,0 +1,40 @@
+const assert=require('node:assert/strict'),G=require('../school/engine.js'),{fixture}=require('./account-fixture.cjs');
+(async()=>{const t=await fixture(),originalNow=Date.now;let now=Date.parse('2026-11-20T02:00:00Z');Date.now=()=>now;
+ try{
+  const compiled=process.env.SCHOOL_TEST_BUNDLE?(await import(require('node:url').pathToFileURL(process.env.SCHOOL_TEST_BUNDLE).href)).default:null;
+  const call=async(who,path,data)=>{const body={catalogVersion:G.CATALOG_VERSION,...data},headers=who?{'X-Account-Session':who.token}:{};if(!compiled)return t.call('/api/school/'+path,body,null,headers);const r=await compiled.fetch(new Request('https://card.example/api/school/'+path,{method:'POST',headers:{Origin:'https://motracv.github.io','Content-Type':'application/json',...headers},body:JSON.stringify(body)}),t.env);return{status:r.status,data:await r.json()};};
+  const ok=r=>{assert.equal(r.status,200,JSON.stringify(r.data));return r.data;},comm=(a,kind,more={})=>call(a,'community',{kind,requestId:crypto.randomUUID(),...more}),guild=(a,kind,more={})=>call(a,'guild',{kind,requestId:crypto.randomUUID(),...more});
+  const saved=a=>JSON.parse(t.sqlite.prepare('SELECT payload FROM school_saves WHERE account_id=?').get(a.profile.id).payload);
+  const setLevel=(a,level)=>{const s=saved(a);s.captain.level=level;s.captain.xp=0;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),a.profile.id);};
+  const act=async(a,action)=>{const s=ok(await call(a,'state',{}));return call(a,'action',{action,revision:s.revision,requestId:crypto.randomUUID()});};
+  const account=async name=>{const a=(await t.login(name)).data;ok(await call(a,'state',{}));ok(await act(a,{kind:'rename',name}));return a;};
+  const a=await account('첫단장'),b=await account('둘째단장');
+  assert.equal((await comm(null,'chat')).status,401);assert.equal((await comm(a,'chat',{catalogVersion:1})).status,426);
+  const unsafe='<img src=x onerror=alert(1)>',requestId=crypto.randomUUID(),publish={type:'chat',body:unsafe,requestId,account_id:b.profile.id,name:'위장단장'};
+  const results=await Promise.all([comm(a,'publish',publish),comm(a,'publish',publish)]);results.forEach(ok);assert.equal(results[0].data.entryId,results[1].data.entryId);
+  let chat=ok(await comm(b,'chat'));assert.equal(chat.entries.length,1);assert.equal(chat.entries[0].name,'첫단장');assert.equal(chat.entries[0].body,unsafe);assert.equal(chat.entries[0].mine,false);assert(!JSON.stringify(chat).includes(a.token));
+  assert.equal((await comm(a,'publish',{type:'chat',body:'too soon'})).status,429);
+  assert.equal((await comm(b,'delete',{id:chat.entries[0].id})).status,403);
+  ok(await comm(a,'delete',{id:chat.entries[0].id}));assert.equal(ok(await comm(b,'chat')).entries.length,0);
+  assert.equal((await comm(a,'publish',{type:'chat',body:'delete cannot evade rate limit'})).status,429);
+  now+=1600;ok(await comm(a,'publish',{type:'chat',body:'다시 인사'}));
+  const post=ok(await comm(a,'publish',{type:'post',title:'학교 소식',body:'본문\n두 번째 줄'}));
+  const comment=ok(await comm(b,'publish',{type:'comment',parentId:post.entryId,body:'댓글입니다'}));
+  let detail=ok(await comm(a,'post',{id:post.entryId}));assert.equal(detail.post.title,'학교 소식');assert.equal(detail.comments[0].id,comment.entryId);assert.equal(detail.comments[0].name,'둘째단장');assert.equal(detail.comments[0].parentId,post.entryId);
+  ok(await comm(b,'report',{id:post.entryId,reason:'테스트 신고'}));ok(await comm(b,'report',{id:post.entryId,reason:'테스트 신고'}));assert.equal(t.sqlite.prepare('SELECT COUNT(*) n FROM school_community_reports').get().n,1);
+  assert.equal((await comm(a,'publish',{type:'post',title:'빠른 글',body:'제한'})).status,429);
+  assert.equal((await comm(b,'publish',{type:'chat',body:'x'.repeat(201)})).status,400);
+  ok(await comm(a,'delete',{id:post.entryId}));assert.equal((await comm(b,'post',{id:post.entryId})).status,404);now+=3100;assert.equal((await comm(b,'publish',{type:'comment',parentId:post.entryId,body:'삭제 후 댓글'})).status,404);
+  console.log('PASS authenticated chat/posts/comments, identity authority, exact retry dedupe, atomic cooldown, plain text, owner deletion, reports and deleted-parent guards');
+  assert(ok(await guild(a,'state')).locked);assert.equal((await guild(a,'create',{name:'낮은레벨반',emblem:0})).status,403);
+  setLevel(a,10);const created=ok(await guild(a,'create',{name:'별빛 교실',emblem:0})),gid=created.guild.id;
+  ok(await guild(a,'invite',{guildId:gid,name:'둘째단장'}));const invitation=ok(await guild(b,'state')).invites[0];assert.equal((await guild(b,'accept',{inviteId:invitation.id})).status,403);
+  setLevel(b,10);ok(await guild(b,'accept',{inviteId:invitation.id}));setLevel(a,2);setLevel(b,1);
+  const grandfathered=ok(await guild(a,'state'));assert.equal(grandfathered.locked,false);assert.equal(grandfathered.guild.id,gid);ok(await guild(a,'decorate',{guildId:gid,emblem:1,notice:'기존 가입자 유지'}));
+  ok(await guild(b,'leave',{guildId:gid}));assert.equal(ok(await guild(b,'state')).locked,true);
+  console.log('PASS Lv.10 create/join gate, existing low-level member and leader access, restriction restored after leaving');
+  for(const [code,gems,gold] of [['MAJOR_UPDATE_OVERHAUL',3000,40000],['SORRY_FOR_FREQUENT_UPDATES',500,5000]]){ok(await call(a,'state',{}));const before=saved(a);ok(await act(a,{kind:'redeem',code}));const after=saved(a);assert.equal(after.gems-before.gems,gems);assert.equal(after.gold-before.gold,gold);assert.notEqual((await act(a,{kind:'redeem',code})).status,200);}
+  t.sqlite.prepare('DELETE FROM accounts WHERE id=?').run(a.profile.id);assert.equal(t.sqlite.prepare('SELECT COUNT(*) n FROM school_community_entries WHERE account_id=?').get(a.profile.id).n,0);assert.equal(t.sqlite.prepare('SELECT COUNT(*) n FROM school_community_reports').get().n,0);
+  console.log('PASS both exact coupon grants, repeated redemption rejection, account deletion cascade');
+ }finally{Date.now=originalNow;t.sqlite.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

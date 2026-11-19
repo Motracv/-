@@ -4,7 +4,7 @@ const start=source.indexOf('  let lastUIRender'),end=source.indexOf('  function 
 const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',open:false});return nodes.get(id);};
 let now=0,battlePaints=0,controls=0,results=0;
 const s=G.create(1000),before=JSON.stringify(s);
-const context={state:s,entry:{entered:true},afk:{active:false},document:{hidden:false},performance:{now:()=>now},$:node,G,fmt:String,serverNow:()=>s.at,mode:'cloud',modalKind:'',tab:'lobby',renderKey:'',dungeonRenderKey:'',
+const context={campus:null,state:s,entry:{entered:true},afk:{active:false},document:{hidden:false},performance:{now:()=>now},$:node,G,fmt:String,serverNow:()=>s.at,mode:'cloud',modalKind:'',tab:'lobby',renderKey:'',dungeonRenderKey:'',
  questSnapshot:()=>({readyCount:0}),lobby:{render(){}},social:{refresh(){}},setText:(n,v)=>{(typeof n==='string'?node(n):n).textContent=String(v);},setAttr(){},setWidth(){},toggleClass(){},setHidden(){},panelContentKey:()=>context.tab,
  renderBattleHUD:()=>battlePaints++,renderButtons:()=>controls++,maybeShowActivityResult:()=>results++,renderChapters(){},renderRoster(){},renderRecruitment(){},renderSupplies(){},renderDungeons(){},dungeonContentKey:()=>''};
 vm.createContext(context);vm.runInContext(source.slice(source.indexOf('  function battleVisible()'),source.indexOf('  function syncBattleOverlay()'))+source.slice(start,end)+';globalThis.paint=render;',context);

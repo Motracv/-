@@ -1,0 +1,73 @@
+{
+  "generator": "image_gen.imagegen",
+  "date": "2026-11-19",
+  "transparentBackground": true,
+  "basePrompt": "Create a production-ready transparent PNG sprite sheet for a polished 2D anime pixel-art cursed-school battle game. Exactly FOUR rows and FOUR columns, 16 separate full-body sprites on a square canvas. Each row is the SAME monster in four clearly different animation poses: column 1 idle, column 2 compressed/raised anticipation before attacking, column 3 dramatic LEFTWARD attack extension, column 4 magical special-skill casting/recovery. Monsters all face LEFT in 3/4 view. Crisp hand-placed-looking pixels, delicate dark 1px outlines, detailed cluster shading, strong silhouettes, readable expressive glowing eyes, beautifully designed Japanese RPG enemy sprites. Match sophisticated 16-bit anime pixel-art, not flat geometric icons, not cartoon vector art, not smooth 3D rendering. Use jewel colors, convincing wood/metal/fabric textures, small integrated magical details. Consistent anatomy and palette across each row. Equal 4 by 4 grid. Strictly one monster per cell, full silhouette inside cell with transparent margin on every side. Every monster occupies about 60% cell height with its ground contact at 85% cell height, centered horizontally; big attacks must still fit. Each row's four sprites have identical resting height and comparable body size. No labels, no text, no grid lines, no props detached far from the monster, no background, no ground plane, no gradients, NO shadows on the ground. Actual transparent alpha background.",
+  "sources": [
+    {
+      "key": "regular-a",
+      "rows": [
+        "ROW 1: chalk-and-blackboard imp: a squat pale mint chalk golem wearing a tiny navy school cap, cracked dark-green blackboard chest with angry golden chalk eyes, chalk-stick limbs, little eraser shoulder pads. Its leftward punch scatters a few mint chalk shards.",
+        "ROW 2: haunted school clock: ornate brass round wall-clock body, ivory clock face with eyes and small mouth, midnight-blue brass jointed legs and gauntlets, a tiny school bell on its head. Leftward clock-hand sword thrust, amber time-spark skill.",
+        "ROW 3: forbidden textbook bat: antique purple leather school grimoire, gilt corners, crimson bookmark tongue, parchment page wings, expressive cyan eyes on the cover. Snaps pages forward to attack; casts a violet rune from open pages.",
+        "ROW 4: thorny classroom flowerpot mimic: terracotta pot body with bronze school crest, layered emerald leaves, curling vine arms and root feet, single scarlet flower above a mischievous amber-eyed plant face. Whips its vine LEFT, green leaf spell."
+      ],
+      "file": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png"
+    },
+    {
+      "key": "regular-b",
+      "rows": [
+        "ROW 1: possessed gym dumbbell brute: compact athletic monster built from dark charcoal iron dumbbells with brass caps, violet school-team ribbon, scarlet eyes, heavy rounded fists and squat boots. Leftward overhand punch, amber impact burst.",
+        "ROW 2: astronomy telescope imp: brass-and-navy telescope tube face with glowing cyan lens eye, dark blue tiny cape decorated with gold stars, fine tripod legs like insect legs, brass focusing rings. Lens aims LEFT, launches blue star beam in attack pose.",
+        "ROW 3: frozen school bell spirit: elegant floating pale cyan bell with thick crystalline ice rim, silver-blue bow, two bright blue eyes, little trailing frost tassels and ice shards. Swings LEFT to attack and casts a small snowflake aura.",
+        "ROW 4: empty navy school uniform knight: headless haunted dark navy blazer, burgundy tie, gold trim, white cuffs, floating helmet-like school cap with glowing mint eyes, charcoal trousers, black boots, small straight fencing sword. Leftward fencing lunge, turquoise magical slash."
+      ],
+      "file": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png"
+    },
+    {
+      "key": "regular-c",
+      "rows": [
+        "ROW 1: alchemy flask slime: round transparent glass laboratory flask with cyan glass highlights, mischievous green slime face and two emerald slime arms inside/outside, brass stopper, little glass feet. Leftward chemical splash attack, green bubbling spell.",
+        "ROW 2: rainy blue umbrella yokai: detailed midnight blue pleated umbrella canopy with turquoise trim, one golden eye, curled wooden handle, flowing pale blue ghost cloth ribbons, two small spectral arms. Leans LEFT in a swooping stab, casts water droplets.",
+        "ROW 3: enchanted wind compass sentinel: ornate round brass compass with teal enamel, expressive pale gold eyes, arrow-shaped needle horn, tiny wind-feather arms, scarf and short brass feet. Leftward spinning arrow strike, chartreuse wind swirl.",
+        "ROW 4: snowy shrine fox-mask spirit: ivory fox mask with red painted markings, pointed ears, golden slit eyes, red braided tassels, little white ghost flame body and flowing crimson ribbon tails. Dashes LEFT with tails swept back, casts a restrained pink foxfire charm."
+      ],
+      "file": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png"
+    },
+    {
+      "key": "regular-d",
+      "rows": [
+        "ROW 1: cursed art-room plaster mannequin: finely sculpted cracked ivory marble artist's bust transformed into a little walking statue with a red velvet waist sash, graphite-black curly sculpted hair, violet glowing eyes, elegant jointed plaster arms, tiny bare feet. Leftward arm swipe, pink paint-rune spell.",
+        "ROW 2: living constellation orb: dark indigo celestial glass globe with glowing pale blue star-map lines, expressive star-shaped gold eyes, ornate brass orbital rings, small floating winglike blue crystal hands, three pointed midnight tails. Lunges LEFT in a star flare, casts a compact cyan constellation.",
+        "ROW 3: clockwork school patrol automaton: detailed short bronze-and-navy mechanical knight with clock-shaped helmet, glowing amber slit eyes, maroon scarf, brass riveted armor, gear knees, polished iron boots, a silver pendulum halberd. Leftward sweeping halberd attack, golden time sparks.",
+        "ROW 4: ELITE chalkboard guardian boss: massive broad shouldered carved mahogany-and-dark-green blackboard golem, ivory chalk rune face, stacked book pauldrons, a little gold academic crown, chain-bound brass shield and huge white chalk club. Intimidating detailed mini-boss, leftward club smash, mint chalk sorcery."
+      ],
+      "file": "exec-be01746a-1645-4599-b057-1f0565a8771b.png"
+    },
+    {
+      "key": "boss-a",
+      "rows": [
+        "ROW 1: ELITE armory school instructor boss: imposing broad silver and navy plated knight with a closed classroom-locker helmet, fierce narrow golden eyes, burgundy academic cape, brass school-crest shield, heavy iron mace, articulated large boots. Luxurious ornate armor, LEFTWARD mace smash, blue shield power.",
+        "ROW 2: ELITE forbidden library lord boss: enormous sentient open dark-violet leather grimoire, intricate gilded cover corners, thick cream pages folded into bat wings, angry magenta eyes in its central binding, three chained small spellbooks hovering close around it, long red bookmarks. Snaps toward LEFT, casts compact violet glyph flames.",
+        "ROW 3: ELITE greenhouse thorn-heart boss: magnificent tangled living dark emerald tree guardian, thick bark torso, rose-gold thorn armor, luminous scarlet rose heart and two green eyes, root claw feet, branching antler crown bearing crimson roses, massive vine arms. Sweeps a vine LEFT, glowing green healing rose spell.",
+        "ROW 4: ELITE clocktower warden boss: large ornate antique brass grandfather-clock knight, ivory clock face and amber eyes, navy shoulder armor with exposed gears, gold academic crest, pendulum chain weapon, heavy bronze hands and boots. LEFTWARD pendulum-chain strike, luminous amber time magic."
+      ],
+      "file": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png"
+    },
+    {
+      "key": "boss-b",
+      "rows": [
+        "ROW 1: ELITE astral rift-core boss: large floating faceted indigo-violet crystal entity with a cyan-white inner star, two glowing golden hostile eyes, intricate gold astrolabe rings, ornate crescent armor, three sharp hovering satellite crystals close to body. Surges LEFT with its sharp crystal arm, casts a compact blue-violet nova.",
+        "ROW 2: ELITE school supply-chest guardian boss: large detailed mahogany supply chest mimic, ornate polished brass bindings and lock, slate-blue iron jointed arms and stomping boots, angry golden eyes under lid, teeth of ivory chalk and folded paper inside. Snaps lid toward LEFT and punches, throws a small gold school-crest magical burst.",
+        "ROW 3: ELITE sealed headmaster specter boss: menacing floating elderly academic ghost, pale teal gaunt face and glowing violet eyes, beautifully layered black-purple graduation robes with gold embroidery, flat mortarboard and gold tassel, torn ghost hem, close silver sealing chains, ivory-gloved hands and antique wand. Casts LEFT with commanding arm, purple sealing spell.",
+        "ROW 4: ELITE drowned aquarium queen boss: regal ghostly sea-monster teacher with ornate antique brass diving helmet, luminous turquoise eyes inside, deep teal navy academic coat, translucent jellyfish-like skirt with flowing aqua tendrils, coral shoulder accents, barnacle staff. Lunges LEFT with coral staff, turquoise water spell."
+      ],
+      "file": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png"
+    }
+  ],
+  "emblem": {
+    "file": "exec-37dd9c77-b311-4ca5-90fc-d192fc60c984.png",
+    "description": "Generated navy/gold shield, school book, silver sword and laurel; transparent."
+  },
+  "packing": "Canvas crop, alpha measurement, nearest-neighbor resampling and WebP encoding only; no generated artwork painted by code."
+}

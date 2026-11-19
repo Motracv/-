@@ -1,0 +1,2683 @@
+{
+  "version": 1,
+  "cell": 256,
+  "foot": [
+    128,
+    232
+  ],
+  "poseOrder": [
+    "idle",
+    "windup",
+    "attack",
+    "cast"
+  ],
+  "families": {
+    "chalk": {
+      "sheet": "school-a",
+      "row": 0,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 100.395,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            41,
+            62,
+            236,
+            217
+          ],
+          "sourceFoot": [
+            166,
+            276
+          ],
+          "scale": 0.475806
+        },
+        {
+          "x": 256,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            317,
+            69,
+            221,
+            210
+          ],
+          "sourceFoot": [
+            450,
+            276
+          ],
+          "scale": 0.475806
+        },
+        {
+          "x": 512,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            551,
+            79,
+            354,
+            200
+          ],
+          "sourceFoot": [
+            799,
+            276
+          ],
+          "scale": 0.475806
+        },
+        {
+          "x": 768,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            955,
+            15,
+            267,
+            265
+          ],
+          "sourceFoot": [
+            1090,
+            277
+          ],
+          "scale": 0.475806
+        }
+      ]
+    },
+    "clock": {
+      "sheet": "school-a",
+      "row": 1,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 113.735,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            40,
+            335,
+            233,
+            246
+          ],
+          "sourceFoot": [
+            159.5,
+            578
+          ],
+          "scale": 0.473896
+        },
+        {
+          "x": 256,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            313,
+            349,
+            219,
+            228
+          ],
+          "sourceFoot": [
+            444,
+            574
+          ],
+          "scale": 0.473896
+        },
+        {
+          "x": 512,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            550,
+            346,
+            375,
+            231
+          ],
+          "sourceFoot": [
+            799,
+            574
+          ],
+          "scale": 0.473896
+        },
+        {
+          "x": 768,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            951,
+            304,
+            283,
+            278
+          ],
+          "sourceFoot": [
+            1086.5,
+            579
+          ],
+          "scale": 0.473896
+        }
+      ]
+    },
+    "book": {
+      "sheet": "school-a",
+      "row": 2,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 101.57,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            15,
+            670,
+            276,
+            210
+          ],
+          "sourceFoot": [
+            93,
+            877
+          ],
+          "scale": 0.49789
+        },
+        {
+          "x": 256,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            302,
+            646,
+            235,
+            233
+          ],
+          "sourceFoot": [
+            394,
+            876
+          ],
+          "scale": 0.49789
+        },
+        {
+          "x": 512,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            537,
+            666,
+            402,
+            208
+          ],
+          "sourceFoot": [
+            771,
+            871
+          ],
+          "scale": 0.49789
+        },
+        {
+          "x": 768,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            955,
+            601,
+            286,
+            277
+          ],
+          "sourceFoot": [
+            1060.5,
+            875
+          ],
+          "scale": 0.49789
+        }
+      ]
+    },
+    "plant": {
+      "sheet": "school-a",
+      "row": 3,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 94.908,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            26,
+            955,
+            254,
+            230
+          ],
+          "sourceFoot": [
+            155.5,
+            1182
+          ],
+          "scale": 0.423698
+        },
+        {
+          "x": 256,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            303,
+            957,
+            224,
+            223
+          ],
+          "sourceFoot": [
+            424.5,
+            1177
+          ],
+          "scale": 0.423698
+        },
+        {
+          "x": 512,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            540,
+            958,
+            399,
+            224
+          ],
+          "sourceFoot": [
+            817.5,
+            1179
+          ],
+          "scale": 0.423698
+        },
+        {
+          "x": 768,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-2bb0e77e-5ad2-44b0-afba-e444cc41acda.png",
+          "sourceBounds": [
+            962,
+            913,
+            277,
+            269
+          ],
+          "sourceFoot": [
+            1092,
+            1179
+          ],
+          "scale": 0.423698
+        }
+      ]
+    },
+    "sport": {
+      "sheet": "school-a",
+      "row": 4,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 126.527,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            42,
+            54,
+            241,
+            236
+          ],
+          "sourceFoot": [
+            159,
+            287
+          ],
+          "scale": 0.550117
+        },
+        {
+          "x": 256,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            347,
+            64,
+            204,
+            222
+          ],
+          "sourceFoot": [
+            458,
+            283
+          ],
+          "scale": 0.550117
+        },
+        {
+          "x": 512,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            551,
+            49,
+            385,
+            238
+          ],
+          "sourceParts": [
+            [
+              551,
+              0,
+              385,
+              200
+            ],
+            [
+              620,
+              200,
+              316,
+              103
+            ]
+          ],
+          "sourceFoot": [
+            720.5,
+            284
+          ],
+          "scale": 0.550117
+        },
+        {
+          "x": 768,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            952,
+            25,
+            289,
+            266
+          ],
+          "sourceFoot": [
+            1093,
+            288
+          ],
+          "scale": 0.550117
+        }
+      ]
+    },
+    "telescope": {
+      "sheet": "school-a",
+      "row": 5,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 113.948,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            47,
+            364,
+            242,
+            231
+          ],
+          "sourceFoot": [
+            170,
+            592
+          ],
+          "scale": 0.506438
+        },
+        {
+          "x": 256,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            344,
+            356,
+            209,
+            236
+          ],
+          "sourceFoot": [
+            484,
+            589
+          ],
+          "scale": 0.506438
+        },
+        {
+          "x": 512,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            553,
+            377,
+            379,
+            222
+          ],
+          "sourceParts": [
+            [
+              553,
+              303,
+              383,
+              187
+            ],
+            [
+              600,
+              490,
+              336,
+              128
+            ]
+          ],
+          "sourceFoot": [
+            783,
+            596
+          ],
+          "scale": 0.506438
+        },
+        {
+          "x": 768,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            968,
+            317,
+            252,
+            281
+          ],
+          "sourceFoot": [
+            1100.5,
+            595
+          ],
+          "scale": 0.506438
+        }
+      ]
+    },
+    "frostbell": {
+      "sheet": "school-a",
+      "row": 6,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 131.47,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            46,
+            645,
+            230,
+            250
+          ],
+          "sourceFoot": [
+            155.5,
+            892
+          ],
+          "scale": 0.538813
+        },
+        {
+          "x": 256,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            335,
+            640,
+            218,
+            250
+          ],
+          "sourceFoot": [
+            455,
+            887
+          ],
+          "scale": 0.538813
+        },
+        {
+          "x": 512,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            553,
+            651,
+            383,
+            230
+          ],
+          "sourceFoot": [
+            769,
+            878
+          ],
+          "scale": 0.538813
+        },
+        {
+          "x": 768,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            936,
+            621,
+            301,
+            281
+          ],
+          "sourceFoot": [
+            1145,
+            899
+          ],
+          "scale": 0.538813
+        }
+      ]
+    },
+    "uniform": {
+      "sheet": "school-a",
+      "row": 7,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 136.784,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            25,
+            929,
+            231,
+            290
+          ],
+          "sourceFoot": [
+            166.5,
+            1216
+          ],
+          "scale": 0.481633
+        },
+        {
+          "x": 256,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            321,
+            967,
+            220,
+            241
+          ],
+          "sourceFoot": [
+            456.5,
+            1205
+          ],
+          "scale": 0.481633
+        },
+        {
+          "x": 512,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            541,
+            967,
+            380,
+            247
+          ],
+          "sourceParts": [
+            [
+              541,
+              918,
+              395,
+              200
+            ],
+            [
+              590,
+              1118,
+              346,
+              136
+            ]
+          ],
+          "sourceFoot": [
+            783,
+            1211
+          ],
+          "scale": 0.481633
+        },
+        {
+          "x": 768,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-163224ed-94a0-4940-ac3e-b861369e75cf.png",
+          "sourceBounds": [
+            960,
+            929,
+            261,
+            288
+          ],
+          "sourceFoot": [
+            1089.5,
+            1214
+          ],
+          "scale": 0.481633
+        }
+      ]
+    },
+    "flask": {
+      "sheet": "school-b",
+      "row": 0,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 141.354,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            41,
+            46,
+            223,
+            236
+          ],
+          "sourceFoot": [
+            151.5,
+            279
+          ],
+          "scale": 0.614583
+        },
+        {
+          "x": 256,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            354,
+            46,
+            220,
+            238
+          ],
+          "sourceFoot": [
+            467.5,
+            281
+          ],
+          "scale": 0.614583
+        },
+        {
+          "x": 512,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            602,
+            48,
+            310,
+            235
+          ],
+          "sourceFoot": [
+            794,
+            280
+          ],
+          "scale": 0.614583
+        },
+        {
+          "x": 768,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            962,
+            25,
+            264,
+            258
+          ],
+          "sourceFoot": [
+            1089,
+            280
+          ],
+          "scale": 0.614583
+        }
+      ]
+    },
+    "umbrella": {
+      "sheet": "school-b",
+      "row": 1,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 126.075,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            40,
+            339,
+            245,
+            248
+          ],
+          "sourceFoot": [
+            151.5,
+            584
+          ],
+          "scale": 0.520971
+        },
+        {
+          "x": 256,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            357,
+            328,
+            212,
+            250
+          ],
+          "sourceFoot": [
+            469.5,
+            575
+          ],
+          "scale": 0.520971
+        },
+        {
+          "x": 512,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            590,
+            343,
+            339,
+            244
+          ],
+          "sourceFoot": [
+            816.5,
+            584
+          ],
+          "scale": 0.520971
+        },
+        {
+          "x": 768,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            952,
+            331,
+            276,
+            256
+          ],
+          "sourceFoot": [
+            1120.5,
+            584
+          ],
+          "scale": 0.520971
+        }
+      ]
+    },
+    "compass": {
+      "sheet": "school-b",
+      "row": 2,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 130.494,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            30,
+            641,
+            250,
+            241
+          ],
+          "sourceFoot": [
+            175,
+            879
+          ],
+          "scale": 0.555294
+        },
+        {
+          "x": 256,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            326,
+            654,
+            249,
+            228
+          ],
+          "sourceFoot": [
+            471,
+            879
+          ],
+          "scale": 0.555294
+        },
+        {
+          "x": 512,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            575,
+            661,
+            362,
+            218
+          ],
+          "sourceFoot": [
+            784.5,
+            876
+          ],
+          "scale": 0.555294
+        },
+        {
+          "x": 768,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            952,
+            636,
+            288,
+            242
+          ],
+          "sourceFoot": [
+            1084,
+            875
+          ],
+          "scale": 0.555294
+        }
+      ]
+    },
+    "foxmask": {
+      "sheet": "school-b",
+      "row": 3,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 130.228,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            60,
+            973,
+            223,
+            219
+          ],
+          "sourceFoot": [
+            161.5,
+            1189
+          ],
+          "scale": 0.611399
+        },
+        {
+          "x": 256,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            332,
+            975,
+            236,
+            222
+          ],
+          "sourceFoot": [
+            409,
+            1194
+          ],
+          "scale": 0.611399
+        },
+        {
+          "x": 512,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            568,
+            981,
+            359,
+            202
+          ],
+          "sourceFoot": [
+            733,
+            1180
+          ],
+          "scale": 0.611399
+        },
+        {
+          "x": 768,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-cebddfc5-ebfb-455c-9312-17f394f9abe3.png",
+          "sourceBounds": [
+            952,
+            941,
+            284,
+            267
+          ],
+          "sourceFoot": [
+            1075,
+            1205
+          ],
+          "scale": 0.611399
+        }
+      ]
+    },
+    "plaster": {
+      "sheet": "school-b",
+      "row": 4,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 156.01,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            69,
+            22,
+            182,
+            281
+          ],
+          "sourceFoot": [
+            163.5,
+            300
+          ],
+          "scale": 0.567308
+        },
+        {
+          "x": 256,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            358,
+            68,
+            210,
+            233
+          ],
+          "sourceFoot": [
+            476.5,
+            298
+          ],
+          "scale": 0.567308
+        },
+        {
+          "x": 512,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            575,
+            43,
+            344,
+            260
+          ],
+          "sourceFoot": [
+            783,
+            300
+          ],
+          "scale": 0.567308
+        },
+        {
+          "x": 768,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            978,
+            9,
+            236,
+            294
+          ],
+          "sourceFoot": [
+            1113,
+            300
+          ],
+          "scale": 0.567308
+        }
+      ]
+    },
+    "constellation": {
+      "sheet": "school-b",
+      "row": 5,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 121.026,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            37,
+            320,
+            236,
+            286
+          ],
+          "sourceFoot": [
+            166,
+            603
+          ],
+          "scale": 0.432234
+        },
+        {
+          "x": 256,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            353,
+            348,
+            210,
+            253
+          ],
+          "sourceFoot": [
+            442,
+            598
+          ],
+          "scale": 0.432234
+        },
+        {
+          "x": 512,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            567,
+            343,
+            359,
+            262
+          ],
+          "sourceFoot": [
+            840,
+            602
+          ],
+          "scale": 0.432234
+        },
+        {
+          "x": 768,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            974,
+            320,
+            235,
+            289
+          ],
+          "sourceFoot": [
+            1108,
+            606
+          ],
+          "scale": 0.432234
+        }
+      ]
+    },
+    "clockguard": {
+      "sheet": "school-b",
+      "row": 6,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 136.429,
+      "drawHeight": 68,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            21,
+            621,
+            254,
+            254
+          ],
+          "sourceFoot": [
+            163.5,
+            872
+          ],
+          "scale": 0.550117
+        },
+        {
+          "x": 256,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            309,
+            651,
+            237,
+            226
+          ],
+          "sourceFoot": [
+            457,
+            874
+          ],
+          "scale": 0.550117
+        },
+        {
+          "x": 512,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            551,
+            651,
+            373,
+            225
+          ],
+          "sourceFoot": [
+            765.5,
+            873
+          ],
+          "scale": 0.550117
+        },
+        {
+          "x": 768,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            965,
+            618,
+            262,
+            259
+          ],
+          "sourceFoot": [
+            1095,
+            874
+          ],
+          "scale": 0.550117
+        }
+      ]
+    },
+    "chalk-warden": {
+      "sheet": "school-b",
+      "row": 7,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 142,
+      "drawHeight": 116,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            3,
+            907,
+            285,
+            290
+          ],
+          "sourceFoot": [
+            130.5,
+            1194
+          ],
+          "scale": 0.5
+        },
+        {
+          "x": 256,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            288,
+            938,
+            280,
+            258
+          ],
+          "sourceFoot": [
+            435,
+            1193
+          ],
+          "scale": 0.5
+        },
+        {
+          "x": 512,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            568,
+            915,
+            376,
+            281
+          ],
+          "sourceFoot": [
+            804,
+            1193
+          ],
+          "scale": 0.5
+        },
+        {
+          "x": 768,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-be01746a-1645-4599-b057-1f0565a8771b.png",
+          "sourceBounds": [
+            960,
+            898,
+            282,
+            300
+          ],
+          "sourceFoot": [
+            1117.5,
+            1195
+          ],
+          "scale": 0.5
+        }
+      ]
+    },
+    "armory-lord": {
+      "sheet": "bosses",
+      "row": 0,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 125.766,
+      "drawHeight": 116,
+      "crops": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            4,
+            21,
+            304,
+            257
+          ],
+          "sourceFoot": [
+            162.5,
+            275
+          ],
+          "scale": 0.501062
+        },
+        {
+          "x": 256,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            334,
+            10,
+            236,
+            268
+          ],
+          "sourceFoot": [
+            452.5,
+            275
+          ],
+          "scale": 0.501062
+        },
+        {
+          "x": 512,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            570,
+            53,
+            376,
+            223
+          ],
+          "sourceFoot": [
+            802.5,
+            273
+          ],
+          "scale": 0.501062
+        },
+        {
+          "x": 768,
+          "y": 0,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            965,
+            22,
+            285,
+            255
+          ],
+          "sourceFoot": [
+            1105.5,
+            274
+          ],
+          "scale": 0.501062
+        }
+      ]
+    },
+    "library-lord": {
+      "sheet": "bosses",
+      "row": 1,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 128.779,
+      "drawHeight": 116,
+      "crops": [
+        {
+          "x": 0,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            15,
+            335,
+            299,
+            233
+          ],
+          "sourceFoot": [
+            173.5,
+            565
+          ],
+          "scale": 0.567308
+        },
+        {
+          "x": 256,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            338,
+            335,
+            232,
+            239
+          ],
+          "sourceFoot": [
+            465.5,
+            571
+          ],
+          "scale": 0.567308
+        },
+        {
+          "x": 512,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            576,
+            336,
+            372,
+            245
+          ],
+          "sourceFoot": [
+            784,
+            578
+          ],
+          "scale": 0.567308
+        },
+        {
+          "x": 768,
+          "y": 256,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            957,
+            300,
+            289,
+            283
+          ],
+          "sourceFoot": [
+            1083,
+            580
+          ],
+          "scale": 0.567308
+        }
+      ]
+    },
+    "garden-heart": {
+      "sheet": "bosses",
+      "row": 2,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 148.635,
+      "drawHeight": 116,
+      "crops": [
+        {
+          "x": 0,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            10,
+            608,
+            274,
+            268
+          ],
+          "sourceFoot": [
+            153.5,
+            873
+          ],
+          "scale": 0.567308
+        },
+        {
+          "x": 256,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            325,
+            625,
+            219,
+            241
+          ],
+          "sourceFoot": [
+            443,
+            863
+          ],
+          "scale": 0.567308
+        },
+        {
+          "x": 512,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            544,
+            621,
+            396,
+            248
+          ],
+          "sourceParts": [
+            [
+              544,
+              587,
+              399,
+              213
+            ],
+            [
+              590,
+              800,
+              353,
+              89
+            ]
+          ],
+          "sourceFoot": [
+            731,
+            866
+          ],
+          "scale": 0.567308
+        },
+        {
+          "x": 768,
+          "y": 512,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            950,
+            594,
+            301,
+            281
+          ],
+          "sourceFoot": [
+            1107,
+            872
+          ],
+          "scale": 0.567308
+        }
+      ]
+    },
+    "clock-warden": {
+      "sheet": "bosses",
+      "row": 3,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 145.848,
+      "drawHeight": 116,
+      "crops": [
+        {
+          "x": 0,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            18,
+            898,
+            262,
+            315
+          ],
+          "sourceFoot": [
+            151,
+            1210
+          ],
+          "scale": 0.472
+        },
+        {
+          "x": 256,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            280,
+            915,
+            275,
+            291
+          ],
+          "sourceFoot": [
+            431,
+            1203
+          ],
+          "scale": 0.472
+        },
+        {
+          "x": 512,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            555,
+            919,
+            388,
+            294
+          ],
+          "sourceFoot": [
+            802,
+            1210
+          ],
+          "scale": 0.472
+        },
+        {
+          "x": 768,
+          "y": 768,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-6dcf50d5-f7ce-4259-beb6-abef795a7b04.png",
+          "sourceBounds": [
+            949,
+            898,
+            298,
+            317
+          ],
+          "sourceFoot": [
+            1099.5,
+            1212
+          ],
+          "scale": 0.472
+        }
+      ]
+    },
+    "astral-core": {
+      "sheet": "bosses",
+      "row": 4,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 128.017,
+      "drawHeight": 116,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            19,
+            4,
+            249,
+            268
+          ],
+          "sourceFoot": [
+            144.5,
+            269
+          ],
+          "scale": 0.488613
+        },
+        {
+          "x": 256,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            330,
+            24,
+            236,
+            237
+          ],
+          "sourceFoot": [
+            453,
+            258
+          ],
+          "scale": 0.488613
+        },
+        {
+          "x": 512,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            566,
+            13,
+            345,
+            254
+          ],
+          "sourceFoot": [
+            804.5,
+            264
+          ],
+          "scale": 0.488613
+        },
+        {
+          "x": 768,
+          "y": 1024,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            951,
+            13,
+            285,
+            257
+          ],
+          "sourceFoot": [
+            1111,
+            267
+          ],
+          "scale": 0.488613
+        }
+      ]
+    },
+    "supply-chest": {
+      "sheet": "bosses",
+      "row": 5,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 124.941,
+      "drawHeight": 116,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            15,
+            341,
+            268,
+            240
+          ],
+          "sourceFoot": [
+            145.5,
+            578
+          ],
+          "scale": 0.533937
+        },
+        {
+          "x": 256,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            335,
+            352,
+            226,
+            228
+          ],
+          "sourceFoot": [
+            452.5,
+            577
+          ],
+          "scale": 0.533937
+        },
+        {
+          "x": 512,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            561,
+            330,
+            376,
+            251
+          ],
+          "sourceFoot": [
+            779,
+            578
+          ],
+          "scale": 0.533937
+        },
+        {
+          "x": 768,
+          "y": 1280,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            937,
+            313,
+            314,
+            269
+          ],
+          "sourceFoot": [
+            1088,
+            579
+          ],
+          "scale": 0.533937
+        }
+      ]
+    },
+    "headmaster": {
+      "sheet": "bosses",
+      "row": 6,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 115.304,
+      "drawHeight": 116,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            15,
+            637,
+            267,
+            284
+          ],
+          "sourceFoot": [
+            175,
+            918
+          ],
+          "scale": 0.414763
+        },
+        {
+          "x": 256,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            335,
+            656,
+            214,
+            260
+          ],
+          "sourceFoot": [
+            442.5,
+            913
+          ],
+          "scale": 0.414763
+        },
+        {
+          "x": 512,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            549,
+            640,
+            377,
+            278
+          ],
+          "sourceParts": [
+            [
+              549,
+              603,
+              388,
+              230
+            ],
+            [
+              590,
+              833,
+              347,
+              110
+            ]
+          ],
+          "sourceFoot": [
+            830.5,
+            915
+          ],
+          "scale": 0.414763
+        },
+        {
+          "x": 768,
+          "y": 1536,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            942,
+            635,
+            301,
+            291
+          ],
+          "sourceFoot": [
+            1139,
+            923
+          ],
+          "scale": 0.414763
+        }
+      ]
+    },
+    "abyss-queen": {
+      "sheet": "bosses",
+      "row": 7,
+      "frames": 4,
+      "foot": [
+        128,
+        232
+      ],
+      "bodyHeight": 104.279,
+      "drawHeight": 116,
+      "crops": [
+        {
+          "x": 0,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            8,
+            969,
+            265,
+            272
+          ],
+          "sourceFoot": [
+            138.5,
+            1238
+          ],
+          "scale": 0.392027
+        },
+        {
+          "x": 256,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            306,
+            984,
+            236,
+            258
+          ],
+          "sourceFoot": [
+            421.5,
+            1239
+          ],
+          "scale": 0.392027
+        },
+        {
+          "x": 512,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            542,
+            976,
+            400,
+            266
+          ],
+          "sourceFoot": [
+            840,
+            1239
+          ],
+          "scale": 0.392027
+        },
+        {
+          "x": 768,
+          "y": 1792,
+          "w": 256,
+          "h": 256,
+          "foot": [
+            128,
+            232
+          ],
+          "source": "exec-b2660eb3-5736-4e9e-851e-0200d32355f2.png",
+          "sourceBounds": [
+            942,
+            958,
+            301,
+            287
+          ],
+          "sourceFoot": [
+            1133,
+            1242
+          ],
+          "scale": 0.392027
+        }
+      ]
+    }
+  },
+  "sheets": {
+    "school-a": {
+      "file": "school-a.webp",
+      "width": 1024,
+      "height": 2048,
+      "columns": 4,
+      "rows": 8,
+      "cell": [
+        256,
+        256
+      ],
+      "foot": [
+        128,
+        232
+      ]
+    },
+    "school-b": {
+      "file": "school-b.webp",
+      "width": 1024,
+      "height": 2048,
+      "columns": 4,
+      "rows": 8,
+      "cell": [
+        256,
+        256
+      ],
+      "foot": [
+        128,
+        232
+      ]
+    },
+    "bosses": {
+      "file": "bosses.webp",
+      "width": 1024,
+      "height": 2048,
+      "columns": 4,
+      "rows": 8,
+      "cell": [
+        256,
+        256
+      ],
+      "foot": [
+        128,
+        232
+      ]
+    }
+  },
+  "mappings": {
+    "types": {
+      "chalk": "chalk",
+      "eraser": "chalk",
+      "pencil": "chalk",
+      "clock": "clock",
+      "locker": "clock",
+      "mop": "clock",
+      "book": "book",
+      "scroll": "book",
+      "ink": "book",
+      "plant": "plant",
+      "can": "plant",
+      "rake": "plant",
+      "ball": "sport",
+      "dumbbell": "sport",
+      "whistle": "sport",
+      "telescope": "telescope",
+      "globe": "telescope",
+      "crane": "telescope",
+      "frostbell": "frostbell",
+      "snowman": "frostbell",
+      "cone": "frostbell",
+      "uniform": "uniform",
+      "desk": "uniform",
+      "board": "uniform",
+      "flask": "flask",
+      "scope": "flask",
+      "magnet": "flask",
+      "bucket": "umbrella",
+      "pipe": "umbrella",
+      "umbrella": "umbrella",
+      "windsock": "compass",
+      "compass": "compass",
+      "kite": "compass",
+      "shrinebell": "foxmask",
+      "talisman": "foxmask",
+      "foxmask": "foxmask",
+      "plaster": "plaster",
+      "mirror": "plaster",
+      "restorer": "plaster",
+      "constellation": "constellation",
+      "inverted_scope": "constellation",
+      "chart": "constellation",
+      "clockguard": "clockguard",
+      "pendulum": "clockguard",
+      "tuner": "clockguard"
+    },
+    "campaignRegular": [
+      "chalk",
+      "clock",
+      "book",
+      "plant",
+      "sport",
+      "telescope",
+      "frostbell",
+      "uniform",
+      "flask",
+      "umbrella",
+      "compass",
+      "foxmask",
+      "plaster",
+      "constellation",
+      "clockguard",
+      "abyss-queen",
+      "garden-heart",
+      "astral-core",
+      "uniform",
+      "headmaster",
+      "chalk",
+      "clock",
+      "book",
+      "plant",
+      "sport"
+    ],
+    "campaignBoss": [
+      "chalk-warden",
+      "clock-warden",
+      "library-lord",
+      "garden-heart",
+      "armory-lord",
+      "astral-core",
+      "frostbell",
+      "armory-lord",
+      "astral-core",
+      "abyss-queen",
+      "headmaster",
+      "foxmask",
+      "chalk-warden",
+      "astral-core",
+      "clock-warden",
+      "abyss-queen",
+      "garden-heart",
+      "astral-core",
+      "headmaster",
+      "clock-warden",
+      "chalk-warden",
+      "clock-warden",
+      "library-lord",
+      "garden-heart",
+      "armory-lord"
+    ],
+    "tower": {
+      "armory": "armory-lord",
+      "library": "library-lord",
+      "garden": "garden-heart",
+      "clock": "clock-warden",
+      "astral": "astral-core"
+    },
+    "activities": {
+      "daily": "supply-chest",
+      "weekly": "headmaster"
+    }
+  },
+  "notes": [
+    "Kinds 20–24 use the corresponding kinds 0–4 artwork.",
+    "The three ordinary enemy variants in each base chapter share an illustrated family; combat roles remain independent.",
+    "Four different authored poses; cast sprites contain small integrated spell effects.",
+    "Use family bodyHeight to scale to drawHeight; every crop has foot [128,232]."
+  ],
+  "emblem": {
+    "file": "company-emblem.webp",
+    "width": 256,
+    "height": 256,
+    "source": "exec-37dd9c77-b311-4ca5-90fc-d192fc60c984.png"
+  }
+}

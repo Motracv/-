@@ -101,13 +101,14 @@ window.SchoolRaidFX=(()=>{
    }else burst(c,bossX,bossY-size*.4,f,'#cabaff',reduced?4:10,1.5);
    c.restore();
   }
-  const numbers=own.filter(e=>['hit','heal','hurt','shield','immune','miss','dodge'].includes(e.kind)&&now-e.shown<1100).slice(-18);
+  window.SchoolCombatFeedback?.drawNumbers(c,own,now/1000,id=>id==='boss'?{x:bossX,y:bossY,numberY:bossY-size*.65}:positions[units.findIndex(u=>focus+':'+u.id===id)],{format:'coop',scale:Math.max(1,Math.min(1.6,h/300)),reduced,limit:80});
+  const numbers=own.filter(e=>['immune','miss','dodge'].includes(e.kind)&&now-e.shown<1100).slice(-18);
   for(const e of numbers){const p=positions[units.findIndex(u=>u.id===e.id)];if(!p)continue;const f=(now-e.shown)/1100,isOut=['hit','immune','miss'].includes(e.kind),x=isOut?bossX-50+(e.seq%5)*22:p.x,y=(isOut?bossY-size*.7:p.y-scale*40)-f*27-(e.seq%2)*13;
    const word=e.kind==='dodge'?'회피':e.kind==='hurt'?(e.amount?'-'+Math.round(e.amount).toLocaleString('ko-KR'):'보호막 '+Math.round(e.absorbed).toLocaleString('ko-KR')):e.kind==='heal'?'+'+e.amount.toLocaleString('ko-KR'):e.kind==='shield'?'보호막 +'+e.amount.toLocaleString('ko-KR'):e.kind==='immune'?'물리 무효':e.kind==='miss'?'빗나감':e.amount.toLocaleString('ko-KR');
    c.save();c.globalAlpha=1-f*f;c.font=`800 ${Math.max(13,Math.min(20,h*.065))}px Pretendard, sans-serif`;c.textAlign='center';c.lineWidth=3;c.strokeStyle='#102034';c.strokeText(word,x,y);c.fillStyle=e.kind==='heal'?'#afffc5':e.kind==='hurt'&&e.amount?'#ffb0a0':e.kind==='shield'||e.absorbed?'#c6edff':e.crit?'#ffe98c':'#fff9e2';c.fillText(word,x,y);
    if(e.crit)star(c,x-30,y-6,6,'#ffeb85',.2);if(e.kind==='hurt'&&e.amount&&e.absorbed){c.font='11px Pretendard, sans-serif';c.fillStyle='#b6e7ff';c.fillText('보호막 '+e.absorbed,x,y+13);}c.restore();
   }
-  if(live){window.SchoolBattlePolish?.speedField(c,units,[{...battle.boss,boss:true}],t,w,8);window.SchoolBattlePolish?.focus(c,own,now,w,h,reduced,shot=>units.find(u=>u.id===shot.id)?.skin);}
+  if(live){window.SchoolBattlePolish?.speedField(c,units,[{...battle.boss,boss:true}],t,w,8);window.SchoolBattlePolish?.focus(c,own,now,w,h,reduced,shot=>units.find(u=>u.id===shot.id)?.skin,o.roomKey);}
   c.restore();return{effects:recent.length,hits:own.filter(e=>e.kind==='hurt').length};
  }
  return{draw};

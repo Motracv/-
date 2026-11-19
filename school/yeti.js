@@ -5,7 +5,7 @@ window.SchoolYeti=(()=>{
  const bg=new Image(),atlas=new Image();let loaded=false;
  function assets(){if(loaded)return;loaded=true;bg.src='school/assets/yeti/background.webp?v=yeti1';atlas.src='school/assets/yeti/poses.png?v=yeti1';}
  function create(ctx){
-  let data=null,busy=false,polling=false,epoch=0,timer=0,raf=0,pending=null,received=0,lastFrame=0,seen=0,events=[],signature='',lastSound=0,rewardKey='';
+  let data=null,busy=false,polling=false,epoch=0,timer=0,raf=0,pending=null,received=0,lastFrame=0,seen=0,events=[],signature='',lastSound=0,lastCards=0,rewardKey='';
   const rescueInput=window.SchoolRescue.create(send),health=window.SchoolCombatFeedback?.createHealthTracker(),timeline=window.SchoolCombatFeedback?.createSnapshotTimeline?.({limit:100});
   let pollBegan=0;
   const own=()=>!!document.getElementById('yeti-view')?.closest('dialog')?.open;
@@ -83,6 +83,7 @@ window.SchoolYeti=(()=>{
    if(live&&breaths.length)window.SchoolOsiaBreathArt?.field(c,(now-breaths[breaths.length-1].shown)/1000,1000,560,reduced);
    health?.begin(data?.room?.id,now/1000);
    const myIndex=Math.max(0,b?.teams.findIndex(t=>t.isMe)??0);
+   if(now-lastCards>125){lastCards=now;window.SchoolSkillCards?.coop(document.getElementById('yeti-skill-cards'),b?.teams[myIndex]?.units||[],{elapsed:time,phase:live?'fight':'waiting',frozen:!!b?.teams[myIndex]?.frozen,events,now,team:myIndex});}
    let winterUntil=0;if(live)for(const team of b?.teams||[])winterUntil=Math.max(winterUntil,window.SchoolArt.spicaFieldUntil(team.units));
    const pos=(ti,i)=>({x:100+(i%3)*132+(i>=3?30:0),y:ti===myIndex?374+(i>=3?76:0):199+(i>=3?76:0)});
    if(live)for(const e of breaths){const i=b.teams[e.team].units.findIndex(u=>u.id===e.id);window.SchoolOsiaWeaponArt?.dragon(c,{source:pos(e.team,i),target:{x:790,y:450,aimY:285},age:(now-e.shown)/1000,reduced,economy:width<900,scale:1.3,breath:true,layer:'back'});}
@@ -117,12 +118,11 @@ window.SchoolYeti=(()=>{
     if(e.kind==='dragon')window.SchoolOsiaWeaponArt.dragon(c,options);else window.SchoolOsiaWeaponArt.drowning(c,options);
    }
    if(live)window.SchoolArt.spicaBlizzard(c,{x:0,y:86,width:1000,height:474},time,winterUntil,reduced,width<900);
+   window.SchoolCombatFeedback?.drawNumbers(c,events,now/1000,id=>{if(id==='boss')return{x:bx,y:by,numberY:by-180};const [team,hero]=id.split(':');const index=b?.teams[team]?.units.findIndex(u=>u.id===hero);return index>=0?pos(Number(team),index):null;},{format:'coop',scale:1.55,reduced,limit:96});
    for(const e of events){const age=(now-e.shown)/1000;if(age<0||age>1.5)continue;
     c.save();c.globalAlpha=Math.max(0,1-age/1.5);
     if(['hit','heal','hurt','shield'].includes(e.kind)){
-     const ti=e.team||0,i=b?.teams[ti]?.units.findIndex(u=>u.id===e.id),p=e.kind==='hit'?{x:bx-50+(e.seq%5)*18,y:by-180}:pos(ti,Math.max(0,i));
-     const word=(e.kind==='heal'?'+':e.kind==='hurt'?'-':e.kind==='shield'?'방어 ':'')+fmt(e.amount),color=e.kind==='heal'?'#a9ffd0':e.kind==='shield'?'#a9ddff':e.kind==='hurt'?'#ffa0af':e.crit?'#ffe898':'#fff8e9';
-     window.SchoolArt.combatNumber(c,word,p.x+((e.seq%3)-1)*12,p.y-40-age*45,e.crit?29:23,color,!!e.crit);
+     const ti=e.team||0,i=b?.teams[ti]?.units.findIndex(u=>u.id===e.id),p=e.kind==='hit'?{x:bx-50+(e.seq%5)*18,y:by-180}:i>=0?pos(ti,i):null;if(!p){c.restore();continue;}
      if(e.kind==='hit'&&e.id!=='kazua'&&!(e.id==='horas'&&window.SchoolHorasSkinArt?.active(b?.teams[ti]?.units[i]?.skin))&&age<.28){c.strokeStyle=e.id==='horas'?'#ffb4e7':'#b6eeff';c.lineWidth=3;c.beginPath();c.moveTo(p.x-15,p.y-20);c.lineTo(p.x+18,p.y+10);c.moveTo(p.x+15,p.y-20);c.lineTo(p.x-18,p.y+10);c.stroke();}
     }else if(e.kind==='impact'){
      c.strokeStyle='#a8eeff';c.lineWidth=5;for(let k=0;k<3;k++){c.beginPath();c.ellipse(480,430,100+age*260+k*35,20+age*20,0,0,Math.PI*2);c.stroke();}
@@ -133,14 +133,14 @@ window.SchoolYeti=(()=>{
    }
    if(!reduced&&winterUntil<=time){c.fillStyle='#d9f6ff88';for(let i=0;i<25;i++){const x=(i*173+now*.015)%1000,y=(i*67+now*.026)%560;c.fillRect(x,y,3,3);}}
    const maximum=b?.boss.max||data?.rules?.hp||Y.HP,hp=b?.boss.hp??maximum,bossHealth=health?.sample('boss',hp,maximum,now/1000,reduced)||{ratio:hp/maximum};c.fillStyle='#0b1d33cc';c.fillRect(260,26,480,40);c.fillStyle='#8ce0f4';c.fillRect(266,56,468*bossHealth.ratio,4);c.fillStyle='#effbff';c.textAlign='center';c.font='bold 18px sans-serif';c.fillText(`만년설 예티 · ${fmt(hp)} / ${fmt(maximum)}`,500,48);c.textAlign='start';
-   if(live&&b){window.SchoolBattlePolish?.speedField(c,b.teams.flatMap(t=>t.units),[{...b.boss,boss:true}],time,1000,70);window.SchoolBattlePolish?.focus(c,events,now,1000,560,reduced,shot=>b.teams[shot.team??myIndex]?.units.find(u=>u.id===shot.id)?.skin);}
+   if(live&&b){window.SchoolBattlePolish?.speedField(c,b.teams.flatMap(t=>t.units),[{...b.boss,boss:true}],time,1000,70);window.SchoolBattlePolish?.focus(c,events,now,1000,560,reduced,shot=>b.teams[shot.team??myIndex]?.units.find(u=>u.id===shot.id)?.skin,data?.room?.id);}
    const warning=document.getElementById('yeti-warning'),label=b?.teams[myIndex]?.rescueLockUntil>time?`구출 실패 · 내 용병단 ${Math.ceil((b.teams[myIndex].rescueLockUntil-time)/1000)}초 정지`:cast?Y.PATTERNS.find(p=>p.id===cast.id)?.name:live?'동료가 얼면 7초 구출 도전!':'두 단장이 함께하는 겨울 토벌';if(warning.textContent!==label)warning.textContent=label;
    document.getElementById('yeti-clock').textContent=live?`${Math.max(0,Math.ceil(((b?.yetiRules?.duration||(b?150000:data?.rules?.duration||Y.DURATION))-time)/1000))}초`:'어려움 · 권장 Lv.70 이상';
    if(now-lastSound>150){const sound=events.findLast(e=>!e.sounded&&e.shown<=now&&now-e.shown<300&&['impact','thaw','hit'].includes(e.kind));if(sound){ctx.play?.(sound.kind==='thaw'?'reward':sound.kind==='impact'?'critical':'hit');lastSound=now;}for(const e of events)if(e.shown<=now)e.sounded=true;}
   }
   function open(){stop();assets();data=null;signature='';events=[];seen=0;try{pending=JSON.parse(sessionStorage.getItem(key())||'null');}catch{pending=null;}
    if(!ctx.isCloud()){ctx.openModal('예티 협동 토벌','<div class="yeti-login"><h3>친구와 함께 만년설 예티에 도전!</h3><p>Google 계정으로 로그인하면 2인 전투방을 만들 수 있어요.</p><button id="yeti-login" class="primary">계정 연결</button></div>','yeti');document.getElementById('yeti-login').onclick=ctx.openAccount;return;}
-   ctx.openModal('겨울 협동전 · 만년설 예티',`<section id="yeti-view"><div id="yeti-lobby-toolbar" hidden><strong id="yeti-party-count"></strong><button id="yeti-invite-friends" class="primary">＋ 친구·길드원 초대</button></div><div class="yeti-arena"><canvas id="yeti-canvas" aria-label="두 용병단과 예티의 실시간 협동 전투"></canvas><span id="yeti-clock"></span><span id="yeti-warning"></span><div id="yeti-result" hidden></div></div><div id="yeti-members"></div><div id="yeti-actions"></div><div id="yeti-rewards"></div><p id="yeti-message" role="status">전투방을 확인 중이에요…</p><details class="yeti-rules"><summary>구출 방법과 보상</summary><p>2명 모두 준비하면 방장이 시작해요. 권장 Lv.70 이상, 탱커와 힐러를 포함한 6인 편성을 추천해요. 새 도전은 210초이며 횟수 제한은 없어요. 예티는 물리·마법 공격 모두 유효해요.</p><p>한쪽 용병단이 얼면 다른 단장이 ‘얼음땡’을 눌러 구해 주세요. 자기 얼음은 풀 수 없어요. 방치하면 동상 피해를 받아요.</p><p>처치하면 각자 눈송이 20~50개와 룰렛용 눈사람 1개를 받아요. 실패하거나 중간에 나가면 보상이 없어요. 나가기는 두 사람의 도전을 종료해요. 접속이 끊겼다면 같은 계정으로 돌아와 이어할 수 있어요.</p></details></section>`,'yeti');raf=requestAnimationFrame(draw);load();
+   ctx.openModal('겨울 협동전 · 만년설 예티',`<section id="yeti-view"><div id="yeti-lobby-toolbar" hidden><strong id="yeti-party-count"></strong><button id="yeti-invite-friends" class="primary">＋ 친구·길드원 초대</button></div><div class="yeti-arena"><canvas id="yeti-canvas" aria-label="두 용병단과 예티의 실시간 협동 전투"></canvas><span id="yeti-clock"></span><span id="yeti-warning"></span><div id="yeti-result" hidden></div></div><div id="yeti-skill-cards" class="coop-skill-cards" aria-label="내 용병 스킬 상태"></div><div id="yeti-members"></div><div id="yeti-actions"></div><div id="yeti-rewards"></div><p id="yeti-message" role="status">전투방을 확인 중이에요…</p><details class="yeti-rules"><summary>구출 방법과 보상</summary><p>2명 모두 준비하면 방장이 시작해요. 권장 Lv.70 이상, 탱커와 힐러를 포함한 6인 편성을 추천해요. 새 도전은 210초이며 횟수 제한은 없어요. 예티는 물리·마법 공격 모두 유효해요.</p><p>한쪽 용병단이 얼면 다른 단장이 ‘얼음땡’을 눌러 구해 주세요. 자기 얼음은 풀 수 없어요. 방치하면 동상 피해를 받아요.</p><p>처치하면 각자 눈송이 20~50개와 룰렛용 눈사람 1개를 받아요. 실패하거나 중간에 나가면 보상이 없어요. 나가기는 두 사람의 도전을 종료해요. 접속이 끊겼다면 같은 계정으로 돌아와 이어할 수 있어요.</p></details></section>`,'yeti');raf=requestAnimationFrame(draw);load();
   }
   async function leave(){if(!own())return true;if(busy)return false;if(pending){await send(null,{},true);if(pending)return false;}return data?.room&&data.room.status!=='finished'?!!await send('leave'):true;}
   return {open,leave,destroy:stop,canInvite:id=>own()&&data?.room?.id===id&&data.room.status==='lobby'&&data.room.members.length<2};

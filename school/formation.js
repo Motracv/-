@@ -31,7 +31,7 @@ window.SchoolFormation=(()=>{
   }
   const blocked=()=>sending||ctx.blocked()||ctx.activityActive();
   const active=()=>!root.hidden&&!document.hidden&&!ctx.modalOpen();
-  const portrait=id=>`<span class="formation-figure"><img src="${(window.SchoolArt.rosterPortrait||window.SchoolArt.portrait)(id,G.equippedSkin?.(ctx.getState(),id))}" alt="" draggable="false"></span>`;
+  const portrait=id=>`<span class="formation-figure"><img src="${(window.SchoolArt.displayPortrait||window.SchoolArt.rosterPortrait||window.SchoolArt.portrait)(id,G.equippedSkin?.(ctx.getState(),id))}" alt="" draggable="false"></span>`;
   const stars=u=>`<span class="formation-stars" aria-label="${u.stars}성">${'★'.repeat(u.stars)}${'☆'.repeat(5-u.stars)}</span>`;
   const say=text=>{$('formation-status-live').textContent=text;};
   function hint(){say(ctx.activityActive()?'던전 도전을 마친 뒤 편성을 바꿀 수 있어요.':selection?`${G.BY_ID[selection].name} 선택 · ${ctx.getState().team.length===6?'교체할':'넣을'} 자리를 누르세요. ESC로 취소`:'짧게 누르면 육성 · 꾹 눌러 끌면 배치 · 출전 중인 두 용병은 자리 교환');}

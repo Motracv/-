@@ -29,7 +29,7 @@ window.SchoolLobby = (() => {
             button.style.setProperty('--breath-delay',`${-(i*.63)}s`);
             button.innerHTML = '<span class="lobby-unit-label"><small></small><b></b></span><span class="lobby-stars" aria-hidden="true"></span><img class="lobby-sprite" alt="" draggable="false">';
             button.querySelector('b').textContent = definition.name;
-            button.querySelector('img').src = art.portrait(id,game.equippedSkin?.(state,id));
+            button.querySelector('img').src = (art.displayPortrait||art.portrait)(id,game.equippedSkin?.(state,id));
             slots.set(id, button);
           } else {
             button.classList.add('empty'); button.dataset.tab = 'roster';
@@ -75,7 +75,9 @@ window.SchoolLobby = (() => {
       text('lobby-battle-label', active ? (state.activities?.run?.settled ? '던전 결과 확인' : '던전 전투 보기') : `${game.stageName(state.battle.stage)} · 전투 보기`);
       const questReady = (questBoard?.readyCount ?? game.questReady(state, now)) > 0;
       show('lobby-quest-dot', questReady);
-      show('lobby-recruit-dot', state.gems >= game.SSR_RECRUIT_COST[10]);
+      show('lobby-recruit-dot', false);
+      show('lobby-codex-dot',Object.keys(state.units).some(id=>!state.codexClaimed?.includes(id)));
+      const pass=game.passInfo?.(state,now);show('lobby-pass-dot',!!(pass?.rewards?.some(r=>r.ready)||pass?.quests?.some(q=>q.ready)));
       show('lobby-supply-dot', !!state.offline.seconds || state.daily < game.day(now) || questReady);
     }
     function invalidate() { ready = false; captainId = ''; }
