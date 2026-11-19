@@ -9,7 +9,7 @@ const ur=make();full(ur);ur.banners.horas.pity=79;rolls=[.99,0];const h=act(ur,{
 s.shardExchange={SR:500,SSR:100};const before=G.clone(s);act(s,{kind:'shard-refine',count:5,reward:999999});assert.deepEqual(s.shardExchange,{SR:250,SSR:125});assert.equal(s.gems,before.gems);assert.equal(s.gold,before.gold);
 delete s.units.lava;assert(!G.shardInfo(s).choices.includes('lava'));const wallet=G.clone(s.shardExchange);reject(s,{kind:'shard-select',hero:'lava',count:2});assert.deepEqual(s.shardExchange,wallet);
 // Legacy banked shards remain available upon first recruitment, but cannot be bought again.
-s.heroShards={lava:10};reject(s,{kind:'shard-select',hero:'lava'});s.banners.osia.guaranteed=false;rolls=[0,.999];const first=act(s,{kind:'recruit',count:1,banner:'osia'},()=>rolls.shift());assert.equal(first.results[0].id,'lava');assert.equal(s.units.lava.shards,10);assert(!s.heroShards.lava);assert(G.shardInfo(s).choices.includes('lava'));act(s,{kind:'shard-select',hero:'lava',count:2});assert.equal(s.units.lava.shards,20);assert.equal(s.shardExchange.SSR,105);
+s.heroShards={lava:10};reject(s,{kind:'shard-select',hero:'lava'});s.banners.standard.guarantees=0;s.banners.standard.guaranteed=false;rolls=[0,.999];const first=act(s,{kind:'recruit',count:1,banner:'osia'},()=>rolls.shift());assert.equal(first.results[0].id,'lava');assert.equal(s.units.lava.shards,10);assert(!s.heroShards.lava);assert(G.shardInfo(s).choices.includes('lava'));act(s,{kind:'shard-select',hero:'lava',count:2});assert.equal(s.units.lava.shards,20);assert.equal(s.shardExchange.SSR,105);
 
 for(const hero of ['spica','horas','ryusion','taeo','__proto__'])reject(s,{kind:'shard-select',hero});
 for(const count of [0,-1,.5,101,'1',Infinity])reject(s,{kind:'shard-refine',count});

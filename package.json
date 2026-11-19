@@ -1,6 +1,6 @@
 {
   "name": "friends-card-table",
-  "version": "4.19.0",
+  "version": "4.20.0",
   "private": true,
   "scripts": {
     "start": "node server.cjs",
@@ -49,6 +49,7 @@
     "test:school:formation": "node tests/school-formation-ui.cjs && node tests/school-yeti-auto.cjs && node tests/school-yeti-server.cjs",
     "test:school:expired-codes": "node tests/school-expired-codes.cjs",
     "test:school:expansion": "node tests/school-expansion.cjs && node tests/school-winter2-art.cjs && node tests/school-winter2-ui.cjs",
+    "test:school:kazua": "node tests/school-kazua.cjs && node tests/school-kazua-server.cjs && node tests/school-kazua-ui.cjs",
     "test:school:notices": "node tests/school-notice.cjs"
   },
   "engines": {

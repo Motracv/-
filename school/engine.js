@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 30;
+  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 31;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const PROFILE_AVATARS = Object.freeze(['knight','witch','scholar','bear','cat','bird']);
@@ -58,13 +58,15 @@
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
   const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi", "lava"]);
   const BANNERS = Object.freeze({
+    kazua: Object.freeze({ id:"kazua", name:"카즈아 픽업뽑기", featured:"kazua", limited:false, expiresAt:null }),
+    standard: Object.freeze({ id:"standard", name:"상시뽑기", featured:null, limited:false, expiresAt:null }),
     ryusion: Object.freeze({ id:"ryusion", name:"류시온 픽업 모집", featured:"ryusion", limited:false, expiresAt:null }),
     horas: Object.freeze({ id: "horas", name: "호라스 픽업뽑기", featured: "horas", rarity: "UR", limited: true, expiresAt: Date.parse("2026-12-03T00:00:00+09:00") }),
-    osia: Object.freeze({ id: "osia", name: "오시아 상시 모집", featured: "osia", limited: false, expiresAt: null }),
-    lava: Object.freeze({ id: "lava", name: "라바 상시 모집", featured: "lava", limited: false, expiresAt: null }),
   });
   // Retired receipts remain readable. New codes are separately issued below.
   const COUPONS = Object.freeze({
+    KAZUA_UPDATE: Object.freeze({gold:0,gems:2000,snowflakes:100,expiresAt:null}),
+    THANKS_FOR_ENJOYING_THE_GAME: Object.freeze({gold:0,gems:1000,snowflakes:100,expiresAt:null}),
     BEYOND_CHAPTER_12: Object.freeze({gold:15000,gems:1500,snowflakes:100,expiresAt:null}),
     SORRY_FOR_FREQUENT_PATCHES: Object.freeze({gold:0,gems:900,snowflakes:500,expiresAt:null}),
     RANKING_FIRST_CONGRATS: Object.freeze({ gold:0, gems:0, expiresAt:Date.parse('2026-11-18T22:46:56Z'), avatar:'rank-first' }),
@@ -139,14 +141,21 @@
   function bannerAvailable(id, now = Date.now()) {
     return typeof id === "string" && Object.hasOwn(BANNERS, id) && Number.isFinite(now) && (BANNERS[id].expiresAt === null || now < BANNERS[id].expiresAt);
   }
-  function bannerState(s, id = "osia") {
+  const canonicalBanner = id => id === 'osia' || id === 'lava' ? 'standard' : id;
+  function bannerState(s, id = "standard") {
+    id = canonicalBanner(id);
     if (!Object.hasOwn(BANNERS, id)) return null;
     const saved = s.banners?.[id];
-    // Read old saves without changing them; the first successful update persists
-    // both independent counters and preserves the original permanent pity.
-    return { pity: saved?.pity ?? (id === "osia" ? s.pity : 0), guaranteed: saved?.guaranteed ?? false };
+    if(id==='standard'){
+      // Project legacy counters without mutating a save during a UI read.
+      const total=(s.banners?.osia?.pity??s.pity??0)+(s.banners?.lava?.pity??0);
+      const guarantees=saved?.guarantees??(Number(!!s.banners?.osia?.guaranteed)+Number(!!s.banners?.lava?.guaranteed));
+      return {pity:saved?.pity??Math.min(79,total),reserve:saved?.reserve??Math.max(0,total-79),guarantees,guaranteed:guarantees>0};
+    }
+    return { pity: saved?.pity ?? 0, guaranteed: saved?.guaranteed ?? false };
   }
-  function bannerHeroRates(s, id = "osia") {
+  function bannerHeroRates(s, id = "standard", guaranteedHero = 'osia') {
+    id = canonicalBanner(id);
     const progress = bannerState(s, id); if (!progress) return {};
     const rates = recruitRates(progress.pity, id), featured = BANNERS[id].featured;
     const otherSSR = STANDARD_SSR.filter(hero => hero !== featured);
@@ -158,6 +167,10 @@
     if (id === "horas") {
       result.horas = rates.UR;
       for (const hero of STANDARD_SSR) result[hero] = rates.SSR / STANDARD_SSR.length;
+      return result;
+    }
+    if(id==='standard'){
+      for(const hero of STANDARD_SSR)result[hero]=progress.guaranteed?(hero===guaranteedHero?rates.SSR:0):rates.SSR/STANDARD_SSR.length;
       return result;
     }
     result[featured] = rates.SSR * (progress.guaranteed ? 1 : .5);
@@ -184,7 +197,42 @@
     { id:"ryusion", name:"류시온", latin:"Ryusion", gender:"여성", species:"인간", club:"대지의 수호자", element:"earth", role:"수호", rarity:"SSR", hp:245, hpGrowth:18, atk:10, atkGrowth:2.4, cooldown:8, skill:"돌격 앞으로 · 방어막 추가", passive:"내가 대신 맞아줄게", passiveDesc:"전투 5초부터 5초마다 2초 동안 모든 적 공격을 대신 받습니다. 광역 공격은 각 아군에게 향한 타격을 전부 받습니다. 도발 중 본인이 받는 피해는 추가로 60% 감소합니다. 쓰러지면 도발은 끝납니다.", passive2:"피해감소", passive2Desc:"생존 중 자신을 포함한 아군 전체가 받는 피해 8% 감소. 다른 피해 감소와 곱해서 적용됩니다.", color:"#daa456", hair:"#674b40", outfit:"#28272b", weapon:"earth-shield", desc:"8초 충전마다 교대로 사용합니다. 돌격 앞으로: 전방 적 한 명에게 공격력 100% 피해·밀쳐내기·2초 기절. 방어막 추가: 생존 아군 각각에게 류시온 최대 HP 8%의 보호막을 6초간 부여. 같은 보호막은 중첩되지 않습니다." },
   ];
   HEROES.push({ id: "horas", name: "호라스", latin: "Horas", gender: "여성", club: "벚꽃의 의식", element: "blossom", role: "사수", rarity: "UR", hp: 128, atk: 22, cooldown: 5, skill: "벚꽃의식", passive: "별빛 축적", passiveDesc: "두 손짓의 느린 평타가 적중하거나 공격을 받으면 벚꽃 구슬을 1개 쌓습니다. 피격 획득은 1초당 한 번. 5개를 합쳐 벚꽃의식을 사용합니다.", passive2: "벚꽃의 잔향", passive2Desc: "기절 중인 적에게 주는 피해 1.5배. 의식이 적중한 주 대상에게 6초간 표식을 남깁니다. 아군 누구든 표식 대상을 처치하면 2스택을 한 번 회수합니다.", color: "#f3a2d0", hair: "#f2a6d0", outfit: "#d6e5ff", weapon: "blossom", desc: "2초 간격으로 공격력 220% 평타. 5스택을 소모하여 구슬을 합친 뒤 가까운 적이 많은 한 명에게 공격력 1350%, 인접한 적에게 250% 피해. 의식은 10% 확률로 빗나갑니다. 의식 시작 간격은 최소 3초입니다." });
+  HEROES.push({id:'kazua',name:'카즈아',latin:'Kazua',gender:'남성',species:'인간',club:'붉은 탄막',role:'사수',rarity:'SSR',hp:100,hpGrowth:12,atk:24,atkGrowth:3,cooldown:20,skill:'붉은총알',passive:'권총 · 바주카포',passiveDesc:'5초마다 권총으로 단일 240%, 15초마다 바주카포로 적 전체 320% 물리 피해. 무기를 바꾸는 동안 머신건 사격은 잠시 멈춥니다.',passive2:'최후의 생존자',passive2Desc:'함께 출전한 아군이 쓰러질 때마다 피해 +12%(최대 60%). 원래 2명 이상 출전했고 혼자 남으면 추가 +20%. 빈 편성이나 부활 반복으로 중첩되지 않습니다. 회피 10%, 일반 공격 표적 우선도 감소. 광역·도발은 별도입니다.',color:'#f65d55',hair:'#a62428',outfit:'#24242c',weapon:'gatling',desc:'끝없는 총알: 3초간 초고속 연사 후 2초 장전. 연사 중 0.5초마다 공격력 55%의 물리 피해를 묶어 적용합니다. 붉은총알: 20초마다 3초간 초당 50발의 붉은 유도탄. 주 대상 총 1600%, 다른 적 각각 총 560% 물리 피해. 낮은 체력을 감수하는 극딜 사수.'});
   const BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
+  const KAZUA_RULES = Object.freeze({fireMs:3000,reloadMs:2000,volleyMs:500,basicMultiplier:.55,pistolMs:5000,pistolMultiplier:2.4,bazookaMs:15000,bazookaMultiplier:3.2,redMs:20000,redDuration:3000,redMultiplier:16,splash:.35,evasion:.1,aggro:.4,fallenBonus:.12,lastBonus:.2});
+  function kazuaPower(allies,initial=allies.map(u=>u.id)) {
+    const original=allies.filter(u=>initial.includes(u.id)),fallen=original.filter(u=>u.id!=='kazua'&&u.hp<=0).length;
+    const alone=initial.length>1&&original.filter(u=>u.hp>0).length===1&&original.some(u=>u.id==='kazua'&&u.hp>0);
+    return 1+Math.min(.6,fallen*KAZUA_RULES.fallenBonus)+(alone?KAZUA_RULES.lastBonus:0);
+  }
+  function validKazua(q){return q===undefined||!!(q&&['idle','fire','reload','pistol','bazooka','red'].includes(q.mode)&&['fire','reload'].includes(q.phase)&&['clock','phaseMs','volley','skillUntil','nextPistol','nextBazooka','nextRed','modeSince','credit'].every(k=>Number.isFinite(q[k])&&q[k]>=0)&&q.credit<250&&q.phaseMs<=3000&&q.volley<=500&&q.power>=1&&q.power<=1.801&&Array.isArray(q.initial)&&q.initial.length>=1&&q.initial.length<=6&&new Set(q.initial).size===q.initial.length&&q.initial.every(id=>Object.hasOwn(BY_ID,id)));}
+  // The same bounded 250 ms state machine serves campaign, raids and PvP.
+  // Bullets are visual; damage is grouped into 500 ms volleys, never 50 timers/s.
+  function kazuaStep(unit,allies,enemies,time,dt,hit,emit=()=>{},blocked=false,haste=1){
+    const q=unit.kazua||={clock:0,phase:'fire',phaseMs:0,mode:'fire',modeSince:Math.max(0,time-dt),volley:0,skillUntil:0,nextPistol:5000,nextBazooka:15000,nextRed:20000,credit:0,power:1,initial:allies.map(u=>u.id)};
+    if(blocked||unit.hp<=0)return q;
+    q.credit+=Math.max(0,Math.min(500,dt));
+    const change=(mode,at)=>{if(q.mode===mode)return;q.mode=mode;q.modeSince=at;emit('kazua-mode',{mode,power:q.power});};
+    const shoot=(mode,mult)=>{const live=enemies.filter(e=>e.hp>0);if(!live.length)return;const targets=mode==='bazooka'||mode==='red'?live:[live[0]];
+      emit('kazua-shot',{mode,targets:targets.map(e=>e.id),bullets:mode==='red'?25:mode==='fire'?10:1,power:q.power});
+      targets.forEach((e,i)=>hit(e,mult*q.power*(mode==='red'&&i?KAZUA_RULES.splash:1)*(mode==='fire'?Math.max(.5,Math.min(1.5,haste)):1),{mode,skill:mode==='fire'?null:mode==='red'?'붉은총알':mode==='pistol'?'권총':'바주카포'}));};
+    while(q.credit>=250){q.credit-=250;q.clock+=250;const at=Math.max(0,time-q.credit),power=kazuaPower(allies,q.initial);
+      if(power!==q.power){q.power=power;emit('kazua-survivor',{power});}
+      if(q.mode==='red'){
+        q.volley+=250;if(q.volley>=500){q.volley-=500;shoot('red',KAZUA_RULES.redMultiplier/6);}
+        if(q.clock>=q.skillUntil){q.volley=0;change(q.phase,at);}continue;
+      }
+      if(q.mode==='pistol'||q.mode==='bazooka'){if(q.clock<q.skillUntil)continue;change(q.phase,at);}
+      if(q.clock>=q.nextRed){q.nextRed=q.clock+KAZUA_RULES.redMs;q.skillUntil=q.clock+KAZUA_RULES.redDuration;q.volley=0;change('red',at);continue;}
+      if(q.clock>=q.nextBazooka){q.nextBazooka=q.clock+KAZUA_RULES.bazookaMs;q.skillUntil=q.clock+1000;change('bazooka',at);shoot('bazooka',KAZUA_RULES.bazookaMultiplier);continue;}
+      if(q.clock>=q.nextPistol){q.nextPistol=q.clock+KAZUA_RULES.pistolMs;q.skillUntil=q.clock+500;change('pistol',at);shoot('pistol',KAZUA_RULES.pistolMultiplier);continue;}
+      q.phaseMs+=250;
+      if(q.phase==='fire'){q.volley+=250;if(q.volley>=500){q.volley-=500;shoot('fire',KAZUA_RULES.basicMultiplier);}}
+      if(q.phaseMs>=(q.phase==='fire'?KAZUA_RULES.fireMs:KAZUA_RULES.reloadMs)){q.phaseMs=0;q.volley=0;q.phase=q.phase==='fire'?'reload':'fire';change(q.phase,at);}
+    }unit.energy=Math.max(0,20-(q.nextRed-q.clock)/1000);return q;
+  }
+  function kazuaInfo(s){const u=s.battle?.heroes?.find(u=>u.id==='kazua'),q=u?.kazua;return {mode:q?.mode||'idle',power:q?.power||1,nextRedMs:q?Math.max(0,q.nextRed-q.clock):20000};}
+  function lowAggroTarget(target,alive,rng){if(target?.id!=='kazua'||alive.length<2||rng()<KAZUA_RULES.aggro)return target;const others=alive.filter(u=>u.id!=='kazua');return others[Math.floor(rng()*others.length)];}
   const CHAPTERS = ["오래된 교실", "방과 후 복도", "비밀의 도서관", "뒤뜰의 정원", "체육관 결계", "별이 내리는 옥상", "눈 내린 운동장", "잊혀진 별관", "마력 실험실", "지하 통로", "학교의 경계", "바람의 성소", "침식된 미술실", "뒤집힌 천문관", "멈춰진 종루"];
   const ENEMIES = ["분필 슬라임", "낙서 유령", "종이 박쥐", "덩굴 정령", "체육관 골렘", "별가루 망령", "눈송이 정령", "종이 갑옷", "마력 실험체", "그림자 박쥐", "경계 파수꾼", "폭풍 정령", "석고 수문장", "별자리 추적자", "태엽 순찰병"];
   const ENEMY_VARIANTS = [
@@ -720,7 +768,7 @@
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
       profile: {avatar:'leader',title:'',beta:false}, gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
-      banners: { osia: { pity: 0, guaranteed: false }, lava: { pity: 0, guaranteed: false }, horas: { pity: 0, guaranteed: false } },
+      banners: { standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
@@ -780,7 +828,7 @@
       validBonds(s) && validShards(s) && validShop(s) && validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
-      (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)) && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean")) &&
+      (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)||id==="osia"||id==="lava") && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean") && (!s.banners.standard || Number.isInteger(s.banners.standard.reserve)&&s.banners.standard.reserve>=0&&s.banners.standard.reserve<=79&&Number.isInteger(s.banners.standard.guarantees)&&s.banners.standard.guarantees>=0&&s.banners.standard.guarantees<=2&&s.banners.standard.guaranteed===(s.banners.standard.guarantees>0))) &&
       (s.units.osia?.nextSkill == null || Number.isInteger(s.units.osia.nextSkill) && s.units.osia.nextSkill >= 1 && s.units.osia.nextSkill <= 4) &&
       (s.units.ryusion?.nextSkill == null || s.units.ryusion.nextSkill === 1 || s.units.ryusion.nextSkill === 2) &&
       (s.units.lava?.nextSkill == null || s.units.lava.nextSkill === 1 || s.units.lava.nextSkill === 2) &&
@@ -789,7 +837,7 @@
       (s.battle.lavaRescueUsed === undefined || typeof s.battle.lavaRescueUsed === "boolean") &&
       (s.battle.cinematic === undefined || s.battle.cinematic && s.battle.cinematic.from === "osia" && [STEP_MS, OSIA_CINEMATIC_MS].includes(s.battle.cinematic.duration) && Number.isFinite(s.battle.cinematic.remaining) && s.battle.cinematic.remaining > 0 && s.battle.cinematic.remaining <= s.battle.cinematic.duration && Number.isInteger(s.battle.cinematic.resumeIndex) && s.battle.cinematic.resumeIndex >= 1 && s.battle.cinematic.resumeIndex <= s.battle.heroes.length) &&
       validQuestState(s.quests) &&
-      validHoras(s.battle) &&
+      validHoras(s.battle) && s.battle.heroes.every(h=>validKazua(h.kazua)) &&
       validActivities(s.activities) &&
       (s.battle.activity === undefined || s.activities?.run && s.battle.runId === s.activities.run.id && s.battle.activity.kind === s.activities.run.kind) &&
       (!s.activities?.run || s.battle.activity && (s.activities.run.settled ? s.activities.lastResult?.runId === s.activities.run.id && ["victory", "defeat"].includes(s.battle.phase) : s.battle.phase === "fight")) &&
@@ -892,6 +940,7 @@
       if(earthGuard.taunting&&target.id!==earthGuard.hero.id){detail={...detail,redirectedFrom:target.id};target=earthGuard.hero;}
     }
     if (target.hp <= 0) return 0;
+    if(side==='hero'&&target.id==='kazua'&&random(s)<KAZUA_RULES.evasion){event(s,'dodge',{from,to:target.id,side:'hero'});return 0;}
     // Stun amplification is decided at the actual hit, not at cast start.
     const stunBonus = from === "horas" && side === "enemy" && s.battle.elapsed < (target.stunUntil || 0);
     let amount = Math.max(1, Math.round(raw * (stunBonus ? HORAS_RULES.stunMultiplier : 1)));
@@ -1055,12 +1104,13 @@
     if(b.heroes.length<=3)target=random(s)<.75?alive[0]:alive[Math.floor(random(s)*alive.length)];
     else{const front=b.heroes.slice(0,3).filter(h=>h.hp>0),back=b.heroes.slice(3).filter(h=>h.hp>0),pool=front.length&&(!back.length||random(s)<.8)?front:back.length?back:alive;
       const weights=pool.map(h=>BY_ID[h.id].role==='수호'?3:1);let pick=random(s)*weights.reduce((a,v)=>a+v,0);target=pool[pool.length-1];for(let i=0;i<pool.length;i++){pick-=weights[i];if(pick<0){target=pool[i];break;}}}
+    target=lowAggroTarget(target,alive,()=>random(s));
     const rage=Math.min(enemy.rageCap||Infinity,1+Math.floor(b.elapsed/(enemy.rageEvery||Infinity))*(enemy.rageStep||0));
     hurt(s,enemy.id,target,enemy.atk*rage*(.85+random(s)*.3),'hero');
   }
   function spicaHalfTurn(s) {
     const b=s.battle;
-    for(const hero of b.heroes){if(hero.hp<=0)continue;const enemies=b.enemies.filter(e=>e.hp>0);if(!enemies.length)break;
+    for(const hero of b.heroes){if(hero.hp<=0||hero.id==='kazua')continue;const enemies=b.enemies.filter(e=>e.hp>0);if(!enemies.length)break;
       if(hero.id==='horas'){horasTurn(s,hero,enemies);continue;}
       if(hero.id==='osia'&&b.osiaCast)continue;
       if(basicDue(hero,b.elapsed))heroBasic(s,hero,enemies);
@@ -1099,6 +1149,11 @@
     ryusionStep(s);
     const osiaImpact = osiaStep(s);
     horasStep(s);
+    const gunner=b.heroes.find(h=>h.id==='kazua');
+    if(gunner)kazuaStep(gunner,b.heroes,b.enemies,b.elapsed,STEP_MS,(target,mult,detail)=>{
+      const critical=random(s)<(gunner.critChance??CRITICAL.chance);
+      return hurt(s,gunner.id,target,gunner.atk*mult*(gunner.damageMultiplier||1)*(b.buff?1.3:1)*(.9+random(s)*.2)*(critical?gunner.critMultiplier||CRITICAL.multiplier:1),'enemy',!!detail.skill,{critical,kazuaMode:detail.mode});
+    },(kind,extra)=>event(s,kind,{from:'kazua',...extra}),b.elapsed<(gunner.stunUntil||0),basicAttackRate(gunner,b.elapsed));
     if (b.enemies.every(e => e.hp <= 0)) { victory(s); return; }
     for (const enemy of b.enemies) {
       if(enemy.hp>0&&enemy.telegraphMs){
@@ -1127,7 +1182,7 @@
   function combatTurn(s, startIndex, osiaImpact) {
     const b = s.battle,rhythm=spicaRhythm(b);
     for (let index = startIndex; index < b.heroes.length; index++) {
-      const hero = b.heroes[index]; if (hero.hp <= 0) continue;
+      const hero = b.heroes[index]; if (hero.hp <= 0 || hero.id==='kazua') continue;
       const enemies = b.enemies.filter(e => e.hp > 0); if (!enemies.length) break;
       const def = BY_ID[hero.id];
       if (hero.id === "horas") { horasTurn(s, hero, enemies); continue; }
@@ -1246,9 +1301,8 @@
     // Preserve the captain share already earned under the previous bank rate.
     s.offline.captainXp ??= Math.floor(s.offline.xp / 4);
     refreshActivities(s, Number.isFinite(now) && now >= 0 ? Math.max(now, s.at) : s.at);
-    s.banners ??= { osia: bannerState(s, "osia"), lava: bannerState(s, "lava") };
-    s.banners.osia ??= { pity: s.pity, guaranteed: false }; s.banners.lava ??= { pity: 0, guaranteed: false }; s.banners.horas ??= { pity: 0, guaranteed: false };
-    s.pity = s.banners.osia.pity;
+    const migrated=Object.fromEntries(Object.keys(BANNERS).map(id=>[id,bannerState(s,id)]));
+    s.banners=migrated; s.pity=migrated.standard.pity;
     if (s.team.includes("horas")) s.battle.horas ??= newHoras();
     if (s.units.ryusion) s.units.ryusion.nextSkill ??= 1;
     if (s.units.osia) s.units.osia.nextSkill ??= 1;
@@ -1279,7 +1333,9 @@
     }
   }
   function questValue(s, quest) { return quest.metric === "collection" ? Object.keys(s.units).length : quest.metric === "captain" ? s.captain.level : s[quest.metric]; }
-  function recruit(s, count, rng, banner = "osia", now = Date.now()) {
+  function recruit(s, count, rng, banner = "standard", now = Date.now(), guaranteedHero = "osia") {
+    banner=canonicalBanner(banner);
+    fail(banner!=="standard"||["osia","lava"].includes(guaranteedHero), "기존 확정 보상은 오시아 또는 라바를 선택하세요.");
     fail(count === 1 || count === 10, "1회 또는 10회 모집할 수 있습니다.");
     fail(typeof banner === "string" && Object.hasOwn(BANNERS, banner), "모집할 배너를 선택하세요.");
     fail(bannerAvailable(banner, now), "이 모집 배너는 종료되었습니다.");
@@ -1305,22 +1361,25 @@
       let h;
       if (rarity === "UR") h = BY_ID.horas;
       else if (rarity === "SSR" && banner === "horas") h = BY_ID[STANDARD_SSR[Math.min(STANDARD_SSR.length - 1, Math.floor(pick * STANDARD_SSR.length))]];
-      else if (rarity === "SSR") {
+      else if(rarity==='SSR'&&banner==='standard'){
+        h=BY_ID[guaranteed?guaranteedHero:STANDARD_SSR[Math.floor(pick*STANDARD_SSR.length)]];
+        if(guaranteed)progress.guarantees--;progress.guaranteed=progress.guarantees>0;
+      } else if (rarity === "SSR") {
         const chosen = guaranteed || pick < .5 ? featured : otherSSR[Math.min(otherSSR.length - 1, Math.floor((pick - .5) * 2 * otherSSR.length))];
         h = BY_ID[chosen]; progress.guaranteed = chosen !== featured;
       } else {
         const candidates = HEROES.filter(hero => hero.rarity === rarity);
         h = candidates[Math.min(candidates.length - 1, Math.floor(pick * candidates.length))];
       }
-      progress.pity = rarity === (banner === "horas" ? "UR" : "SSR") ? 0 : progress.pity + 1;
+      if(rarity===(banner==='horas'?'UR':'SSR')){progress.pity=banner==='standard'?progress.reserve:0;if(banner==='standard')progress.reserve=0;}else progress.pity++;
       const fresh = !s.units[h.id], shards = rarity === "UR" ? 30 : rarity === "SSR" ? 20 : rarity === "SR" ? 10 : 5;
       const converted=!fresh&&s.units[h.id].stars===5&&shardWallet.unlocked&&['SR','SSR'].includes(rarity)?{rarity,count:10}:null;
       if (fresh) {s.units[h.id] = { level: 1, xp: 0, stars: 0, shards: s.heroShards?.[h.id]||0 };if(s.heroShards)delete s.heroShards[h.id];}
       else if(converted){s.shardExchange||={SR:0,SSR:0};s.shardExchange[rarity]+=10;}
       else s.units[h.id].shards += shards;
-      results.push({ id: h.id, fresh, shards: fresh || converted ? 0 : shards, ...(converted?{converted}:{}), pity, ssrChance: odds.SSR, ...(banner === "horas" ? { urChance: odds.UR } : {}), banner, featured: h.id === featured, guaranteed, lostFeatured: banner !== "horas" && rarity === "SSR" && h.id !== featured });
+      results.push({ id: h.id, fresh, shards: fresh || converted ? 0 : shards, ...(converted?{converted}:{}), pity, ssrChance: odds.SSR, ...(banner === "horas" ? { urChance: odds.UR } : {}), banner, featured: h.id === featured, guaranteed, lostFeatured: banner !== "horas" && banner !== "standard" && rarity === "SSR" && h.id !== featured });
     }
-    nextBanners[banner] = progress; s.banners = nextBanners; s.pity = nextBanners.osia.pity;
+    nextBanners[banner] = progress; s.banners = nextBanners; s.pity = nextBanners.standard.pity;
     s.gems -= cost; s.pulls += count; s.history = results.concat(s.history).slice(0, 30);
     event(s, "recruit", { count, banner, ssr: results.some(r => BY_ID[r.id].rarity === "SSR"), ur: results.some(r => BY_ID[r.id].rarity === "UR") });
     log(s, `${BANNERS[banner].name} · ${count}명의 지원서가 도착했습니다.`); return { kind: "recruit", results, cost, banner };
@@ -1472,7 +1531,7 @@
       return { kind, code, gold: coupon.gold, gems: coupon.gems, ...(coupon.snowflakes?{snowflakes:coupon.snowflakes}:{}), expiresAt: coupon.expiresAt, ...(profileReward ? {avatar:profileReward.id,avatarName:profileReward.name,displayCode:profileReward.code} : {}) };
     }
     if (kind === "weapon-recruit") return recruitWeapons(s,input.count,rng,input.banner,now);
-    if (kind === "recruit") return recruit(s, input.count, rng, input.banner === undefined ? "osia" : input.banner, now);
+    if (kind === "recruit") return recruit(s, input.count, rng, input.banner === undefined ? "standard" : input.banner, now, input.guaranteedHero);
     if (kind === "train") {
       const u = s.units[input.hero]; fail(u && BY_ID[input.hero], "보유한 용병을 선택하세요.");
       fail(u.level < MAX_LEVEL, "최대 레벨입니다."); const cost = trainingCost(u); fail(s.gold >= cost, "골드가 부족합니다.");
@@ -1634,5 +1693,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

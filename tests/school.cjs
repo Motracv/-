@@ -4,7 +4,7 @@ let passed = 0;
 function test(name, body) { body(); passed++; console.log('PASS', name); }
 function run(s, seconds) { for (let i = 0; i < seconds; i++) G.advance(s, s.at + 1000); }
 const UPDATE_TIME=Date.parse('2026-11-18T12:00:00+09:00');
-function setPity(s,pity,banner='osia') { s.banners[banner].pity=pity; if(banner==='osia')s.pity=pity; }
+function setPity(s,pity,banner='standard') { s.banners[banner].pity=pity; if(banner==='standard')s.pity=pity; }
 test('Automatic combat wins, grants XP, unlocks stages and stays deterministic across reload', () => {
   const a = G.create(1000, 287), b = G.clone(a); run(a, 120); G.advance(b, 61000); const c = G.clone(b); G.advance(c, 121000);
   assert.deepEqual(a, c); assert.ok(a.best >= 1); assert.ok(a.units.harin.level > 1 || a.units.harin.xp > 0); assert.ok(a.gold > 700); assert.ok(a.gems > 1800);
@@ -51,7 +51,7 @@ test('Boundary rolls use 1/26/73 rates and every permanent-pool hero is obtainab
   const obtained = new Set();
   for (const [roll, rarity] of [[0,'SSR'],[.009999,'SSR'],[.01,'SR'],[.269999,'SR'],[.27,'R'],[.999999,'R']]) {
     const pool = G.HEROES.filter(h => h.rarity === rarity && (rarity!=='SSR'||G.STANDARD_SSR.includes(h.id)));
-    for (let j = 0; j < pool.length; j++) { const s = G.create(1000), values = [roll,rarity==='SSR'?pool[j].id==='osia'?.25:.5+(G.STANDARD_SSR.filter(id=>id!=='osia').indexOf(pool[j].id)+.5)*.5/3:(j+.5)/pool.length]; const r = G.action(s,{kind:'recruit',count:1},1000,()=>values.shift()); assert.equal(G.BY_ID[r.results[0].id].rarity,rarity); obtained.add(r.results[0].id); }
+    for (let j = 0; j < pool.length; j++) { const s = G.create(1000), values = [roll,rarity==='SSR'?(G.STANDARD_SSR.indexOf(pool[j].id)+.5)/G.STANDARD_SSR.length:(j+.5)/pool.length]; const r = G.action(s,{kind:'recruit',count:1},1000,()=>values.shift()); assert.equal(G.BY_ID[r.results[0].id].rarity,rarity); obtained.add(r.results[0].id); }
   }
   assert.equal(obtained.size,15); assert.ok(obtained.has('osia')); assert.ok(obtained.has('doyoon')); assert.ok(obtained.has('lava'));assert.ok(!obtained.has('spica'));
   const s=G.create(UPDATE_TIME);const featured=G.action(s,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>.001);obtained.add(featured.results[0].id);assert.equal(obtained.size,15);
@@ -106,7 +106,7 @@ test('Each hero performs their automatic skill; damage and healing stay bounded'
     const s=G.create(1000,21);s.units[hero.id]={level:1,xp:0,stars:0,shards:0};s.team=[hero.id,...['taeo','harin','sua'].filter(id=>id!==hero.id)].slice(0,3);
     G.action(s,{kind:'stage',stage:1,mode:'farm'});
     for(const e of s.battle.enemies){e.hp=e.max=100000;e.atk=1;} for(const h of s.battle.heroes)h.hp=Math.floor(h.max*.75);
-    run(s,Math.max(8,hero.cooldown+1));assert.ok(s.events.some(e=>e.kind==='skill'&&e.from===hero.id),hero.id);
+    run(s,Math.max(8,hero.cooldown+1));assert.ok(s.events.some(e=>(e.kind==='skill'||e.kind==='kazua-shot'&&e.mode==='red')&&e.from===hero.id),hero.id);
     assert.ok(s.battle.heroes.every(h=>h.hp>=0&&h.hp<=h.max&&h.shield>=0));
     if(hero.role==='치유') assert.ok(s.events.some(e=>e.kind==='heal'&&e.from===hero.id));
     if(hero.role==='수호'&&hero.id!=='ryusion') assert.ok(s.events.some(e=>e.kind==='guard'&&e.to===hero.id));
@@ -120,49 +120,25 @@ test('Osia is a permanent SSR, can be drawn by natural roll or pity, and duplica
   G.action(s,{kind:'awaken',hero:'osia'});assert.equal(s.units.osia.stars,1);assert.equal(s.units.osia.shards,10);
   setPity(s,79);const valuesAtPity=[.99,.1];const forced=G.action(s,{kind:'recruit',count:1},1000,()=>valuesAtPity.shift());assert.equal(forced.results[0].id,'osia');assert.equal(forced.results[0].pity,true);assert.equal(s.pity,0);
   G.action(s,{kind:'team',team:['taeo','osia','sua']});G.action(s,{kind:'train',hero:'osia'});assert.equal(s.units.osia.level,2);assert.ok(G.validate(G.clone(s)));
-  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,6);assert.equal(G.RECRUIT_RATES.SSR,.01);
+  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,7);assert.equal(G.RECRUIT_RATES.SSR,.01);
 });
-test('Independent pickup banners preserve legacy pity and guarantee the featured SSR after a miss',()=>{
-  const legacy=G.create(UPDATE_TIME);delete legacy.banners;legacy.pity=59;const progress={gold:legacy.gold,gems:legacy.gems,units:G.clone(legacy.units)};
-  assert.ok(G.validate(legacy));G.advance(legacy,legacy.at);
-  assert.deepEqual(G.bannerState(legacy,'osia'),{pity:59,guaranteed:false});assert.deepEqual(G.bannerState(legacy,'lava'),{pity:0,guaranteed:false});
-  assert.equal(legacy.gold,progress.gold);assert.equal(legacy.gems,progress.gems);assert.deepEqual(legacy.units,progress.units);
-  const s=G.create(UPDATE_TIME);s.gems=20000;
-  const draw=(banner,grade,pick)=>{const rolls=[grade,pick];return G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME,()=>rolls.shift()).results[0];};
-  const miss=draw('osia',.001,.99);assert.ok(['ian','lumi','lava'].includes(miss.id));assert.equal(s.banners.osia.guaranteed,true);
-  assert.equal(G.BY_ID[draw('osia',.99,.99).id].rarity,'R');assert.equal(s.banners.osia.guaranteed,true);
-  assert.equal(draw('lava',.001,.001).id,'lava');assert.equal(s.banners.osia.guaranteed,true);assert.equal(s.banners.lava.guaranteed,false);
-  assert.equal(draw('osia',.001,.99).id,'osia');assert.equal(s.banners.osia.guaranteed,false);assert.equal(s.pity,s.banners.osia.pity);
-  setPity(s,79,'lava');const hard=draw('lava',.99,.99);assert.equal(hard.pity,true);assert.ok(['osia','ian','lumi'].includes(hard.id));assert.equal(s.banners.lava.guaranteed,true);assert.equal(s.banners.lava.pity,0);
-  const loaded=G.clone(s);const rolls=[.001,.99];assert.equal(G.action(loaded,{kind:'recruit',banner:'lava',count:1},UPDATE_TIME,()=>rolls.shift()).results[0].id,'lava');assert.equal(loaded.banners.lava.guaranteed,false);
-  assert.deepEqual(s.banners.osia,loaded.banners.osia);
+test('Legacy pity migrates once into standard; Kazua and Ryusion guarantees stay independent',()=>{
+ const s=G.create(UPDATE_TIME);delete s.banners;s.pity=59;const old=G.clone(s);G.advance(s,s.at);
+ assert.deepEqual(G.bannerState(s,'standard'),{pity:59,reserve:0,guarantees:0,guaranteed:false});assert.deepEqual(s.units,old.units);assert.equal(s.gold,old.gold);
+ s.gems=10000;const draw=(banner,pick)=>{const rolls=[.001,pick];return G.action(s,{kind:'recruit',banner,count:1},s.at,()=>rolls.shift()).results[0];};
+ assert.notEqual(draw('kazua',.99).id,'kazua');assert(s.banners.kazua.guaranteed);assert.equal(draw('ryusion',0).id,'ryusion');assert(s.banners.kazua.guaranteed);assert.equal(draw('kazua',.99).id,'kazua');assert(!s.banners.kazua.guaranteed);assert.equal(s.pity,59);
 });
-test('Each banner uses exact SSR 50:50 boundaries, one ten-pull guarantee, and contains both permanent SSRs but no event-only Spica',()=>{
-  for(const banner of ['osia','lava'])for(const guaranteed of [false,true]){
-    const s=G.create(UPDATE_TIME);s.banners[banner].guaranteed=guaranteed;const rates=G.bannerHeroRates(s,banner);
-    for(const[rarity,total]of [['SSR',.01],['SR',.26],['R',.73]])assert.ok(Math.abs(G.HEROES.filter(h=>h.rarity===rarity).reduce((sum,h)=>sum+rates[h.id],0)-total)<1e-12);
-    assert.equal(rates[banner],guaranteed?.01:.005);assert.equal(banner==='osia'?rates.lava:rates.osia,guaranteed?0:.005/3);
-  }
-  for(const banner of ['osia','lava'])for(const [pick,featured]of [[0,true],[.499999,true],[.5,false],[.999999,false]]){
-    const s=G.create(UPDATE_TIME),values=[.001,pick],r=G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME,()=>values.shift());
-    assert.equal(r.results[0].id===banner,featured);assert.equal(s.banners[banner].guaranteed,!featured);
-    assert.notEqual(r.results[0].id,'spica');
-  }
-  const s=G.create(UPDATE_TIME);setPity(s,78,'lava');const r=G.action(s,{kind:'recruit',banner:'lava',count:10},UPDATE_TIME,()=>.99);
-  assert.equal(r.results[0].ssrChance,.21);assert.equal(r.results[1].ssrChance,1);assert.equal(s.banners.lava.pity,8);assert.equal(s.banners.osia.pity,0);assert.equal(s.banners.lava.guaranteed,true);
-  assert.ok(r.results.some(x=>G.BY_ID[x.id].rarity!=='R'));
-  const s2=G.create(UPDATE_TIME);let n=0;const all=G.action(s2,{kind:'recruit',banner:'lava',count:10},UPDATE_TIME,()=>++n%2?.001:.99);
-  assert.deepEqual(all.results.map(x=>x.id==='lava'),[false,true,false,true,false,true,false,true,false,true]);assert.equal(s2.banners.lava.guaranteed,false);
+test('Current pickup SSR boundaries and uniform standard exclude event-only Spica',()=>{
+ for(const banner of ['kazua','ryusion'])for(const guaranteed of [false,true]){
+  const s=G.create(UPDATE_TIME);s.banners[banner].guaranteed=guaranteed;const rates=G.bannerHeroRates(s,banner);assert.equal(rates[banner],guaranteed?.01:.005);assert.equal(rates.spica,0);assert.equal(rates.osia,guaranteed?0:.005/4);
+  assert(Math.abs(Object.values(rates).reduce((a,b)=>a+b,0)-1)<1e-12);
+ }
+ for(const banner of ['kazua','ryusion'])for(const [pick,featured] of [[0,true],[.499999,true],[.5,false],[.999999,false]]){const s=G.create(UPDATE_TIME),rolls=[.001,pick],r=G.action(s,{kind:'recruit',banner,count:1},s.at,()=>rolls.shift());assert.equal(r.results[0].id===banner,featured);assert.equal(s.banners[banner].guaranteed,!featured);}
+ const s=G.create(UPDATE_TIME);setPity(s,78,'kazua');const r=G.action(s,{kind:'recruit',banner:'kazua',count:10},s.at,()=>.99);assert.equal(r.results[1].pity,true);assert.equal(s.banners.kazua.pity,8);assert(s.banners.kazua.guaranteed);assert.equal(s.banners.standard.pity,0);
 });
-test('Lava stays permanent after its former cutoff and invalid banners preserve guarantees',()=>{
-  const end=Date.parse('2026-11-21T00:00:00+09:00');
-  const last=G.create(end-1);assert.equal(G.action(last,{kind:'recruit',banner:'lava',count:1},end-1,()=>.001).results[0].id,'lava');
-  for(const now of [end,end+1000]){
-    const s=G.create(now);s.banners.lava={pity:79,guaranteed:true};const before=G.clone(s);
-    assert.equal(G.action(s,{kind:'recruit',banner:'lava',count:1},now,()=>.001).results[0].id,'lava');assert.equal(s.gems,before.gems-100);assert.deepEqual(s.banners.lava,{pity:0,guaranteed:false});
-    assert.equal(G.action(s,{kind:'recruit',banner:'osia',count:1},now,()=>.001).results[0].id,'osia');assert.deepEqual(s.banners.lava,{pity:0,guaranteed:false});
-  }
-  for(const banner of ['unknown','constructor','__proto__',{},null]){const s=G.create(UPDATE_TIME),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner,count:1},UPDATE_TIME));assert.deepEqual(s,old);}
+test('Permanent standard stays available beyond the former cutoff; invalid banners cannot spend',()=>{
+ for(const now of [Date.parse('2026-11-21T00:00:00+09:00'),Date.parse('2100-01-01')]){const s=G.create(now);const rolls=[0,.99];assert.equal(G.action(s,{kind:'recruit',banner:'standard',count:1},now,()=>rolls.shift()).results[0].id,'lava');assert.equal(s.gems,1700);assert(G.bannerAvailable('standard',now));}
+ for(const banner of ['unknown','constructor','__proto__',{},null]){const s=G.create(UPDATE_TIME),before=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner,count:1},s.at));assert.deepEqual(s,before);}
 });
 function osiaBattle(boss = false) {
   const s=G.create(1000,26);s.units.osia={level:1,xp:0,stars:0,shards:0};G.action(s,{kind:'team',team:['taeo','osia','sua']});
@@ -319,7 +295,7 @@ test('Long simulations remain finite and preserve combat, economy and progressio
   }
 });
 test('The new growth curve preserves existing levels, raw XP, currencies, guarantees and old offline rewards',()=>{
-  const s=G.create(UPDATE_TIME);delete s.commanderName;s.captain={level:50,xp:1234};s.gold=123456;s.gems=5432;s.banners.osia={pity:79,guaranteed:true};s.pity=79;s.activities.towerBest=234;s.activities.daily.used=2;
+  const s=G.create(UPDATE_TIME);delete s.commanderName;s.captain={level:50,xp:1234};s.gold=123456;s.gems=5432;s.banners.standard={pity:79,reserve:0,guarantees:1,guaranteed:true};s.pity=79;s.activities.towerBest=234;s.activities.daily.used=2;
   for(const u of Object.values(s.units))Object.assign(u,{level:60,xp:999,stars:3,shards:17});s.offline={seconds:600,gold:400,xp:480};const old=G.clone(s);assert.ok(G.validate(s));G.advance(s,s.at);
   assert.equal(s.commanderName,'새내기 단장');assert.deepEqual(s.captain,old.captain);assert.deepEqual(s.units,old.units);assert.equal(s.gold,old.gold);assert.equal(s.gems,old.gems);assert.deepEqual(s.banners,old.banners);assert.deepEqual(s.activities,old.activities);assert.deepEqual(s.battle,old.battle);assert.deepEqual(s.offline,{...old.offline,captainXp:120});assert.equal(G.CAPTAIN_MAX_LEVEL,200);
   s.captain.xp=G.captainNeed(50)-1;for(const e of s.battle.enemies)e.hp=0;G.advance(s,s.at+500);assert.equal(s.captain.level,51);assert.equal(s.gems,old.gems+160);

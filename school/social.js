@@ -463,6 +463,12 @@
       const from = byKey.get(`${event.side}:${event.from}`), target = byKey.get(`${event.toSide}:${event.target}`);
       if(event.kind==='spica-wind'&&from?.id==='spica')spicaUntil=Math.max(spicaUntil,event.hasteUntil||event.t+6000);
       if (from && ['attack','skill','heal','shield','spica-wind'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind==='spica-wind'?'skill':event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
+      if(from?.id==='kazua'){
+        from.kazua||={mode:'fire',modeSince:0,power:1};
+        if(event.kind==='dodge')from.dodgeAt=event.t;
+        if(event.kind==='kazua-mode'){from.kazua.mode=event.mode;from.kazua.modeSince=event.t;}
+        if(event.kind==='kazua-survivor'||event.kind==='kazua-shot')from.kazua.power=event.power||1;
+      }
       if(from?.id==='ryusion'){if(event.kind==='ryusion-skill'){from.earthCastAt=event.t;from.earthStage=event.stage;}if(event.kind==='ryusion-taunt')from.earthTauntUntil=event.until;}
       if (from?.id==='horas') {
         if(event.kind==='horas-basic'){from.horasBasicAt=event.t;from.horasBasicPose=event.pose;}
@@ -518,7 +524,8 @@
         const move=attacking&&!reduced?Math.sin(Math.min(1,actAge/(unit.id==='spica'?.85:.48))*Math.PI)*15*direction:0;
         const earthAge=(clock-(unit.earthCastAt??-10000))/1000;
         const motion=unit.id==='ryusion'&&earthAge>=0&&earthAge<1.4?window.SchoolArt?.poseForSkill?.('ryusion',unit.earthStage,earthAge,reduced):casting&&['osia','lava','spica'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
-        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:unit.id==='horas'?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{time:clock/1000,dead:unit.hp<=0,stunned:unit.stunUntil>clock,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):undefined,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(unit.id==='spica'?undefined:attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
+        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:['horas','kazua'].includes(unit.id)?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{...window.SchoolArt.kazuaFrame(unit,clock),...(unit.dodgeAt&&clock-unit.dodgeAt<350?{kazuaMode:'dodge',kazuaAge:(clock-unit.dodgeAt)/1000}:{}),time:clock/1000,dead:unit.hp<=0,stunned:unit.stunUntil>clock,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):undefined,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(unit.id==='spica'?undefined:attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
+        if(!finished&&unit.id==='kazua'&&unit.hp>0&&!(unit.stunUntil>clock))window.SchoolKazuaArt?.effects(c,{source:position,targets:units[1-unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),mode:unit.kazua?.mode||'idle',age:(clock-(unit.kazua?.modeSince||0))/1000,time:clock/1000,scale:2.3,reduced,economy:cssWidth<640,flip:!!unit.side});
         if(unit.id==='spica'&&casting&&!(unit.stunUntil>clock))window.SchoolArt?.spicaSkillEffect?.(c,position,units[unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),units[1-unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),actAge,reduced,1.2);
         c.fillStyle='#14222ce6';c.fillRect(position.x-38,position.y+8,76,8);c.fillStyle=unit.side===me?'#a4c478':'#dc8d7f';c.fillRect(position.x-37,position.y+9,74*Math.max(0,unit.hp)/Math.max(1,unit.max),6);
         if(unit.shield>0){c.fillStyle='#9dd4e2';c.fillRect(position.x-37,position.y+16,74*Math.min(1,unit.shield/Math.max(1,unit.max)),3);}
@@ -544,7 +551,7 @@
         if(event.kind==='ryusion-taunt'||event.kind==='shield'&&event.from==='ryusion')window.SchoolRyusion?.barrier(c,p.x,p.y,1.35,1-age);
         const healing=event.kind==='heal', shield=event.kind==='shield';
         c.save();c.globalAlpha=Math.min(1,(1-age)*2);
-        if(from&&event.from!=='horas'&&['attack','skill'].includes(event.kind)&&age<.28){c.strokeStyle=event.crit?'#ffe69d':event.kind==='skill'?'#b7e8ff':'#f7f1dc';c.lineWidth=event.crit?5:3;c.beginPath();c.moveTo(from.x,from.y-47);c.lineTo(p.x,p.y-48);c.stroke();}
+        if(from&&!['horas','kazua'].includes(event.from)&&['attack','skill'].includes(event.kind)&&age<.28){c.strokeStyle=event.crit?'#ffe69d':event.kind==='skill'?'#b7e8ff':'#f7f1dc';c.lineWidth=event.crit?5:3;c.beginPath();c.moveTo(from.x,from.y-47);c.lineTo(p.x,p.y-48);c.stroke();}
         if(event.amount){c.textAlign='center';c.font=`${event.crit?20:15}px Galmuri,monospace`;c.fillStyle=healing?'#b8efb5':shield?'#acdbf0':event.crit?'#ffcf71':'#fff1df';c.strokeStyle='#233244';c.lineWidth=3;const label=(healing?'+':shield?'+':'')+number(event.amount),y=p.y-79-age*24;c.strokeText(label,p.x,y);c.fillText(label,p.x,y);if(event.crit){c.fillStyle='#ffe49a';c.fillRect(p.x-6,y-29,12,5);c.fillRect(p.x-2,y-33,4,13);c.fillRect(p.x-12,y-26,4,4);c.fillRect(p.x+8,y-26,4,4);}}
         c.restore();
       }

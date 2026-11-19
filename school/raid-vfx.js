@@ -36,11 +36,12 @@ window.SchoolRaidFX=(()=>{
   units.forEach((u,i)=>{
    const p=positions[i],a=actors.get(u.id)||{},out=a.outgoing,outAge=out?(now-out.shown)/1000:9,castAge=a.cast?(now-a.cast.shown)/1000:9,hitAge=a.hurt?(now-a.hurt.shown)/1000:9;
    const motion=a.cast&&castAge<1.6?SchoolArt.poseForSkill(u.id,a.cast.stage||1,castAge,reduced):null;
-   const dx=reduced?0:motion?.dx||Math.sin(clamp(outAge/.65)*PI)*8;
+   const dx=reduced||u.id==='kazua'?0:motion?.dx||Math.sin(clamp(outAge/.65)*PI)*8;
    const recoil=reduced?0:Math.sin(clamp(hitAge/.3)*PI)*8;
    if(a.heal&&now-a.heal.shown<950){const f=(now-a.heal.shown)/950;c.save();c.globalAlpha=1-f;glow(c,p.x,p.y-scale*20,scale*35,'#94ffb5',.8);c.lineWidth=2;ring(c,p.x,p.y,scale*(16+f*12),'#8fffc3');for(let n=0;n<3;n++){c.fillStyle='#bcffd6';c.fillRect(p.x+(n-1)*scale*10-2,p.y-f*scale*38-n*7,4,9);c.fillRect(p.x+(n-1)*scale*10-5,p.y-f*scale*38-n*7+3,10,3);}c.restore();}
    if(u.shield>0){c.save();c.globalAlpha=.4+(a.hurt?.absorbed&&hitAge<.4?.4:0);c.strokeStyle='#b3e7ff';c.lineWidth=2;c.beginPath();c.ellipse(p.x,p.y-scale*18,scale*14,scale*22,0,0,PI*2);c.stroke();c.restore();}
-   SchoolArt.hero(c,u.id,p.x+dx-recoil,p.y+(reduced?0:motion?.dy||0),scale,{attack:outAge<.65,dead:u.hp<=0,stunned:u.stunUntil>t,hit:hitAge<.2,time:now/1000,reduced,pose:motion?.pose,motion,casting:castAge<1.5,attackAge:out&&!out.skill&&outAge<1.1?outAge:undefined,basicAttackAt:out&&!out.skill?out.shown/1000:undefined,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0,horasCastAge:u.id==='horas'&&castAge<2.4?castAge:-1,taunting:u.id==='ryusion'&&SchoolRPG.ryusionGuard(units,t).taunting,passive:!!a.rescue&&now-a.rescue.shown<1200});
+   SchoolArt.hero(c,u.id,p.x+dx-recoil,p.y+(reduced?0:motion?.dy||0),scale,{...SchoolArt.kazuaFrame(u,t),...(a.dodge&&now-a.dodge.shown<350?{kazuaMode:'dodge',kazuaAge:(now-a.dodge.shown)/1000}:{}),attack:outAge<.65,dead:u.hp<=0,stunned:u.stunUntil>t,hit:hitAge<.2,time:now/1000,reduced,pose:motion?.pose,motion,casting:castAge<1.5,attackAge:out&&!out.skill&&outAge<1.1?outAge:undefined,basicAttackAt:out&&!out.skill?out.shown/1000:undefined,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0,horasCastAge:u.id==='horas'&&castAge<2.4?castAge:-1,taunting:u.id==='ryusion'&&SchoolRPG.ryusionGuard(units,t).taunting,passive:!!a.rescue&&now-a.rescue.shown<1200});
+   if(live&&u.id==='kazua'&&u.hp>0&&!(u.stunUntil>t))window.SchoolKazuaArt?.effects(c,{source:p,targets:[{x:bossX,y:bossY,aimY:bossY-size*.45}],mode:u.kazua?.mode||'idle',age:(t-(u.kazua?.modeSince||0))/1000,time:now/1000,scale,reduced,economy:c.canvas.width<1000});
    const key=focus+':'+u.id,prior=bars.get(key)||{hp:u.hp,trail:u.hp},hpEvent=own.findLast(e=>e.id===u.id&&Number.isFinite(e.hpAfter)&&now-e.shown<1000),targetHP=hpEvent?.hpAfter??u.hp;
    prior.hp=mix(prior.hp,targetHP,Math.min(1,dt/135));prior.trail=mix(prior.trail,targetHP,Math.min(1,dt/450));bars.set(key,prior);
    const bw=Math.max(54,scale*35);window.SchoolCombatFeedback?.drawHealth(c,{x:p.x,y:p.y+5,width:bw,ratio:prior.hp/u.max,trail:prior.trail/u.max,shield:(u.shield||0)/u.max,healing:a.heal?Math.max(0,1-(now-a.heal.shown)/950):0});
@@ -68,11 +69,11 @@ window.SchoolRaidFX=(()=>{
    c.restore();
   }
   // Every attack remains visible, even when a physical attack is immune.
-  for(const e of own.filter(e=>['hit','immune'].includes(e.kind)&&now-e.shown<850).slice(-12)){
+  for(const e of own.filter(e=>e.id!=='kazua'&&['hit','immune'].includes(e.kind)&&now-e.shown<850).slice(-12)){
    const p=positions[units.findIndex(u=>u.id===e.id)];if(!p)continue;const f=clamp((now-e.shown)/850),travel=clamp(f/.4),color=e.kind==='immune'?'#c5c9df':e.id==='horas'?'#ffc3e7':e.id==='lava'?'#a0ffe1':e.id==='spica'?'#d9f6ff':'#8ee5ff';
    c.save();c.globalAlpha=1-f;const x=mix(p.x+10,bossX,travel),y=mix(p.y-scale*28,bossY-size*.5,travel);glow(c,x,y,e.skill?35:16,color,.8);c.fillStyle=color;c.fillRect(x-5,y-4,e.skill?16:10,8);if(f>.35)burst(c,bossX,bossY-size*.5,(f-.35)/.65,color,reduced?3:8,e.skill?1.5:.6);c.restore();
   }
-  for(const e of own.filter(e=>e.kind==='hit'&&e.skill&&now-e.shown<1550).slice(-3)){
+  for(const e of own.filter(e=>e.id!=='kazua'&&e.kind==='hit'&&e.skill&&now-e.shown<1550).slice(-3)){
    const p=positions[units.findIndex(u=>u.id===e.id)];if(!p)continue;const f=clamp((now-e.shown)/1550);c.save();c.globalAlpha=1-f;
    if(e.id==='horas'){glow(c,bossX,bossY-size*.55,180,'#ffd2f1',.85);star(c,bossX,Math.max(45,bossY-size*1.1),38,'#ffe2f4',f*PI);beam(c,bossX,20,bossX,bossY-size*.4,'#ffb4ec',45);ring(c,bossX,bossY-3,70+f*55,'#ffccf0',.3);burst(c,bossX,bossY-size*.5,f,'#ffd2eb',reduced?5:18,2);}
    else if(e.id==='osia'){
@@ -83,9 +84,9 @@ window.SchoolRaidFX=(()=>{
    }else burst(c,bossX,bossY-size*.4,f,'#cabaff',reduced?4:10,1.5);
    c.restore();
   }
-  const numbers=own.filter(e=>['hit','heal','hurt','shield','immune','miss'].includes(e.kind)&&now-e.shown<1100).slice(-18);
+  const numbers=own.filter(e=>['hit','heal','hurt','shield','immune','miss','dodge'].includes(e.kind)&&now-e.shown<1100).slice(-18);
   for(const e of numbers){const p=positions[units.findIndex(u=>u.id===e.id)];if(!p)continue;const f=(now-e.shown)/1100,isOut=['hit','immune','miss'].includes(e.kind),x=isOut?bossX-50+(e.seq%5)*22:p.x,y=(isOut?bossY-size*.7:p.y-scale*40)-f*27-(e.seq%2)*13;
-   const word=e.kind==='hurt'?(e.amount?'-'+Math.round(e.amount).toLocaleString('ko-KR'):'보호막 '+Math.round(e.absorbed).toLocaleString('ko-KR')):e.kind==='heal'?'+'+e.amount.toLocaleString('ko-KR'):e.kind==='shield'?'보호막 +'+e.amount.toLocaleString('ko-KR'):e.kind==='immune'?'물리 무효':e.kind==='miss'?'빗나감':e.amount.toLocaleString('ko-KR');
+   const word=e.kind==='dodge'?'회피':e.kind==='hurt'?(e.amount?'-'+Math.round(e.amount).toLocaleString('ko-KR'):'보호막 '+Math.round(e.absorbed).toLocaleString('ko-KR')):e.kind==='heal'?'+'+e.amount.toLocaleString('ko-KR'):e.kind==='shield'?'보호막 +'+e.amount.toLocaleString('ko-KR'):e.kind==='immune'?'물리 무효':e.kind==='miss'?'빗나감':e.amount.toLocaleString('ko-KR');
    c.save();c.globalAlpha=1-f*f;c.font=`800 ${Math.max(13,Math.min(20,h*.065))}px Pretendard, sans-serif`;c.textAlign='center';c.lineWidth=3;c.strokeStyle='#102034';c.strokeText(word,x,y);c.fillStyle=e.kind==='heal'?'#afffc5':e.kind==='hurt'&&e.amount?'#ffb0a0':e.kind==='shield'||e.absorbed?'#c6edff':e.crit?'#ffe98c':'#fff9e2';c.fillText(word,x,y);
    if(e.crit)star(c,x-30,y-6,6,'#ffeb85',.2);if(e.kind==='hurt'&&e.amount&&e.absorbed){c.font='11px Pretendard, sans-serif';c.fillStyle='#b6e7ff';c.fillText('보호막 '+e.absorbed,x,y+13);}c.restore();
   }

@@ -3,7 +3,7 @@ window.SchoolArt = (() => {
   const portraits = new Map(), frontPortraits = new Map(), osiaPoses = new Map(), lavaPoses = new Map(), lavaSources = new Map(), combatLabels = new Map(), S = SchoolRPG;
   let lavaPosePixels = 0, combatLabelPixels = 0;
   const healthTrackers = new WeakMap();
-  window.addEventListener('school-art-ready',()=>{for(const id of ['ryusion','spica']){portraits.delete(id);frontPortraits.delete(id);}});
+  window.addEventListener('school-art-ready',()=>{for(const id of ['ryusion','spica','kazua']){portraits.delete(id);frontPortraits.delete(id);}});
   const spicaImage=new Image(),spicaPortraitImage=new Image(),spicaPoses=new Map();
   const SPICA_FRAMES=[[0,0,444,444,242.04,426],[444,0,443,444,238.99,426],[887,0,443,444,221.88,426],[1330,0,444,444,226.52,426],[0,444,444,443,244.97,427],[444,444,443,443,232.72,428],[887,444,443,443,215.91,428],[1330,444,444,443,228.34,428]];
   let spicaLoaded=false,spicaPortraitLoaded=false;
@@ -65,7 +65,7 @@ window.SchoolArt = (() => {
   horasImage.src = 'school/assets/horas/combat.webp?v=horas1';
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
-  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
+  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
   osiaImage.src = "school/assets/osia-sprites.png?v=osia1";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-front1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
@@ -555,7 +555,8 @@ window.SchoolArt = (() => {
     const w=c.canvas.width,h=c.canvas.height;c.save();c.clearRect(0,0,w,h);c.imageSmoothingEnabled=false;
     const z=Math.min(w/62,h/86),breath=reduced?0:Math.sin(time*1.6)*.6;
     c.translate(w/2,h*.88);c.scale(z,z);
-    if(id==="ryusion")window.SchoolRyusion.illustration(c,0,-76+breath,62,80);
+    if(id==="kazua")window.SchoolKazuaArt?.illustration(c,0,-76+breath,62,80);
+    else if(id==="ryusion")window.SchoolRyusion.illustration(c,0,-76+breath,62,80);
     else if(id==='spica'&&spicaPortraitLoaded){const ratio=spicaPortraitImage.naturalWidth/spicaPortraitImage.naturalHeight,height=80;c.drawImage(spicaPortraitImage,-height*ratio/2,-76,height*ratio,height);}
     else if(id==="horas")horasIllustration(c,0,-76+breath,62,80);
     else if(id==="osia")osiaFigure(c,time,{reduced,blink:!reduced&&time%5>4.85});
@@ -637,7 +638,9 @@ window.SchoolArt = (() => {
     if (frame.dead) { c.globalAlpha *= .4; c.rotate(-Math.PI / 2); }
     c.drawImage(sprite, -25, -49, 56, 56); c.restore();
   }
+  function kazuaFrame(unit,time){const q=unit.kazua;return unit.id==='kazua'?{kazuaMode:q?.mode||'idle',kazuaAge:Math.max(0,(time-(q?.modeSince||0))/1000),kazuaLastStand:Math.max(0,((q?.power||1)-1)/.8)}:{};}
   function heroShape(c, id, x, y, scale = 2, frame = {}) {
+    if(id==='kazua'&&window.SchoolKazuaArt){window.SchoolKazuaArt.hero(c,x,y,scale,frame);return;}
     if(id==='spica'){spica(c,x,y,scale,frame);return;}
     if(id==="ryusion"){window.SchoolRyusion.draw(c,x,y,scale,frame);return;}
     if (id === "osia") { osia(c, x, y, scale, frame); return; }
@@ -1767,6 +1770,7 @@ window.SchoolArt = (() => {
     const items = battle.heroes.map(h => ({ ...h, side: "hero" })).concat(battle.enemies.map(e => ({ ...e, side: "enemy" }))).sort((a, b) => positions[a.id].y - positions[b.id].y);
     for (const item of items) {
       const p = positions[item.id], visual = actors.get(item.id) || {}, hit = !!visual.incoming && time - visual.incoming.time < .15, attacking = !!visual.outgoing && time - visual.outgoing.time < .25;
+      const dodge=item.id==='kazua'?lastEffect(effects,e=>e.kind==='dodge'&&e.to===item.id&&time-e.time<.35):null;
       const stunned = item.hp > 0 && (item.stunUntil || 0) > battle.elapsed;
       const bounce = reduced || item.side==='hero' || item.hp <= 0 || stunned || battle.cinematic ? 0 : Math.round(Math.sin(time * 4 + p.x) * 1.5);
       const attackAge = visual.outgoing ? time - visual.outgoing.time : -1;
@@ -1778,10 +1782,10 @@ window.SchoolArt = (() => {
       const motion = combo && item.hp > 0 ? castingMotion(item.id, combo.stage, castAge, reduced || !!battle.cinematic) : null;
       const recoilAge=visual.incoming?time-visual.incoming.time:1;
       const recoil=reduced?0:Math.sin(clamp01(recoilAge/.24)*Math.PI)*(visual.incoming?.critical?5:2);
-      const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : ["lava","horas"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
+      const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : ["lava","horas","kazua"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
-        time:sceneTime, reduced:reduced||!!battle.cinematic,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
+        time:sceneTime, ...kazuaFrame(item,battle.elapsed+horasInterpolation*1000),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced:reduced||!!battle.cinematic,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
         horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
         horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasImpact ? 1.5+time-visual.horasImpact.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
@@ -1808,6 +1812,8 @@ window.SchoolArt = (() => {
       }
       c.restore();
     }
+    const gunner=battle.heroes.find(u=>u.id==='kazua');
+    if(gunner&&gunner.hp>0&&battle.phase==='fight'&&!battle.cinematic&&!(gunner.stunUntil>battle.elapsed))window.SchoolKazuaArt?.effects(c,{source:visualPositions.kazua,targets:battle.enemies.filter(e=>e.hp>0).map(e=>visualPositions[e.id]),mode:gunner.kazua?.mode||'idle',age:Math.max(0,(battle.elapsed-(gunner.kazua?.modeSince||0))/1000)+horasInterpolation,time:sceneTime,scale:extendedParty?1.3:1.8,reduced,economy});
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy);
     lavaEffects(c, effects, visualPositions, time, reduced,economy);
     spicaEffects(c,battle,effects,visualPositions,time,reduced);
@@ -1844,6 +1850,7 @@ window.SchoolArt = (() => {
       }
       if (e.kind === "skill" && e.from !== "osia" && e.from !== "horas") { c.font = "9px Galmuri, monospace"; c.textAlign = "center"; const width = c.measureText(e.name).width + 14; rect(c, "#2b3d37dc", p.x - width / 2, p.y - 89 - age * 9, width, 16); c.fillStyle = "#f6df9b"; c.fillText(e.name, p.x, p.y - 77 - age * 9); }
       if (e.kind === "hit" && (e.skill || e.bossSkill) && age < .3) { c.strokeStyle = e.element === "water" ? "#bafaff" : e.bossSkill ? "#ffc3a1" : "#fff3bb"; c.lineWidth = 3; c.beginPath(); c.moveTo(p.x - 18, p.y - 60); c.lineTo(p.x + 17, p.y - 19); c.stroke(); }
+      if(e.kind==='dodge'){combatNumber(c,'회피',p.x,y,12,'#b8edff',false);}
       if(e.kind==='counter'&&age<.8){
         const radius=18+(reduced?8:age*55);c.strokeStyle='#a7f6ff';c.lineWidth=3*(1-age/.8);c.beginPath();c.arc(p.x,p.y-28,radius,0,Math.PI*2);c.stroke();
         c.font='bold 12px Galmuri, monospace';c.textAlign='center';c.lineWidth=3;c.strokeStyle='#142c42';c.strokeText('반격!',p.x,p.y-101-age*10);c.fillStyle='#c1fbff';c.fillText('반격!',p.x,p.y-101-age*10);
@@ -1896,5 +1903,5 @@ window.SchoolArt = (() => {
     if(!battle.cinematic&&battle.phase==='fight'&&battle.horasCast&&battle.heroes.some(h=>h.id==='horas'&&h.hp>0))horasCutin(c,Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation),reduced);
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { combatNumber, hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { kazuaFrame, combatNumber, hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='kazua'?!!window.SchoolKazuaArt?.assetsReady():id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

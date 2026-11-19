@@ -12,7 +12,7 @@
  ];
  const magical=(g,id)=>['마법','치유'].includes(g.BY_ID[id]?.role)||id==='horas'||id==='spica';
  function snapshot(g,s){return{synergy:g.partySynergies(s),rescued:false,buffUntil:0,damage:0,units:s.team.slice(0,6).map(id=>{const d=g.BY_ID[id],st=g.stats(id,s.units[id],s);return{id,name:d.name,role:d.role,level:s.units[id].level,stars:s.units[id].stars,magic:magical(g,id),max:st.hp,hp:st.hp,atk:st.atk,defense:st.defense,shield:0,energy:0,stage:1,hits:0,stacks:0,stunUntil:0,protectedUntil:0,nextBasic:0,damage:0,healing:0,exclusive:g.exclusivePassive?.(s,id)||null};})};}
- function create(g,members,now,seed,hp=HP){return{rules:2,startedAt:now,elapsed:0,seed:seed>>>0||1,seq:0,events:[],ended:false,outcome:null,damage:0,teams:members.map(m=>({account:m.account,...snapshot(g,m.save)})),boss:{hp,max:HP,guardUntil:0,stunUntil:0,nextAt:3000,nextBasicAt:1250,pattern:0,cast:null}};}
+ function create(g,members,now,seed,hp=HP){return{rules:2,startedAt:now,elapsed:0,seed:seed>>>0||1,seq:0,events:[],ended:false,outcome:null,damage:0,teams:members.map(m=>({account:m.account,...snapshot(g,m.save)})),boss:{id:'balloon',hp,max:HP,guardUntil:0,stunUntil:0,nextAt:3000,nextBasicAt:1250,pattern:0,cast:null}};}
  function advance(g,s,now,encounter){
   const duration=encounter?.duration||DURATION,tactical=s.teams.some(t=>t.units.some(u=>u.id==='spica'));
   const basicRate=(unit,boss=false)=>g.basicAttackRate?.(unit,s.elapsed,boss)||1;
@@ -25,7 +25,8 @@
   const shield=(ti,u,amount,from)=>{const n=Math.max(0,Math.min(Math.round(amount),Math.floor(u.max*.6)-u.shield));u.shield+=n;if(n)emit('shield',{team:ti,id:u.id,from,amount:n});};
   const heal=(ti,u,amount,from)=>{const t=s.teams[ti],before=u.hp,n=Math.max(0,Math.min(u.max-u.hp,Math.round(amount*t.synergy.healMultiplier)));u.hp+=n;const caster=t.units.find(a=>a.id===from);if(caster)caster.healing+=n;if(n)emit('heal',{team:ti,id:u.id,from,amount:n,hpBefore:before,hpAfter:u.hp});};
   const hit=(ti,u,mult,skill)=>{if(!s.boss.hp)return 0;const crit=random()<.12;const n=(u.magic||encounter?.physical)?Math.min(s.boss.hp,Math.max(1,Math.round(u.atk*mult*(.9+random()*.2)*(crit?1.5:1)*s.teams[ti].synergy.damageMultiplier*(s.teams[ti].buffUntil>s.elapsed?1.3:1)*(s.boss.guardUntil>s.elapsed?.6:1)*(u.id==='horas'&&s.boss.stunUntil>s.elapsed?1.5:1)*(1+(u.exclusive?.strength||0))))):0;s.boss.hp-=n;s.damage+=n;s.teams[ti].damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:crit&&n>0,skill:skill||null});return n;};
-  function hurt(ti,original,mult,pattern){const t=s.teams[ti],guard=g.ryusionGuard(t.units,s.elapsed),u=guard.taunting?guard.hero:original;if(!u||u.hp<=0)return;
+  function hurt(ti,original,mult,pattern){if(pattern==='basic')original=g.lowAggroTarget(original,living(s.teams[ti]),random);const t=s.teams[ti],guard=g.ryusionGuard(t.units,s.elapsed),u=guard.taunting?guard.hero:original;if(!u||u.hp<=0)return;
+   if(u.id==='kazua'&&random()<g.KAZUA_RULES.evasion){emit('dodge',{team:ti,id:u.id});return null;}
    const hpBefore=u.hp,shieldBefore=u.shield;
    let n=Math.max(1,Math.round(((encounter?.attack??480)+s.elapsed/1000*(encounter?.rage??4))*mult*(1-u.defense)*t.synergy.incomingMultiplier*(guard.hero?1-g.RYUSION_RULES.teamReduction:1)*(guard.taunting&&u.id==='ryusion'?1-defense(guard.hero).tauntReduction:1)));
    const absorbed=Math.min(u.shield,n);u.shield-=absorbed;n-=absorbed;g.absorbEarthShield(u,absorbed);
@@ -42,7 +43,9 @@
    if(b.nextBasicAt==null)b.nextBasicAt=s.elapsed+500;
    if(!b.cast&&s.elapsed>=b.nextBasicAt){b.nextBasicAt=nextBasic(b.nextBasicAt,BOSS_BASIC_MS,b,true);emit('impact',{pattern:'basic'});s.teams.forEach((t,ti)=>hurt(ti,living(t)[0],.75,'basic'));}
   }
-  function act(ti,u){const t=s.teams[ti];if(u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn)return;
+  function act(ti,u){const t=s.teams[ti];
+   if(u.id==='kazua'){g.kazuaStep(u,t.units,[s.boss],s.elapsed,STEP,(_,mult,d)=>hit(ti,u,mult,d.skill),(kind,extra)=>emit(kind,{team:ti,id:u.id,...extra}),u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn,basicRate(u));return;}
+   if(u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn)return;
    if(u.cast){if(s.elapsed<u.cast.at)return;const cast=u.cast;delete u.cast;if(!cast.miss){hit(ti,u,g.HORAS_RULES.primaryMultiplier,'벚꽃의식');emit('ritual',{team:ti,id:u.id});}else emit('miss',{team:ti,id:u.id});return;}
    if(u.id==='horas'){
     if(u.stacks>=5){u.stacks=0;u.cast={at:s.elapsed+1500,miss:random()<.1};emit('cast',{team:ti,id:u.id,skill:'벚꽃의식'});return;}

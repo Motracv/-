@@ -75,7 +75,7 @@ const G=require('../school/engine.js');
  });
  await test('Server owns the soft-pity count and applies 60th-draw odds, 80th guarantee and resets',async()=>{
    const who=(await t.login('school-soft-pity')).data;await call(who,'state');
-   const setMisses=misses=>{const s=JSON.parse(save(who).payload);s.pity=misses;s.banners.osia.pity=misses;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),who.profile.id);};
+   const setMisses=misses=>{const s=JSON.parse(save(who).payload);s.pity=misses;s.banners.standard.pity=misses;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),who.profile.id);};
    setMisses(39);assert.equal((await call(who,'state')).data.state.pity,39);
    const random=crypto.getRandomValues;
    try{
@@ -103,41 +103,41 @@ const G=require('../school/engine.js');
      now+=2000;r=await call(again,'state');assert.equal(r.data.state.battle.osiaCast.stage,1);assert.equal(r.data.state.units.osia.nextSkill,2);assert.ok(G.validate(JSON.parse(save(who).payload)));
    }finally{Date.now=realNow;}
  });
- await test('Server migrates old pity without resetting progress and stores independent pickup guarantees across sessions',async()=>{
+ await test('Server migrates old pity without resetting progress and stores Kazua pickup guarantees across sessions',async()=>{
    const realNow=Date.now;Date.now=()=>Date.parse('2026-11-18T12:00:00+09:00');const random=crypto.getRandomValues;
    try{
      const who=(await t.login('school-banners')).data;await call(who,'state');const old=JSON.parse(save(who).payload);delete old.banners;old.pity=73;old.gems=10000;old.gold=5860;old.units.harin.level=40;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(old),who.profile.id);
-     let current=await call(who,'state');assert.equal(current.status,200);assert.deepEqual(current.data.state.banners.osia,{pity:73,guaranteed:false});assert.deepEqual(current.data.state.banners.lava,{pity:0,guaranteed:false});assert.equal(current.data.state.gold,5860);assert.equal(current.data.state.units.harin.level,40);
+     let current=await call(who,'state');assert.equal(current.status,200);assert.deepEqual(current.data.state.banners.standard,{pity:73,reserve:0,guarantees:0,guaranteed:false});assert.equal(current.data.state.gold,5860);assert.equal(current.data.state.units.harin.level,40);
      const draw=async(banner,id,rolls)=>{let index=0;crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=Math.floor(rolls[index++]*4294967296);return array;}return random.call(crypto,array);};const r=await call(who,'action',{...action(current.data.revision,id,{kind:'recruit',banner,count:1,guaranteed:true,featured:'lava',pity:79}),guaranteed:true});crypto.getRandomValues=random;assert.equal(r.status,200);current=r;return r;};
-     let r=await draw('osia','server-banner-miss-01',[.001,.99]);assert.ok(['ian','lumi','lava'].includes(r.data.result.results[0].id));assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
-     r=await draw('lava','server-banner-lava-01',[.001,.001]);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.banners.osia.guaranteed,true);assert.equal(r.data.state.banners.lava.guaranteed,false);
-     const again=(await t.login('school-banners')).data;current=await call(again,'state');assert.equal(current.data.state.banners.osia.guaranteed,true);assert.equal(current.data.state.units.lava.level,1);
-     r=await draw('osia','server-banner-guarantee',[.001,.99]);assert.equal(r.data.result.results[0].id,'osia');assert.equal(r.data.state.banners.osia.guaranteed,false);assert.equal(r.data.state.gems,9700);assert.equal(r.data.state.pity,0);assert.equal(r.data.state.banners.lava.pity,0);
+     let r=await draw('kazua','server-banner-miss-01',[.001,.99]);assert.ok(['ian','lumi','lava'].includes(r.data.result.results[0].id));assert.equal(r.data.state.banners.kazua.guaranteed,true);assert.equal(r.data.state.banners.ryusion.guaranteed,false);
+     r=await draw('ryusion','server-banner-lava-01',[.001,.001]);assert.equal(r.data.result.results[0].id,'ryusion');assert.equal(r.data.state.banners.kazua.guaranteed,true);assert.equal(r.data.state.banners.ryusion.guaranteed,false);
+     const again=(await t.login('school-banners')).data;current=await call(again,'state');assert.equal(current.data.state.banners.kazua.guaranteed,true);assert.equal(current.data.state.units.ryusion.level,1);
+     r=await draw('kazua','server-banner-guarantee',[.001,.99]);assert.equal(r.data.result.results[0].id,'kazua');assert.equal(r.data.state.banners.kazua.guaranteed,false);assert.equal(r.data.state.gems,9700);assert.equal(r.data.state.pity,73);assert.equal(r.data.state.banners.ryusion.pity,0);
      const row=save(who);assert.equal((await call(who,'action',action(row.revision,'server-banner-invalid',{kind:'recruit',banner:'constructor',count:1}))).status,400);assert.equal(save(who).payload,row.payload);
    }finally{Date.now=realNow;crypto.getRandomValues=random;}
  });
  await test('Lava remains permanent, preserves guarantees and is playable after its former cutoff',async()=>{
    const realNow=Date.now,random=crypto.getRandomValues;let now=Date.parse('2026-11-21T00:00:00+09:00')-1;Date.now=()=>now;
    try{
-     const who=(await t.login('school-limited-expiry')).data;let current=await call(who,'state');crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=4294967;return array;}return random.call(crypto,array);};
-     current=await call(who,'action',action(current.data.revision,'limited-last-millisecond',{kind:'recruit',banner:'lava',count:1}));assert.equal(current.status,200);assert.equal(current.data.result.results[0].id,'lava');
-     const state=JSON.parse(save(who).payload);state.banners.lava={pity:79,guaranteed:true};t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);now++;
-     const row=save(who);const expired=await call(who,'action',{...action(row.revision,'limited-expired-server',{kind:'recruit',banner:'lava',count:1,now:now-1000}),now:now-1000});assert.equal(expired.status,200);assert.equal(expired.data.result.results[0].id,'lava');assert.equal(expired.data.state.gems,JSON.parse(row.payload).gems-100);
-     current=await call(who,'state');assert.deepEqual(current.data.state.banners.lava,{pity:0,guaranteed:false});current=await call(who,'action',action(current.data.revision,'limited-after-expiry-team',{kind:'team',team:['taeo','lava','sua']}));assert.equal(current.status,200);assert.equal(current.data.state.team[1],'lava');
+     const who=(await t.login('school-limited-expiry')).data;let current=await call(who,'state'),roll=0;crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=(roll++%2)?4294967294:4294967;return array;}return random.call(crypto,array);};
+     current=await call(who,'action',action(current.data.revision,'limited-last-millisecond',{kind:'recruit',banner:'standard',count:1,guaranteedHero:'lava'}));assert.equal(current.status,200);assert.equal(current.data.result.results[0].id,'lava');
+     const state=JSON.parse(save(who).payload);state.banners.standard={pity:79,reserve:0,guarantees:1,guaranteed:true};t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);now++;
+     const row=save(who);const expired=await call(who,'action',{...action(row.revision,'limited-expired-server',{kind:'recruit',banner:'standard',count:1,guaranteedHero:'lava',now:now-1000}),now:now-1000});assert.equal(expired.status,200);assert.equal(expired.data.result.results[0].id,'lava');assert.equal(expired.data.state.gems,JSON.parse(row.payload).gems-100);
+     current=await call(who,'state');assert.deepEqual(current.data.state.banners.standard,{pity:0,reserve:0,guarantees:0,guaranteed:false});current=await call(who,'action',action(current.data.revision,'limited-after-expiry-team',{kind:'team',team:['taeo','lava','sua']}));assert.equal(current.status,200);assert.equal(current.data.state.team[1],'lava');
      current=await call(who,'action',action(current.data.revision,'limited-after-expiry-train',{kind:'train',hero:'lava'}));assert.equal(current.status,200);assert.equal(current.data.state.units.lava.level,2);
    }finally{Date.now=realNow;crypto.getRandomValues=random;}
  });
  await test('A lost permanent guaranteed draw is recovered across the former cutoff without a second charge',async()=>{
    const realNow=Date.now,random=crypto.getRandomValues,prepare=t.db.prepare;let now=Date.parse('2026-11-21T00:00:00+09:00')-1;Date.now=()=>now;
    try{
-     const who=(await t.login('school-limited-retry')).data;let current=await call(who,'state');const state=JSON.parse(save(who).payload);state.banners.lava={pity:79,guaranteed:true};state.banners.osia={pity:61,guaranteed:true};state.pity=61;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);
-     current=await call(who,'state');const intent=action(current.data.revision,'limited-guarantee-lost',{kind:'recruit',banner:'lava',count:1});let drop=true;
+     const who=(await t.login('school-limited-retry')).data;let current=await call(who,'state');const state=JSON.parse(save(who).payload);delete state.banners.standard;state.banners.lava={pity:79,guaranteed:true};state.banners.osia={pity:61,guaranteed:true};state.pity=61;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);
+     current=await call(who,'state');const intent=action(current.data.revision,'limited-guarantee-lost',{kind:'recruit',banner:'standard',count:1,guaranteedHero:'lava'});let drop=true;
      crypto.getRandomValues=function(array){if(array instanceof Uint32Array&&array.length===1){array[0]=4294967294;return array;}return random.call(crypto,array);};
      t.db.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('UPDATE school_saves'))return statement;return{bind(...args){const bound=statement.bind(...args);return{...bound,async run(){const result=await bound.run();if(drop){drop=false;throw Error('D1_RESPONSE_LOST');}return result;}};}};};
      const lost=await call(who,'action',intent);assert.equal(lost.status,503);t.db.prepare=prepare;now+=2;
      const retries=await Promise.all([call(who,'action',intent),call(who,'action',intent)]);
-     for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.gems,1700);assert.equal(r.data.state.pulls,1);assert.deepEqual(r.data.state.banners.lava,{pity:0,guaranteed:false});assert.deepEqual(r.data.state.banners.osia,{pity:61,guaranteed:true});}
-     const row=save(who);assert.equal((await call(who,'action',action(row.revision,'limited-guarantee-new',{kind:'recruit',banner:'lava',count:1}))).status,200);assert.equal(JSON.parse(save(who).payload).gems,1600);
+     for(const r of retries){assert.equal(r.status,200);assert.equal(r.data.repeated,true);assert.equal(r.data.result.results[0].id,'lava');assert.equal(r.data.state.gems,1700);assert.equal(r.data.state.pulls,1);assert.deepEqual(r.data.state.banners.standard,{pity:61,reserve:0,guarantees:1,guaranteed:true});}
+     const row=save(who);assert.equal((await call(who,'action',action(row.revision,'limited-guarantee-new',{kind:'recruit',banner:'standard',count:1,guaranteedHero:'lava'}))).status,200);assert.equal(JSON.parse(save(who).payload).gems,1600);
    }finally{t.db.prepare=prepare;Date.now=realNow;crypto.getRandomValues=random;}
  });
  await test('Validated speed changes persist across sessions, use server time and never multiply the offline bank',async()=>{
@@ -262,7 +262,7 @@ const G=require('../school/engine.js');
  await test('Growth migration retains old level 50, raw XP and the previously earned offline captain share on the server',async()=>{
    const realNow=Date.now;Date.now=()=>Date.parse('2026-11-24T12:00:00+09:00');
    try{
-     const who=(await t.login('school-growth-preserved')).data;await call(who,'state');const old=JSON.parse(save(who).payload);delete old.commanderName;old.captain={level:50,xp:1234};old.gold=123456;old.gems=5432;for(const u of Object.values(old.units))Object.assign(u,{level:60,xp:999,stars:3,shards:17});old.offline={seconds:600,gold:400,xp:1003};old.banners.osia={pity:79,guaranteed:true};old.pity=79;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(old),who.profile.id);
+     const who=(await t.login('school-growth-preserved')).data;await call(who,'state');const old=JSON.parse(save(who).payload);delete old.commanderName;old.captain={level:50,xp:1234};old.gold=123456;old.gems=5432;for(const u of Object.values(old.units))Object.assign(u,{level:60,xp:999,stars:3,shards:17});old.offline={seconds:600,gold:400,xp:1003};old.banners.standard={pity:79,reserve:0,guarantees:1,guaranteed:true};old.pity=79;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(old),who.profile.id);
      let current=await call(who,'state',{captain:{level:200},units:{},gems:0});assert.equal(current.status,200);assert.deepEqual(current.data.state.captain,old.captain);assert.deepEqual(current.data.state.units,old.units);assert.equal(current.data.state.gold,123456);assert.equal(current.data.state.gems,5432);assert.equal(current.data.state.commanderName,'새내기 단장');assert.deepEqual(current.data.state.offline,{...old.offline,captainXp:250});assert.deepEqual(current.data.state.banners,old.banners);
      current=await call(who,'action',action(current.data.revision,'growth-old-bank-claim',{kind:'offline',captainXp:1e12,xp:1e12}));assert.equal(current.status,200);assert.equal(current.data.state.captain.level,50);assert.equal(current.data.state.captain.xp,1484);assert.equal(current.data.state.gold,123856);for(const u of Object.values(current.data.state.units))assert.equal(u.xp,2002);assert.equal(current.data.state.offline.captainXp,0);
    }finally{Date.now=realNow;}

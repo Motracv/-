@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-expansion1',
+  version:'school-kazua1',
   entries:Object.freeze([
+    {version:'school-kazua1',date:'2026.11.19',title:'붉은 탄막 · SSR 카즈아',items:[
+      'SSR 카즈아 픽업 추가 · 종료일 없음 · 1회 100보석 / 10회 1,000보석. SSR 1%, 60회부터 확률 상승, 80회 SSR 확정. 픽뚫 후 다음 SSR은 카즈아 확정입니다.',
+      '3초 연사·2초 장전, 권총·바주카 무기 교체와 붉은총알 유도 탄막을 추가했어요. 함께 출전한 동료가 쓰러지면 강해지며 회피 확률은 10%입니다. 기체 벌룬의 물리 무적은 그대로 적용됩니다.',
+      '오시아·라바를 상시뽑기로 통합했어요. 상시 SSR 4명은 균등 확률입니다. 기존 누적을 합산하고 79회 초과분은 다음 천장으로 이월해요. 남아 있던 확정 보장은 오시아·라바를 선택해 사용할 수 있어요.',
+      '새 코드: KAZUA_UPDATE (보석 2,000·눈송이 100), THANKS_FOR_ENJOYING_THE_GAME (보석 1,000·눈송이 100). 보급 → 코드 입력에서 계정당 한 번 받을 수 있어요.'
+    ]},
     {version:'school-expansion1',date:'2026.11.19',title:'학교의 경계 너머 · 13~15지역',items:[
       '침식된 미술실, 뒤집힌 천문관, 멈춰진 종루에 15개 스테이지가 열렸어요. 12-5를 완료하면 13-1부터 도전할 수 있어요.',
       '새 일반 몬스터 9종과 지역 보스 3종을 추가했어요. 피해 저항·후열 조준·보호막·시간에 따른 강화를 확인하세요. 일반 몬스터의 예고 중인 기술은 기절로 차단할 수 있어요.',
