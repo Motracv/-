@@ -107,6 +107,7 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
   async function profile(db, id) {
     const exists = await db.prepare("SELECT id,google_key FROM accounts WHERE id = ?").bind(id).first();
     if (!exists) throw accountError("다시 로그인하세요.", 401);
+    if(exists.google_key==='school:operator-test:v1')return {id,isTest:true,...accountLevel(0),matches:0,wins:0,draws:0,losses:0};
     // If storage was interrupted after committing a finished room, the next
     // account visit completes the durable award even when nobody returns to it.
     for (let i = 0; i < 20; i++) {
@@ -160,8 +161,12 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
       for(let i=0;i<64;i++)difference|=configured.charCodeAt(i)^actual.charCodeAt(i);
       if(difference||raw.length<24)throw accountError('테스트 접속 코드를 확인해 주세요.',401);
       const keyName='school:operator-test:v1';
-      await env.DB.prepare('INSERT OR IGNORE INTO accounts(id,google_key,created_at) VALUES(?,?,?)').bind(accountRandom(),keyName,now).run();
-      const account=await env.DB.prepare('SELECT id FROM accounts WHERE google_key=?').bind(keyName).first();
+      let account=await env.DB.prepare('SELECT id FROM accounts WHERE google_key=?').bind(keyName).first();
+      if(!account){
+        await env.DB.prepare('INSERT OR IGNORE INTO accounts(id,google_key,created_at) VALUES(?,?,?)').bind(accountRandom(),keyName,now).run();
+        account=await env.DB.prepare('SELECT id FROM accounts WHERE google_key=?').bind(keyName).first();
+      }
+      if(!account)throw accountError('테스트 계정을 준비하지 못했어요. 다시 시도해 주세요.',503);
       const token=accountRandom(),expires=now+12*3600000;
       await env.DB.prepare('INSERT INTO account_sessions(hash,account_id,expires) VALUES(?,?,?)').bind(await accountHash(token),account.id,expires).run();
       return {token,expires,profile:await profile(env.DB,account.id)};

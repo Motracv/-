@@ -7,6 +7,13 @@ const assert=require('node:assert/strict'),{createHash}=require('node:crypto'),G
  assert.equal((await t.call('/api/account/test-login',{code},null,{'CF-Connecting-IP':'192.0.2.1'})).status,429);
  const login=await t.call('/api/account/test-login',{code},null,{'CF-Connecting-IP':'192.0.2.2'});assert.equal(login.status,200,JSON.stringify(login.data));const user=login.data;assert.equal(user.profile.isTest,true);assert(login.data.expires<Date.now()+13*3600000);
  const call=(path,data={})=>t.call(path,{catalogVersion:G.CATALOG_VERSION,...data},null,{'X-Account-Session':user.token});
+ // Test accounts never participate in rooms. Legacy unrelated room JSON must
+ // not prevent test login or account profile loading.
+ const realPrepare=t.db.prepare.bind(t.db);
+ t.db.prepare=sql=>{if(sql.includes('SELECT payload FROM rooms'))throw new TypeError('Unrelated room cannot be parsed');return realPrepare(sql);};
+ const again=await t.call('/api/account/test-login',{code},null,{'CF-Connecting-IP':'192.0.2.3'});assert.equal(again.status,200,JSON.stringify(again.data));assert.equal(again.data.profile.id,user.profile.id);
+ assert.equal((await t.call('/api/account/me',{},again.data.token)).status,200);
+ t.db.prepare=realPrepare;
  const state=await call('/api/school/state');assert.equal(state.status,200,JSON.stringify(state.data));assert(G.validate({...state.data.state,receipts:[]}));assert.equal(Object.keys(state.data.state.units).length,G.HEROES.length);assert(state.data.state.gems>=1000000);
  assert.equal(t.sqlite.prepare('SELECT COUNT(*) n FROM school_names WHERE account_id=?').get(user.profile.id).n,0);
  for(const mode of ['level','tower']){const board=await call('/api/school/rankings',{mode});assert.equal(board.status,200);assert.equal(board.data.me,null);assert.equal(board.data.entries.length,0);}
