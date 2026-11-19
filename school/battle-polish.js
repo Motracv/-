@@ -9,7 +9,7 @@ window.SchoolBattlePolish=(()=>{
   for(const e of events||[]){
    const id=e.from||e.id;if(!window.SchoolRPG.BY_ID[id])continue;
    const t=e.shown??e.t??e.time*1000,age=(now-t)/1000;if(!Number.isFinite(age)||age<0||age>=.72)continue;
-   const special=['osia-breath','horas-cast','spica-skill','spica-wind','ryusion-skill','lava-skill'].includes(e.kind)||e.kind==='kazua-mode'&&e.mode==='red'||e.kind==='hyeokjin-mode'&&e.mode!=='basic';
+   const special=id==='horas'&&e.kind==='cast'||['osia-breath','horas-cast','spica-skill','spica-wind','ryusion-skill','lava-skill'].includes(e.kind)||e.kind==='kazua-mode'&&e.mode==='red'||e.kind==='hyeokjin-mode'&&e.mode!=='basic';
    const skill=['skill-stage','cast','skill','heal','shield'].includes(e.kind)&&(!e.breath||['skill-stage','cast'].includes(e.kind))&&!['kazua','horas','hyeokjin'].includes(id)&&(id!=='osia'||e.stage===4)&&(!['heal','shield'].includes(e.kind)||!!e.skill);
    if((special||skill)&&t>=at){found={id,age,team:e.team,side:e.side,stage:e.stage||1,name:e.name||e.skill||window.SchoolRPG.BY_ID[id].skill};at=t;}
   }
