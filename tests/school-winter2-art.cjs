@@ -27,7 +27,7 @@ function context(canvas){
 }
 class Image{
  constructor(){this.naturalWidth=1536;this.naturalHeight=1024;this.complete=false;images.push(this);}
- set src(v){this._src=v;if(v.includes('portrait')){this.naturalWidth=1024;this.naturalHeight=1536;}if(v.includes('spica/combat-horas')){this.naturalWidth=1774;this.naturalHeight=887;}if(v.includes('battlefields')){this.naturalWidth=887;this.naturalHeight=578;}}
+ set src(v){this._src=v;if(v.includes('portrait')){this.naturalWidth=1024;this.naturalHeight=1536;}if(v.includes('spica/combat-horas')){this.naturalWidth=1774;this.naturalHeight=887;}if(v.includes('battlefields')){this.naturalWidth=887;this.naturalHeight=578;}if(v.includes('chapters-13-15')){this.naturalWidth=1024;this.naturalHeight=1536;}}
  get src(){return this._src;}
  load(){this.complete=true;this.onload?.();}
 }
@@ -37,7 +37,7 @@ const document={hidden:false,createElement:()=>new Canvas()},window={SchoolRPG:G
 const sandbox={window,document,SchoolRPG:G,Image,Event,console,Uint8ClampedArray,Promise,
  setTimeout:f=>0,clearTimeout(){}};
 const load=file=>vm.runInNewContext(fs.readFileSync(file,'utf8'),sandbox,{filename:file});
-load('school/ryusion.js');load('school/art.js');sandbox.SchoolArt=window.SchoolArt;load('school/raid-vfx.js');
+load('school/ryusion.js');load('school/expansion-art.js');load('school/art.js');sandbox.SchoolArt=window.SchoolArt;load('school/raid-vfx.js');
 const A=window.SchoolArt,canvas=new Canvas(),c=canvas.getContext('2d');
 const snapshot=(id,frame)=>{c.records.length=0;A.hero(c,id,200,200,2,frame);assert.equal(c.stack.length,0);return JSON.stringify(c.records);};
 for(const id of ['taeo','osia','lava','horas','ryusion','spica']){
@@ -60,8 +60,8 @@ const attacks=[.1,.3,.65].map(attackAge=>snapshot('spica',{attackAge}));assert.e
 assert.equal(snapshot('spica',{attackAge:null}),snapshot('spica',{}),'An absent replay attack age stays idle');
 const warm=allocated;for(let n=0;n<200;n++)A.hero(c,'spica',100,120,1,{pose:n%8,reduced:true});assert.equal(allocated,warm);
 console.log('PASS eight aligned poses; distinct basic and skill sequences; null attack is idle and 200 repeats allocate no canvases');
-const s=G.create(1000,991);s.team=['taeo','harin','sua','spica','osia','lava'];for(const id of s.team)s.units[id]={level:70,xp:0,stars:1,shards:0,nextSkill:1,basicHits:0};s.best=60;
-for(const stage of [1,16,31,41,60]){
+const s=G.create(1000,991);s.team=['taeo','harin','sua','spica','osia','lava'];for(const id of s.team)s.units[id]={level:70,xp:0,stars:1,shards:0,nextSkill:1,basicHits:0};s.best=75;
+for(const stage of [1,16,31,41,60,61,66,71,75]){
  G.action(s,{kind:'stage',stage,mode:'farm'},s.at);s.battle.stage=stage;s.battle.elapsed=10000;s.simTime=10000;
  for(const layout of ['', 'panorama']){
   canvas.dataset.layout=layout;A.resetRenderCache();
@@ -72,6 +72,17 @@ for(const stage of [1,16,31,41,60]){
  }
 }
 console.log('PASS real painted/procedural stages, standard/wide layouts, Spica cast geometry; no steady-state scenery allocations or state mutation');
+const expansionSnapshots=[];
+for(const zone of [12,13,14])for(const variant of [0,1,2])for(const boss of [false,true]){
+ const enemy={id:'e0',kind:zone,variant,boss,hp:100,max:100};
+ c.records.length=0;A.monster(c,enemy,300,210,{time:1});const idle=JSON.stringify(c.records);if(!boss||variant===0)expansionSnapshots.push(idle);
+ c.records.length=0;A.monster(c,enemy,300,210,{time:1,attackAge:.2});assert.notEqual(idle,JSON.stringify(c.records),'Attack has a different silhouette');
+ c.records.length=0;A.monster(c,enemy,300,210,{time:1,reduced:true});const still=JSON.stringify(c.records);
+ c.records.length=0;A.monster(c,enemy,300,210,{time:4,reduced:true});assert.equal(still,JSON.stringify(c.records));assert.equal(c.stack.length,0);
+}
+assert.equal(new Set(expansionSnapshots).size,12,'Nine regular designs and three regional bosses');
+console.log('PASS all new stage scenery, 12 distinct designs, attack movement and reduced-motion poses');
+
 const bosses=[];
 for(const floor of [5,10,15,20,25]){
  const t=G.clone(s);t.activities.towerBest=floor-1;G.action(t,{kind:'activity',mode:'tower',floor},t.at);
@@ -127,7 +138,7 @@ for(const reduced of [false,true]){
  assert(fieldCalls.length>prior);assert.equal(fieldCalls.at(-1).count,0,'Arena field expires at its recorded deadline');
  const beforeFinish=fieldCalls.length;stop.finish();assert.equal(fieldCalls.length,beforeFinish,'Replay completion does not draw snow');stop();
 }
-const duoSource=fs.readFileSync('school/yeti.js','utf8'),duoReturn='return {open,leave,destroy:stop};';assert(duoSource.includes(duoReturn));
+const duoSource=fs.readFileSync('school/yeti.js','utf8'),duoReturn=duoSource.match(/return \{open,leave,destroy:stop[^;]+;/)[0];assert(duoSource.includes(duoReturn));
 vm.runInNewContext(duoSource.replace(duoReturn,'return {open,leave,destroy:stop,setSnapshot(next){data=next;received=performance.now();},draw};'),port,{filename:'school/yeti.js'});
 const duo=portWindow.SchoolYeti.create({reduced:()=>false});
 const duoData={room:{status:'fighting',battle:{elapsed:13000,boss:{hp:800000,max:800000},teams:[{isMe:true,units:[{id:'spica',hp:100,max:100,hasteUntil:16000}]},{isMe:false,units:[{id:'lava',hp:100,max:100,hasteUntil:16000}]}]}}};

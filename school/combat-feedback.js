@@ -6,14 +6,14 @@
     const groups=new Map();
     for(const e of effects){
       const age=time-e.time;
-      if(age<0||age>=1.35||!['hit','heal','enemy-heal','shield'].includes(e.kind)||!(e.amount>0))continue;
+      if(age<0||age>=1.55||!['hit','heal','enemy-heal','shield'].includes(e.kind)||!(e.amount>0))continue;
       const type=e.kind==='hit'?'damage':e.kind==='shield'?'shield':'heal',key=`${e.battleId}:${e.to}:${type}:${e.time}`;
       let g=groups.get(key);
-      if(!g){g={to:e.to,type,time:e.time,amount:0,count:0,critical:false,heavy:false,counter:false};groups.set(key,g);}
+      if(!g){g={to:e.to,type,side:e.side,time:e.time,amount:0,count:0,critical:false,heavy:false,counter:false};groups.set(key,g);}
       g.amount+=e.amount;g.count++;g.critical ||= !!e.critical;g.heavy ||= !!e.skill||!!e.bossSkill;g.counter ||= !!e.counter;
     }
     const lanes=new Map();
-    return [...groups.values()].map(g=>{const lane=(lanes.get(g.to)||0)%3;lanes.set(g.to,lane+1);return {...g,lane,text:g.type==='heal'?`+${g.amount}`:g.type==='shield'?`방어 ${g.amount}`:String(g.amount)};});
+    return [...groups.values()].slice(-36).map(g=>{const lane=(lanes.get(g.to)||0)%3;lanes.set(g.to,lane+1);const amount=g.amount.toLocaleString('en-US');return {...g,lane,text:g.type==='heal'?`+${amount}`:g.type==='shield'?`방어 ${amount}`:amount};});
   }
   function createHealthTracker(){
     let battleId=null,lastTime=-Infinity;const entries=new Map();
@@ -32,5 +32,14 @@
       clear(){entries.clear();battleId=null;lastTime=-Infinity;}
     };
   }
-  return Object.freeze({numbers,createHealthTracker});
+  function drawHealth(c,{x,y,width=40,ratio=1,trail=ratio,healing=0,side='hero',shield=0,boss=false}){
+    const h=boss?8:6,left=Math.round(x-width/2),top=Math.round(y),r=clamp(ratio),color=side==='enemy'?'#f27c8c':r<.25?'#ffae78':healing>0?'#a3ffd2':'#76e5b0';
+    c.save();c.fillStyle='#0d1930';c.fillRect(left-2,top-2,width+4,h+4);c.fillStyle='#637b94';c.fillRect(left-1,top-1,width+2,h+2);c.fillStyle='#243449';c.fillRect(left,top,width,h);
+    c.fillStyle='#f3d6a0';c.fillRect(left,top,width*Math.max(r,clamp(trail)),h);c.fillStyle=color;c.fillRect(left,top,width*r,h);c.fillStyle='#ffffff65';c.fillRect(left,top,width*r,1);
+    c.fillStyle='#15364366';for(let i=1;i<4;i++)c.fillRect(left+width*i/4,top+1,1,h-1);
+    if(shield>0){c.fillStyle='#b0e5ff';c.fillRect(left,top-4,width*clamp(shield),2);}
+    if(healing>0&&r>0){c.globalAlpha*=clamp(healing);c.fillStyle='#e5fff5';c.fillRect(left+width*r-1,top-1,2,h+2);c.fillRect(left+width+5,top+1,2,6);c.fillRect(left+width+3,top+3,6,2);}
+    c.restore();
+  }
+  return Object.freeze({numbers,createHealthTracker,drawHealth});
 });

@@ -803,6 +803,7 @@ window.SchoolArt = (() => {
     ["plant", "can", "rake"], ["ball", "dumbbell", "whistle"], ["telescope", "globe", "crane"],
     ["frostbell", "snowman", "cone"], ["uniform", "desk", "board"], ["flask", "scope", "magnet"],
     ["bucket", "pipe", "umbrella"], ["windsock", "compass", "kite"], ["shrinebell", "talisman", "foxmask"],
+    ["plaster","mirror","restorer"], ["constellation","inverted_scope","chart"], ["clockguard","pendulum","tuner"],
   ].map(row => Object.freeze(row));
   Object.freeze(ENEMY_APPEARANCES);
   function enemyVariant(enemy, stage = 1, wave = 1, index = 0) {
@@ -832,6 +833,7 @@ window.SchoolArt = (() => {
     }
   }
   function schoolMonster(c, type, pose) {
+    if(window.SchoolExpansionArt?.monster(c,type,pose))return;
     const {time:t, attack:a, blink, swing, accent, boss} = pose;
     const ink = "#293744", paper = "#f1e3b8", gold = "#d4ae63", blue = "#8bbed0", leaf = "#91b785", red = "#c27368";
     // All objects share a half-pixel detail grid, but retain their own silhouette,
@@ -974,7 +976,7 @@ window.SchoolArt = (() => {
     c.drawImage(damageSurface,x-128,y-225,256,256);
   }
   function monsterBody(c, enemy, x, y, frame = {}) {
-    const zone = Math.max(0, Math.min(11, Number.isInteger(enemy.kind) ? enemy.kind : 0));
+    const zone = Math.max(0, Math.min(14, Number.isInteger(enemy.kind) ? enemy.kind : 0));
     const variant = enemyVariant(enemy, frame.stage, frame.wave, frame.index);
     const type = ENEMY_APPEARANCES[zone][variant], reduced=!!frame.reduced;
     const dead=enemy.hp<=0, deathAge=Number.isFinite(frame.deathAge)?Math.max(0,frame.deathAge):dead?1:0;
@@ -982,10 +984,10 @@ window.SchoolArt = (() => {
     const t = reduced || frame.stunned ? 0 : frame.time || 0, attackAge=frame.attackAge ?? (frame.attack?0.12:1), hitAge=frame.hitAge ?? (frame.hit?0.06:1);
     const attack=reduced||dead||frame.stunned?0:Math.sin(clamp01(attackAge/.43)*Math.PI), recoil=reduced||dead?0:Math.sin(clamp01(hitAge/.32)*Math.PI);
     const spawn=Number.isFinite(frame.spawnAge)?clamp01(frame.spawnAge/.38):1, fall=dead?clamp01(deathAge/.65):0;
-    const z=enemy.boss?2.45:1.55, floating=["clock","book","scroll","whistle","globe","crane","frostbell","umbrella","compass","kite","shrinebell","talisman","foxmask"].includes(type);
+    const z=enemy.boss?2.45:1.55, floating=["clock","book","scroll","whistle","globe","crane","frostbell","umbrella","compass","kite","shrinebell","talisman","foxmask","mirror","restorer","constellation","inverted_scope","chart","pendulum","tuner"].includes(type);
     const idle=reduced||dead||frame.stunned?0:Math.sin(t*3.3+variant*1.8), leap=attack*(floating?4:3);
     const dx=-attack*11+recoil*5,dy=(floating?-3:0)+idle*(floating?2:.7)-leap+(dead&&!reduced?fall*13:0);
-    const accent=["#daedc4","#dfd3ba","#dcc8e8","#d8edb5","#efcf9a","#d7d7f4","#e0f6ee","#d5c7de","#c4ead7","#bfdce1","#e4efbc","#f0d6cc"][zone];
+    const accent=["#daedc4","#dfd3ba","#dcc8e8","#d8edb5","#efcf9a","#d7d7f4","#e0f6ee","#d5c7de","#c4ead7","#bfdce1","#e4efbc","#f0d6cc","#edb9ff","#9fddff","#f9cd89"][zone];
     c.save();c.translate(Math.round(x),Math.round(y));
     const opacity=dead?1-fall:reduced?1:spawn;
     c.globalAlpha*=Math.max(0,opacity);c.fillStyle="#2535442c";c.beginPath();c.ellipse(1,4,enemy.boss?36:22,enemy.boss?7:4,0,0,Math.PI*2);c.fill();
@@ -993,6 +995,7 @@ window.SchoolArt = (() => {
     c.translate(dx,dy-(reduced?0:(1-spawn)*9));
     if(!reduced)c.transform(1+(floating?0:idle*.025)-attack*.035,0,attack*.035-recoil*.035,1-(floating?0:idle*.018)-fall*.24,0,0);
     if(enemy.boss&&frame.activity){activityBoss(c,enemy,0,0,{...frame,time:t,hit:false});}
+    else if(enemy.boss&&zone>=12&&window.SchoolExpansionArt){c.scale(2.1,2.1);window.SchoolExpansionArt.monster(c,['portrait','orrery','bellwarden'][zone-12],{time:t,attack,swing:Math.sin(t*3)*2});}
     else if(enemy.boss){campaignBoss(c,enemy,0,0,{hit:false});}
     else{c.scale(z,z);schoolMonster(c,type,{time:t,attack,blink:Math.sin(t*.65+zone+variant)> .995,swing:Math.sin(t*4+variant)*2+attack*4,accent,boss:enemy.boss});}
     if(hitAge>=0&&hitAge<.23&&!reduced){c.strokeStyle="#fff0c9";c.lineWidth=1.1;c.beginPath();c.moveTo(-15,-33);c.lineTo(-7,-36);c.moveTo(10,-22);c.lineTo(17,-26);c.stroke();}
@@ -1143,6 +1146,7 @@ window.SchoolArt = (() => {
     rect(c,"#152d3520",0,263,480,17);
   }
   function background(c, stage, time, still = false) {
+    if(window.SchoolExpansionArt?.background(c,S.chapter(stage),480,280))return;
     const zone = S.chapter(stage), outdoor = zone === 3 || zone === 5;
     if (zone >= 6) { newBackground(c, zone, time, still); return; }
     const wall = ["#d9c6a1", "#c5c6ab", "#bdab92", "#8cab83", "#b6b6a1", "#626e8d"][zone];
@@ -1237,7 +1241,7 @@ window.SchoolArt = (() => {
   }
   function scenery(c, battle, extendedParty, time, reduced) {
     const width = c.canvas.width, height = c.canvas.height;
-    const key = `${S.chapter(battle.stage)}:${battle.activity?.kind || "story"}:${battle.activity?.floor || 0}:${+extendedParty}:${fontRevision}`;
+    const key = `${S.chapter(battle.stage)}:${battle.activity?.kind || "story"}:${battle.activity?.floor || 0}:${+extendedParty}:${fontRevision}:${window.SchoolExpansionArt?.revision||0}`;
     let cached = backgrounds.get(c.canvas);
     if (!cached || cached.width !== width || cached.height !== height || cached.key !== key) {
       const layer = document.createElement("canvas"); layer.width = width; layer.height = height;
@@ -1261,12 +1265,13 @@ window.SchoolArt = (() => {
     const width = c.canvas.width, height = c.canvas.height, zone = S.chapter(battle.stage);
     const imageName = !battle.activity && ([0,1,2].includes(zone) ? 'classroom' : zone === 3 ? 'garden' : zone === 6 ? 'snow' : null);
     const picture = imageName && battlefieldImages.get(imageName);
-    const key = `panorama:${zone}:${battle.activity?.kind || 'story'}:${battle.activity?.floor || 0}:${+extendedParty}:${fontRevision}:${battlefieldRevision}`;
+    const key = `panorama:${zone}:${battle.activity?.kind || 'story'}:${battle.activity?.floor || 0}:${+extendedParty}:${fontRevision}:${battlefieldRevision}:${window.SchoolExpansionArt?.revision||0}`;
     let cached = backgrounds.get(c.canvas);
     if (!cached || cached.width !== width || cached.height !== height || cached.key !== key) {
       const layer = document.createElement('canvas'); layer.width = width; layer.height = height;
       const sc = layer.getContext('2d', {alpha:false}); sc.imageSmoothingEnabled = false;
-      if (picture?.loaded) {
+      if(!battle.activity&&window.SchoolExpansionArt?.background(sc,zone,width,height)){}
+      else if (picture?.loaded) {
         const image = picture.image, ratio = Math.max(width / image.naturalWidth, height / image.naturalHeight);
         const sw = width / ratio, sh = height / ratio;
         sc.drawImage(image, (image.naturalWidth - sw) / 2, (image.naturalHeight - sh) / 2, sw, sh, 0, 0, width, height);
@@ -1601,7 +1606,8 @@ window.SchoolArt = (() => {
       measure.width=width*resolution;measure.height=height*resolution;
       mc.scale(resolution,resolution);mc.font=`${size}px Galmuri, monospace`;mc.textAlign="left";
       const tx=critical?25:3,base=size+2;
-      mc.fillStyle="#26342e";mc.fillText(text,tx+1,base+1);mc.fillStyle=color;mc.fillText(text,tx,base);
+      mc.lineJoin='round';mc.lineWidth=3.5;mc.strokeStyle='#102038';mc.strokeText(text,tx,base);mc.fillStyle='#102038';mc.fillText(text,tx+1,base+2);mc.fillStyle=color;mc.fillText(text,tx,base);
+      mc.fillStyle='#ffffff45';mc.fillRect(tx,base+3,Math.min(textWidth,16),1);
       if(critical)criticalMark(mc,11,base-6,.9);
       label={canvas:measure,width,height,baseline:base,anchor:tx+textWidth/2};
       while(combatLabels.size&&combatLabelPixels+measure.width*measure.height>2*1024*1024){const oldest=combatLabels.keys().next().value,old=combatLabels.get(oldest);combatLabelPixels-=old.canvas.width*old.canvas.height;combatLabels.delete(oldest);}
@@ -1631,12 +1637,24 @@ window.SchoolArt = (() => {
       c.restore();
     }
   }
+  function chapterTelegraphs(c,battle,positions,effects,time,reduced){
+    for(const e of battle.enemies){
+      if(e.hp<=0||!e.telegraphMs||e.skillWarnedFor!==e.nextSkillAt||battle.elapsed<e.nextSkillAt-e.telegraphMs)continue;
+      const p=positions[e.id],target=positions[e.skillTarget]||p,remaining=Math.max(0,e.nextSkillAt-battle.elapsed),ratio=1-remaining/e.telegraphMs;
+      c.save();c.strokeStyle=e.combatRole==='healer'?'#9effd3':'#ffd192';c.lineWidth=2;c.globalAlpha=reduced?.8:.7+Math.sin(time*10)*.2;
+      c.beginPath();c.ellipse(target.x,target.y+2,24,8,0,0,Math.PI*2);c.stroke();c.globalAlpha=1;
+      rect(c,'#17253dec',p.x-30,p.y-93,60,18);rect(c,e.combatRole==='healer'?'#8feac4':'#ffbd76',p.x-29,p.y-78,58*clamp01(ratio),2);
+      c.font='bold 9px Galmuri,monospace';c.textAlign='center';c.fillStyle='#fff1d9';c.fillText(e.monsterSkill,p.x,p.y-82);c.restore();
+    }
+    for(const e of effects){if(e.kind!=='monster-interrupt'||time-e.time>1||time<e.time)continue;const p=positions[e.from];if(p)combatNumber(c,'차단!',p.x,p.y-92-(time-e.time)*8,12,'#9dfaff',false);}
+  }
   function monsterSkillEffects(c,effects,positions,time,reduced){
     for(const e of effects){const age=time-e.time;if(e.kind!=="monster-skill"||age<0||age>1.1)continue;
       const source=positions[e.from];if(!source)continue;
       c.save();c.globalAlpha*=Math.max(0,1-age/1.1);
       for(const id of e.targets||[]){const p=positions[id];if(!p)continue;
-        if(e.role==="healer"){rect(c,"#a1e2d75c",p.x-9,p.y-66,18,63);rect(c,"#b6f6db",p.x-2,p.y-50,4,17);rect(c,"#b6f6db",p.x-8,p.y-43,16,4);}
+        if(e.role==="guard"){windShield(c,p.x,p.y,"#a7ddff",.7,.7);}
+        else if(e.role==="healer"){rect(c,"#a1e2d75c",p.x-9,p.y-66,18,63);rect(c,"#b6f6db",p.x-2,p.y-50,4,17);rect(c,"#b6f6db",p.x-8,p.y-43,16,4);}
         else if(e.role==="ranged"){
           const t=reduced?1:clamp01(age/.4),x=source.x+(p.x-source.x)*t,y=source.y-34+(p.y-source.y)*t;
           rect(c,"#9c7fb8",x-9,y-3,17,6);rect(c,"#ead0e7",x-6,y-2,11,4);rect(c,"#fff3e3",x-4,y-1,5,2);
@@ -1779,13 +1797,15 @@ window.SchoolArt = (() => {
       if (item.side === "hero" && item.hp > 0 && item.shield > 0) windShield(c, p.x, p.y, "#bce8d3", .3, extendedParty ? .7 : .92);
       c.save();
       if (item.side === "enemy" && item.hp <= 0) c.globalAlpha *= 1-clamp01((time-lifecycle.enemies.get(item.id).diedAt)/.45);
-      const w = item.boss ? 62 : item.side === "hero" && extendedParty ? 31 : 37, by = p.y + 9;
-      rect(c, "#28362f", p.x - w / 2 - 1, by - 1, w + 2, 6); rect(c, "#4d5146", p.x - w / 2, by, w, 4);
+      const w = item.boss ? 86 : item.side === "hero" && extendedParty ? 38 : 44, by = p.y + 8;
       const hpVisual=health?.sample(item.id,item.hp,item.max,time,reduced,visual.heal)||{ratio:Math.max(0,item.hp/item.max),trail:0,healing:0};
-      rect(c,'#e9be8e',p.x-w/2,by,w*hpVisual.trail,4);
-      rect(c, hpVisual.healing>0?'#a4f6b6':item.side === "hero" ? "#9dbd7b" : "#d99c73", p.x - w / 2, by, w*hpVisual.ratio, 4);
-      if(hpVisual.healing>0&&item.hp>0){c.globalAlpha*=hpVisual.healing;rect(c,'#d9ffe4',p.x-w/2+Math.max(0,w*hpVisual.ratio-2),by-1,2,6);c.globalAlpha=1;}
-      if (item.side === "hero") { rect(c, "#536270", p.x - w / 2, by + 7, w, 2); rect(c, item.id === "horas" ? "#eda8d5" : "#e2c679", p.x - w / 2, by + 7, w * (item.id === "horas" ? (battle.horas?.stacks || 0) / 5 : item.energy / S.BY_ID[item.id].cooldown), 2); }
+      window.SchoolCombatFeedback?.drawHealth(c,{x:p.x,y:by,width:w,...hpVisual,side:item.side,shield:(item.shield||0)/item.max,boss:item.boss});
+      if(item.boss){c.font='bold 9px Galmuri,monospace';c.textAlign='center';c.lineWidth=3;c.strokeStyle='#102036';const text=`${Math.ceil(item.hp).toLocaleString()} / ${Math.ceil(item.max).toLocaleString()}`;c.strokeText(text,p.x,by+20);c.fillStyle='#fff0df';c.fillText(text,p.x,by+20);}
+      if (item.side === "hero") { rect(c, "#243854", p.x - w / 2, by + 10, w, 3); rect(c, item.id === "horas" ? "#f0a9df" : "#f3d188", p.x - w / 2, by + 10, w * (item.id === "horas" ? (battle.horas?.stacks || 0) / 5 : item.energy / S.BY_ID[item.id].cooldown), 3); }
+      if(item.side==='enemy'&&item.campaignTrait!==undefined&&item.hp>0){
+        const label=item.physicalReduction?'물리 저항':item.magicReduction?'마법 저항':item.supportShield?'보호막':item.rageCap&&!item.boss?'태엽 강화':'';
+        if(label){c.font='8px Galmuri,monospace';c.textAlign='center';const tw=c.measureText(label).width;rect(c,'#14233deb',p.x-tw/2-4,p.y-70,tw+8,13);c.fillStyle=item.physicalReduction?'#ffd59c':item.magicReduction?'#b9c8ff':'#a4edee';c.fillText(label,p.x,p.y-60);}
+      }
       c.restore();
     }
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy);
@@ -1798,14 +1818,15 @@ window.SchoolArt = (() => {
     horasVisualEffects(c,battle,effects,visualPositions,time,reduced,economy,horasInterpolation,true);
     window.SchoolRyusion?.effects(c,battle,effects,positions,time,reduced);
     monsterSkillEffects(c,effects,positions,time,reduced);
+    chapterTelegraphs(c,battle,positions,effects,time,reduced);
     impactEffects(c,effects,positions,time,reduced,economy);
     bossEffects(c, battle, positions, effects, time, reduced);
     for(const n of window.SchoolCombatFeedback?.numbers(effects,time)||[]){
       const p=positions[n.to];if(!p)continue;const age=time-n.time;
-      c.save();c.globalAlpha=Math.min(1,(1.35-age)*2.7);
-      const x=p.x+[0,-17,17][n.lane],y=p.y-66-n.lane*17-(reduced?age*7:age*24);
+      c.save();c.globalAlpha=Math.min(1,(1.55-age)*2.7);
+      const x=p.x+[0,-17,17][n.lane],y=Math.max(20,p.y-68-n.lane*19-(reduced?age*7:age*24));
       const pop=reduced?1:1+Math.max(0,1-age/.18)*(n.critical?.3:.12);c.translate(x,y);c.scale(pop,pop);
-      combatNumber(c,n.text,0,0,n.critical?16:n.heavy||n.type==='heal'?13:11,n.type==='heal'?'#a9ffd0':n.type==='shield'?'#a9dbff':n.counter?'#a9faff':n.critical?'#ffd274':n.heavy?'#ffe5a1':'#fff6dd',n.critical);
+      combatNumber(c,n.text,0,0,n.critical?18:n.heavy||n.type==='heal'?15:13,n.type==='heal'?'#a9ffd0':n.type==='shield'?'#a9dbff':n.side==='hero'&&n.type==='damage'?'#ff9d9d':n.counter?'#a9faff':n.critical?'#ffd274':n.heavy?'#ffe5a1':'#fff6dd',n.critical);
       c.restore();
     }
     for (const e of effects) {
@@ -1875,5 +1896,5 @@ window.SchoolArt = (() => {
     if(!battle.cinematic&&battle.phase==='fight'&&battle.horasCast&&battle.heroes.some(h=>h.id==='horas'&&h.hp>0))horasCutin(c,Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation),reduced);
     osiaCinematic(c, state, time, effects, reduced);
   }
-  return { hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { combatNumber, hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

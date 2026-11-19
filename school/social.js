@@ -329,6 +329,7 @@
     }
     function selectWinterTab(tab){
       const root=$('school-social');if(!root||view!=='winter')return;
+      root.dataset.winterTab=tab;
       root.querySelectorAll('[data-winter-panel]').forEach(n=>n.hidden=n.dataset.winterPanel!==tab);
       root.querySelectorAll('[data-winter-tab]').forEach(n=>n.setAttribute('aria-selected',String(n.dataset.winterTab===tab)));
     }

@@ -140,3 +140,7 @@
 .wm-jump.wm-recommend{border-color:#b8a2cc99;color:#ead8f3;background:#3c3852;min-height:44px}
 @media(max-width:760px){.wm-toolbar>div{gap:5px}.wm-toolbar p{display:none}.wm-jump{padding-inline:9px;font-size:11px}}
 @media(max-width:600px){#modal.world-map-modal .modal-top h2{font-size:14px;max-width:26%}.wm-toolbar{right:49px;gap:0}.wm-jump{font-size:10px;padding-inline:7px}}
+
+.wm-expansion-atlas{display:block;background-image:url('assets/battlefields/chapters-13-15.webp?v=expansion1');background-size:auto 300%;background-repeat:no-repeat;background-color:#102039}
+.wm-chapter-tip{font-size:12px;line-height:1.65;color:#d5e3ef;border-left:3px solid #c9a66a;padding:8px 12px;margin:10px 0;background:#102137bb}
+.wm-chapter-tip:empty{display:none}

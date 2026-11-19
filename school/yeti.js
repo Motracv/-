@@ -6,7 +6,7 @@ window.SchoolYeti=(()=>{
  function assets(){if(loaded)return;loaded=true;bg.src='school/assets/yeti/background.webp?v=yeti1';atlas.src='school/assets/yeti/poses.png?v=yeti1';}
  function create(ctx){
   let data=null,busy=false,polling=false,epoch=0,timer=0,raf=0,pending=null,received=0,lastFrame=0,seen=0,events=[],signature='',lastSound=0,rewardKey='';
-  const rescueInput=window.SchoolRescue.create(send);
+  const rescueInput=window.SchoolRescue.create(send),health=window.SchoolCombatFeedback?.createHealthTracker();
   const own=()=>!!document.getElementById('yeti-view')?.closest('dialog')?.open;
   const key=()=>`school-yeti-request:${ctx.scope()}`;
   const message=(text,error=false)=>{const n=document.getElementById('yeti-message');if(n){n.textContent=text;n.dataset.error=String(error);}};
@@ -14,7 +14,7 @@ window.SchoolYeti=(()=>{
   function stop(){rescueInput.destroy();epoch++;clearTimeout(timer);cancelAnimationFrame(raf);polling=false;busy=false;}
   function schedule(){clearTimeout(timer);timer=setTimeout(()=>{if(!own())return;if(document.hidden)schedule();else load();},data?.room?.status==='fighting'?800:2000);}
   function accept(next){
-   if(data?.room?.id!==next.room?.id){seen=0;events=[];}
+   if(data?.room?.id!==next.room?.id){seen=0;events=[];health?.clear();}
    data=next;received=performance.now();const b=data.room?.battle;
    if(b){for(const e of b.events)if(e.seq>seen&&e.t>=b.elapsed-2200)events.push({...e,shown:received-Math.min(1000,b.elapsed-e.t)+120});seen=b.seq;events=events.slice(-100);}
    const nextKey=(next.rewards||[]).filter(r=>r.claimed).map(r=>r.roomId).sort().join('|');
@@ -72,6 +72,7 @@ window.SchoolYeti=(()=>{
    const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;c.setTransform(width/1000,0,0,height/560,0,0);c.imageSmoothingEnabled=false;
    c.fillStyle='#142a45';c.fillRect(0,0,1000,560);if(bg.complete&&bg.naturalWidth)c.drawImage(bg,0,0,1000,560);
    const b=data?.room?.battle,live=data?.room?.status==='fighting',time=b?b.elapsed+(live?Math.min(1000,now-received):0):0,reduced=ctx.reduced?.();
+   health?.begin(data?.room?.id,now/1000);
    const myIndex=Math.max(0,b?.teams.findIndex(t=>t.isMe)??0);events=events.filter(e=>now-e.shown<2200);
    let winterUntil=0;if(live)for(const team of b?.teams||[])winterUntil=Math.max(winterUntil,window.SchoolArt.spicaFieldUntil(team.units));
    const pos=(ti,i)=>({x:100+(i%3)*132+(i>=3?30:0),y:ti===myIndex?374+(i>=3?76:0):199+(i>=3?76:0)});
@@ -81,8 +82,8 @@ window.SchoolYeti=(()=>{
      const age=cast?(now-cast.shown)/1000:-1,motion=cast?window.SchoolArt.poseForSkill(u.id,cast.stage||1,age,reduced):null;
      window.SchoolArt.hero(c,u.id,p.x+(motion?.dx||0),p.y+(motion?.dy||0),1.3,{time:now/1000,reduced,dead:u.hp<=0,frozen:!!team.frozen,stunned:u.stunUntil>time,taunting:u.id==='ryusion'&&window.SchoolRPG.ryusionGuard(team.units,time).taunting,attack:!!hit,attackAge:hit?(now-hit.shown)/1000:undefined,pose:motion?.pose,motion,casting:!!cast,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0});
      if(u.id==='spica'&&cast&&u.hp>0&&!team.frozen)window.SchoolArt.spicaSkillEffect?.(c,p,team.units.flatMap((ally,ai)=>ally.hp>0?[pos(ti,ai)]:[]),[{x:790,y:350}],age,reduced,.8);
-     c.fillStyle='#15263b';c.fillRect(p.x-25,p.y+5,50,7);c.fillStyle='#82d89c';c.fillRect(p.x-24,p.y+6,48*Math.max(0,u.hp/u.max),5);
-     if(u.shield){c.fillStyle='#9bdcff';c.fillRect(p.x-24,p.y+12,48*Math.min(1,u.shield/u.max),3);}
+     const heal=events.findLast(e=>e.kind==='heal'&&e.team===ti&&e.id===u.id&&e.shown<=now),visual=health?.sample(ti+':'+u.id,u.hp,u.max,now/1000,reduced,heal?{time:heal.shown/1000}:null)||{ratio:u.hp/u.max};
+     window.SchoolCombatFeedback?.drawHealth(c,{x:p.x,y:p.y+7,width:58,...visual,shield:(u.shield||0)/u.max});
      if(team.frozen&&u.hp>0){c.fillStyle='#a7e5ff66';c.strokeStyle='#c4f4ff';c.lineWidth=2;c.beginPath();c.moveTo(p.x-30,p.y);c.lineTo(p.x-38,p.y-47);c.lineTo(p.x-8,p.y-78);c.lineTo(p.x+28,p.y-58);c.lineTo(p.x+35,p.y);c.closePath();c.fill();c.stroke();}
      else if(u.stunUntil>time&&u.hp>0){c.fillStyle='#fbef99';c.font='18px sans-serif';c.fillText('✦',p.x-8,p.y-63);}
     });
@@ -98,7 +99,8 @@ window.SchoolYeti=(()=>{
     c.save();c.globalAlpha=Math.max(0,1-age/1.5);
     if(['hit','heal','hurt','shield'].includes(e.kind)){
      const ti=e.team||0,i=b?.teams[ti]?.units.findIndex(u=>u.id===e.id),p=e.kind==='hit'?{x:bx-50+(e.seq%5)*18,y:by-180}:pos(ti,Math.max(0,i));
-     c.fillStyle=e.kind==='heal'?'#97ffa9':e.kind==='shield'?'#a5e8ff':e.kind==='hurt'?'#ffa0af':e.crit?'#ffe898':'#fff';c.strokeStyle='#17314e';c.lineWidth=3;c.font=`bold ${e.crit?24:18}px sans-serif`;const text=(e.kind==='heal'?'+':'')+fmt(e.amount);c.strokeText(text,p.x,p.y-35-age*45);c.fillText(text,p.x,p.y-35-age*45);
+     const word=(e.kind==='heal'?'+':e.kind==='hurt'?'-':e.kind==='shield'?'방어 ':'')+fmt(e.amount),color=e.kind==='heal'?'#a9ffd0':e.kind==='shield'?'#a9ddff':e.kind==='hurt'?'#ffa0af':e.crit?'#ffe898':'#fff8e9';
+     window.SchoolArt.combatNumber(c,word,p.x+((e.seq%3)-1)*12,p.y-40-age*45,e.crit?29:23,color,!!e.crit);
      if(e.kind==='hit'&&age<.28){c.strokeStyle=e.id==='horas'?'#ffb4e7':'#b6eeff';c.lineWidth=3;c.beginPath();c.moveTo(p.x-15,p.y-20);c.lineTo(p.x+18,p.y+10);c.moveTo(p.x+15,p.y-20);c.lineTo(p.x-18,p.y+10);c.stroke();}
     }else if(e.kind==='impact'){
      c.strokeStyle='#a8eeff';c.lineWidth=5;for(let k=0;k<3;k++){c.beginPath();c.ellipse(480,430,100+age*260+k*35,20+age*20,0,0,Math.PI*2);c.stroke();}

@@ -166,3 +166,51 @@ html[data-motion=reduced] .app .lobby-sprite {animation:none}
 }
 
 .inspect-avatar{display:inline-grid;place-items:center;flex-shrink:0;padding:0!important;min-width:0!important;min-height:0!important;border:0!important;background:transparent!important;border-radius:8px;cursor:pointer}.inspect-avatar:focus-visible{outline:2px solid #79c6eb;outline-offset:3px}.inspect-avatar .profile-avatar{pointer-events:none}.commander-inspector{width:min(470px,90vw);max-height:88dvh;overflow:auto;border:1px solid #7e96b4;border-radius:18px;padding:24px;background:#18283b;color:#eef5ff;box-shadow:0 20px 90px #0008}.commander-inspector::backdrop{background:#08132499}.inspector-close{float:right;color:inherit;background:#ffffff12;border:0;border-radius:8px;font-size:24px;width:40px;height:40px}.inspector-content header{display:flex;gap:18px;align-items:center}.inspector-content header .profile-avatar{width:76px;height:76px}.inspect-stats{display:flex;flex-wrap:wrap;gap:16px;padding:16px 0}.inspect-stats span{font-size:12px;color:#a7bbd4}.inspect-stats b{display:block;color:#fff;font-size:16px;margin-top:5px}.inspect-team{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.inspect-team article{display:grid;text-align:center;background:#ffffff0b;border:1px solid #ffffff20;border-radius:12px;padding:10px}.inspect-team img{width:64px;height:72px;object-fit:contain;image-rendering:pixelated;justify-self:center}.inspect-team small{font-size:11px;margin-top:5px}.school-shop-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.school-shop-card{position:relative;border:1px solid var(--line,#8192a4);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:8px}.school-shop-card.sale{border-color:#cfa95f}.school-shop-card h3,.school-shop-card p{margin:0}.school-shop-card p,.school-shop-card small{font-size:12px}.school-shop-card button{margin-top:auto;min-height:44px}.shop-art svg{width:42px;height:42px}.shop-sale{position:absolute;right:12px;top:14px;background:#f2d890;color:#3c2d16;padding:4px 8px;border-radius:20px}.shop-wallet{display:flex;align-items:center;gap:8px;font-size:20px}.shop-wallet svg,.school-shop-card button svg{width:20px;height:20px}.shop-wallet span{font-size:12px}.school-shop-card s{opacity:.6;margin-right:6px}
+
+/* Keep event controls inside the visible viewport; only the content scrolls. */
+#modal.winter-modal[open],#modal.yeti-modal[open]{display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;max-height:calc(100dvh - 12px);max-width:calc(100vw - 12px)}
+#modal:is(.winter-modal,.yeti-modal) .modal-top{position:relative;top:0;flex:none;margin:0 0 8px;padding:4px 0 8px;min-height:44px}
+#modal:is(.winter-modal,.yeti-modal) .modal-top h2{margin:0}
+#modal:is(.winter-modal,.yeti-modal) .close-button{min-width:44px;min-height:44px;color:var(--ui-ink)}
+#modal.yeti-modal .close-button{color:#e1f1ff}
+#modal:is(.winter-modal,.yeti-modal) #modal-content{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;max-width:100%;padding:2px}
+#school-social[data-winter-tab=roulette] .winter-banner{display:none}
+#school-social[data-winter-tab=roulette] .winter-tabs{margin-top:0}
+.winter-tabs button{min-height:44px;color:var(--ui-ink);font-weight:700}
+.winter-roulette-layout>*{min-width:0}.winter-wheel-shell{max-width:100%}
+#yeti-view>#yeti-lobby-toolbar{position:relative;top:0}
+#yeti-view #yeti-warning{max-width:94%;white-space:normal;text-align:center;line-height:1.4}
+#yeti-result{inset:14% 6%;gap:6px;overflow:auto}#yeti-result span{line-height:1.45}
+@media(max-height:500px) and (orientation:landscape){
+  #modal.winter-modal[open],#modal.yeti-modal[open]{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;padding:6px 10px;border-radius:0;margin:0}
+  #modal:is(.winter-modal,.yeti-modal) .modal-top{margin-bottom:3px;padding:0;min-height:44px}
+  #school-social .winter-banner{padding:10px 12px}.winter-banner>small,.winter-banner .winter-snow{display:none}.winter-banner h3{font-size:17px;margin:0 0 4px}
+  .winter-tabs{margin:6px 0;gap:4px;padding:2px}.winter-tabs button{padding:4px 8px}
+  .winter-wallets{margin-bottom:3px;gap:8px}.winter-wallets .winter-wallet{padding:5px 10px}.winter-wallets .winter-wallet b{font-size:15px}
+  .winter-roulette-layout{grid-template-columns:minmax(140px,.9fr) minmax(190px,1fr);gap:12px;padding:4px 10px}
+  .winter-wheel-shell{width:clamp(140px,calc(100dvh - 170px),210px);margin:8px auto}
+  .winter-wheel{border-width:5px}.winter-wheel-label{padding-top:8px;gap:0}.winter-wheel-label b{font-size:11px}.winter-wheel-label span{font-size:16px}
+  .winter-wheel-hub{width:38px;height:38px;border-width:2px}.winter-wheel-hub svg{width:24px;height:24px}.winter-wheel-pointer{border-top-width:17px;top:-6px}
+  .winter-roulette-copy{gap:6px}.winter-roulette-copy .winter-exclusive,.winter-roulette-copy p{display:none}.winter-roulette-copy h3{font-size:19px}
+  #winter-spin{min-height:44px;font-size:13px;padding:8px}.winter-spin-result{min-height:0;padding:4px 0;font-size:12px}.winter-spin-result.won{font-size:14px}
+  #yeti-view{gap:6px}#yeti-view:not([data-phase=fighting]){display:grid;grid-template-columns:minmax(0,1.2fr) minmax(230px,1fr);align-items:start}
+  #yeti-view:not([data-phase=fighting]) .yeti-arena{grid-column:1;grid-row:1 / span 4;height:clamp(180px,calc(100dvh - 105px),290px);min-height:0;max-height:none;align-self:stretch}
+  #yeti-view:not([data-phase=fighting])>:not(.yeti-arena){grid-column:2;min-width:0}
+  #yeti-lobby-toolbar{flex-wrap:wrap;padding:5px;gap:4px}#yeti-lobby-toolbar #yeti-invite-friends{flex:1;min-height:44px;padding:8px;font-size:13px;white-space:nowrap}
+  #yeti-party-count{font-size:11px}#yeti-members{gap:4px}.yeti-member{gap:4px}.yeti-member b{font-size:12px}
+  #yeti-actions{gap:5px}#yeti-actions button{padding:7px 9px;min-height:44px}.yeti-invite{gap:5px}.yeti-invite span{font-size:10px}
+  #yeti-view[data-phase=fighting] .yeti-arena{height:calc(100dvh - 132px);min-height:145px}
+  #yeti-view[data-phase=fighting] #yeti-message:empty{display:none}
+  .rescue-heading{padding:4px 10px;min-width:190px}.rescue-heading small{font-size:10px}.rescue-orb{width:48px;height:48px}
+}
+@media(max-width:520px) and (orientation:portrait){
+  #modal.winter-modal[open],#modal.yeti-modal[open]{padding:10px;width:calc(100vw - 12px)}
+  .winter-wallets .winter-wallet{padding:8px}.winter-roulette-copy{width:100%}.winter-wheel-shell{width:min(74vw,260px)}
+  #yeti-lobby-toolbar{flex-wrap:wrap;gap:6px;padding:8px}#yeti-lobby-toolbar #yeti-invite-friends{flex:1}
+  .yeti-arena{min-height:180px;max-height:none}.yeti-member{gap:5px;padding:6px}.yeti-member b{font-size:12px}
+  #yeti-result strong{font-size:20px}#yeti-result span{font-size:12px}
+}
+
+/* Supersede the old two-column festival layout, which split the roulette into a narrow cell. */
+#school-social[data-view=winter]{display:block;min-width:0;max-width:100%}
+#school-social[data-view=winter] .winter-wallet{min-width:0}

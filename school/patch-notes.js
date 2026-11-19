@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-coop-invites2',
+  version:'school-expansion1',
   entries:Object.freeze([
+    {version:'school-expansion1',date:'2026.11.19',title:'학교의 경계 너머 · 13~15지역',items:[
+      '침식된 미술실, 뒤집힌 천문관, 멈춰진 종루에 15개 스테이지가 열렸어요. 12-5를 완료하면 13-1부터 도전할 수 있어요.',
+      '새 일반 몬스터 9종과 지역 보스 3종을 추가했어요. 피해 저항·후열 조준·보호막·시간에 따른 강화를 확인하세요. 일반 몬스터의 예고 중인 기술은 기절로 차단할 수 있어요.',
+      '모바일 룰렛 크기와 예티 창 배치를 조정하고, 체력바·피해·치유 숫자의 대비와 효과를 개선했어요.',
+      '보상 코드 2종 추가: BEYOND_CHAPTER_12 · SORRY_FOR_FREQUENT_PATCHES (보급 → 코드 입력).'
+    ]},
     {version:'school-coop-invites2',date:'2026.11.19',title:'가려지지 않는 초대 · 접속 상태 확인',items:[
       '예티 대기실 위쪽의 초대 버튼을 누르면 별도 창에서 친구·길드원을 선택할 수 있어요. 벌룬 초대도 같은 창을 사용해요.',
       '온라인·오프라인 상태를 자동으로 갱신하고, 받은 초대가 다른 창 뒤로 가려지는 문제를 수정했어요. ESC는 초대 창만 닫아요.',

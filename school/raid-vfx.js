@@ -43,7 +43,7 @@ window.SchoolRaidFX=(()=>{
    SchoolArt.hero(c,u.id,p.x+dx-recoil,p.y+(reduced?0:motion?.dy||0),scale,{attack:outAge<.65,dead:u.hp<=0,stunned:u.stunUntil>t,hit:hitAge<.2,time:now/1000,reduced,pose:motion?.pose,motion,casting:castAge<1.5,attackAge:out&&!out.skill&&outAge<1.1?outAge:undefined,basicAttackAt:out&&!out.skill?out.shown/1000:undefined,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0,horasCastAge:u.id==='horas'&&castAge<2.4?castAge:-1,taunting:u.id==='ryusion'&&SchoolRPG.ryusionGuard(units,t).taunting,passive:!!a.rescue&&now-a.rescue.shown<1200});
    const key=focus+':'+u.id,prior=bars.get(key)||{hp:u.hp,trail:u.hp},hpEvent=own.findLast(e=>e.id===u.id&&Number.isFinite(e.hpAfter)&&now-e.shown<1000),targetHP=hpEvent?.hpAfter??u.hp;
    prior.hp=mix(prior.hp,targetHP,Math.min(1,dt/135));prior.trail=mix(prior.trail,targetHP,Math.min(1,dt/450));bars.set(key,prior);
-   const bw=Math.max(48,scale*32);c.fillStyle='#111b30';c.fillRect(p.x-bw/2-1,p.y+4,bw+2,7);c.fillStyle='#ce737a';c.fillRect(p.x-bw/2,p.y+5,bw*clamp(prior.trail/u.max),5);c.fillStyle=prior.hp/u.max<.25?'#ff9c83':'#9fed9a';c.fillRect(p.x-bw/2,p.y+5,bw*clamp(prior.hp/u.max),5);
+   const bw=Math.max(54,scale*35);window.SchoolCombatFeedback?.drawHealth(c,{x:p.x,y:p.y+5,width:bw,ratio:prior.hp/u.max,trail:prior.trail/u.max,shield:(u.shield||0)/u.max,healing:a.heal?Math.max(0,1-(now-a.heal.shown)/950):0});
    if(u.shield){c.fillStyle='#b8eaff';c.fillRect(p.x-bw/2,p.y+12,bw*clamp(u.shield/u.max),3);}
    if(u.hp>0&&u.hasteUntil>t){c.save();c.strokeStyle='#bbffe8';c.lineWidth=Math.max(1,scale*.7);for(let n=0;n<2;n++){const y=p.y-scale*(48+n*3);c.beginPath();c.moveTo(p.x-3*scale,y+2*scale);c.lineTo(p.x,y);c.lineTo(p.x+3*scale,y+2*scale);c.stroke();}c.restore();}
   });

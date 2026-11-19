@@ -201,8 +201,8 @@ const G=require('../school/engine.js');
      await win('tower-repeat-enter01');assert.equal(current.data.state.activities.lastResult.firstClear,false);assert.deepEqual(current.data.state.activities.lastResult.reward,{gold:0,gems:0,xp:0});assert.equal(current.data.state.gold,paid.gold);assert.equal(current.data.state.gems,paid.gems);assert.deepEqual(current.data.state.units,paid.units);assert.deepEqual(current.data.state.captain,paid.captain);assert.equal(current.data.state.activities.daily.used,0);assert.equal(current.data.state.activities.weekly.used,0);
    }finally{Date.now=realNow;}
  });
- await test('New coupons use fixed server amounts and retired coupon names remain disabled',async()=>{
-   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-21T00:00:00+09:00');
+ await test('Historical coupons used fixed server amounts before expiry and retired coupon names remain disabled',async()=>{
+   const realNow=Date.now;Date.now=()=>Date.parse('2026-11-18T12:00:00+09:00');
    try{
      const who=(await t.login('school-new-coupons')).data;let current=await call(who,'state');for(const[code,amount]of [['THANKS_FOR_REPORTING',500],['HORAS_CELEBRATION',2000]]){
        const before=current.data.state;current=await call(who,'action',action(current.data.revision,'new-coupon-'+code+'001',{kind:'redeem',code:code.toLowerCase(),gold:1e12,gems:1e12}));assert.equal(current.status,200);assert.equal(current.data.state.gold,before.gold+amount);assert.equal(current.data.state.gems,before.gems+amount);const row=save(who);assert.equal((await call(who,'action',action(row.revision,'new-coupon-duplicate-'+code,{kind:'redeem',code}))).status,400);assert.equal(save(who).payload,row.payload);
@@ -211,7 +211,7 @@ const G=require('../school/engine.js');
      const retired=(await t.login('school-new-coupons-retired')).data;const fresh=await call(retired,'state');for(const code of ['OSIA_DEBUT','BUG_FIX','LAVA_DEBUT','THANK_YOU','MAJORUPDATE'])assert.equal((await call(retired,'action',action(fresh.data.revision,'retired-coupon-'+code,{kind:'redeem',code,now:0}))).status,400);assert.equal(JSON.parse(save(retired).payload).gold,700);
    }finally{Date.now=realNow;}
  });
- const couponEnd=Date.parse('2026-11-21T00:00:00+09:00');let couponAccount;
+ const couponEnd=Date.parse('2026-11-18T22:46:56Z');let couponAccount;
  await test('Coupon rewards use server amounts and time; concurrent normalized codes credit an account once',async()=>{
    const realNow=Date.now;Date.now=()=>couponEnd-60000;
    try{
@@ -238,12 +238,12 @@ const G=require('../school/engine.js');
      assert.equal((await call(couponAccount,'action',action(row.revision,'coupon-new-duplicate01',{kind:'redeem',code:'  HORAS_CELEBRATION  '}))).status,400);assert.equal(save(couponAccount).payload,row.payload);
    }finally{t.db.prepare=prepare;Date.now=realNow;}
  });
- await test('Replacement coupons remain valid after the former expiry and old codes cannot be revived by a forged date',async()=>{
+ await test('Historical coupons expire and old codes cannot be revived by a forged date',async()=>{
    const realNow=Date.now;Date.now=()=>couponEnd+86400000;
    try{
      const who=(await t.login('school-coupon-retired-date')).data;const current=await call(who,'state');
      const valid=await call(who,'action',action(current.data.revision,'coupon-no-expiry-001',{kind:'redeem',code:'THANKS_FOR_REPORTING',now:0}));
-     assert.equal(valid.status,200);assert.equal(valid.data.state.gems,2300);assert.equal(valid.data.state.gold,1200);
+     assert.equal(valid.status,400);const unchanged=JSON.parse(save(who).payload);assert.equal(unchanged.gems,current.data.state.gems);assert.equal(unchanged.gold,current.data.state.gold);
      const before=save(who),retired=await call(who,'action',{...action(before.revision,'coupon-retired-00001',{kind:'redeem',code:'BUG_FIX',now:couponEnd-86400000}),now:couponEnd-86400000});
      assert.equal(retired.status,400);assert.equal(save(who).payload,before.payload);
    }finally{Date.now=realNow;}
