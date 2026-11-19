@@ -466,7 +466,9 @@
         for(const u of units[event.side])u.hasteUntil=Math.max(u.hasteUntil||0,event.hasteUntil||event.t+6000);
         for(const u of units[1-event.side])u.slowUntil=Math.max(u.slowUntil||0,event.slowUntil||event.t+5000);
       }
-      if (from && ['attack','skill','heal','shield','spica-wind'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind==='spica-wind'?'skill':event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
+      if(event.kind==='osia-breath'&&from){from.breathAt=event.t;from.breathTarget=event.target;}
+      if(event.kind==='osia-breath-cancel'&&from)delete from.breathAt;
+      if (from && !event.breath && ['attack','skill','heal','shield','spica-wind'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind==='spica-wind'?'skill':event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
       if(from?.id==='kazua'){
         from.kazua||={mode:'fire',modeSince:0,power:1};
         if(event.kind==='dodge')from.dodgeAt=event.t;
@@ -501,7 +503,7 @@
         }
         if(event.kind==='down'||event.kind==='horas-refund')delete target.horasMark;
       }
-      if (!reduced || event.kind.startsWith('horas-') || event.kind==='miss' || window.SchoolOsiaWeaponArt?.equipped(from)&&(event.kind==='osia-drowning'||event.kind==='skill'&&event.stage===4)) effects.push(event);
+      if (!reduced || event.kind==='osia-breath' || event.kind.startsWith('horas-') || event.kind==='miss' || window.SchoolOsiaWeaponArt?.equipped(from)&&(event.kind==='osia-drowning'||event.kind==='skill'&&event.stage===4)) effects.push(event);
       if (effects.length>80) effects.splice(0,effects.length-80);
     }
     function complete() {
@@ -518,9 +520,12 @@
     }
     function draw() {
       scenery();c.setTransform(1,0,0,1,0,0);c.drawImage(background,0,0);c.setTransform(scale,0,0,scale,0,0);c.imageSmoothingEnabled=false;
+      const breathCaster=units.flat().find(u=>Number.isFinite(u.breathAt)&&clock-u.breathAt>=0&&clock-u.breathAt<4750&&u.hp>0&&!(u.stunUntil>clock));
+      if(!finished&&breathCaster)window.SchoolOsiaBreathArt?.field(c,(clock-breathCaster.breathAt)/1000,960,420,reduced);
       let impact=null;
       for(let i=effects.length-1;i>=0;i--){const event=effects[i];if(event.kind==='horas-impact'&&event.landed&&clock-event.t>=0&&clock-event.t<180){impact=event;break;}}
       if(impact&&!reduced){const age=(clock-impact.t)/1000,decay=1-age/.18;c.translate(Math.sin(age*100)*4*decay,Math.cos(age*83)*2*decay);}
+      if(!finished)for(const u of units.flat())if(Number.isFinite(u.breathAt)&&clock-u.breathAt>=0&&clock-u.breathAt<4750&&u.hp>0&&!(u.stunUntil>clock))window.SchoolOsiaWeaponArt?.dragon(c,{source:positions.get(`${u.side}:${u.id}`),target:positions.get(`${1-u.side}:${u.breathTarget}`),age:(clock-u.breathAt)/1000,reduced,economy:cssWidth<640,scale:1.55,breath:true,layer:'back'});
       const gunners=[];
       units.flat().sort((a,b)=>positions.get(`${a.side}:${a.id}`).y-positions.get(`${b.side}:${b.id}`).y).forEach(unit=>{
         const position=positions.get(`${unit.side}:${unit.id}`),actAge=(clock-unit.actAt)/1000,hitAge=clock-unit.hitAt;
@@ -529,8 +534,9 @@
         const attacking=(unit.id==='horas'?horasAge>=0&&horasAge<.9:actAge>=0&&actAge<(unit.id==='spica'?.85:.48))&&unit.hp>0, direction=unit.side?-1:1;
         const move=attacking&&!reduced?Math.sin(Math.min(1,actAge/(unit.id==='spica'?.85:.48))*Math.PI)*15*direction:0;
         const earthAge=(clock-(unit.earthCastAt??-10000))/1000;
-        const motion=unit.id==='ryusion'&&earthAge>=0&&earthAge<1.4?window.SchoolArt?.poseForSkill?.('ryusion',unit.earthStage,earthAge,reduced):casting&&['osia','lava','spica'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
-        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:['horas','kazua'].includes(unit.id)?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{exclusive:unit.exclusive,osiaSpearAge:Number.isFinite(unit.osiaSpearAt)?(clock-unit.osiaSpearAt)/1000:-1,kazuaActive:!finished,...window.SchoolArt.kazuaFrame(unit,clock),...(unit.dodgeAt&&clock-unit.dodgeAt<350?{kazuaMode:'dodge',kazuaAge:(clock-unit.dodgeAt)/1000}:{}),time:clock/1000,dead:unit.hp<=0,stunned:unit.stunUntil>clock,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):undefined,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(unit.id==='spica'?undefined:attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
+        const breathAge=unit.id==='osia'&&Number.isFinite(unit.breathAt)&&clock-unit.breathAt<4750?(clock-unit.breathAt)/1000:undefined;
+        const motion=breathAge>=0&&window.SchoolOsiaBreathArt?window.SchoolOsiaBreathArt.motion(breathAge,reduced):unit.id==='ryusion'&&earthAge>=0&&earthAge<1.4?window.SchoolArt?.poseForSkill?.('ryusion',unit.earthStage,earthAge,reduced):casting&&['osia','lava','spica'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
+        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:['horas','kazua'].includes(unit.id)?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{exclusive:unit.exclusive,osiaBreathAge:breathAge,osiaSpearAge:Number.isFinite(unit.osiaSpearAt)?(clock-unit.osiaSpearAt)/1000:-1,kazuaActive:!finished,...window.SchoolArt.kazuaFrame(unit,clock),...(unit.dodgeAt&&clock-unit.dodgeAt<350?{kazuaMode:'dodge',kazuaAge:(clock-unit.dodgeAt)/1000}:{}),time:clock/1000,dead:unit.hp<=0,stunned:unit.stunUntil>clock,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):undefined,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(unit.id==='spica'?undefined:attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
         if(!finished&&unit.id==='kazua'&&unit.hp>0&&!(unit.stunUntil>clock)&&!(unit.dodgeAt&&clock-unit.dodgeAt<350))gunners.push({source:position,targets:units[1-unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),mode:unit.kazua?.mode||'idle',age:(clock-(unit.kazua?.modeSince||0))/1000,time:clock/1000,scale:2.3,reduced,economy:cssWidth<640,flip:!!unit.side});
         if(unit.id==='spica'&&casting&&!(unit.stunUntil>clock))window.SchoolArt?.spicaSkillEffect?.(c,position,units[unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),units[1-unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),actAge,reduced,1.2);
         c.fillStyle='#14222ce6';c.fillRect(position.x-38,position.y+8,76,8);c.fillStyle=unit.side===me?'#a4c478':'#dc8d7f';c.fillRect(position.x-37,position.y+9,74*Math.max(0,unit.hp)/Math.max(1,unit.max),6);
@@ -539,15 +545,15 @@
       });
       for(const gunner of gunners)window.SchoolKazuaArt?.effects(c,gunner);
       if(!finished)window.SchoolArt?.spicaBlizzard?.(c,{x:0,y:95,width:960,height:325},clock,spicaUntil,reduced,cssWidth<640);
-      effects=effects.filter(event=>clock-event.t<(event.kind.startsWith('horas-')?2600:event.from==='osia'&&(event.kind==='osia-drowning'||event.kind==='skill'&&event.stage===4)?2200:800));
+      effects=effects.filter(event=>clock-event.t<(event.kind==='osia-breath'?4750:event.kind.startsWith('horas-')?2600:event.from==='osia'&&(event.kind==='osia-drowning'||event.kind==='skill'&&event.stage===4)?2200:800));
       if(!finished){
         const drawnDragons=new Set();
         for(const event of effects){
-          if(event.from!=='osia'||!(event.kind==='osia-drowning'||event.kind==='skill'&&event.stage===4))continue;
-          const caster=byKey.get(`${event.side}:osia`);if(!window.SchoolOsiaWeaponArt?.equipped(caster))continue;
+          if(event.from!=='osia'||!(event.kind==='osia-drowning'||event.kind==='osia-breath'||event.kind==='skill'&&event.stage===4&&!event.breath))continue;
+          const caster=byKey.get(`${event.side}:osia`);if(!window.SchoolOsiaWeaponArt?.equipped(caster)||caster.hp<=0||caster.stunUntil>clock||event.kind==='osia-breath'&&caster.breathAt!==event.t)continue;
           const source=positions.get(`${event.side}:osia`),target=positions.get(`${event.toSide}:${event.target||event.targetId}`);
           if(!source||!target)continue;
-          const opt={source,target,age:(clock-event.t)/1000,reduced,economy:cssWidth<640,scale:1.55};
+          const opt={source,target,age:(clock-event.t)/1000,reduced,economy:cssWidth<640,scale:1.55,breath:event.kind==='osia-breath',layer:event.kind==='osia-breath'?'front':undefined};
           if(event.kind==='osia-drowning')window.SchoolOsiaWeaponArt.drowning(c,opt);
           else{
             // Area hits share one cast. Draw one dragon rather than one per victim.

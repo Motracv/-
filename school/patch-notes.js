@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-winter-polish1',
+  version:'school-osia-breath1',
   entries:Object.freeze([
+    {version:'school-osia-breath1',date:'2026.11.19',title:'오시아 · 용의 신수 브레스',items:[
+      '전용 무기를 장착한 오시아의 마지막 스킬에 소환진·신수 현현·후퇴·흡기·물 브레스 연출을 적용했어요.',
+      '오시아가 소환 손짓 후 손을 뻗으며, 푸른 빛·물보라·머리카락의 움직임과 약한 화면 진동이 이어집니다. 모션 줄이기에서는 움직임과 빛을 줄여요.',
+      '브레스는 2.3초간 이어지고 피해를 나누어 적용합니다. 최초 명중한 적 전체는 2초 기절하며, 총 피해 배율과 기존 익사 제한은 유지됩니다.',
+      '모험·예티·길드 보스·아레나에서 적용됩니다. 다른 용병들의 전투는 계속되며 오시아가 사망하거나 기절하면 시전이 중단됩니다.'
+    ]},
     {version:'school-winter-polish1',date:'2026.11.19',title:'겨울 안뜰 · 도감 수집 보상',items:[
       '도감의 미보유 용병에 회색·잠금 표시를 추가했어요. 보유 용병마다 최초 1회 보석 100개를 도감에서 받을 수 있어요. 기존 수집 용병도 포함됩니다.',
       '카즈아·호라스 모집 배너의 그림과 안내 영역을 분리해 일러스트가 가려지지 않도록 개선했어요.',

@@ -104,6 +104,7 @@ window.SchoolOsiaWeaponArt=(()=>{
   }c.restore();return true;
  }
  function dragon(c,o={}){
+  if(o.breath&&window.SchoolOsiaBreathArt)return window.SchoolOsiaBreathArt.dragon(c,o);
   const {source,target,reduced=false,economy=false}=o,age=Number(o.age),s=Math.max(.4,Math.min(3,Number(o.scale)||1));
   if(!valid(source)||!valid(target)||!Number.isFinite(age)||age<0||age>1.85)return false;
   const dir=target.x>=source.x?1:-1,tx=target.x,ty=Number.isFinite(target.aimY)?target.aimY:target.y-37*s;

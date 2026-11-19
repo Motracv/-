@@ -8,6 +8,7 @@
   // simultaneous server turns and spreads different turns over at most 650ms.
   function createSnapshotTimeline({limit=160,spreadMs=650,staleMs=2200}={}){
     let id=null,battle=null,seq=0,received=0,anchor=0,live=false,queue=[],painted=null;
+    const eventLife=e=>e.breath&&['cast','dragon','osia-breath-cancel'].includes(e.kind)?4750:staleMs;
     const clock=now=>battle?anchor+(live?Math.max(0,now-received):0):0;
     function clear(){id=null;battle=null;seq=0;received=anchor=0;live=false;queue=[];painted=null;}
     function suspend(){queue=[];painted=null;}
@@ -21,7 +22,7 @@
       id=key;battle=next;anchor=active&&!changed&&!resuming?Math.max(next.elapsed,oldTime):next.elapsed;received=now;live=active;
       const fresh=(next.events||[]).filter(e=>e.seq>seq&&Number.isFinite(e.t)&&e.t>=next.elapsed-staleMs).sort((a,b)=>a.t-b.t||a.seq-b.seq);
       seq=Math.max(seq,next.seq||0);
-      queue=queue.filter(e=>now-e.shown<staleMs);
+      queue=queue.filter(e=>now-e.shown<eventLife(e));
       if(fresh.length&&!hidden&&!initial&&!resuming){
         const first=fresh[0].t,last=fresh[fresh.length-1].t,tail=queue[queue.length-1];
         const start=Math.min(now+spreadMs,Math.max(now,tail?.shown>now?tail.shown+Math.min(120,Math.max(0,first-tail.t)):now));
@@ -34,7 +35,7 @@
     }
     function events(now){
       if(painted!==null&&now-painted>staleMs)queue=[];
-      painted=now;queue=queue.filter(e=>now-e.shown<staleMs);return queue;
+      painted=now;queue=queue.filter(e=>now-e.shown<eventLife(e));return queue;
     }
     function view(now){
       if(!battle)return null;

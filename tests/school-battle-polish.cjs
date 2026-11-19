@@ -10,6 +10,9 @@ for(const event of [{kind:'horas-cast',from:'horas',time:1},{kind:'kazua-mode',f
 }
 const events=[{kind:'horas-cast',from:'horas',time:1},{kind:'kazua-mode',from:'kazua',mode:'red',time:1.1}];
 assert.equal(P.latest(events,1250).id,'kazua');
+const breathStart={kind:'osia-breath',from:'osia',stage:4,breath:true,t:1000};
+assert.equal(P.latest([breathStart],1250).id,'osia');
+assert.equal(P.latest([breathStart,{kind:'skill',from:'osia',stage:4,breath:true,t:3000}],3250),null,'Each breath damage tick must not replay the ultimate closeup');
 const records=[],stack=[];
 const c=new Proxy({globalAlpha:1,save(){stack.push(this.globalAlpha);},restore(){assert(stack.length);this.globalAlpha=stack.pop();},measureText(t){return{width:t.length*6};}}, {get(t,k){return k in t?t[k]:(...args)=>{args.forEach(a=>{if(typeof a==='number')assert(Number.isFinite(a));});records.push([k,...args]);};}});
 const before=JSON.stringify(events);

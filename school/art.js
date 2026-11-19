@@ -65,7 +65,7 @@ window.SchoolArt = (() => {
   horasImage.src = 'school/assets/horas/combat.webp?v=horas1';
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
-  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready,window.SchoolOsiaWeaponArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
+  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready,window.SchoolOsiaWeaponArt?.ready,window.SchoolOsiaBreathArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
   osiaImage.src = "school/assets/osia-sprites.png?v=osia-look4";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-look1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
@@ -177,8 +177,8 @@ window.SchoolArt = (() => {
       const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d)),resolution=density>4?6:density>2?4:2;
       const key=pose+":"+resolution;let sprite=osiaPoses.get(key);
       if(!sprite){sprite=document.createElement("canvas");sprite.width=sprite.height=44*resolution;const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.drawImage(osiaImage,(pose%3)*tile,Math.floor(pose/3)*tile,tile,tile,0,0,sprite.width,sprite.height);osiaPoses.set(key,sprite);}
-      c.drawImage(sprite,-21,-40,44,44);
-      osiaHandMagic(c,pose,frame);
+      if(Number.isFinite(frame.osiaBreathAge)&&frame.osiaBreathAge>=0&&window.SchoolOsiaBreathArt&&!frame.dead&&!frame.stunned&&!frame.frozen)window.SchoolOsiaBreathArt.caster(c,sprite,frame.osiaBreathAge,frame.reduced);
+      else{c.drawImage(sprite,-21,-40,44,44);osiaHandMagic(c,pose,frame);}
     } else {
       // Small, right-facing fallback when the optional art file cannot load.
       c.translate(0, -7);
@@ -1432,12 +1432,12 @@ window.SchoolArt = (() => {
       if (e.from !== "osia") continue;
       if (e.kind === "skill-stage" && e.stage === 4 && cinematic?.castId === e.castId && !cinematic.nonBlocking) continue;
       const rawAge = time - e.time;
-      const age = pending && pending.id === e.castId ? Math.min(rawAge, e.impactDelay / 1000 - .001) : rawAge;
+      const age = !e.breath && pending && pending.id === e.castId ? Math.min(rawAge, e.impactDelay / 1000 - .001) : rawAge;
       const source = positions.osia; if (!source || age < 0) continue;
       if(divine&&e.kind==='osia-drowning'){
         const p=positions[e.to||e.target];if(p)window.SchoolOsiaWeaponArt?.drowning(c,{source,target:p,age,reduced,economy});
       }
-      if (e.kind === "skill-stage" && age < (e.stage === 4 ? 1.8 : 1.1)) {
+      if (e.kind === "skill-stage" && age < (e.breath ? 4.75 : e.stage === 4 ? 1.8 : 1.1)) {
         const targets=e.targets.map(id=>positions[id]).filter(Boolean);if(!targets.length)continue;
         const motion=reduced?.3:age,impactAge=age-e.impactDelay/1000;
         c.save();
@@ -1461,11 +1461,11 @@ window.SchoolArt = (() => {
           }
         } else if(divine&&window.SchoolOsiaWeaponArt){
           const target=targets.reduce((a,b)=>b.x>a.x?b:a,targets[0]);
-          window.SchoolOsiaWeaponArt.dragon(c,{source,target,age,reduced,economy});
+          window.SchoolOsiaWeaponArt.dragon(c,{source,target,age,reduced,economy,breath:!!e.breath,layer:e.breath?'front':undefined});
         } else waterDragon(c,source,targets,age,reduced,economy);
         c.restore();
         c.save();c.font="11px Galmuri, monospace";c.textAlign="center";
-        const label=`스킬 ${e.stage}/4 · ${e.name}${e.stage===4?(age<.5?" 소환":age<1?" 돌진":" 명중!"):""}`,width=c.measureText(label).width+24;
+        const label=`스킬 ${e.stage}/4 · ${e.name}${e.breath?(age<.9?" 소환":age<2?" 흡기":age<4.3?" 브레스":" 잔류 물결"):e.stage===4?(age<.5?" 소환":age<1?" 돌진":" 명중!"):""}`,width=c.measureText(label).width+24;
         rect(c,"#153c55ed",240-width/2,13,width,23);rect(c,"#8beaff",240-width/2,35,width,2);c.fillStyle="#d4fbff";c.fillText(label,240,29);c.restore();
       }
       if(e.kind==="hit"&&!e.skill&&age<.65){
@@ -1800,6 +1800,10 @@ window.SchoolArt = (() => {
     if (panorama) panoramicScenery(c, battle, extendedParty, sceneTime, reduced, view);
     else scenery(c, battle, extendedParty, sceneTime, reduced);
     effects = effects.filter(e => (!e.battleId || e.battleId === battle.id) && time >= e.time);
+    const cancelledBreaths=new Set(effects.filter(e=>e.kind==='osia-breath-cancel').map(e=>e.castId)),osiaOwner=battle.heroes.find(h=>h.id==='osia');
+    effects=effects.filter(e=>!e.breath||battle.phase==='fight'&&osiaOwner?.hp>0&&!(osiaOwner.stunUntil>battle.elapsed)&&!cancelledBreaths.has(e.castId));
+    const breathEvent=lastEffect(effects,e=>e.kind==='skill-stage'&&e.breath&&time-e.time<4.75);
+    if(breathEvent)window.SchoolOsiaBreathArt?.field(c,time-breathEvent.time,480,280,reduced);
     const landedCasts = new Set(effects.filter(e => e.kind === "skill-impact").map(e => e.castId));
     const landedHorasCasts = new Set(effects.filter(e => e.kind === "horas-impact").map(e => e.castId));
     effects = effects.filter(e => (e.kind !== "skill-stage" || battle.osiaCast?.id === e.castId || landedCasts.has(e.castId)) && (e.kind !== "horas-cast" || battle.horasCast?.id === e.castId || landedHorasCasts.has(e.castId)));
@@ -1811,7 +1815,7 @@ window.SchoolArt = (() => {
       if (event.kind === 'osia-drowning' && age < .7) actor('osia').spear = event;
       if (event.kind === 'heal'||event.kind === 'enemy-heal') actor(event.to).heal=event;
       if (event.kind === "skill" && age < .8) actor(event.from).casting = true;
-      if (event.kind === "skill-stage" && event.from === "osia" && age < (event.stage === 4 ? 1.8 : 1.1)) actor("osia").combo = event;
+      if (event.kind === "skill-stage" && event.from === "osia" && age < (event.breath ? 4.75 : event.stage === 4 ? 1.8 : 1.1)) actor("osia").combo = event;
       if(event.kind==="ryusion-skill"&&age<1.4)actor("ryusion").combo=event;
       if(event.kind==="ryusion-impact"&&age<.7)actor(event.to).earthImpact=event;
       if (event.kind === "lava-skill" && age < 1.8) actor("lava").combo = event;
@@ -1836,6 +1840,7 @@ window.SchoolArt = (() => {
     const place = p => panorama && p.y > 170 ? {x:p.x, y:p.y - 18} : p;
     battle.heroes.forEach((h, i) => { positions[h.id] = place(partyPositions[i] || {x:66 + (i % 3) * 68,y:137}); });
     battle.enemies.forEach((e, i) => { positions[e.id] = place(battle.boss ? { x: 375, y: 210 } : enemyPlaces[i]); });
+    if(breathEvent&&window.SchoolOsiaWeaponArt){const targets=breathEvent.targets.map(id=>positions[id]).filter(Boolean);if(targets.length)window.SchoolOsiaWeaponArt.dragon(c,{source:positions.osia,target:targets.reduce((a,b)=>b.x>a.x?b:a),age:time-breathEvent.time,reduced,economy,breath:true,layer:'back'});}
     const visualPositions = {...positions};
     const items = battle.heroes.map(h => ({ ...h, side: "hero" })).concat(battle.enemies.map(e => ({ ...e, side: "enemy" }))).sort((a, b) => positions[a.id].y - positions[b.id].y);
     for (const item of items) {
@@ -1849,13 +1854,13 @@ window.SchoolArt = (() => {
       const nudge = attackAge >= 0 && attackAge < .43 && !reduced && !stunned ? Math.sin(attackAge / .43 * Math.PI) * (item.side === "hero" ? 8 : -6) : 0;
       const combo = item.side === "hero" && visual.combo;
       const castAge = combo ? time - combo.time : 0;
-      const motion = combo && item.hp > 0 ? castingMotion(item.id, combo.stage, castAge, reduced) : null;
+      const motion = combo && item.hp > 0 ? combo.breath&&window.SchoolOsiaBreathArt?window.SchoolOsiaBreathArt.motion(castAge,reduced):castingMotion(item.id, combo.stage, castAge, reduced) : null;
       const recoilAge=visual.incoming?time-visual.incoming.time:1;
       const recoil=reduced?0:Math.sin(clamp01(recoilAge/.24)*Math.PI)*(visual.incoming?.critical?5:2);
       const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : ["lava","horas","kazua"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
-        time:sceneTime, exclusive:item.exclusive, osiaSpearAge:visual.spear?time-visual.spear.time:-1, kazuaActive:battle.phase==='fight', ...kazuaFrame(item,battle.elapsed+horasInterpolation*1000,battle.elapsed),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
+        time:sceneTime, exclusive:item.exclusive, osiaBreathAge:combo?.breath?castAge:undefined, osiaSpearAge:visual.spear?time-visual.spear.time:-1, kazuaActive:battle.phase==='fight', ...kazuaFrame(item,battle.elapsed+horasInterpolation*1000,battle.elapsed),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
         horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
         horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasImpact ? 1.5+time-visual.horasImpact.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,

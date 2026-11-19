@@ -56,7 +56,7 @@ export function simulateArena(game, saves, names, seed) {
     }
     if(target.protectedUntil>t)value=Math.min(value,Math.max(0,target.hp-1));
     const amount=Math.min(target.hp,value);target.hp-=amount;meter(side,from).damage+=amount;meter(enemySide,target.id).taken+=amount;if(crit&&amount>0)meter(side,from).criticals++;
-    emit(skill?'skill':'attack',side,from,enemySide,target,amount,{crit:crit&&amount>0,absorbed,...(target!==original?{redirectedFrom:original.id}:{}),...(skill?{skill}:{}),...(stage?{stage}:{}),...(stunBonus?{stunBonus:true}:{}),...(detail.castId?{castId:detail.castId,primary:detail.primary}:{}),...(detail.drowning?{drowning:true,damageType:'magic'}:{})});
+    emit(skill?'skill':'attack',side,from,enemySide,target,amount,{crit:crit&&amount>0,absorbed,...(target!==original?{redirectedFrom:original.id}:{}),...(skill?{skill}:{}),...(stage?{stage}:{}),...(stunBonus?{stunBonus:true}:{}),...(detail.castId?{castId:detail.castId,primary:detail.primary}:{}),...(detail.drowning?{drowning:true,damageType:'magic'}:{}),...(detail.breath?{breath:true,tick:detail.tick}:{})});
     if(target.id==='horas'&&target.hp>0&&t>=horas[enemySide].lastHitStackAt+H.hitStackMs){horas[enemySide].lastHitStackAt=t;addHorasStack(enemySide,1,'hit',sides[side].find(u=>u.id===from));}
     if(target.hp<=0){
       emit('down',side,from,enemySide,target,0);
@@ -121,12 +121,26 @@ export function simulateArena(game, saves, names, seed) {
       if(victim.hp>0&&victim.evadedAt!==t){victim.stunUntil=Math.max(victim.stunUntil,t+R.stunMs);emit('stun',side,hero.id,1-side,victim,0,{skill:'돌격 앞으로',duration:R.stunMs});}
     }else for(const target of alive(side)){const amount=game.addEarthShield(target,hero.max/3*defense(hero).shieldRatio,t);emit('shield',side,hero.id,side,target,amount,{skill:'방어막 추가',stage:2,earthShield:amount,earthShieldUntil:target.earthShieldUntil});}
   }
+  function breathStep(side){
+    const unit=sides[side].find(u=>u.id==='osia'),cast=unit?.breath;if(!cast)return;
+    const r=game.OSIA_BREATH_RULES,age=t-cast.began;
+    if(unit.hp<=0||unit.stunUntil>t){delete unit.breath;emit('osia-breath-cancel',side,unit.id,side,unit,0);return;}
+    if(age>=r.windupMs+r.breathMs){delete unit.breath;return;}
+    const tick=cast.tick;if(tick>=r.ticks||age<r.windupMs+tick*r.tickMs)return;cast.tick++;
+    for(const target of alive(1-side)){
+      const part=cast.targets.find(p=>p.id===target.id);if(!part)continue;const victim=redirect(side,target),amount=Math.round(part.amount*(tick+1)/r.ticks)-Math.round(part.amount*tick/r.ticks);
+      if(amount>0)hit(side,unit.id,target,amount,'용의 신수',4,{snapshot:true,critical:part.critical,breath:true,tick,castId:cast.began});
+      if(!tick&&victim.hp>0&&victim.evadedAt!==t){victim.stunUntil=Math.max(victim.stunUntil,t+r.stunMs);emit('stun',side,unit.id,1-side,victim,0,{skill:'용의 신수',duration:r.stunMs});}
+    }
+    if(!tick)shield(side,unit.id,unit,unit.atk*(unit.exclusive.dragonShield||.2),'신수의 왕권');
+  }
   function act(side,unit) {
     if(unit.id==='kazua'||unit.hp<=0||unit.stunUntil>t||!alive(1-side).length)return;
     const attack=unit.atk*synergy[side].damageMultiplier*(buffUntil[side]>t?1.3:1)*(t>=45000?1+(t-45000)/15000:1);
     if(unit.id==='horas'){horasAct(side,unit,attack*horasDamageMultiplier*(1+(unit.exclusive?.strength||0)));return;}
     const def=game.BY_ID[unit.id];
     if(!tactical||t>=(unit.nextEnergyAt||1000)){unit.energy++;unit.nextEnergyAt=t+1000;}
+    if(unit.breath)return;
     const skill=unit.energy>=def.cooldown;
     if(tactical&&!skill&&t<(unit.nextBasicAt||1000))return;
     if(tactical)unit.nextBasicAt=skill?Math.max(unit.nextBasicAt||t,t)+1000/basicRate(unit):nextBasic(unit.nextBasicAt||1000,1000,unit);
@@ -150,6 +164,10 @@ export function simulateArena(game, saves, names, seed) {
     if(skill&&unit.role==='지원'){buffUntil[side]=t+3000;emit('shield',side,unit.id,side,unit,0,{skill:def.skill});}
     if(skill&&unit.id==='osia'){
       const stage=unit.stage, name=game.osiaSkillName(unit,stage);
+      if(stage===4&&game.osiaDivine(unit)){
+        const targets=alive(1-side);unit.breath={began:t,tick:0,targets:targets.map(target=>{const critical=random()<.12;return{id:target.id,critical,amount:Math.round(attack*2.2*game.osiaSkillMultiplier(unit,4)*(.9+random()*.2)*(critical?1.5:1))};})};
+        emit('osia-breath',side,unit.id,1-side,targets[0],0,{skill:name,stage:4,breath:true,targets:targets.map(u=>u.id)});unit.stage=1;return;
+      }
       for(const target of alive(1-side)){const victim=redirect(side,target);hit(side,unit.id,target,attack*2.2*game.osiaSkillMultiplier(unit,stage),name,stage);if(stage===4&&victim.hp>0&&victim.evadedAt!==t){victim.stunUntil=t+1500;emit('stun',side,unit.id,1-side,victim,0,{skill:name,duration:1500});}}
       if(stage===4&&game.osiaDivine(unit))shield(side,unit.id,unit,unit.atk*(unit.exclusive.dragonShield||.2),'신수의 왕권');
       unit.stage=stage%4+1;return;
@@ -166,6 +184,7 @@ export function simulateArena(game, saves, names, seed) {
     const first=(Math.floor(t/1000)+initial)%2;
     ryusionStep(first);ryusionStep(1-first);
     horasStep(first);horasStep(1-first);
+    breathStep(first);breathStep(1-first);
     for(const side of[first,1-first]){const u=sides[side].find(u=>u.id==='osia'),targets=alive(1-side);if(u&&targets.length){const taunt=guard(1-side);if(taunt.taunting)targets.sort((a,b)=>(b===taunt.hero)-(a===taunt.hero));game.osiaWeaponStep?.(u,targets,t,500,(target,amount,detail)=>hit(side,u.id,target,amount,'익사',null,detail),(kind,extra)=>{const target=targets.find(e=>e.id===extra.to);if(target)emit(kind,side,u.id,1-side,target,0,{...extra,targetId:target.id});},u.stunUntil>t,{arena:true});}}
     for(const side of[first,1-first]){const u=sides[side].find(u=>u.id==='kazua');if(u&&alive(1-side).length)game.kazuaStep(u,sides[side],sides[1-side],t,500,(target,mult,d)=>hit(side,u.id,target,u.atk*mult*synergy[side].damageMultiplier*(buffUntil[side]>t?1.3:1)*(t>=45000?1+(t-45000)/15000:1),d.skill),(kind,extra)=>emit(kind,side,u.id,side,u,0,extra),u.stunUntil>t,basicRate(u));}
     if((!tactical&&t%1000)||!alive(0).length||!alive(1).length)continue;

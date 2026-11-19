@@ -550,7 +550,7 @@
     if (events.some(e => e.kind === 'offline')) effects = [];
     for (const e of events) {
       const eventTime = e.simAt == null ? now : e.simAt / 1000, age = Math.max(0, now - eventTime);
-      if (age < 3.1 && e.kind !== 'offline') effects.push({ ...e, time: eventTime });
+      if (age < (e.breath?4.75:3.1) && e.kind !== 'offline') effects.push({ ...e, time: eventTime });
       if (e.kind === 'hit' && age < .5 && performance.now() - lastImpactSound > 90) { play(e.critical ? 'critical' : 'hit'); lastImpactSound = performance.now(); }
       if (e.kind === 'skill-impact' && age < .5 && e.battleId === state.battle.id) play('water', e.stage);
       if (age < .5 && e.battleId === state.battle.id) {
@@ -562,13 +562,13 @@
         if (e.kind === 'horas-refund') play('blossom-refund');
       }
     }
-    effects = effects.filter(e => now - e.time < 3.1 && (!e.battleId || e.battleId === state.battle.id)).slice(-90);
+    effects = effects.filter(e => now - e.time < (e.breath?4.75:3.1) && (!e.battleId || e.battleId === state.battle.id)).slice(-90);
     const cast = state.battle.osiaCast;
     if (cast && !effects.some(e => e.kind === 'skill-stage' && e.castId === cast.id)) {
       const part = G.OSIA_SKILLS[cast.stage - 1];
       const elapsed = state.battle.elapsed - cast.began + (cast.nonBlocking?0:(cast.cinematicDuration || 0) - (state.battle.cinematic?.remaining || 0));
       const began = cast.simBegan ?? Math.max(0, (state.simTime || 0) - elapsed);
-      effects.push({kind:'skill-stage',from:'osia',castId:cast.id,battleId:state.battle.id,...part,cinematicDuration:cast.cinematicDuration || 0,nonBlocking:!!cast.nonBlocking,targets:cast.targets.map(t=>t.id),time:began/1000});
+      effects.push({kind:'skill-stage',from:'osia',castId:cast.id,battleId:state.battle.id,...part,...(cast.breath?{breath:true,impactDelay:G.OSIA_BREATH_RULES.windupMs}:{}),cinematicDuration:cast.cinematicDuration || 0,nonBlocking:!!cast.nonBlocking,targets:cast.targets.map(t=>t.id),time:began/1000});
       if (state.battle.cinematic && !effects.some(e => e.kind === 'cinematic' && e.castId === cast.id))
         effects.push({kind:'cinematic',from:'osia',castId:cast.id,battleId:state.battle.id,duration:cast.cinematicDuration || G.OSIA_CINEMATIC_MS,nonBlocking:!!cast.nonBlocking,time:began/1000});
     }

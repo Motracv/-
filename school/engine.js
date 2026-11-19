@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 33;
+  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 34;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -37,6 +37,7 @@
   const COUNTER_RULES = Object.freeze({ chance: .18, bossChance: .32, windowMs: 3500, cooldownMs: 10000, multiplier: 1.8 });
   const STEP_MS = 500;
   const OSIA_CINEMATIC_MS = 1000;
+  const OSIA_BREATH_RULES = Object.freeze({windupMs:2000,breathMs:2300,recoveryMs:450,tickMs:500,ticks:5,stunMs:2000});
   const OSIA_SKILLS = [
     { stage: 1, impactDelay: 500, name: "대형 물탄" },
     { stage: 2, impactDelay: 500, name: "소용돌이" },
@@ -386,7 +387,7 @@
     stars=clamp(Math.floor(stars)||0,0,5);
     const strength=(10+stars*1.6)/100, skill=(12+stars*1.6)/100;
     if(def.owner==='osia')return {id:item,owner:def.owner,name:def.passive,stars,divine:true,attack:.35+stars*.02,vitality:.25,basic:.25+stars*.03,skill:.6+stars*.04,dragon:1.6,dragonShield:.8+stars*.08,
-      description:`오시아 전용: 공격력 +${35+stars*2}%, 최대 HP +25%, 평타 피해 +${25+stars*3}%, 물 스킬 피해 +${60+stars*4}%. 거대 수룡이 용의 신수로 변화하며 피해가 추가로 60% 증가하고 공격력 ${80+stars*8}%의 보호막을 얻습니다. 전투당 최초 1회, 전투 시작 10초 후 해연의 창이 적 하나에게 2초 동안 최대 HP 10%의 익사 피해(마법 속성·방어/보호막 무시)를 줍니다. 길드 보스에게는 발동하지 않습니다. 다른 보스는 최대 HP 10% 적용. 마법 피해 감소는 적용되며 아레나에서만 공격력 250% 한도입니다.`};
+      description:`오시아 전용: 공격력 +${35+stars*2}%, 최대 HP +25%, 평타 피해 +${25+stars*3}%, 물 스킬 피해 +${60+stars*4}%. 거대 수룡이 용의 신수로 변화합니다. 소환·흡기 후 2.3초간 물 브레스로 적 전체를 공격하고 최초 명중 시 2초 기절시킵니다. 총 피해가 추가로 60% 증가하고 공격력 ${80+stars*8}%의 보호막을 얻습니다. 전투당 최초 1회, 전투 시작 10초 후 해연의 창이 적 하나에게 2초 동안 최대 HP 10%의 익사 피해(마법 속성·방어/보호막 무시)를 줍니다. 길드 보스에게는 발동하지 않습니다. 다른 보스는 최대 HP 10% 적용. 마법 피해 감소는 적용되며 아레나에서만 공격력 250% 한도입니다.`};
     if(def.owner==='ryusion')return {id:item,owner:def.owner,name:def.passive,stars,tauntReduction:.68+.008*stars,shieldRatio:.105+.003*stars,tauntShieldRatio:.03+.004*stars,
       description:`도발 중 피해 감소 ${68+.8*stars}%. 전체 보호막이 최대 HP ${(10.5+.3*stars).toFixed(1)}%로 증가. 도발 시작 시 본인에게 최대 HP ${3+.4*stars}%의 대지 보호막(기존 보호막과 중첩되지 않음). 아군 피해 감소 8%는 그대로 유지됩니다.`};
     return {id:item,owner:def.owner,name:def.passive,stars,strength,skill,
@@ -896,6 +897,7 @@
       (s.battle.lavaRescueUsed === undefined || typeof s.battle.lavaRescueUsed === "boolean") &&
       (s.battle.cinematic === undefined || s.battle.cinematic && s.battle.cinematic.from === "osia" && [STEP_MS, OSIA_CINEMATIC_MS].includes(s.battle.cinematic.duration) && Number.isFinite(s.battle.cinematic.remaining) && s.battle.cinematic.remaining > 0 && s.battle.cinematic.remaining <= s.battle.cinematic.duration && Number.isInteger(s.battle.cinematic.resumeIndex) && s.battle.cinematic.resumeIndex >= 1 && s.battle.cinematic.resumeIndex <= s.battle.heroes.length) &&
       validQuestState(s.quests) &&
+      (!s.battle.osiaCast?.breath||s.battle.osiaCast.stage===4&&Number.isInteger(s.battle.osiaCast.tick)&&s.battle.osiaCast.tick>=0&&s.battle.osiaCast.tick<=OSIA_BREATH_RULES.ticks) &&
       validHoras(s.battle) && s.battle.heroes.every(h=>validKazua(h.kazua)&&validOsiaWeapon(h.osiaWeapon)) &&
       validActivities(s.activities) &&
       (s.battle.activity === undefined || s.activities?.run && s.battle.runId === s.activities.run.id && s.battle.activity.kind === s.activities.run.kind) &&
@@ -1080,8 +1082,25 @@
   function osiaStep(s) {
     const b = s.battle, cast = b.osiaCast;
     if (!cast) return false;
-    if (!b.heroes.some(h => h.id === "osia" && h.hp > 0)) { delete b.osiaCast; return false; }
+    if (!b.heroes.some(h => h.id === "osia" && h.hp > 0)) { if(cast.breath)event(s,"osia-breath-cancel",{from:"osia",castId:cast.id,breath:true});delete b.osiaCast; return false; }
     const step = OSIA_SKILLS[cast.stage - 1];
+    if(cast.breath){
+      const owner=b.heroes.find(h=>h.id==='osia'),r=OSIA_BREATH_RULES,age=b.elapsed-cast.began;
+      if(!osiaDivine(owner)||owner.stunUntil>b.elapsed){event(s,'osia-breath-cancel',{from:'osia',castId:cast.id,breath:true});delete b.osiaCast;return false;}
+      if(age>=r.windupMs+r.breathMs){delete b.osiaCast;return false;}
+      const tick=cast.tick||0;if(tick>=r.ticks||age<r.windupMs+tick*r.tickMs)return false;
+      cast.tick=tick+1;
+      const targets=b.enemies.filter(e=>e.hp>0&&cast.targets.some(t=>t.id===e.id));
+      if(!tick){
+        event(s,'skill-impact',{from:'osia',castId:cast.id,stage:4,name:'용의 신수',element:'water',breath:true,targets:targets.map(e=>e.id)});
+        if(targets.length){bondCombat(s,'dragons');const amount=Math.max(0,Math.min(Math.round(owner.atk*(owner.exclusive.dragonShield||.2)),Math.round(owner.max*.6)-owner.shield));owner.shield+=amount;owner.shieldSources||={};owner.shieldSources.osia=(owner.shieldSources.osia||0)+amount;if(amount)event(s,'guard',{from:'osia',to:'osia',amount,shield:owner.shield,passive:'weapon-tide',element:'water'});}
+      }
+      for(const enemy of targets){const hit=cast.targets.find(t=>t.id===enemy.id),amount=Math.round(hit.amount*(tick+1)/r.ticks)-Math.round(hit.amount*tick/r.ticks);
+        if(amount>0)hurt(s,'osia',enemy,amount,'enemy',true,{castId:cast.id,stage:4,critical:!!hit.critical,breath:true,tick});
+        if(!tick&&enemy.hp>0){enemy.stunUntil=Math.max(enemy.stunUntil||0,b.elapsed+r.stunMs);event(s,'stun',{from:'osia',to:enemy.id,duration:r.stunMs,until:enemy.stunUntil});}
+      }
+      return true;
+    }
     if (b.elapsed < cast.began + step.impactDelay) return false;
     const targets = b.enemies.filter(e => e.hp > 0 && cast.targets.some(t => t.id === e.id));
     event(s, "skill-impact", { from: "osia", castId: cast.id, stage: step.stage, name: osiaSkillName(b.heroes.find(h=>h.id==='osia'),step.stage), element: "water", targets: targets.map(e => e.id) });
@@ -1194,7 +1213,7 @@
     if (b.phase !== "fight") { if ((b.wait -= STEP_MS / 1000) <= 0) spawn(s, true); return; }
     if (b.cinematic) {
       const cutin = b.cinematic;
-      if (!b.heroes.some(h => h.id === "osia" && h.hp > 0)) { delete b.osiaCast; cutin.remaining = 0; }
+      if (!b.heroes.some(h => h.id === "osia" && h.hp > 0)) { if(b.osiaCast?.breath)event(s,"osia-breath-cancel",{from:"osia",castId:b.osiaCast.id,breath:true});delete b.osiaCast; cutin.remaining = 0; }
       else cutin.remaining -= STEP_MS;
       if (cutin.remaining <= 0) {
         event(s, "cinematic-end", { from: "osia", castId: cutin.castId }); delete b.cinematic;
@@ -1259,12 +1278,13 @@
       if (skill && hero.id === "osia") {
         const step = osiaSkill(s);
         const cinematicDuration = step.stage === 4 ? OSIA_CINEMATIC_MS : 0;
-        b.osiaCast = { id: s.seq, began: b.elapsed, simBegan: s.simTime, stage: step.stage, cinematicDuration, nonBlocking:true, targets: enemies.map(e => {
+        const breath=step.stage===4&&osiaDivine(hero),impactDelay=breath?OSIA_BREATH_RULES.windupMs:step.impactDelay;
+        b.osiaCast = { id: s.seq, began: b.elapsed, simBegan: s.simTime, stage: step.stage, ...(breath?{breath:true,tick:0}:{}), cinematicDuration, nonBlocking:true, targets: enemies.map(e => {
           const critical = random(s) < (hero.critChance ?? CRITICAL.chance);
           return { id: e.id, critical, amount: Math.round(hero.atk * def.skillMultiplier * osiaSkillMultiplier(hero,step.stage) * (hero.damageMultiplier || 1) * (b.buff ? 1.3 : 1) * (.9 + random(s) * .2) * (critical ? hero.critMultiplier || CRITICAL.multiplier : 1)) };
         }) };
         s.units.osia.nextSkill = step.stage % 4 + 1;
-        event(s, "skill-stage", { from: "osia", castId: b.osiaCast.id, stage: step.stage, name: osiaSkillName(hero,step.stage), impactDelay: step.impactDelay, cinematicDuration, element: "water", divine:osiaDivine(hero), targets: enemies.map(e => e.id) });
+        event(s, "skill-stage", { from: "osia", castId: b.osiaCast.id, stage: step.stage, name: osiaSkillName(hero,step.stage), impactDelay, cinematicDuration, element: "water", divine:osiaDivine(hero), ...(breath?{breath:true}:{}), targets: enemies.map(e => e.id) });
         if (cinematicDuration) {
           b.cinematic = { from: "osia", castId: b.osiaCast.id, duration: cinematicDuration, remaining: cinematicDuration, resumeIndex: index + 1, nonBlocking:true };
           event(s, "cinematic", { from: "osia", castId: b.osiaCast.id, stage: 4, duration: cinematicDuration, nonBlocking:true });
@@ -1760,5 +1780,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

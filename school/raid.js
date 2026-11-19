@@ -49,7 +49,7 @@ window.SchoolRaid=(()=>{
    if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
    const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;
    c.setTransform(cw/1000,0,0,cw/1000,0,0);c.imageSmoothingEnabled=false;
-   events=timeline?.events(now)||events.filter(e=>now-e.shown<2200);
+   events=timeline?.events(now)||events.filter(e=>now-e.shown<(e.breath?4750:2200));
    const visual=timeline?.view(now),battle=visual||data?.room?.battle,live=data?.room?.status==='fighting',t=battle?(visual?timeline.clock(now):battle.elapsed+(live?Math.max(0,now-received):0)):0;
    const units=battle?.teams[focus]?.units||ctx.getState().team.map(id=>({id,hp:1,max:1,shield:0}));
    const info=window.SchoolRaidFX.draw(c,{w:1000,h:ch/cw*1000,now,dt,battle,focus,events,bg,atlas,bars,reduced:ctx.reduced?.()||false,units,received,visualTime:t,live,hp:battle?.boss.hp??data?.hp});

@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-winter-polish1';
+const RELEASE = 'school-osia-breath1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -8,9 +8,10 @@ const url = path => new URL(path, base).href;
 const shell = url('school.html');
 const required = [
   'school.html', 'school.webmanifest', 'school/assets/lobby/courtyard-winter.webp?v=winter-polish1',
-  ...['battle-polish.js','winter-polish.css','engine.js','weekend-event.js','weekend-event.css','osia-weapon-art.js','kazua-art.js','kazua.css','ryusion.js','combat-feedback.js','expansion-art.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css','guild.js','guild.css','raid.js','raid.css','raid-engine.js','raid-vfx.js','yeti-engine.js','rescue.js','yeti.js','yeti.css','winter2.css','refinement.css','dungeon-portal.js','dungeon-portal.css','insights.js','insights.css','formation.js','formation.css','coop.js','coop.css','notice.js','notice.css'].map(p => `school/${p}?v=${RELEASE}`),
+  ...['osia-breath-art.js','battle-polish.js','winter-polish.css','engine.js','weekend-event.js','weekend-event.css','osia-weapon-art.js','kazua-art.js','kazua.css','ryusion.js','combat-feedback.js','expansion-art.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css','guild.js','guild.css','raid.js','raid.css','raid-engine.js','raid-vfx.js','yeti-engine.js','rescue.js','yeti.js','yeti.css','winter2.css','refinement.css','dungeon-portal.js','dungeon-portal.css','insights.js','insights.css','formation.js','formation.css','coop.js','coop.css','notice.js','notice.css'].map(p => `school/${p}?v=${RELEASE}`),
   ...['combat.webp','portrait.webp','pickup.webp'].map(p => `school/assets/kazua/${p}?v=kazua1`),
   'school/assets/kazua/basic-motion.webp?v=kazua-motion1',
+  'school/assets/osia/breath-dragon.webp?v=osia-breath1', 'school/assets/osia/breath-water.webp?v=osia-breath1',
   'school/assets/osia/divine-dragon.webp?v=osia-ur1',
   'school/assets/osia/divine-dragon-motion.webp?v=osia-motion1',
   'school/assets/battlefields/chapters-13-15.webp?v=expansion1',
@@ -46,7 +47,7 @@ self.addEventListener('install', event => {
     const html = await (await cache.match(shell)).text();
     const engine = await (await cache.match(url(`school/engine.js?v=${RELEASE}`))).text();
     // A CDN rollout must not activate an old HTML with a new offline engine.
-    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*33\b/.test(engine)) {
+    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*34\b/.test(engine)) {
       await caches.delete(CACHE); throw Error('School release is not ready');
     }
   })());

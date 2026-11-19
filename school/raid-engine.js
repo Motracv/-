@@ -24,7 +24,7 @@
   const living=t=>t.units.filter(u=>u.hp>0),weak=t=>living(t).sort((a,b)=>a.hp/a.max-b.hp/b.max)[0];
   const shield=(ti,u,amount,from)=>{const n=Math.max(0,Math.min(Math.round(amount),Math.floor(u.max*.6)-u.shield));u.shield+=n;if(n)emit('shield',{team:ti,id:u.id,from,amount:n});};
   const heal=(ti,u,amount,from)=>{const t=s.teams[ti],before=u.hp,n=Math.max(0,Math.min(u.max-u.hp,Math.round(amount*t.synergy.healMultiplier)));u.hp+=n;const caster=t.units.find(a=>a.id===from);if(caster)caster.healing+=n;if(n)emit('heal',{team:ti,id:u.id,from,amount:n,hpBefore:before,hpAfter:u.hp});};
-  const hit=(ti,u,mult,skill)=>{if(!s.boss.hp)return 0;const crit=random()<.12;const n=(u.magic||encounter?.physical)?Math.min(s.boss.hp,Math.max(1,Math.round(u.atk*mult*(.9+random()*.2)*(crit?1.5:1)*s.teams[ti].synergy.damageMultiplier*(s.teams[ti].buffUntil>s.elapsed?1.3:1)*(s.boss.guardUntil>s.elapsed?.6:1)*(u.id==='horas'&&s.boss.stunUntil>s.elapsed?1.5:1)*(1+(u.exclusive?.strength||0))))):0;s.boss.hp-=n;s.damage+=n;s.teams[ti].damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:crit&&n>0,skill:skill||null});return n;};
+  const hit=(ti,u,mult,skill,prepared)=>{if(!s.boss.hp)return 0;const crit=prepared?prepared.crit:random()<.12,power=prepared?prepared.amount:u.atk*mult*(.9+random()*.2)*(crit?1.5:1)*s.teams[ti].synergy.damageMultiplier*(s.teams[ti].buffUntil>s.elapsed?1.3:1)*(1+(u.exclusive?.strength||0));const n=(u.magic||encounter?.physical)?Math.min(s.boss.hp,Math.max(1,Math.round(power*(s.boss.guardUntil>s.elapsed?.6:1)*(u.id==='horas'&&s.boss.stunUntil>s.elapsed?1.5:1)))):0;s.boss.hp-=n;s.damage+=n;s.teams[ti].damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:crit&&n>0,skill:skill||null,...(prepared?{breath:true,tick:prepared.tick}:{} )});return n;};
   function hurt(ti,original,mult,pattern){if(pattern==='basic')original=g.lowAggroTarget(original,living(s.teams[ti]),random);const t=s.teams[ti],guard=g.ryusionGuard(t.units,s.elapsed),u=guard.taunting?guard.hero:original;if(!u||u.hp<=0)return;
    if(u.id==='kazua'&&random()<g.KAZUA_RULES.evasion){emit('dodge',{team:ti,id:u.id});return null;}
    const hpBefore=u.hp,shieldBefore=u.shield;
@@ -46,6 +46,17 @@
   function act(ti,u){const t=s.teams[ti];
    if(u.id==='osia')g.osiaWeaponStep?.(u,[s.boss],s.elapsed,STEP,(target,amount,detail)=>{const before=target.hp,n=u.magic?Math.min(target.hp,Math.max(0,Math.round(amount*(target.guardUntil>s.elapsed?.6:1)))):0;target.hp-=n;s.damage+=n;t.damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:false,skill:'익사',drowning:true,damageType:'magic',hpBefore:before,hpAfter:target.hp});return n;},(kind,extra)=>emit(kind,{team:ti,id:u.id,...extra}),u.stunUntil>s.elapsed||t.frozen||t.withdrawn,{guildRaid:s.encounter!=='yeti'});
    if(u.id==='kazua'){g.kazuaStep(u,t.units,[s.boss],s.elapsed,STEP,(_,mult,d)=>hit(ti,u,mult,d.skill),(kind,extra)=>emit(kind,{team:ti,id:u.id,...extra}),u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn,basicRate(u));return;}
+   if(u.breath){
+    const cast=u.breath,r=g.OSIA_BREATH_RULES,age=s.elapsed-cast.began;
+    if(u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn){delete u.breath;emit('osia-breath-cancel',{team:ti,id:u.id,breath:true});return;}
+    if(age>=r.windupMs+r.breathMs){delete u.breath;return;}
+    const tick=cast.tick;if(tick<r.ticks&&age>=r.windupMs+tick*r.tickMs){cast.tick++;
+     const amount=Math.round(cast.amount*(tick+1)/r.ticks)-Math.round(cast.amount*tick/r.ticks);
+     if(amount>0)hit(ti,u,0,'용의 신수',{amount,crit:cast.crit,tick});
+     if(!tick&&s.boss.hp>0){s.boss.stunUntil=Math.max(s.boss.stunUntil,s.elapsed+r.stunMs);emit('stun',{team:ti,id:u.id,duration:r.stunMs,until:s.boss.stunUntil});shield(ti,u,u.atk*(u.exclusive.dragonShield||.2),u.id);}
+    }
+    return;
+   }
    if(u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn)return;
    if(u.cast){if(s.elapsed<u.cast.at)return;const cast=u.cast;delete u.cast;if(!cast.miss){hit(ti,u,g.HORAS_RULES.primaryMultiplier,'벚꽃의식');emit('ritual',{team:ti,id:u.id});}else emit('miss',{team:ti,id:u.id});return;}
    if(u.id==='horas'){
@@ -56,6 +67,11 @@
    const skill=s.elapsed>=u.nextSkillAt;u.energy=Math.max(0,def.cooldown-(u.nextSkillAt-s.elapsed)/1000);
    if(!skill&&s.elapsed<u.nextBasic)return;u.nextBasic=skill?(tactical?Math.max(u.nextBasic||s.elapsed,s.elapsed):s.elapsed)+BASIC_MS/basicRate(u):nextBasic(u.nextBasic,BASIC_MS,u);
    if(skill){u.energy=0;u.nextSkillAt=s.elapsed+def.cooldown*1000;}
+   if(skill&&u.id==='osia'&&u.stage===4&&g.osiaDivine(u)){
+    const crit=random()<.12,amount=Math.round(u.atk*2.2*g.osiaSkillMultiplier(u,4)*(.9+random()*.2)*(crit?1.5:1)*t.synergy.damageMultiplier*(t.buffUntil>s.elapsed?1.3:1)*(1+(u.exclusive?.strength||0)));
+    u.breath={began:s.elapsed,tick:0,amount,crit};u.stage=1;
+    emit('cast',{team:ti,id:u.id,skill:'용의 신수',stage:4,breath:true});emit('dragon',{team:ti,id:u.id,divine:true,breath:true});return;
+   }
    if(skill){emit('cast',{team:ti,id:u.id,skill:u.id==='osia'?g.osiaSkillName(u,u.stage):def.skill,stage:u.stage});
     if(u.id==='ryusion'){if(u.stage===2)for(const a of living(t)){const n=g.addEarthShield(a,u.max*defense(u).shieldRatio,s.elapsed);emit('shield',{team:ti,id:a.id,from:u.id,amount:n});}else hit(ti,u,1,'돌격 앞으로');u.stage=u.stage%2+1;return;}
     if(u.id==='spica'){const p=g.SPICA_RULES;for(const a of living(t))a.hasteUntil=Math.max(a.hasteUntil||0,s.elapsed+p.hasteMs);s.boss.slowUntil=Math.max(s.boss.slowUntil||0,s.elapsed+p.slowMs);emit('spica-wind',{team:ti,id:u.id,hasteUntil:s.elapsed+p.hasteMs,slowUntil:s.boss.slowUntil});hit(ti,u,p.skillMultiplier,def.skill);return;}

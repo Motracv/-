@@ -36,7 +36,7 @@ const document={hidden:false,createElement:()=>new Canvas()},window={SchoolRPG:G
 const sandbox={window,document,SchoolRPG:G,Image,Event,console,Uint8ClampedArray,Promise,
  setTimeout:f=>0,clearTimeout(){}};
 const load=file=>vm.runInNewContext(fs.readFileSync(file,'utf8'),sandbox,{filename:file});
-load('school/osia-weapon-art.js');load('school/battle-polish.js');load('school/art.js');sandbox.SchoolArt=window.SchoolArt;load('school/raid-vfx.js');
+load('school/osia-breath-art.js');load('school/osia-weapon-art.js');load('school/battle-polish.js');load('school/art.js');sandbox.SchoolArt=window.SchoolArt;load('school/raid-vfx.js');
 const W=window.SchoolOsiaWeaponArt,A=window.SchoolArt,canvas=new Canvas(),c=canvas.getContext('2d');
 const ex={id:'osia_scepter'},owner={id:'osia',exclusive:ex};
 assert(W.equipped(owner));assert(!W.equipped({id:'taeo',exclusive:ex}));assert(!W.equipped({id:'osia'}));
@@ -75,6 +75,21 @@ for(const effect of ['dragon','drowning'])for(const bad of [{age:-1},{age:4},{so
 }
 c.globalAlpha=1;
 console.log('PASS loaded/fallback dragon, bounded mirrored effects, finite geometry and immutable simulation inputs');
+const B=window.SchoolOsiaBreathArt;
+for(const i of images.filter(i=>i.src.includes('breath-')))i.load();assert(B.assetsReady());
+assert.equal(B.duration,4.75);assert(B.state(2.1).flow>0);assert(B.state(4.299).flow>0);assert.equal(B.state(4.3).flow,0);
+const breaths=new Set(),breathOpt={...opt,breath:true};
+for(const age of [.1,.55,1.1,1.6,1.9,2.1,2.5,3.1,3.8,4.4]){
+ c.records.length=0;W.dragon(c,{...breathOpt,age});breaths.add(JSON.stringify(c.records));assert.equal(c.stack.length,0);
+}
+assert.equal(breaths.size,10,'Summon, retreat, inhalation, flowing breath and recovery change continuously');
+const warmed={allocated,gradients};
+for(let i=0;i<100;i++){c.globalAlpha=.7;const transform=c.getTransform();W.dragon(c,{...breathOpt,age:2+i%20/10,reduced:i%3===0,economy:i%2===0,source:i%2?opt.target:opt.source,target:i%2?opt.source:opt.target});assert.equal(c.globalAlpha,.7);assert.deepEqual(c.getTransform(),transform);assert.equal(c.stack.length,0);}
+assert.deepEqual({allocated,gradients},warmed,'Breath reuses its light texture with no frame allocations');
+c.records.length=0;W.dragon(c,{...breathOpt,age:4.75});assert.equal(c.records.length,0);
+for(const age of [.1,1.6,2.4,4.6]){c.records.length=0;B.field(c,age,480,280,true);assert(!c.records.some(r=>r[0]==='transform'),'Reduced mode does not shake');}
+c.globalAlpha=1;
+console.log('PASS approved breath phases, exact 2.3s flow, mirrored/reduced/low-detail rendering, expiry and bounded texture allocation');
 let dragons=0,drownings=0;
 window.SchoolOsiaWeaponArt={...W,dragon(...args){dragons++;return W.dragon(...args);},drowning(...args){drownings++;return W.drowning(...args);}};
 const s=G.create(1000,991);s.team=['osia','harin','sua'];for(const id of s.team)s.units[id]={level:70,xp:0,stars:1,shards:0,nextSkill:1};
