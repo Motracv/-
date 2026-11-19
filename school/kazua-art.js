@@ -4,14 +4,17 @@ window.SchoolKazuaArt = (() => {
 
   const ASSETS = Object.freeze({
     combat: 'school/assets/kazua/combat.webp?v=kazua1',
+    basic: 'school/assets/kazua/basic-motion.webp?v=kazua-motion1',
     portrait: 'school/assets/kazua/portrait.webp?v=kazua1',
     pickup: 'school/assets/kazua/pickup.webp?v=kazua1'
   });
-  const atlas = new Image(), illustrationImage = new Image();
-  let atlasLoaded = false, illustrationLoaded = false, portraitCache = null;
+  const atlas = new Image(), basicAtlas = new Image(), illustrationImage = new Image();
+  let atlasLoaded = false, basicLoaded = false, illustrationLoaded = false, portraitCache = null;
   const TAU = Math.PI * 2, UNIT = 48 / 318;
   const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
   const finite = (n, fallback = 0) => Number.isFinite(n) ? n : fallback;
+  const fract = n => n - Math.floor(n), ease = n => { const p=clamp(n);return p*p*(3-2*p); };
+  const FIRE_START = .12, HIP = -12;
 
   // [source x, source y, width, height, foot anchor x relative to crop].
   // Every source uses the same pixel-to-world ratio; leaning does not resize the gun.
@@ -26,6 +29,11 @@ window.SchoolKazuaArt = (() => {
     [641, 783, 287, 263, 136],
     [957, 806, 276, 240, 142]
   ].map(frame => Object.freeze(frame)));
+
+  // Measured anchors from basic-motion.json; one shared scale, never resized per pose.
+  // [crop x,y,w,h, foot x,y, muzzle x,y, barrel-face x,y].
+  const BASIC_UNIT = 48 / 382;
+  const BASIC_FRAMES = Object.freeze([[14,96,351,382,173,381,350,242,331,242],[395,117,353,361,176,360,353,219,334,219],[786,103,347,375,169,374,346,230,327,230],[1167,116,349,362,172,361,349,220,330,220],[16,596,349,362,171,361,348,225,329,225],[393,598,357,360,178,359,357,222,336,222],[778,595,355,363,177,362,354,226,335,226],[1160,598,356,360,179,359,356,222,337,222]].map(Object.freeze));
 
   function load(image, path, done) {
     return new Promise(resolve => {
@@ -43,11 +51,12 @@ window.SchoolKazuaArt = (() => {
   }
   const ready = Promise.all([
     load(atlas, ASSETS.combat, () => { atlasLoaded = true; }),
+    load(basicAtlas, ASSETS.basic, () => { basicLoaded = true; }),
     load(illustrationImage, ASSETS.portrait, () => { illustrationLoaded = true; })
   ]);
 
   function modeFor(frame = {}) {
-    if (frame.dead || frame.frozen || frame.stunned) return 'idle';
+    if (frame.dead || frame.frozen || frame.stunned || frame.kazuaActive === false) return 'idle';
     let mode = frame.kazuaMode || frame.mode || frame.motion?.mode;
     if (mode === 'ultimate' || mode === 'red-bullets') mode = 'red';
     if (mode === 'attack' || mode === 'firing') mode = 'fire';
@@ -59,22 +68,55 @@ window.SchoolKazuaArt = (() => {
 
   function motion(mode, age = 0, reduced = false) {
     age = Math.max(0, finite(age));
-    const tick = Math.floor(age * 18);
-    // A brief upright recoil settles into the firing stance. Bullet cadence is
-    // conveyed by the tracers, not by rapidly swapping a character's silhouette.
-    const pose = mode === 'fire' ? (!reduced && age < .085 ? 2 : 1)
+    const firing = mode === 'fire' || mode === 'red', cycle=fract(Math.max(0,age-FIRE_START)*20);
+    // Fast attack / damped return, shared with the muzzle. Only the upper body
+    // absorbs recoil; the boots do not slide across the floor with every shot.
+    const impulse = reduced || !firing ? 0 : Math.exp(-cycle*7)*(1-Math.exp(-cycle*36))*ease(age/.18);
+    const pose = mode === 'fire' ? 1
       : mode === 'reload' ? 3 : mode === 'pistol' ? 4
       : mode === 'bazooka' ? 5 : mode === 'red' ? 6 : mode === 'dodge' ? 7 : 0;
-    const kick = reduced ? 0 : mode === 'fire' || mode === 'red' ? -(tick % 2) * .65
-      : mode === 'pistol' ? -Math.sin(clamp(age / .3) * Math.PI) * 1.3
-      : mode === 'bazooka' ? -Math.sin(clamp(age / .45) * Math.PI) * 2
+    const kick = reduced ? 0 : mode === 'pistol' ? -Math.sin(clamp(age / .3) * Math.PI) * 1.3
+      : mode === 'bazooka' ? -Math.sin(clamp(age / .45) * Math.PI) * 1.4
       : mode === 'dodge' ? -Math.sin(clamp(age / .6) * Math.PI) * 4 : 0;
-    return { mode, age, pose, dx: kick, dy: 0, reduced };
+    const basicPose=mode==='fire'?(reduced?2:age<.06?0:age<FIRE_START?1:[2,3,4,3][Math.floor((age-FIRE_START)*7)%4])
+      :mode==='reload'?(reduced?6:age<.2?4:age<.65?5:age<1.3?6:age<1.8?7:1):mode==='idle'?0:-1;
+    return { mode, age, pose, basicPose, dx: kick, dy: 0, reduced,
+      lean:impulse*(mode==='red'?.06:.045), compression:-impulse*.012, recoil:impulse };
   }
 
   function drawPose(c, pose) {
     const f = FRAMES[clamp(Math.trunc(pose), 0, FRAMES.length - 1)];
     c.drawImage(atlas, f[0], f[1], f[2], f[3], -f[4] * UNIT, -f[3] * UNIT, f[2] * UNIT, f[3] * UNIT);
+  }
+
+  function actorSource(move){
+    if(basicLoaded&&move.basicPose>=0){const f=BASIC_FRAMES[move.basicPose];return {image:basicAtlas,x:f[0],y:f[1],width:f[2],height:f[3],footX:f[4],footY:f[5],unit:BASIC_UNIT};}
+    const f=FRAMES[move.pose];
+    return {image:atlas,x:f[0],y:f[1],width:f[2],height:f[3],footX:f[4],footY:f[3],unit:UNIT};
+  }
+  function drawActor(c,move){
+    const f=actorSource(move),cut=Math.round(f.footY+HIP/f.unit);
+    const slice=(from,to)=>c.drawImage(f.image,f.x,f.y+from,f.width,to-from,-f.footX*f.unit,(from-f.footY)*f.unit,f.width*f.unit,(to-from)*f.unit);
+    if(!move.lean&&!move.compression){slice(0,f.height);return;}
+    slice(cut,f.height);
+    c.save();c.translate(0,HIP);c.transform(1,0,move.lean,1+move.compression,0,0);c.translate(0,-HIP);
+    slice(0,cut+1);c.restore();
+  }
+
+  function barrel(c,move){
+    if(!['fire','red'].includes(move.mode)||move.age<FIRE_START)return;
+    const p=muzzle(move.mode,move.age,move.reduced),spin=move.reduced?0:move.age*TAU*12;
+    const f=basicLoaded&&move.basicPose>=0?BASIC_FRAMES[move.basicPose]:null;
+    const ox=f?(f[8]-f[6])*BASIC_UNIT:-.5,oy=f?(f[9]-f[7])*BASIC_UNIT:0,rx=f?1.7:.9,ry=f?3.25:2.7;
+    c.save();c.translate(p.x-move.dx+ox+move.lean*oy,p.y-move.dy+oy*(1+move.compression));
+    // Rotating bores and hot rims are attached to the muzzle, not the screen.
+    c.fillStyle='#26232c';c.beginPath();c.ellipse(0,0,rx,ry,0,0,TAU);c.fill();
+    for(let i=0;i<6;i++){
+      const a=spin+i*TAU/6,x=Math.cos(a)*rx*.73,y=Math.sin(a)*ry*.78;
+      c.fillStyle=move.mode==='red'?'#ff7882':'#bea17c';c.fillRect(x-.25,y-.45,.65,.9);
+      c.fillStyle='#151623';c.fillRect(x-.16,y-.28,.3,.56);
+    }
+    c.restore();
   }
 
   function fallback(c) {
@@ -122,12 +164,8 @@ window.SchoolKazuaArt = (() => {
     if (mode === 'dodge' && !reduced && age < .35 && atlasLoaded) {
       c.save(); c.globalAlpha *= .16 * (1 - age / .35); c.translate(6, 0); drawPose(c, 0); c.restore();
     }
-    if (atlasLoaded) drawPose(c, move.pose); else fallback(c);
-    if (mode === 'reload' && !reduced) {
-      // Falling empty casing; the reload remains readable even on a tiny sprite.
-      const p = (Math.max(0, age) * 1.4) % 1;
-      c.fillStyle = '#d9b567'; c.fillRect(5 + p * 4, -18 + p * p * 19, 1, 2);
-    }
+    if (atlasLoaded || basicLoaded && move.basicPose>=0) {drawActor(c,move);barrel(c,move);} else fallback(c);
+
     c.restore();
   }
 
@@ -149,114 +187,163 @@ window.SchoolKazuaArt = (() => {
     c.restore();
   }
 
-  function spark(c, x, y, size, color, alpha = 1) {
-    if (size <= 0 || alpha <= 0) return;
-    c.save(); c.globalAlpha *= alpha; c.translate(x, y); c.fillStyle = color;
-    c.beginPath(); c.moveTo(-size, 0); c.lineTo(-size * .24, -size * .22);
-    c.lineTo(0, -size); c.lineTo(size * .22, -size * .22); c.lineTo(size, 0);
-    c.lineTo(size * .22, size * .22); c.lineTo(0, size); c.lineTo(-size * .24, size * .22); c.closePath(); c.fill();
-    c.restore();
-  }
-
   function curvePoint(ax, ay, bx, by, cx, cy, t) {
     const u = 1 - t;
     return [u * u * ax + 2 * u * t * cx + t * t * bx, u * u * ay + 2 * u * t * cy + t * t * by];
   }
 
-  function tracer(c, sx, sy, tx, ty, curve, phase, red, width, alpha) {
-    const cx = (sx + tx) / 2, cy = (sy + ty) / 2 + curve;
-    const head = curvePoint(sx, sy, tx, ty, cx, cy, phase);
-    const tail = curvePoint(sx, sy, tx, ty, cx, cy, Math.max(0, phase - .24));
-    const middle = curvePoint(sx, sy, tx, ty, cx, cy, Math.max(0, phase - .12));
-    c.save(); c.globalAlpha *= alpha; c.lineCap = 'round';
-    c.strokeStyle = red ? '#ff335e' : '#ffad35'; c.lineWidth = width * 2.7;
-    c.beginPath(); c.moveTo(tail[0], tail[1]); c.quadraticCurveTo(middle[0], middle[1], head[0], head[1]); c.stroke();
-    c.strokeStyle = red ? '#fff0dd' : '#fff9d4'; c.lineWidth = width;
-    c.stroke();
-    c.fillStyle = '#fffbed'; c.fillRect(head[0] - width, head[1] - width, width * 2, width * 2);
+  // Small cached light sprites: no per-frame blur, gradient, image crop or particle timers.
+  const lightTextures = new Map();
+  function light(c,x,y,r,red,alpha=1){
+    if(r<=0||alpha<=0)return;
+    const key=red?'red':'gold';let tile=lightTextures.get(key);
+    if(!tile){tile=document.createElement('canvas');tile.width=tile.height=64;const t=tile.getContext('2d'),g=t.createRadialGradient(32,32,1,32,32,32);
+      g.addColorStop(0,red?'#fff2e9df':'#fff5cce0');g.addColorStop(.18,red?'#ff5f737a':'#ffb03983');g.addColorStop(.5,red?'#e82b4930':'#ed6b1929');g.addColorStop(1,'#dc461000');t.fillStyle=g;t.fillRect(0,0,64,64);lightTextures.set(key,tile);}
+    c.save();c.globalAlpha*=alpha;c.globalCompositeOperation='lighter';c.drawImage(tile,x-r,y-r,r*2,r*2);c.restore();
+  }
+
+  // The actor and every renderer use this very same transformed attachment point.
+  function muzzle(mode,age=0,reduced=false){
+    const m=motion(mode,age,reduced),p=poseMuzzle(m),dy=p.y-HIP;
+    return {x:p.x+m.lean*dy+m.dx,y:HIP+dy*(1+m.compression)+m.dy};
+  }
+  function poseMuzzle(m){
+    if(basicLoaded&&m.basicPose>=0){const f=BASIC_FRAMES[m.basicPose];return {x:(f[6]-f[4])*BASIC_UNIT,y:(f[7]-f[5])*BASIC_UNIT};}
+    // Measured from the actual front bore, in foot-relative world coordinates.
+    return m.mode==='pistol'?{x:24,y:-28.5}:m.mode==='bazooka'?{x:21,y:-33.5}
+      :m.mode==='red'?{x:21.5,y:-18.2}:{x:21.5,y:-17.7};
+  }
+
+  function muzzleFlash(c,x,y,direction,scale,red,beat,reduced){
+    const power=reduced?.42:.65+Math.exp(-beat*6)*.35;
+    light(c,x,y,(red?23:20)*scale,red,power*.8);
+    c.save();c.translate(x,y);c.scale(direction*scale,scale);
+    const length=(red?18:14)*(reduced?.65:.8+Math.exp(-beat*7)*.5),width=(red?4.5:3.4)*power;
+    // A directional powder blast, not a magic star or a full-screen flash.
+    c.fillStyle=red?'#ff4b5cb8':'#ff8e26c9';c.beginPath();c.moveTo(-1,-width*.55);c.lineTo(4,-width*1.2);c.lineTo(7,-width*.55);c.lineTo(length,0);c.lineTo(7,width*.55);c.lineTo(3,width*1.1);c.lineTo(-1,width*.45);c.closePath();c.fill();
+    c.fillStyle='#fff5cf';c.beginPath();c.moveTo(-.8,-width*.4);c.lineTo(4,-width*.45);c.lineTo(length*.76,0);c.lineTo(4,width*.45);c.lineTo(-.8,width*.3);c.closePath();c.fill();
+    c.fillStyle='#fffef3';c.fillRect(-1,-1,4,2);
+    if(!reduced){c.globalAlpha*=.25;c.strokeStyle=red?'#ff9b97':'#ffe3a4';c.lineWidth=.55;c.beginPath();c.ellipse(4,0,1.7,width*1.4,0,0,TAU);c.stroke();}
     c.restore();
   }
 
-  /** Capped tracer rendering: visible streaks cross the field in 55–75 ms, without projectile allocation.
-   * source/targets are field foot positions; optional aimY overrides target chest height.
-   * Pass active fire/red continuously, and pistol/bazooka with age since that event.
-   */
-  function effects(c, options = {}) {
-    const source = options.source;
-    if (!source || !Number.isFinite(source.x) || !Number.isFinite(source.y)) return;
-    const targets = (Array.isArray(options.targets) ? options.targets : []).filter(p => p && Number.isFinite(p.x) && Number.isFinite(p.y)).slice(0, 6);
-    if (!targets.length) return;
-    const mode = options.mode || 'fire';
-    if (!['fire', 'red', 'pistol', 'bazooka'].includes(mode)) return;
-    const scale = clamp(finite(options.scale, 1), .25, 4), age = Math.max(0, finite(options.age)), time = finite(options.time, age);
-    const reduced = !!options.reduced, economy = !!options.economy, red = mode === 'red', direction = options.flip ? -1 : 1;
-    const sx = source.x + direction * 21 * scale, sy = source.y - (mode === 'pistol' || mode === 'bazooka' ? 28 : 18) * scale;
-    const point = target => [target.x, Number.isFinite(target.aimY) ? target.aimY : target.y - 24 * scale];
-    c.save();
-    if (mode === 'bazooka') {
-      if (age > .8) { c.restore(); return; }
-      const primary = targets[0], [tx, ty] = point(primary), arrival = .12;
-      if (age < arrival) tracer(c, sx, sy, tx, ty, -7 * scale, clamp(age / arrival), false, 2.4 * scale, .95);
-      else {
-        const p = clamp((age - arrival) / .68), radius = (9 + p * 27) * scale;
-        c.globalAlpha *= (1 - p) * .85;
-        c.strokeStyle = '#ffa747'; c.lineWidth = (2.5 - p * 1.5) * scale;
-        c.beginPath(); c.ellipse(tx, primary.y - 3 * scale, radius * 1.3, radius * .3, 0, 0, TAU); c.stroke();
-        spark(c, tx, ty, radius * (1 - p * .45), '#ff934b', .75);
-        spark(c, tx, ty, radius * .53 * (1 - p), '#fff7d9');
-        if (!reduced) for (let i = 0, n = economy ? 6 : 10; i < n; i++) {
-          const a = i * 2.399, distance = (10 + p * 34) * scale;
-          c.fillStyle = i % 3 ? '#ffc16b' : '#fff1cf';
-          c.fillRect(tx + Math.cos(a) * distance, ty + Math.sin(a) * distance * .7 + p * p * 9 * scale, 2 * scale, 3 * scale);
-        }
-        for (let i = 1; i < targets.length; i++) { const [x, y] = point(targets[i]); spark(c, x, y, (7 + p * 4) * scale, '#ffbb73', .65); }
+  function tracer(c,sx,sy,tx,ty,curve,phase,red,width,alpha,tailLength=.32){
+    if(phase<0||alpha<=0)return;
+    const cx=(sx+tx)/2,cy=(sy+ty)/2+curve,p=clamp(phase),end=Math.max(0,p-tailLength);
+    if(p<=end)return;
+    // Needle-shaped, tapered afterimage. Rounded constant-width strokes look
+    // like slow laser rods at gameplay size, so the tail and tip narrow to zero.
+    const segments=red?6:3;
+    c.save();c.globalAlpha*=alpha;
+    for(let layer=0;layer<3;layer++){
+      const thickness=width*[2.1,1,.34][layer];
+      c.fillStyle=layer===0?(red?'#ff45602d':'#ffb23830'):layer===1?(red?'#ff687c':'#ffd681'):'#fffef1';
+      c.beginPath();
+      for(const side of [1,-1])for(let n=0;n<=segments;n++){
+        const u=side===1?n/segments:1-n/segments,t=end+(p-end)*u,pt=curvePoint(sx,sy,tx,ty,cx,cy,t);
+        const dx=2*((1-t)*(cx-sx)+t*(tx-cx)),dy=2*((1-t)*(cy-sy)+t*(ty-cy)),length=Math.max(.001,Math.hypot(dx,dy));
+        const taper=u===0||u===1?0:Math.sin(u*Math.PI)*(.4+u*.9),r=thickness*taper*side;
+        const x=pt[0]-dy/length*r,y=pt[1]+dx/length*r;
+        if(side===1&&n===0)c.moveTo(x,y);else c.lineTo(x,y);
       }
-      c.restore(); return;
-    }
-    if (mode === 'pistol') {
-      if (age > .4) { c.restore(); return; }
-      const [tx, ty] = point(targets[0]);
-      if (age < .09) tracer(c, sx, sy, tx, ty, 0, clamp(age / .055), false, 1.4 * scale, 1 - age * 3);
-      if (age < .13) spark(c, sx, sy, 7 * scale, '#fff0c3', 1 - age / .13);
-      spark(c, tx, ty, (10 - age * 18) * scale, '#fff2bc', 1 - age / .4);
-      c.restore(); return;
-    }
-    const count = reduced ? (red ? 3 : 1) : economy ? (red ? 7 : 3) : red ? 13 : 6;
-    const period = red ? .075 : .055;
-    // A few faint complete arcs explain the homing route; the bright tips stay fast.
-    if (red && !reduced) {
-      c.save(); c.globalAlpha *= .12; c.strokeStyle = '#ff547e'; c.lineWidth = .8 * scale;
-      for (let i = 0; i < Math.min(economy ? 2 : 3, targets.length); i++) {
-        const [tx, ty] = point(targets[i]), bend = (i % 2 ? 1 : -1) * (35 + i * 13) * scale;
-        c.beginPath(); c.moveTo(sx, sy); c.quadraticCurveTo((sx + tx) / 2, (sy + ty) / 2 + bend, tx, ty); c.stroke();
-      }
-      c.restore();
-    }
-    for (let i = 0; i < count; i++) {
-      const target = targets[red ? i % targets.length : 0], [tx, ty] = point(target);
-      const phase = reduced ? .83 : (Math.max(0, time) / period + i * .381966) % 1;
-      const offset = red ? Math.sin(i * 2.41) * (35 + i * 3) * scale : ((i % 3) - 1) * 2 * scale;
-      tracer(c, sx, sy + (i % 2) * 1.5 * scale, tx, ty + (i % 3 - 1) * 2 * scale, offset, phase, red, (red ? 1.05 : .85) * scale, reduced ? .55 : .85);
-    }
-    const muzzle = reduced ? 4 : 6 + (Math.floor(time * 30) % 3);
-    spark(c, sx, sy, muzzle * scale, red ? '#ffc2cb' : '#ffda7c', .9);
-    spark(c, sx + direction * 2 * scale, sy, muzzle * .5 * scale, '#fffbed');
-    for (let i = 0; i < (red ? targets.length : 1); i++) {
-      const [tx, ty] = point(targets[i]), beat = reduced ? .5 : (time * 21 + i * .27) % 1;
-      spark(c, tx, ty, (4 + (1 - beat) * 5) * scale, red ? '#ff8097' : '#ffe2a1', .7);
-      spark(c, tx, ty, (2 + (1 - beat) * 2) * scale, '#fff8e7', .9);
-    }
-    if (!reduced && !economy) for (let i = 0; i < 3; i++) {
-      const p = (time * 5 + i / 3) % 1;
-      c.fillStyle = '#d8ac5a';
-      c.fillRect(source.x + (6 - p * 10) * direction * scale, source.y - (19 - p * p * 17) * scale, 2.4 * scale, 1.3 * scale);
+      c.closePath();c.fill();
     }
     c.restore();
+  }
+
+  function impact(c,x,y,phase,scale,red,direction,reduced,economy,seed=0){
+    const p=clamp(phase),fade=1-p;
+    if(fade<=0)return;
+    light(c,x,y,(red?20:15)*scale,red,fade*.9);
+    c.save();c.translate(x,y);c.scale(scale,scale);c.globalAlpha*=fade;
+    if(p<.44||reduced){
+      c.fillStyle=red?'#ff858cbf':'#ffba60cb';c.beginPath();
+      for(let n=0;n<12;n++){const a=n*TAU/12+seed*.57,r=(n%2?2:7)*(1-p*.35);if(!n)c.moveTo(Math.cos(a)*r,Math.sin(a)*r);else c.lineTo(Math.cos(a)*r,Math.sin(a)*r);}c.closePath();c.fill();
+      c.fillStyle='#fffde5';c.fillRect(-1.5,-3.5,3,7);c.fillRect(-3.5,-1,7,2);
+    }
+    if(!reduced){
+      c.lineWidth=.7;c.strokeStyle=red?'#ffacb5':'#ffe3a5';c.beginPath();c.ellipse(0,0,2+p*12,3+p*9,0,0,TAU);c.stroke();
+      const count=economy?4:7;
+      for(let i=0;i<count;i++){
+        const a=i*2.399+seed*.71,speed=7+(i%3)*4,r=2+p*speed;
+        const dx=Math.cos(a)*r-direction*p*3,dy=Math.sin(a)*r*.65+p*p*5;
+        c.strokeStyle=i%3?'#ffd17e':'#fff9dd';c.lineWidth=i%3?.9:1.3;
+        c.beginPath();c.moveTo(dx,dy);c.lineTo(dx+Math.cos(a)*(3-p*2),dy+Math.sin(a)*(3-p*2));c.stroke();
+      }
+    }
+    c.restore();
+  }
+
+  function casings(c,source,scale,direction,age,red,economy){
+    const count=economy?2:5;
+    for(let i=0;i<count;i++){
+      const p=fract(age*3.3+i/count),x=source.x+direction*(3-p*15)*scale,y=source.y+(-18-p*10+p*p*27)*scale;
+      c.save();c.translate(x,y);c.rotate(direction*(p*8+i));c.globalAlpha*=1-p*.7;
+      c.fillStyle='#6c421e';c.fillRect(-1.6*scale,-.7*scale,3.2*scale,1.4*scale);
+      c.fillStyle=red?'#ffb878':'#f7ce79';c.fillRect(-1.5*scale,-.6*scale,2.6*scale,.8*scale);c.restore();
+    }
+  }
+
+  /** Instant-looking ballistics: 35 ms transit, short afterimage and deterministic
+   * shot scheduling. At most 7 tracer paths, 6 impacts and 5 shells per frame.
+   * No simulation writes; damage remains grouped by the server's 500 ms volleys.
+   */
+  function effects(c,options={}){
+    const source=options.source;
+    if(!source||!Number.isFinite(source.x)||!Number.isFinite(source.y))return;
+    const targets=(Array.isArray(options.targets)?options.targets:[]).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)).slice(0,6);
+    if(!targets.length)return;
+    const mode=options.mode||'fire';if(!['fire','red','pistol','bazooka'].includes(mode))return;
+    const scale=clamp(finite(options.scale,1),.25,4),age=Math.max(0,finite(options.age)),reduced=!!options.reduced,economy=!!options.economy,red=mode==='red',direction=options.flip?-1:1;
+    const attachment=muzzle(mode,age,reduced),sx=source.x+direction*attachment.x*scale,sy=source.y+attachment.y*scale;
+    const point=target=>[target.x,Number.isFinite(target.aimY)?target.aimY:target.y-24*scale];
+    if(mode==='bazooka'){
+      if(age>.8)return;const [tx,ty]=point(targets[0]),arrival=.10;
+      if(age<arrival){tracer(c,sx,sy,tx,ty,-7*scale,age/arrival,false,2.2*scale,1,.5);muzzleFlash(c,sx,sy,direction,scale*1.4,false,age/.1,reduced);}
+      else{const p=(age-arrival)/.7;for(const t of targets){const [x,y]=point(t);impact(c,x,y,p,scale*(reduced?1.6:2.5),false,direction,reduced,economy);}}
+      return;
+    }
+    if(mode==='pistol'){
+      if(age>.35)return;const [tx,ty]=point(targets[0]);
+      if(age<.075)tracer(c,sx,sy,tx,ty,0,Math.min(1,age/.025),false,1.2*scale,1-age/.075,.4);
+      if(age<.11)muzzleFlash(c,sx,sy,direction,scale,false,age/.11,reduced);
+      if(age>=.025)impact(c,tx,ty,(age-.025)/.325,scale*1.35,false,direction,reduced,economy);
+      return;
+    }
+    if(age<FIRE_START)return;
+    const fireAge=age-FIRE_START,period=red?.02:.05,flight=red?.055:.035,linger=red?.03:.025;
+    const shot=Math.floor(fireAge/period),beat=fract(fireAge/period);
+    muzzleFlash(c,sx,sy,direction,scale,red,reduced?.6:beat,reduced);
+    if(reduced){
+      const [tx,ty]=point(targets[0]);tracer(c,sx,sy,tx,ty,red?-24*scale:0,.86,red,.85*scale,.35,.1);
+      for(let i=0;i<(red?targets.length:1);i++){const [x,y]=point(targets[i]);impact(c,x,y,.4,scale*.8,red,direction,true,true,i);}
+      return;
+    }
+    const count=economy?(red?4:2):(red?7:3);
+    for(let n=0;n<count;n++){
+      const index=shot-n,elapsed=fireAge-index*period;
+      if(index<0||elapsed<0||elapsed>flight+linger)continue;
+      const target=targets[red?index%targets.length:0],[tx,ty]=point(target),offset=Math.sin(index*2.399)*1.8*scale;
+      const bend=red?Math.sin(index*1.73)*(28+index%3*13)*scale:offset*.4;
+      const alpha=elapsed<=flight?.95:(1-(elapsed-flight)/linger)*.65;
+      tracer(c,sx,sy,tx,ty+offset,bend,Math.min(1,elapsed/flight),red,(red?1.15:1)*scale,alpha,red?.3:.42);
+    }
+    const hitCount=red?targets.length:1;
+    for(let i=0;i<hitCount;i++){
+      // Impacts follow the emission stream instead of hovering as permanent stars.
+      const interval=period*(red?targets.length:2),offset=red?i*period:0,elapsed=fireAge-flight-offset;
+      if(elapsed<0)continue;const hitIndex=Math.floor(elapsed/interval),p=fract(elapsed/interval),[tx,ty]=point(targets[i]);
+      impact(c,tx+Math.sin(hitIndex*2.4+i)*2*scale,ty+Math.cos(hitIndex*1.6+i)*2*scale,p,scale,red,direction,false,economy,hitIndex+i);
+    }
+    casings(c,source,scale,direction,fireAge,red,economy);
+    // Thin heat wisps are local to the barrel; their light never obscures the HUD.
+    if(!economy&&fireAge>1.4){c.save();c.globalAlpha=.16;c.strokeStyle=red?'#ffc5bc':'#ffe0b6';c.lineWidth=.6*scale;
+      for(let i=0;i<2;i++){const x=sx-direction*(3+i*5)*scale;c.beginPath();c.moveTo(x,sy-3*scale);c.quadraticCurveTo(x+Math.sin(fireAge*5+i)*3*scale,sy-9*scale,x-2*scale,sy-15*scale);c.stroke();}c.restore();}
   }
 
   return Object.freeze({
-    ready, hero, draw: hero, portrait, illustration, effects, motion, modeFor,
-    assets: ASSETS, frames: FRAMES,
-    assetsReady: () => atlasLoaded && illustrationLoaded
+    ready, hero, draw: hero, portrait, illustration, effects, motion, modeFor, muzzle,
+    assets: ASSETS, frames: FRAMES, basicFrames: BASIC_FRAMES,
+    assetsReady: () => atlasLoaded && basicLoaded && illustrationLoaded
   });
 })();

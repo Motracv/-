@@ -1,7 +1,13 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-kazua1',
+  version:'school-kazua-motion1',
   entries:Object.freeze([
+    {version:'school-kazua-motion1',date:'2026.11.19',title:'카즈아 · 탄막의 무게',items:[
+      '카즈아가 정지 이미지로 표시되어 사격·장전·무기 교체 모션이 전달되지 않던 문제를 수정했어요.',
+      '새 평타 8프레임: 준비·조준·연사 반동과 탄띠 덮개 열기·삽입·닫기를 추가했어요. 발을 고정하고 상체와 총열이 반동을 받아요.',
+      '총구 섬광, 회전 총열, 초고속 탄도 잔상, 탄피와 연속 탄착 불꽃을 새로 만들었어요. 붉은총알도 같은 총구에서 유도탄을 발사해요.',
+      '장전 중 무기를 바꿨다가 돌아올 때 동작이 처음부터 반복되던 문제와 예티·아레나에서 타격 효과가 캐릭터 뒤에 가려지던 문제를 수정했어요.'
+    ]},
     {version:'school-kazua1',date:'2026.11.19',title:'붉은 탄막 · SSR 카즈아',items:[
       'SSR 카즈아 픽업 추가 · 종료일 없음 · 1회 100보석 / 10회 1,000보석. SSR 1%, 60회부터 확률 상승, 80회 SSR 확정. 픽뚫 후 다음 SSR은 카즈아 확정입니다.',
       '3초 연사·2초 장전, 권총·바주카 무기 교체와 붉은총알 유도 탄막을 추가했어요. 함께 출전한 동료가 쓰러지면 강해지며 회피 확률은 10%입니다. 기체 벌룬의 물리 무적은 그대로 적용됩니다.',

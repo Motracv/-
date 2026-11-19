@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "image": "school/assets/kazua/basic-motion.webp",
+  "imageSize": [1536, 1024],
+  "grid": [4, 2],
+  "cellSize": [384, 512],
+  "nominalStandingHeight": 48,
+  "worldUnitsPerPixel": 0.1256544502617801,
+  "coordinateSystem": "All crop, anchor, muzzle and barrel measurements use source pixels. crop is atlas-global [x,y,w,h]. anchor, muzzle and barrelFace are crop-local [x,y]. Draw at (worldX-anchor.x*unit, footY-anchor.y*unit). Muzzle world offset is (muzzle-anchor)*unit, then apply the same actor transform. No per-frame resizing.",
+  "recommendedPlayback": {
+    "brace": [0, 1],
+    "fire": [2, 3, 4, 3],
+    "fireFramesPerSecond": 7,
+    "reload": [4, 5, 6, 7, 1],
+    "reloadDurationSeconds": 2,
+    "note": "Frame 2 has a small raised-chin recoil; avoid very high-frequency full-pose switching. Convey bullet speed with barrel detail, joint recoil and tracers. Boots remain planted."
+  },
+  "frames": [
+    {"id":"brace","index":0,"cell":[0,0,384,512],"crop":[14,96,351,382],"anchor":[173,381],"muzzle":[350,242],"barrelFace":[331,242],"barrelRadius":[17,31]},
+    {"id":"aim","index":1,"cell":[384,0,384,512],"crop":[395,117,353,361],"anchor":[176,360],"muzzle":[353,219],"barrelFace":[334,219],"barrelRadius":[17,31]},
+    {"id":"fire-a","index":2,"cell":[768,0,384,512],"crop":[786,103,347,375],"anchor":[169,374],"muzzle":[346,230],"barrelFace":[327,230],"barrelRadius":[17,31]},
+    {"id":"fire-b","index":3,"cell":[1152,0,384,512],"crop":[1167,116,349,362],"anchor":[172,361],"muzzle":[349,220],"barrelFace":[330,220],"barrelRadius":[17,31]},
+    {"id":"fire-c","index":4,"cell":[0,512,384,512],"crop":[16,596,349,362],"anchor":[171,361],"muzzle":[348,225],"barrelFace":[329,225],"barrelRadius":[17,31]},
+    {"id":"reload-open","index":5,"cell":[384,512,384,512],"crop":[393,598,357,360],"anchor":[178,359],"muzzle":[357,222],"barrelFace":[336,222],"barrelRadius":[18,31]},
+    {"id":"reload-feed","index":6,"cell":[768,512,384,512],"crop":[778,595,355,363],"anchor":[177,362],"muzzle":[354,226],"barrelFace":[335,226],"barrelRadius":[17,31]},
+    {"id":"reload-close","index":7,"cell":[1152,512,384,512],"crop":[1160,598,356,360],"anchor":[179,359],"muzzle":[356,222],"barrelFace":[337,222],"barrelRadius":[17,31]}
+  ],
+  "provenance": {
+    "source": "/workspace/generated_images/exec-ca76ade2-7c56-420d-8c57-165268a33ed4.png",
+    "processing": "Image-generation art; lossless WebP format conversion only. No hand-painted or programmatic pixel edits. Alpha crop measured at >20; common physical boot baseline measured at >128.",
+    "alpha": "Fully transparent empty regions; sub-20 alpha edge noise is excluded by measured crops."
+  }
+}

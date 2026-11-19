@@ -572,6 +572,7 @@ window.SchoolArt = (() => {
   // canvases or ever-growing frame cache. Different cadences avoid a chorus
   // of identical movement, while static portraits remain perfectly still.
   function idleBreath(id,frame={}){
+    if(id==='kazua'&&frame.kazuaActive!==false&&frame.kazuaMode&&frame.kazuaMode!=='idle')return null;
     if(!Number.isFinite(frame.time)||frame.reduced||frame.dead||frame.frozen||frame.stunned||frame.hit||frame.attack||frame.casting||frame.passive||frame.motion||Number.isFinite(frame.attackAge)&&frame.attackAge>=0||Number.isFinite(frame.horasCastAge)&&frame.horasCastAge>=0)return null;
     let seed=0;for(let i=0;i<id.length;i++)seed=(seed*31+id.charCodeAt(i))>>>0;
     const breath=(Math.sin(frame.time*(1.4+(seed%5)*.08)+(seed%17)*.35)+1)*.5;
@@ -619,7 +620,8 @@ window.SchoolArt = (() => {
     try{drawHero(c,id,x,y,scale,frame);}finally{if(breath)c.restore();}
   }
   function drawHero(c, id, x, y, scale = 2, frame = {}) {
-    if (id === "osia" || id === "lava" || id === "horas" || id === "ryusion" || id==='spica') { heroShape(c, id, x, y, scale, frame); return; }
+    // Animated actors must receive the live frame, never the generic idle sprite cache.
+    if (id === "osia" || id === "lava" || id === "horas" || id === "ryusion" || id==='spica' || id==='kazua') { heroShape(c, id, x, y, scale, frame); return; }
     const transform = c.getTransform(), density = Math.max(Math.hypot(transform.a, transform.b), Math.hypot(transform.c, transform.d)) * scale;
     const resolution = density > 6 ? 8 : density > 4 ? 6 : density > 2 ? 4 : 2;
     const key = `${id}:${+!!frame.attack}:${+!!frame.blink}:${resolution}`;
@@ -638,7 +640,13 @@ window.SchoolArt = (() => {
     if (frame.dead) { c.globalAlpha *= .4; c.rotate(-Math.PI / 2); }
     c.drawImage(sprite, -25, -49, 56, 56); c.restore();
   }
-  function kazuaFrame(unit,time){const q=unit.kazua;return unit.id==='kazua'?{kazuaMode:q?.mode||'idle',kazuaAge:Math.max(0,(time-(q?.modeSince||0))/1000),kazuaLastStand:Math.max(0,((q?.power||1)-1)/.8)}:{};}
+  function kazuaFrame(unit,time,sampledTime=time){
+    const q=unit.kazua;if(unit.id!=='kazua')return {};
+    // A pistol/bazooka pauses the current belt. Resume its actual phase instead
+    // of restarting the whole 2-second reload every time a weapon is swapped.
+    const age=q&&q.mode===q.phase&&Number.isFinite(q.phaseMs)?q.phaseMs/1000+Math.max(0,Math.min(.5,(time-sampledTime)/1000)):(time-(q?.modeSince||0))/1000;
+    return {kazuaMode:q?.mode||'idle',kazuaAge:Math.max(0,age),kazuaLastStand:Math.max(0,((q?.power||1)-1)/.8)};
+  }
   function heroShape(c, id, x, y, scale = 2, frame = {}) {
     if(id==='kazua'&&window.SchoolKazuaArt){window.SchoolKazuaArt.hero(c,x,y,scale,frame);return;}
     if(id==='spica'){spica(c,x,y,scale,frame);return;}
@@ -1622,7 +1630,7 @@ window.SchoolArt = (() => {
     // Hard cap even when a whole party lands AoE in the same simulation tick.
     let remaining=economy?5:12;
     for(let i=effects.length-1;i>=0&&remaining>0;i--){const e=effects[i],age=time-e.time;
-      if(e.kind!=="hit"||e.amount<=0||age<0||age>.36)continue;
+      if(e.kind!=="hit"||e.from==='kazua'||e.amount<=0||age<0||age>.36)continue;
       const p=positions[e.to];if(!p)continue;remaining--;
       const critical=!!e.critical,power=critical?1.4:e.skill||e.bossSkill?1.15:.8;
       const x=p.x,y=p.y-35,spread=(reduced?9:5+age*50)*power;
@@ -1785,7 +1793,7 @@ window.SchoolArt = (() => {
       const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : ["lava","horas","kazua"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
-        time:sceneTime, ...kazuaFrame(item,battle.elapsed+horasInterpolation*1000),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced:reduced||!!battle.cinematic,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
+        time:sceneTime, kazuaActive:battle.phase==='fight', ...kazuaFrame(item,battle.elapsed+horasInterpolation*1000,battle.elapsed),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced:reduced||!!battle.cinematic,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
         horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
         horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasImpact ? 1.5+time-visual.horasImpact.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
@@ -1813,7 +1821,7 @@ window.SchoolArt = (() => {
       c.restore();
     }
     const gunner=battle.heroes.find(u=>u.id==='kazua');
-    if(gunner&&gunner.hp>0&&battle.phase==='fight'&&!battle.cinematic&&!(gunner.stunUntil>battle.elapsed))window.SchoolKazuaArt?.effects(c,{source:visualPositions.kazua,targets:battle.enemies.filter(e=>e.hp>0).map(e=>visualPositions[e.id]),mode:gunner.kazua?.mode||'idle',age:Math.max(0,(battle.elapsed-(gunner.kazua?.modeSince||0))/1000)+horasInterpolation,time:sceneTime,scale:extendedParty?1.3:1.8,reduced,economy});
+    if(gunner&&gunner.hp>0&&battle.phase==='fight'&&!battle.cinematic&&!(gunner.stunUntil>battle.elapsed)&&!lastEffect(effects,e=>e.kind==='dodge'&&e.to==='kazua'&&time-e.time<.35))window.SchoolKazuaArt?.effects(c,{source:visualPositions.kazua,targets:battle.enemies.filter(e=>e.hp>0).map(e=>visualPositions[e.id]),mode:gunner.kazua?.mode||'idle',age:kazuaFrame(gunner,battle.elapsed+horasInterpolation*1000,battle.elapsed).kazuaAge,time:sceneTime,scale:extendedParty?1.3:1.8,reduced,economy});
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy);
     lavaEffects(c, effects, visualPositions, time, reduced,economy);
     spicaEffects(c,battle,effects,visualPositions,time,reduced);
@@ -1849,7 +1857,7 @@ window.SchoolArt = (() => {
         combatNumber(c,text,p.x,y,size,color,!!e.critical);
       }
       if (e.kind === "skill" && e.from !== "osia" && e.from !== "horas") { c.font = "9px Galmuri, monospace"; c.textAlign = "center"; const width = c.measureText(e.name).width + 14; rect(c, "#2b3d37dc", p.x - width / 2, p.y - 89 - age * 9, width, 16); c.fillStyle = "#f6df9b"; c.fillText(e.name, p.x, p.y - 77 - age * 9); }
-      if (e.kind === "hit" && (e.skill || e.bossSkill) && age < .3) { c.strokeStyle = e.element === "water" ? "#bafaff" : e.bossSkill ? "#ffc3a1" : "#fff3bb"; c.lineWidth = 3; c.beginPath(); c.moveTo(p.x - 18, p.y - 60); c.lineTo(p.x + 17, p.y - 19); c.stroke(); }
+      if (e.kind === "hit" && e.from !== "kazua" && (e.skill || e.bossSkill) && age < .3) { c.strokeStyle = e.element === "water" ? "#bafaff" : e.bossSkill ? "#ffc3a1" : "#fff3bb"; c.lineWidth = 3; c.beginPath(); c.moveTo(p.x - 18, p.y - 60); c.lineTo(p.x + 17, p.y - 19); c.stroke(); }
       if(e.kind==='dodge'){combatNumber(c,'회피',p.x,y,12,'#b8edff',false);}
       if(e.kind==='counter'&&age<.8){
         const radius=18+(reduced?8:age*55);c.strokeStyle='#a7f6ff';c.lineWidth=3*(1-age/.8);c.beginPath();c.arc(p.x,p.y-28,radius,0,Math.PI*2);c.stroke();
