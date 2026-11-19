@@ -161,7 +161,7 @@
   function applyPreferences(save = false) {
     document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.motion = reduced ? 'reduced' : 'full';
-    document.querySelector('meta[name="theme-color"]').content = '#152334';
+    document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#182536' : '#f8fafc';
     if (save) {
       if (!storage.set('school-settings', JSON.stringify({theme,motion:reduced?'reduced':'full',sound}))) toast('설정을 저장하지 못했어요. 이 화면에서만 적용됩니다.');
       storage.set('school-sound', sound ? 'on' : 'off');

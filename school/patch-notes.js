@@ -1,7 +1,12 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-piyu1',
+  version:'school-theme1',
   entries:Object.freeze([
+    {version:'school-theme1',date:'2026.11.20',title:'라이트·다크 모드 가독성 개선',items:[
+      '두 화면 모드에서 단장 정보, 설정, 용병 육성, 장비·조각 교환의 글자색과 배경 대비를 개선했습니다.',
+      '전투 통계·인연·스킨창의 제목과 닫기 버튼에 다른 테마의 색상이 섞이던 문제를 수정했습니다.',
+      '입력창·선택 메뉴·키보드 포커스를 정리하고 설정 스위치의 크기가 늘어나던 문제를 수정했습니다.'
+    ]},
     {version:'school-piyu1',date:'2026.11.20',title:'삐유와 시작하는 첫 모험 · 로그인 화면 개편',items:[
       'Google 로그인과 게임 시작 대기화면을 추가했습니다. 학교용병단은 이제 계정 로그인 후 플레이하며 게스트 플레이는 제공하지 않습니다. 기존 계정 진행은 유지됩니다.',
       '학교 습격 프롤로그와 삐유의 전용 일러스트·대사창·모집·편성 안내를 추가했습니다. 기존 유저도 한 번 안내받으며, 진행도는 계정에 저장되고 설정에서 다시 볼 수 있습니다.',

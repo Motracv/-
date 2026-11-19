@@ -4,7 +4,7 @@ const start=source.indexOf('  let lastUIRender'),end=source.indexOf('  function 
 const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',open:false});return nodes.get(id);};
 let now=0,battlePaints=0,controls=0,results=0;
 const s=G.create(1000),before=JSON.stringify(s);
-const context={state:s,document:{hidden:false},performance:{now:()=>now},$:node,G,fmt:String,serverNow:()=>s.at,mode:'cloud',modalKind:'',tab:'lobby',renderKey:'',dungeonRenderKey:'',
+const context={state:s,entry:{entered:true},afk:{active:false},document:{hidden:false},performance:{now:()=>now},$:node,G,fmt:String,serverNow:()=>s.at,mode:'cloud',modalKind:'',tab:'lobby',renderKey:'',dungeonRenderKey:'',
  questSnapshot:()=>({readyCount:0}),lobby:{render(){}},social:{refresh(){}},setText:(n,v)=>{(typeof n==='string'?node(n):n).textContent=String(v);},setAttr(){},setWidth(){},toggleClass(){},setHidden(){},panelContentKey:()=>context.tab,
  renderBattleHUD:()=>battlePaints++,renderButtons:()=>controls++,maybeShowActivityResult:()=>results++,renderChapters(){},renderRoster(){},renderRecruitment(){},renderSupplies(){},renderDungeons(){},dungeonContentKey:()=>''};
 vm.createContext(context);vm.runInContext(source.slice(source.indexOf('  function battleVisible()'),source.indexOf('  function syncBattleOverlay()'))+source.slice(start,end)+';globalThis.paint=render;',context);
@@ -32,13 +32,13 @@ vm.runInContext(source.match(/function syncBattleOverlay\(\) \{[\s\S]*?\n  }/)[0
 for(const [tab,kind,open,expected] of [['adventure','damage',true,true],['adventure','settings',true,true],['adventure','map',true,false],['adventure','damage',false,false],['lobby','damage',true,false],['adventure','yeti',true,false]]){
  context.tab=tab;context.modalKind=kind;node('modal').open=open;context.syncBattleOverlay();assert.equal(node('modal').classList['battle-side'],expected);assert.equal(node('app')['data-battle-drawer'],String(expected));
 }
-// Exercise the exact guest heartbeat condition: no repeat serialization when
-// the engine has not reached its next 500ms turn, but failed writes still retry.
-const condition=source.match(/if \((mode === 'guest'[^\n]+)\) \{/)[1];
-const guest={mode:'guest',Date:{now:()=>1250},lastGuestTick:1000,state:{at:1000},busy:false,guestTickPending:false,guestSaveFailed:false,lastSave:0};
-vm.createContext(guest);assert.equal(vm.runInContext(condition,guest),false);guest.Date.now=()=>1500;assert.equal(vm.runInContext(condition,guest),true);
-guest.Date.now=()=>3500;guest.state.at=3500;guest.guestSaveFailed=true;assert.equal(vm.runInContext(condition,guest),true,'Failed saves can recover even without a due turn');
-console.log('PASS all menu/visible-battle/modal/tab render budgets, immediate user actions, unchanged state and no-op guest save suppression');
+// The account-only title screen and AFK overlay own their own presentation.
+// The former guest heartbeat no longer exists; exercise the current gate.
+context.tab='adventure';node('modal').open=false;
+context.entry.entered=false;assert.equal(context.battleVisible(),false);
+context.entry.entered=true;context.afk.active=true;assert.equal(context.battleVisible(),false);
+context.afk.active=false;assert.equal(context.battleVisible(),true);
+console.log('PASS menu/visible-battle/modal/tab render budgets, immediate actions, unchanged state and title/AFK gates');
 
 async function install(stale=false){
  let task,deleted=false,required=[];const events={};

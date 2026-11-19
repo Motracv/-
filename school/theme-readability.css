@@ -1,0 +1,95 @@
+/* Load after feature styles. Text and its surface must use the same palette,
+   including the intentionally dark battle, wardrobe and formation panels. */
+:root,html[data-theme=light]{
+  color-scheme:light;
+  --paper:#edf1f5;--cream:#fff;--ink:#26364a;--muted:#4d6075;--line:#c2cedb;
+  --green:#275d87;--green-dark:#214e73;--gold:#795211;
+  --ui-surface:#f8fafc;--ui-raised:#fff;--ui-selected:#e7eff7;--ui-line:#c2cedb;
+  --ui-ink:var(--ink);--ui-muted:var(--muted);--ui-accent:#275d87;
+  --read-error:#a62938;--read-success:#196442;--read-focus:#195fa5;
+  --rarity-r-text:#315e79;--rarity-sr-text:#754298;--rarity-ssr-text:#79520c;
+  --rarity-ur-text:#086275;--rarity-ex-text:#8d3978;
+}
+html[data-theme=dark]{
+  color-scheme:dark;
+  --paper:#182536;--cream:#223247;--ink:#edf4ff;--muted:#c0cede;--line:#61758d;
+  --green:#a7d5ff;--green-dark:#c4e2ff;--gold:#f3ce82;
+  --ui-surface:#182536;--ui-raised:#223247;--ui-selected:#304760;--ui-line:#61758d;
+  --ui-accent:#a7d5ff;--read-error:#ffbac3;--read-success:#a0e5bf;--read-focus:#98d9ff;
+  --rarity-r-text:#b9dfff;--rarity-sr-text:#e3baff;--rarity-ssr-text:#ffdc92;
+  --rarity-ur-text:#9dedff;--rarity-ex-text:#ffc0ed;
+}
+#modal:is(.insights-modal,.skin-modal,.battle-side,.raid-modal,.yeti-modal,.world-map-modal),
+.app[data-tab=roster] .content-panel,#modal .hero-profile,
+#coop-picker-dialog,#coop-inbox,.coop-picker{
+  color-scheme:dark;
+  --paper:#182536;--cream:#223247;--ink:#edf4ff;--muted:#c0cede;--line:#61758d;
+  --green:#a7d5ff;--green-dark:#c4e2ff;--gold:#f3ce82;
+  --ui-surface:#182536;--ui-raised:#223247;--ui-selected:#304760;--ui-line:#61758d;
+  --ui-ink:var(--ink);--ui-muted:var(--muted);--ui-accent:#a7d5ff;
+  --read-error:#ffbac3;--read-success:#a0e5bf;--read-focus:#98d9ff;
+  --rarity-r-text:#b9dfff;--rarity-sr-text:#e3baff;--rarity-ssr-text:#ffdc92;
+  --rarity-ur-text:#9dedff;--rarity-ex-text:#ffc0ed;
+}
+
+/* Light HUD cards used to retain the cream lettering from the dark lobby. */
+.app .captain b{color:var(--ui-ink)}
+.app .captain-emblem{color:var(--ui-muted)}
+.app:not([data-tab=lobby]) .brand strong{color:var(--ui-ink)}
+.app:not([data-tab=lobby]) .brand small{color:var(--ui-muted)}
+.app .header-actions :is(.icon-button,.account-button):hover{
+  background:var(--ui-selected);color:var(--ui-ink);border-color:var(--ui-accent);
+}
+
+/* Local tokens keep modal headers and content in sync when their class changes. */
+#modal .modal-top h2{color:var(--ink)}
+#modal .modal-top .close-button{
+  color:var(--ink);background:var(--ui-selected);border:1px solid var(--line);
+  width:44px;height:44px;min-width:44px;min-height:44px;
+}
+#modal :is(.modal-copy,.detail-note,.settings-note,.setting-row small,.upgrade-feedback){color:var(--muted)}
+#modal .modal-copy strong{color:var(--ink)}
+#modal .modal-copy a{color:var(--green);text-decoration:underline;text-underline-offset:3px}
+#modal .hero-profile .hero-detail-header{background:transparent;color:var(--ink)}
+#modal .hero-profile .hero-detail-header p{color:var(--muted)}
+#modal.battle-side .setting-row{color:var(--ink)}
+
+/* Text inputs follow the current surface; checkboxes keep their switch geometry. */
+#modal :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea),
+.app #coupon-code{
+  color:var(--ink);background:var(--cream);border-color:var(--line);caret-color:var(--ink);
+}
+#modal :is(input,textarea)::placeholder,.app #coupon-code::placeholder{color:var(--muted);opacity:1}
+#modal :is(select,option){color:var(--ink);background-color:var(--cream)}
+#modal .setting-row input[type=checkbox]{
+  width:48px;height:28px;min-width:48px;min-height:28px;padding:0;border-radius:999px;
+  background:#62758b;border:1px solid #52667e;
+}
+#modal .setting-row input[type=checkbox]:checked{background:#246ba5;border-color:#246ba5}
+#modal .setting-row input[type=checkbox]::before{background:#fff}
+.app :is(button,input,select,textarea):focus-visible,
+#modal :is(button,input,select,textarea):focus-visible{outline:3px solid var(--read-focus);outline-offset:3px}
+
+/* Status, secondary copy and rarity text must remain legible on pale surfaces. */
+#school-social{--social-blue:var(--ui-accent)}
+#modal :is(#social-message,#guild-message)[data-error=true],
+#modal .login-message,.app #coupon-message[data-state=error]{color:var(--read-error)}
+.app #coupon-message[data-state=success]{color:var(--read-success)}
+#modal :is(.preset-state,.qol-note,.probability-table th){color:var(--muted)}
+#modal :is(.farm-rank,.farm-estimate>strong,.qol-event-list b){color:var(--gold)}
+#modal :is(.qol-number,.patch-note header>span,.shard-sr){color:var(--rarity-sr-text)}
+#modal .shard-ssr{color:var(--rarity-ssr-text)}
+.gear-R{--gear-text:var(--rarity-r-text)}
+.gear-SR{--gear-text:var(--rarity-sr-text)}
+.gear-SSR{--gear-text:var(--rarity-ssr-text)}
+.gear-UR{--gear-text:var(--rarity-ur-text)}
+.gear-EX{--gear-text:var(--rarity-ex-text)}
+#modal :is(.gear-rarity,.gear-slot i,.gear-selected-heading p,.gear-snapshot-item small){color:var(--gear-text,var(--ink));text-shadow:none}
+#modal .gear-selected-heading .gear-rarity{background:none;color:var(--gear-text,var(--ink));-webkit-text-fill-color:currentColor}
+#modal .gear-actions #gear-awaken{color:var(--gear-text,var(--ink))}
+
+/* Selected controls previously combined white text with a pale gold fill. */
+#tab-roster .formation-presets button[aria-pressed=true],#tab-roster .filter.active{
+  color:#192b40;background:#e5bd7a;border-color:#ffe3aa;
+}
+/* Game-world artwork keeps its lighting; no filters are applied to sprites. */
