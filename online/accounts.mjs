@@ -147,29 +147,47 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
   async function route(path, request, data, env, now) {
     if (path === "/api/account/config") return config(env);
     if(path==='/api/account/test-login'){
+      let phase='configuration';
+      try {
       if(!request.headers.get('Origin'))throw accountError('게임 화면에서 로그인하세요.',403);
       // A dedicated credential can only access an isolated game-test account.
       // Store only a hash in server configuration, never the code in a bundle.
       const configured=String(env.SCHOOL_TEST_LOGIN_HASH||'');
       if(!/^[a-f0-9]{64}$/.test(configured))throw accountError('운영 테스트 로그인을 준비 중입니다.',503);
+      phase='rate-key';
       const key='test-login:'+await accountHash(request.headers.get('CF-Connecting-IP')||'unknown')+':'+Math.floor(now/60000)+':';
+      phase='rate-expiry';
       await env.DB.prepare('DELETE FROM login_challenges WHERE expires <= ?').bind(now).run();
-      const attempt=await env.DB.prepare('INSERT INTO login_challenges(hash,expires) SELECT ?,? WHERE (SELECT COUNT(*) FROM login_challenges WHERE hash LIKE ?)<5').bind(key+accountRandom(),now+60000,key+'%').run();
-      if(attempt.meta.changes!==1)throw accountError('요청이 많습니다. 1분 후 다시 시도하세요.',429);
+      phase='rate-attempt';
+      // Claim one of five fixed slots atomically. Avoid INSERT/SELECT on the
+      // same table: the production D1 adapter rejects that statement.
+      let accepted=false;
+      for(let slot=0;slot<5;slot++){
+        const attempt=await env.DB.prepare('INSERT OR IGNORE INTO login_challenges(hash,expires) VALUES(?,?)')
+          .bind(await accountHash(key+slot),now+60000).run();
+        if(attempt.meta?.changes===1){accepted=true;break;}
+      }
+      if(!accepted)throw accountError('요청이 많습니다. 1분 후 다시 시도하세요.',429);
+      phase='credential';
       const raw=typeof data.code==='string'?data.code.trim():'';
       const actual=await accountHash(raw.length<=128?raw:'');let difference=0;
       for(let i=0;i<64;i++)difference|=configured.charCodeAt(i)^actual.charCodeAt(i);
       if(difference||raw.length<24)throw accountError('테스트 접속 코드를 확인해 주세요.',401);
+      phase='account-read';
       const keyName='school:operator-test:v1';
       let account=await env.DB.prepare('SELECT id FROM accounts WHERE google_key=?').bind(keyName).first();
       if(!account){
+        phase='account-create';
         await env.DB.prepare('INSERT OR IGNORE INTO accounts(id,google_key,created_at) VALUES(?,?,?)').bind(accountRandom(),keyName,now).run();
         account=await env.DB.prepare('SELECT id FROM accounts WHERE google_key=?').bind(keyName).first();
       }
       if(!account)throw accountError('테스트 계정을 준비하지 못했어요. 다시 시도해 주세요.',503);
+      phase='session-create';
       const token=accountRandom(),expires=now+12*3600000;
       await env.DB.prepare('INSERT INTO account_sessions(hash,account_id,expires) VALUES(?,?,?)').bind(await accountHash(token),account.id,expires).run();
+      phase='profile';
       return {token,expires,profile:await profile(env.DB,account.id)};
+      }catch(error){if(error.status)throw error;throw accountError('운영 테스트 연결 오류 ('+phase+'). 잠시 후 다시 시도해 주세요.',503);}
     }
     if (!clientId(env)) throw accountError("Google 로그인 연결을 준비 중입니다. 게스트로 플레이할 수 있습니다.", 503);
     if (path === "/api/account/challenge" || path === "/api/account/google") {
