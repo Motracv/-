@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#081725"><title>오시아 · 물 브레스 시안</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#081725;color:#e5f7ff;font:16px/1.6 system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:28px 16px max(28px,env(safe-area-inset-bottom))}h1{font-size:clamp(22px,4vw,32px);margin:4px 0 8px}p{color:#b0cedd;margin:8px 0 20px}.tag{font-size:13px;color:#8be7f8;letter-spacing:.1em}video{width:100%;aspect-ratio:16/9;display:block;background:#000;border:1px solid #385366;border-radius:14px}.actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}button,a{font:inherit;color:#e5f7ff;background:#19354b;border:1px solid #53728a;border-radius:10px;min-height:48px;padding:10px 17px;text-decoration:none;cursor:pointer}button[aria-pressed=true]{background:#97e7f7;color:#082735;border-color:#97e7f7}button:focus-visible,a:focus-visible{outline:3px solid #e8cc91;outline-offset:3px}.note{font-size:14px}#status{min-height:1.6em;color:#a4eafa}.fallback{margin-top:28px;padding-top:16px;border-top:1px solid #385366}
+</style>
+</head>
+<body><main>
+<div class="tag">ANIMATION CONCEPT</div>
+<h1>오시아 · 물 브레스</h1>
+<p>뒤로 물러나 숨을 모은 뒤, 물 브레스를 쏟아내는 궁극기 시안.</p>
+<video id="clip" controls playsinline muted loop preload="metadata" poster="poster.png" aria-label="오시아 물 브레스 애니메이션"><source src="video.mp4" type="video/mp4">아래의 GIF 보기 또는 영상 다운로드를 이용해 주세요.</video>
+<div class="actions"><button id="play" type="button">▶ 영상 재생</button><button type="button" data-speed="1" aria-pressed="true">일반 속도</button><button type="button" data-speed="0.5" aria-pressed="false">0.5배속</button></div>
+<p id="status" aria-live="polite">재생 버튼을 눌러 주세요. 약 6.5초 영상이 반복됩니다.</p>
+<div class="fallback"><p class="note">영상 재생이 안 되면 GIF로 보거나 파일을 다운로드해 주세요.</p><div class="actions"><a href="preview.gif">움직이는 GIF 보기</a><a href="video.mp4" download="osia-water-breath.mp4">영상 다운로드</a></div></div>
+</main>
+<script>
+const clip=document.querySelector('#clip'),play=document.querySelector('#play'),status=document.querySelector('#status');
+async function start(){try{await clip.play();status.textContent='재생 중 · 용의 후퇴 → 흡기 → 물 브레스 → 물보라';}catch{status.textContent='영상 안의 재생 버튼을 누르거나, 아래 GIF 보기를 이용해 주세요.';}}
+play.addEventListener('click',()=>clip.paused?start():clip.pause());
+clip.addEventListener('play',()=>play.textContent='Ⅱ 일시정지');
+clip.addEventListener('pause',()=>{play.textContent='▶ 영상 재생';status.textContent='일시정지 · 다시 재생할 수 있어요.';});
+clip.addEventListener('error',()=>status.textContent='영상을 불러오지 못했어요. 아래 GIF 보기 또는 영상 다운로드를 이용해 주세요.');
+document.querySelectorAll('[data-speed]').forEach(button=>button.addEventListener('click',()=>{clip.playbackRate=Number(button.dataset.speed);document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));start();}));
+</script>
+</body></html>
