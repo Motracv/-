@@ -2,8 +2,8 @@ const assert=require('node:assert/strict'),G=require('../school/engine.js'),R=re
 const NOW=Date.parse('2026-11-19T10:00Z');
 const make=(ids=['kazua','ryusion','lava'])=>{const s=G.create(NOW,321);s.gems=100000;for(const id of ids)s.units[id]={level:100,stars:5,xp:0,shards:0};G.action(s,{kind:'team',team:ids},s.at);return s;};
 const draw=(s,banner,pick=.99,extra={})=>{const rolls=[0,pick];return G.action(s,{kind:'recruit',banner,count:1,...extra},s.at,()=>rolls.shift()).results[0];};
-assert.deepEqual(Object.keys(G.BANNERS),['kazua','standard','ryusion','horas']);assert(G.bannerAvailable('kazua',Date.parse('2100-01-01')));assert.equal(G.damageType('kazua'),'physical');
-for(const banner of Object.keys(G.BANNERS))for(const count of [1,10]){const s=make(),cost=(banner==='horas'?160:100)*count;s.gems=cost-1;const before=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner,count},s.at));assert.deepEqual(s,before);s.gems=cost;assert.equal(G.action(s,{kind:'recruit',banner,count},s.at,()=>.99).cost,cost);assert.equal(s.gems,0);assert(G.validate(s));}
+assert.deepEqual(Object.keys(G.BANNERS),['hyeokjin','kazua','standard','ryusion','horas']);assert(G.bannerAvailable('kazua',Date.parse('2100-01-01')));assert.equal(G.damageType('kazua'),'physical');
+for(const banner of Object.keys(G.BANNERS))for(const count of [1,10]){const s=make(),cost=(G.isURBanner(banner)?160:100)*count;s.gems=cost-1;const before=G.clone(s);assert.throws(()=>G.action(s,{kind:'recruit',banner,count},s.at));assert.deepEqual(s,before);s.gems=cost;assert.equal(G.action(s,{kind:'recruit',banner,count},s.at,()=>.99).cost,cost);assert.equal(s.gems,0);assert(G.validate(s));}
 for(const a of [0,1,59,79])for(const b of [0,1,59,79])for(const ga of [false,true])for(const gb of [false,true]){
  const s=make();s.banners={osia:{pity:a,guaranteed:ga},lava:{pity:b,guaranteed:gb},horas:{pity:23,guaranteed:false},ryusion:{pity:17,guaranteed:true}};s.pity=a;assert(G.validate(s));
  const before=G.clone(s),p=G.bannerState(s,'standard');assert.deepEqual(s,before);assert.equal(p.pity+p.reserve,a+b);assert.equal(p.guarantees,+ga + +gb);

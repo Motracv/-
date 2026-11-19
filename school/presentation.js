@@ -322,12 +322,23 @@
     if (!alive(job)) return;
     await delay(job, 1350);
   }
+  async function hyeokjinRecruitSequence(job){
+    const ui=shell(job,'내가 지켜온 모든 것','UR · 서혁진','UR');ui.dialog.dataset.cinematic='hyeokjin';
+    const art=node('img','hyeok-recruit-art');art.src='school/assets/hyeokjin/pickup.webp?v=hyeokjin1';art.alt='서혁진, 붉은 대검과 어둠의 각성';
+    const seal=node('div','hyeok-recruit-seal','지켜온 맹세'),copy=node('div','hyeok-recruit-copy');copy.append(node('b','','UR · 서혁진'),node('p','','쓰러질 수 없어. 아직 지켜야 할 것이 남았으니까.'));
+    ui.scene.append(art,seal,copy);play('pull',4,job.id);
+    await move(job,seal,[{opacity:0,transform:'translate(-50%,-50%) scale(.7)'},{opacity:1,transform:'translate(-50%,-50%) scale(1)',offset:.7},{opacity:0,transform:'translate(-50%,-50%) scale(1.2)'}],900);
+    if(!alive(job))return;seal.remove();ui.dialog.dataset.phase='revealed';play('UR',4,job.id);particles(job,ui.scene,'#ff83b0',20);
+    await Promise.all([move(job,art,[{opacity:0,transform:'scale(1.07)'},{opacity:1,transform:'scale(1)'}],650),move(job,copy,[{opacity:0,transform:'translateY(16px)'},{opacity:1,transform:'translateY(0)'}],550)]);
+    if(alive(job))await delay(job,1500);
+  }
   async function recruitSequence(job) {
     const results = Array.isArray(job.data.results) ? job.data.results : [];
     if (!results.length) return;
     const ranking = { UR: 4, SSR: 3, SR: 2, R: 1 };
     const lead = results.reduce((best, entry) => (ranking[info(entry.id).rarity] || 1) > (ranking[info(best.id).rarity] || 1) ? entry : best, results[0]);
     const hero = info(lead.id), grade = ['UR', 'SSR', 'SR'].includes(hero.rarity) ? hero.rarity : 'R';
+    if (grade === 'UR' && lead.id === 'hyeokjin') { await hyeokjinRecruitSequence(job); return; }
     if (grade === 'UR' && lead.id === 'horas') { await horasRecruitSequence(job); return; }
     const ui = shell(job, grade === 'UR' ? '벚꽃이 이끈 운명' : grade === 'SSR' ? '눈부신 운명의 만남' : grade === 'SR' ? '특별한 동료의 등장' : '새로운 만남', `${grade} · ${hero.name}`, grade);
     if(job.data.source==='winter-exchange'){ui.dialog.dataset.cinematic='spica';ui.dialog.querySelector('.presentation-kicker').textContent='겨울이 맺어 준 인연';ui.title.textContent='설원의 숨결 · 스피카';}

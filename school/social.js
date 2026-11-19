@@ -469,6 +469,12 @@
       if(event.kind==='osia-breath'&&from){from.breathAt=event.t;from.breathTarget=event.target;}
       if(event.kind==='osia-breath-cancel'&&from)delete from.breathAt;
       if (from && !event.breath && ['attack','skill','heal','shield','spica-wind'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind==='spica-wind'?'skill':event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
+      if(from?.id==='hyeokjin'){
+        from.hyeokjin||={used:false,mode:'idle',until:0,lastUntil:0};const q=from.hyeokjin;
+        if(event.kind==='hyeokjin-mode'){Object.assign(q,{mode:event.mode,began:event.t,modeUntil:event.t+event.duration,impactAt:event.t+(event.impactDelay||0),until:event.until||q.until});if(event.mode==='transform'||event.awakened)q.used=true;}
+        if(event.kind==='hyeokjin-last')q.lastUntil=event.until;
+        if(event.kind==='hyeokjin-cancel'){q.mode='idle';q.modeUntil=event.t;}
+      }
       if(from?.id==='kazua'){
         from.kazua||={mode:'fire',modeSince:0,power:1};
         if(event.kind==='dodge')from.dodgeAt=event.t;
@@ -536,13 +542,14 @@
         const earthAge=(clock-(unit.earthCastAt??-10000))/1000;
         const breathAge=unit.id==='osia'&&Number.isFinite(unit.breathAt)&&clock-unit.breathAt<4750?(clock-unit.breathAt)/1000:undefined;
         const motion=breathAge>=0&&window.SchoolOsiaBreathArt?window.SchoolOsiaBreathArt.motion(breathAge,reduced):unit.id==='ryusion'&&earthAge>=0&&earthAge<1.4?window.SchoolArt?.poseForSkill?.('ryusion',unit.earthStage,earthAge,reduced):casting&&['osia','lava','spica'].includes(unit.id)?window.SchoolArt?.poseForSkill?.(unit.id,unit.actStage,actAge,reduced):null;
-        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:['horas','kazua'].includes(unit.id)?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{exclusive:unit.exclusive,osiaBreathAge:breathAge,osiaSpearAge:Number.isFinite(unit.osiaSpearAt)?(clock-unit.osiaSpearAt)/1000:-1,kazuaActive:!finished,...window.SchoolArt.kazuaFrame(unit,clock),...(unit.dodgeAt&&clock-unit.dodgeAt<350?{kazuaMode:'dodge',kazuaAge:(clock-unit.dodgeAt)/1000}:{}),time:clock/1000,dead:unit.hp<=0,stunned:unit.stunUntil>clock,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):undefined,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(unit.id==='spica'?undefined:attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
+        window.SchoolArt?.hero(c,unit.id,position.x+(unit.id==='ryusion'&&motion?motion.dx*direction:['horas','kazua','hyeokjin'].includes(unit.id)?0:move),position.y+(unit.id==='ryusion'&&motion?motion.dy:0),2.3,{exclusive:unit.exclusive,osiaBreathAge:breathAge,osiaSpearAge:Number.isFinite(unit.osiaSpearAt)?(clock-unit.osiaSpearAt)/1000:-1,kazuaActive:!finished,...window.SchoolArt.kazuaFrame(unit,clock),...window.SchoolArt.hyeokjinFrame(unit,clock),...(unit.dodgeAt&&clock-unit.dodgeAt<350?{kazuaMode:'dodge',kazuaAge:(clock-unit.dodgeAt)/1000}:{}),time:clock/1000,dead:unit.hp<=0,stunned:unit.stunUntil>clock,flip:!!unit.side,attack:attacking&&!casting,attackAge:attacking&&!casting?(unit.id==='horas'?horasAge:actAge):undefined,casting,motion,taunting:unit.id==='ryusion'&&unit.earthTauntUntil>clock,hit:hitAge>=0&&hitAge<100,pose:motion?.pose??(unit.id==='spica'?undefined:attacking?2:0),horasBasicPose:unit.horasBasicPose,horasStacks:unit.horasStacks,horasCastAge:casting&&unit.id==='horas'?horasCastAge:-1,horasCastDuration:1.5,reduced});
         if(!finished&&unit.id==='kazua'&&unit.hp>0&&!(unit.stunUntil>clock)&&!(unit.dodgeAt&&clock-unit.dodgeAt<350))gunners.push({source:position,targets:units[1-unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),mode:unit.kazua?.mode||'idle',age:(clock-(unit.kazua?.modeSince||0))/1000,time:clock/1000,scale:2.3,reduced,economy:cssWidth<640,flip:!!unit.side});
         if(unit.id==='spica'&&casting&&!(unit.stunUntil>clock))window.SchoolArt?.spicaSkillEffect?.(c,position,units[unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),units[1-unit.side].filter(u=>u.hp>0).map(u=>positions.get(`${u.side}:${u.id}`)),actAge,reduced,1.2);
         c.fillStyle='#14222ce6';c.fillRect(position.x-38,position.y+8,76,8);c.fillStyle=unit.side===me?'#a4c478':'#dc8d7f';c.fillRect(position.x-37,position.y+9,74*Math.max(0,unit.hp)/Math.max(1,unit.max),6);
         if(unit.shield>0){c.fillStyle='#9dd4e2';c.fillRect(position.x-37,position.y+16,74*Math.min(1,unit.shield/Math.max(1,unit.max)),3);}
         c.font='9px Galmuri,monospace';c.textAlign='center';c.fillStyle=unit.hp>0?'#edf0e5':'#93a0a6';c.fillText(unit.name || window.SchoolRPG.BY_ID[unit.id]?.name || unit.id,position.x,position.y+30);
       });
+      if(!finished)for(const unit of units.flat().filter(u=>u.id==='hyeokjin'))window.SchoolHyeokjinArt?.effects(c,{unit,time:clock,source:positions.get(`${unit.side}:${unit.id}`),targets:units[1-unit.side].map(u=>positions.get(`${u.side}:${u.id}`)),scale:2.3,reduced,economy:cssWidth<640});
       for(const gunner of gunners)window.SchoolKazuaArt?.effects(c,gunner);
       if(!finished)window.SchoolArt?.spicaBlizzard?.(c,{x:0,y:95,width:960,height:325},clock,spicaUntil,reduced,cssWidth<640);
       effects=effects.filter(event=>clock-event.t<(event.kind==='osia-breath'?4750:event.kind.startsWith('horas-')?2600:event.from==='osia'&&(event.kind==='osia-drowning'||event.kind==='skill'&&event.stage===4)?2200:800));

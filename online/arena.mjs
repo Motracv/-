@@ -15,6 +15,7 @@ export function simulateArena(game, saves, names, seed) {
     if(equipment&&Object.keys(equipment.equipped).length)teams[side].equipment=equipment;
   }
   const sides = teams.map((team,side) => team.units.map(u => ({...u,...(game.exclusivePassive?.(saves[side],u.id)?{exclusive:game.exclusivePassive(saves[side],u.id)}:{}),energy:0,stage:1,hits:0,stunUntil:0,protectedUntil:0})));
+  sides.forEach(team=>team.forEach(u=>game.hyeokjinInit(u,team)));
   const H = game.HORAS_RULES, R=game.RYUSION_RULES, tactical=sides.some(team=>team.some(u=>u.id==='spica'));
   const defense=hero=>game.ryusionDefense?.(hero)||R;
   const basicRate=unit=>game.basicAttackRate?.(unit,t)||1;
@@ -40,6 +41,7 @@ export function simulateArena(game, saves, names, seed) {
     if(gained)emit('horas-stack',side,'horas',side,hero,gained,{stacks:progress.stacks,source,sourceTarget:target?.id});
     return gained;
   }
+  const hyeokEmit=(side,u)=>(kind,extra)=>{if(kind==='heal')meter(side,u.id).healing+=extra.amount;emit(kind,side,u.id,side,u,extra.amount||0,extra);};
   function hit(side,from,target,raw,skill,stage,detail={}) {
     const original=target;target=detail.directHp?target:redirect(side,target);
     if(target.hp<=0)return 0;
@@ -49,7 +51,9 @@ export function simulateArena(game, saves, names, seed) {
     const power=detail.snapshot||detail.directHp?raw:raw*(.9+random()*.2)*(crit?1.5:1);
     const stunBonus=from==='horas'&&target.stunUntil>t;
     let value=Math.max(1,Math.round(power*(stunBonus?H.stunMultiplier:1)*(detail.directHp?1:1-target.defense)*synergy[enemySide].incomingMultiplier*(guard(enemySide).hero?1-R.teamReduction:1)*(guard(enemySide).taunting&&target.id==='ryusion'?1-defense(guard(enemySide).hero).tauntReduction:1)));
+    if(target.id==='hyeokjin'&&t<game.hyeokjinRefresh(target,sides[enemySide],t,hyeokEmit(enemySide,target)).lastUntil)value=0;
     const absorbed=detail.directHp?0:Math.min(target.shield,value);target.shield-=absorbed;value-=absorbed;game.absorbEarthShield?.(target,absorbed);
+    value=game.hyeokjinGuard(target,sides[enemySide],t,value,hyeokEmit(enemySide,target));
     if(value>=target.hp&&!rescued[enemySide]&&alive(enemySide).some(u=>u.id==='lava')){
       rescued[enemySide]=true;target.protectedUntil=t+2000;
       emit('shield',enemySide,'lava',enemySide,target,0,{skill:'긴급생존',protectedUntil:target.protectedUntil});
@@ -57,6 +61,7 @@ export function simulateArena(game, saves, names, seed) {
     if(target.protectedUntil>t)value=Math.min(value,Math.max(0,target.hp-1));
     const amount=Math.min(target.hp,value);target.hp-=amount;meter(side,from).damage+=amount;meter(enemySide,target.id).taken+=amount;if(crit&&amount>0)meter(side,from).criticals++;
     emit(skill?'skill':'attack',side,from,enemySide,target,amount,{crit:crit&&amount>0,absorbed,...(target!==original?{redirectedFrom:original.id}:{}),...(skill?{skill}:{}),...(stage?{stage}:{}),...(stunBonus?{stunBonus:true}:{}),...(detail.castId?{castId:detail.castId,primary:detail.primary}:{}),...(detail.drowning?{drowning:true,damageType:'magic'}:{}),...(detail.breath?{breath:true,tick:detail.tick}:{})});
+    game.hyeokjinRecord(sides[side].find(u=>u.id===from),amount,t,hyeokEmit(side,sides[side].find(u=>u.id===from)),!!detail.ultimate);
     if(target.id==='horas'&&target.hp>0&&t>=horas[enemySide].lastHitStackAt+H.hitStackMs){horas[enemySide].lastHitStackAt=t;addHorasStack(enemySide,1,'hit',sides[side].find(u=>u.id===from));}
     if(target.hp<=0){
       emit('down',side,from,enemySide,target,0);
@@ -135,7 +140,7 @@ export function simulateArena(game, saves, names, seed) {
     if(!tick)shield(side,unit.id,unit,unit.atk*(unit.exclusive.dragonShield||.2),'신수의 왕권');
   }
   function act(side,unit) {
-    if(unit.id==='kazua'||unit.hp<=0||unit.stunUntil>t||!alive(1-side).length)return;
+    if((unit.id==='kazua'||unit.id==='hyeokjin')||unit.hp<=0||unit.stunUntil>t||!alive(1-side).length)return;
     const attack=unit.atk*synergy[side].damageMultiplier*(buffUntil[side]>t?1.3:1)*(t>=45000?1+(t-45000)/15000:1);
     if(unit.id==='horas'){horasAct(side,unit,attack*horasDamageMultiplier*(1+(unit.exclusive?.strength||0)));return;}
     const def=game.BY_ID[unit.id];
@@ -186,6 +191,7 @@ export function simulateArena(game, saves, names, seed) {
     horasStep(first);horasStep(1-first);
     breathStep(first);breathStep(1-first);
     for(const side of[first,1-first]){const u=sides[side].find(u=>u.id==='osia'),targets=alive(1-side);if(u&&targets.length){const taunt=guard(1-side);if(taunt.taunting)targets.sort((a,b)=>(b===taunt.hero)-(a===taunt.hero));game.osiaWeaponStep?.(u,targets,t,500,(target,amount,detail)=>hit(side,u.id,target,amount,'익사',null,detail),(kind,extra)=>{const target=targets.find(e=>e.id===extra.to);if(target)emit(kind,side,u.id,1-side,target,0,{...extra,targetId:target.id});},u.stunUntil>t,{arena:true});}}
+    for(const side of[first,1-first]){const u=sides[side].find(u=>u.id==='hyeokjin');if(u&&alive(1-side).length)game.hyeokjinStep(u,sides[side],sides[1-side],t,500,(target,amount,d)=>hit(side,u.id,target,d.fixed?amount:amount*synergy[side].damageMultiplier*(buffUntil[side]>t?1.3:1)*(t>=45000?1+(t-45000)/15000:1),d.skill,null,d.fixed?{snapshot:true,critical:false,ultimate:true}:{}),hyeokEmit(side,u),u.stunUntil>t,basicRate(u));}
     for(const side of[first,1-first]){const u=sides[side].find(u=>u.id==='kazua');if(u&&alive(1-side).length)game.kazuaStep(u,sides[side],sides[1-side],t,500,(target,mult,d)=>hit(side,u.id,target,u.atk*mult*synergy[side].damageMultiplier*(buffUntil[side]>t?1.3:1)*(t>=45000?1+(t-45000)/15000:1),d.skill),(kind,extra)=>emit(kind,side,u.id,side,u,0,extra),u.stunUntil>t,basicRate(u));}
     if((!tactical&&t%1000)||!alive(0).length||!alive(1).length)continue;
     for(let index=0;index<6;index++){for(const side of[first,1-first])if(sides[side][index])act(side,sides[side][index]);}

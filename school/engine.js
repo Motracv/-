@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 35;
+  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 36;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -64,7 +64,8 @@
   const UR_RECRUIT_RATES = Object.freeze({ UR: .003, SSR: .01, SR: .26, R: .727 });
   const RECRUIT_COST = Object.freeze({ 1: 160, 10: 1600 });
   const SSR_RECRUIT_COST = Object.freeze({ 1: 100, 10: 1000 });
-  function recruitCost(banner, count) { return (banner === "horas" ? RECRUIT_COST : SSR_RECRUIT_COST)[count]; }
+  function isURBanner(id){return id==='horas'||id==='hyeokjin';}
+  function recruitCost(banner, count) { return (isURBanner(banner) ? RECRUIT_COST : SSR_RECRUIT_COST)[count]; }
   const WEAPON_COST = SSR_RECRUIT_COST;
   const WEAPON_BANNERS = Object.freeze({
     ryusion: Object.freeze({ id:"ryusion", item:"earth_shield", group:"standard", limited:false, expiresAt:null }),
@@ -76,6 +77,7 @@
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
   const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi", "lava"]);
   const BANNERS = Object.freeze({
+    hyeokjin: Object.freeze({id:"hyeokjin",name:"서혁진 UR 픽업뽑기",featured:"hyeokjin",rarity:"UR",limited:false,expiresAt:null}),
     kazua: Object.freeze({ id:"kazua", name:"카즈아 픽업뽑기", featured:"kazua", limited:false, expiresAt:null }),
     standard: Object.freeze({ id:"standard", name:"상시뽑기", featured:null, limited:false, expiresAt:null }),
     ryusion: Object.freeze({ id:"ryusion", name:"류시온 픽업 모집", featured:"ryusion", limited:false, expiresAt:null }),
@@ -146,7 +148,7 @@
   // Use integer percentages so 1400 × 35% is exactly 490, not 489.999… .
   const scaledXp = (amount, multiplier) => amount > 0 ? Math.max(1, Math.floor(amount * Math.round(multiplier * 100) / 100)) : 0;
   function recruitRates(misses, banner = "osia") {
-    if (banner === "horas") {
+    if (isURBanner(banner)) {
       const next = misses + 1;
       if (next >= RECRUIT_PITY.hard) return { UR: 1, SSR: 0, SR: 0, R: 0 };
       const ur = (3 + Math.max(0, next - RECRUIT_PITY.soft + 1) * 10) / 1000;
@@ -184,8 +186,8 @@
       const pool = HEROES.filter(hero => hero.rarity === grade);
       for (const hero of pool) result[hero.id] = rates[grade] / pool.length;
     }
-    if (id === "horas") {
-      result.horas = rates.UR;
+    if (isURBanner(id)) {
+      result[featured] = rates.UR;
       for (const hero of STANDARD_SSR) result[hero] = rates.SSR / STANDARD_SSR.length;
       return result;
     }
@@ -218,7 +220,71 @@
   ];
   HEROES.push({ id: "horas", name: "호라스", latin: "Horas", gender: "여성", club: "벚꽃의 의식", element: "blossom", role: "사수", rarity: "UR", hp: 128, atk: 22, cooldown: 5, skill: "벚꽃의식", passive: "별빛 축적", passiveDesc: "두 손짓의 느린 평타가 적중하거나 공격을 받으면 벚꽃 구슬을 1개 쌓습니다. 피격 획득은 1초당 한 번. 5개를 합쳐 벚꽃의식을 사용합니다.", passive2: "벚꽃의 잔향", passive2Desc: "기절 중인 적에게 주는 피해 1.5배. 의식이 적중한 주 대상에게 6초간 표식을 남깁니다. 아군 누구든 표식 대상을 처치하면 2스택을 한 번 회수합니다.", color: "#f3a2d0", hair: "#f2a6d0", outfit: "#d6e5ff", weapon: "blossom", desc: "2초 간격으로 공격력 220% 평타. 5스택을 소모하여 구슬을 합친 뒤 가까운 적이 많은 한 명에게 공격력 1350%, 인접한 적에게 250% 피해. 의식은 10% 확률로 빗나갑니다. 의식 시작 간격은 최소 3초입니다." });
   HEROES.push({id:'kazua',name:'카즈아',latin:'Kazua',gender:'남성',species:'인간',club:'붉은 탄막',role:'사수',rarity:'SSR',hp:100,hpGrowth:12,atk:24,atkGrowth:3,cooldown:20,skill:'붉은총알',passive:'권총 · 바주카포',passiveDesc:'5초마다 권총으로 단일 240%, 15초마다 바주카포로 적 전체 320% 물리 피해. 무기를 바꾸는 동안 머신건 사격은 잠시 멈춥니다.',passive2:'최후의 생존자',passive2Desc:'함께 출전한 아군이 쓰러질 때마다 피해 +12%(최대 60%). 원래 2명 이상 출전했고 혼자 남으면 추가 +20%. 빈 편성이나 부활 반복으로 중첩되지 않습니다. 회피 10%, 일반 공격 표적 우선도 감소. 광역·도발은 별도입니다.',color:'#f65d55',hair:'#a62428',outfit:'#24242c',weapon:'gatling',desc:'끝없는 총알: 3초간 초고속 연사 후 2초 장전. 연사 중 0.5초마다 공격력 55%의 물리 피해를 묶어 적용합니다. 붉은총알: 20초마다 3초간 초당 50발의 붉은 유도탄. 주 대상 총 1600%, 다른 적 각각 총 560% 물리 피해. 낮은 체력을 감수하는 극딜 사수.'});
+  HEROES.push({id:'hyeokjin',name:'서혁진',latin:'Seo Hyeokjin',gender:'남성',species:'이계의 인간',element:'dark',club:'지켜온 맹세',role:'전사',rarity:'UR',hp:160,hpGrowth:15,atk:25,atkGrowth:3,cooldown:10,skill:'죽지 않는 청년 · 어둠의 잠식',passive:'폼 체인지 · 피 보는 자',passiveDesc:'HP 35% 이하가 되는 타격부터 전투당 1회 8초 각성. 각성 중 HP가 1 아래로 내려가지 않으며 직접 가한 피해의 20%를 흡혈합니다(초당 최대 HP 8%). 공격력 +25%, 평타 간격 1.4초. 기본형 평타 간격은 1.8초입니다.',passive2:'책임감',passive2Desc:'함께 출전한 아군이 모두 쓰러지면 전투당 1회 5초간 피해 면역·피해 +30%. 처음부터 혼자 출전하면 발동하지 않습니다. 각성과 동시에 시간이 흐릅니다.',color:'#e25c83',hair:'#22202f',outfit:'#edeaf0',weapon:'greatsword',desc:'기본형: 10초마다 전방 240% 피해·명중 시 HP 10% 회복. 각성형: 블랙 전방 최대 3명 320%, 참수 단일 500%(대상 HP 30% 이하 750%, 처치 시 HP 15% 회복). 각성 중 HP 20% 이하가 되면 전투당 한 번 궁극기: 직접 누적한 실제 HP 피해 100%(최대 공격력 3000%) 방출. 주 대상 70%·나머지 적에게 총 30% 분배, 단일 적은 100%. 모든 공격은 물리이며 기절·빙결로 시전이 중단될 수 있습니다.'});
   const BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
+  const HYEOKJIN_RULES=Object.freeze({awakeMs:8000,lastMs:5000,basicMs:1800,awakeBasicMs:1400,basicMultiplier:2.4,healMs:10000,blackMs:4000,lifesteal:.2,healCap:.08,ultimateCap:30});
+  const HYEOKJIN_MOVES=Object.freeze({basic:{name:'대검 내려베기',hit:800,duration:1300},recovery:{name:'죽지 않는 청년',hit:400,duration:1100},transform:{name:'어둠의 잠식',hit:0,duration:1000},black:{name:'블랙',hit:600,duration:1000},execution:{name:'참수',hit:650,duration:1100},ultimate:{name:'내가 지켜온 모든 것',hit:1300,duration:2300}});
+  function hyeokjinInit(u,allies){if(u.id!=='hyeokjin')return null;return u.hyeokjin||=( {used:false,until:0,lastUsed:false,lastUntil:0,ultimateUsed:false,ultimateArmed:false,executeUsed:false,total:0,healWindow:0,healUsed:0,initial:allies.filter(a=>a.hp>0).map(a=>a.id),mode:'idle',began:0,modeUntil:0,nextBasic:1800,nextHeal:10000,nextBlack:0,nextExecute:0,cast:null} );}
+  function hyeokjinAwake(u,time){return !!u?.hyeokjin?.used&&time<u.hyeokjin.until;}
+  function hyeokjinRefresh(u,allies,time,emit=()=>{}){
+    const q=hyeokjinInit(u,allies);if(!q||u.hp<=0)return q;
+    if(!q.lastUsed&&q.initial.length>1&&q.initial.filter(id=>id!==u.id).every(id=>!allies.some(a=>a.id===id&&a.hp>0))){q.lastUsed=true;q.lastUntil=time+5000;emit('hyeokjin-last',{name:'책임감',until:q.lastUntil,duration:5000});}
+    if(!q.cast&&time>=q.modeUntil)q.mode='idle';return q;
+  }
+  function hyeokjinGuard(u,allies,time,amount,emit=()=>{}){
+    if(u.id!=='hyeokjin'||u.hp<=0)return amount;const q=hyeokjinRefresh(u,allies,time,emit);
+    if(time<q.lastUntil)amount=0;
+    if(!q.used&&u.hp-amount<=u.max*.35){q.used=true;q.until=time+8000;q.mode='transform';q.began=time;q.modeUntil=time+1000;q.cast=null;q.nextBlack=time+1000;q.nextExecute=time+4500;q.nextBasic=time+1000;emit('hyeokjin-mode',{mode:'transform',name:'어둠의 잠식',duration:1000,until:q.until});}
+    const damage=time<q.lastUntil?0:hyeokjinAwake(u,time)?Math.min(amount,Math.max(0,u.hp-1)):amount;
+    if(hyeokjinAwake(u,time)&&u.hp-damage<=u.max*.2&&!q.ultimateUsed)q.ultimateArmed=true;
+    return damage;
+  }
+  function hyeokjinHeal(u,amount,emit=()=>{},skill='피 보는 자'){
+    if(u.hp<=0)return 0;const before=u.hp,n=Math.max(0,Math.min(u.max-u.hp,Math.floor(amount)));u.hp+=n;if(n)emit('heal',{to:u.id,amount:n,hpBefore:before,hpAfter:u.hp,name:skill,skill});return n;
+  }
+  function hyeokjinRecord(u,amount,time,emit=()=>{},ultimate=false){
+    if(u?.id!=='hyeokjin'||!u.hyeokjin||amount<=0)return;const q=u.hyeokjin;
+    if(!ultimate)q.total=Math.min(1e12,q.total+amount);
+    if(!hyeokjinAwake(u,time)||u.hp<=0)return;
+    const window=Math.floor(time/1000);if(q.healWindow!==window){q.healWindow=window;q.healUsed=0;}
+    const room=Math.max(0,Math.floor(u.max*.08)-q.healUsed);q.healUsed+=hyeokjinHeal(u,Math.min(room,amount*.2),emit);
+  }
+  function validHyeokjin(q){return q===undefined||!!(q&&['idle',...Object.keys(HYEOKJIN_MOVES)].includes(q.mode)&&['used','lastUsed','ultimateUsed','ultimateArmed','executeUsed'].every(k=>typeof q[k]==='boolean')&&['until','lastUntil','total','healWindow','healUsed','began','modeUntil','nextBasic','nextHeal','nextBlack','nextExecute'].every(k=>Number.isFinite(q[k])&&q[k]>=0)&&q.total<=1e12&&Array.isArray(q.initial)&&q.initial.length>=1&&q.initial.length<=6&&new Set(q.initial).size===q.initial.length&&q.initial.every(id=>Object.hasOwn(BY_ID,id))&&(q.cast===null||q.cast&&Object.hasOwn(HYEOKJIN_MOVES,q.cast.mode)&&Number.isFinite(q.cast.at)&&q.cast.at>=0&&Number.isFinite(q.cast.amount)&&q.cast.amount>=0&&q.cast.amount<=1e12&&Array.isArray(q.cast.targets)&&q.cast.targets.length<=30&&q.cast.targets.every(id=>typeof id==='string')&&typeof q.cast.done==='boolean'&&typeof q.cast.awakened==='boolean'));}
+  function hyeokjinStep(u,allies,enemies,time,dt,hit,emit=()=>{},blocked=false,haste=1){
+    if(u.id!=='hyeokjin')return;const q=hyeokjinRefresh(u,allies,time,emit);u.energy=Math.min(10,Math.max(0,10-(q.nextHeal-time)/1000));
+    if(u.hp<=0||blocked){if(q.cast){q.cast=null;q.mode='idle';q.modeUntil=time;emit('hyeokjin-cancel',{});}return;}
+    // Injuries from older saves and non-attack damage still trigger the same gate.
+    hyeokjinGuard(u,allies,time,0,emit);
+    if(q.cast){const cast=q.cast;
+      if(!cast.done&&time>=cast.at){cast.done=true;const saved=enemies.filter(e=>e.hp>0&&cast.targets.includes(e.id));const targets=saved.length?saved:enemies.filter(e=>e.hp>0);let dealt=0;
+        if(cast.mode==='ultimate'){
+          if(targets.length&&cast.amount>0){const pool=Math.min(cast.amount,u.atk*30),primary=targets.length>1?pool*.7:pool,splash=targets.length>1?pool*.3/(targets.length-1):0;targets.forEach((e,i)=>{dealt+=hit(e,i?splash:primary,{mode:cast.mode,skill:HYEOKJIN_MOVES[cast.mode].name,fixed:true,ultimate:true});});}
+        }else{
+          const multiplier=cast.mode==='basic'?2.4:cast.mode==='recovery'?2.4:cast.mode==='black'?3.2:targets[0]?.hp/targets[0]?.max<=.3?7.5:5;
+          const victims=cast.mode==='black'?targets.slice(0,3):targets.slice(0,1);
+          for(const e of victims)dealt+=hit(e,u.atk*multiplier*(cast.awakened?1.25:1)*(time<q.lastUntil?1.3:1),{mode:cast.mode,skill:cast.mode==='basic'?null:HYEOKJIN_MOVES[cast.mode].name});
+          if(cast.mode==='recovery'&&dealt>0)hyeokjinHeal(u,u.max*.1,emit,'죽지 않는 청년');
+          if(cast.mode==='execution'&&dealt>0&&victims[0]?.hp<=0)hyeokjinHeal(u,u.max*.15,emit,'참수');
+        }
+        emit('hyeokjin-impact',{mode:cast.mode,name:HYEOKJIN_MOVES[cast.mode].name,targets:targets.map(e=>e.id),amount:dealt});
+      }
+      if(time<q.modeUntil)return;q.cast=null;q.mode='idle';
+    }
+    if(time<q.modeUntil||!enemies.some(e=>e.hp>0))return;
+    const awake=hyeokjinAwake(u,time);let mode;
+    if(awake&&!q.ultimateUsed&&q.ultimateArmed){mode='ultimate';q.ultimateUsed=true;}
+    else if(awake&&!q.executeUsed&&time>=q.nextExecute){mode='execution';q.executeUsed=true;}
+    else if(awake&&time>=q.nextBlack){mode='black';q.nextBlack=time+4000;}
+    else if(!awake&&time>=q.nextHeal){mode='recovery';q.nextHeal=time+10000;}
+    else if(time>=q.nextBasic)mode='basic';else return;
+    const speed=mode==='basic'?Math.max(.5,Math.min(2,haste)):1,def=HYEOKJIN_MOVES[mode];
+    const began=mode==='basic'&&q.nextBasic>time-dt?Math.min(time,q.nextBasic):time;
+    q.mode=mode;q.began=began;q.modeUntil=began+def.duration/speed;q.nextBasic=began+(awake?1400:1800)/speed;
+    q.cast={mode,at:Math.ceil((began+def.hit/speed)/dt)*dt,amount:mode==='ultimate'?Math.min(q.total,u.atk*30):0,targets:enemies.filter(e=>e.hp>0).map(e=>e.id),done:false,awakened:awake};
+    q.modeUntil=Math.max(q.modeUntil,q.cast.at+Math.min(dt,300));
+    emit('hyeokjin-mode',{mode,name:def.name,duration:q.modeUntil-time,impactDelay:q.cast.at-time,awakened:awake,until:q.until});
+  }
+
   const KAZUA_RULES = Object.freeze({fireMs:3000,reloadMs:2000,volleyMs:500,basicMultiplier:.55,pistolMs:5000,pistolMultiplier:2.4,bazookaMs:15000,bazookaMultiplier:3.2,redMs:20000,redDuration:3000,redMultiplier:16,splash:.35,evasion:.1,aggro:.4,fallenBonus:.12,lastBonus:.2});
   function kazuaPower(allies,initial=allies.map(u=>u.id)) {
     const original=allies.filter(u=>initial.includes(u.id)),fallen=original.filter(u=>u.id!=='kazua'&&u.hp<=0).length;
@@ -723,7 +789,8 @@
   }
   function freshHeroes(s, previousOsia) {
     const synergy = partySynergies(s);
-    return s.team.map(id => { const st = stats(id, s.units[id], s); return { id, hp: st.hp, max: st.hp, atk: st.atk, defense: 1 - (1 - st.defense) * synergy.incomingMultiplier, damageMultiplier: synergy.damageMultiplier, healMultiplier: synergy.healMultiplier, critChance: st.critChance, critMultiplier: st.critMultiplier, energy: id === "osia" && previousOsia ? previousOsia.energy : 0, shield: 0, ...(exclusivePassive(s,id)?{exclusive:exclusivePassive(s,id)}:{}) }; });
+    const heroes = s.team.map(id => { const st = stats(id, s.units[id], s); return { id, hp: st.hp, max: st.hp, atk: st.atk, defense: 1 - (1 - st.defense) * synergy.incomingMultiplier, damageMultiplier: synergy.damageMultiplier, healMultiplier: synergy.healMultiplier, critChance: st.critChance, critMultiplier: st.critMultiplier, energy: id === "osia" && previousOsia ? previousOsia.energy : 0, shield: 0, ...(exclusivePassive(s,id)?{exclusive:exclusivePassive(s,id)}:{}) }; });
+    heroes.forEach(u=>hyeokjinInit(u,heroes));return heroes;
   }
   function monsterAbility(enemy, stage) {
     if (enemy.boss || stage < 11) return enemy;
@@ -828,7 +895,7 @@
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
       profile: {avatar:'leader',title:'',beta:false}, gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
-      banners: { standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
+      banners: { hyeokjin:{pity:0,guaranteed:false}, standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], codexClaimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
@@ -915,7 +982,7 @@
       (s.battle.cinematic === undefined || s.battle.cinematic && s.battle.cinematic.from === "osia" && [STEP_MS, OSIA_CINEMATIC_MS].includes(s.battle.cinematic.duration) && Number.isFinite(s.battle.cinematic.remaining) && s.battle.cinematic.remaining > 0 && s.battle.cinematic.remaining <= s.battle.cinematic.duration && Number.isInteger(s.battle.cinematic.resumeIndex) && s.battle.cinematic.resumeIndex >= 1 && s.battle.cinematic.resumeIndex <= s.battle.heroes.length) &&
       validQuestState(s.quests) &&
       (!s.battle.osiaCast?.breath||s.battle.osiaCast.stage===4&&Number.isInteger(s.battle.osiaCast.tick)&&s.battle.osiaCast.tick>=0&&s.battle.osiaCast.tick<=OSIA_BREATH_RULES.ticks) &&
-      validHoras(s.battle) && s.battle.heroes.every(h=>validKazua(h.kazua)&&validOsiaWeapon(h.osiaWeapon)) &&
+      validHoras(s.battle) && s.battle.heroes.every(h=>validKazua(h.kazua)&&validHyeokjin(h.hyeokjin)&&validOsiaWeapon(h.osiaWeapon)) &&
       validActivities(s.activities) &&
       (s.battle.activity === undefined || s.activities?.run && s.battle.runId === s.activities.run.id && s.battle.activity.kind === s.activities.run.kind) &&
       (!s.activities?.run || s.battle.activity && (s.activities.run.settled ? s.activities.lastResult?.runId === s.activities.run.id && ["victory", "defeat"].includes(s.battle.phase) : s.battle.phase === "fight")) &&
@@ -1027,14 +1094,16 @@
     if(side==='enemy'&&target.shield>0&&!detail.directHp){const absorbed=Math.min(target.shield,amount);target.shield-=absorbed;amount-=absorbed;event(s,'shield',{to:target.id,side:'enemy',amount:absorbed});}
     if (stunBonus) detail = { ...detail, stunBonus: true };
     if (side === "hero") {
+      const b = s.battle;
       amount = Math.max(1, Math.round(amount * (1 - target.defense) * (earthGuard.hero ? 1-RYUSION_RULES.teamReduction : 1) * (earthGuard.taunting&&target===earthGuard.hero ? 1-ryusionDefense(earthGuard.hero).tauntReduction : 1)));
+      if(target.id==='hyeokjin'&&b.elapsed<hyeokjinRefresh(target,b.heroes,b.elapsed,(kind,extra)=>event(s,kind,{from:target.id,...extra})).lastUntil)amount=0;
       const shield = Math.min(target.shield, amount); target.shield -= shield; amount -= shield;
       const earthAbsorbed=Math.min(shield,target.earthShield||0);meter(s,'ryusion','absorbed',earthAbsorbed);
       let rest=shield-earthAbsorbed;
       for(const source of Object.keys(target.shieldSources||{})){const used=Math.min(rest,target.shieldSources[source]);target.shieldSources[source]-=used;rest-=used;meter(s,source,'absorbed',used);}
       absorbEarthShield(target,shield);
       if (shield) event(s, "shield", { to: target.id, amount: shield, ...(detail.redirectedFrom?{redirectedFrom:detail.redirectedFrom}:{}) });
-      const b = s.battle;
+      amount=hyeokjinGuard(target,b.heroes,b.elapsed,amount,(kind,extra)=>event(s,kind,{from:'hyeokjin',...extra}));
       if (amount >= target.hp && !b.lavaRescueUsed && b.heroes.some(h => h.id === "lava" && h.hp > 0)) {
         b.lavaRescueUsed = true; target.indomitableUntil = b.elapsed + 2000;
         event(s, "rescue", { from: "lava", to: target.id, duration: 2000, until: target.indomitableUntil, element: "wind" });
@@ -1052,6 +1121,7 @@
         hs.lastHitStackAt = s.battle.elapsed; horasStack(s, 1, "hit", from);
       }
     }
+    if(side==='enemy'&&from==='hyeokjin')hyeokjinRecord(s.battle.heroes.find(h=>h.id==='hyeokjin'),amount,s.battle.elapsed,(kind,extra)=>{if(kind==='heal')meter(s,'hyeokjin','healing',extra.amount);event(s,kind,{from:'hyeokjin',...extra});},!!detail.ultimate);
     if (target.hp <= 0 && side === "enemy") {
       s.kills++;
       if (questCombatEligible(s)) questProgress(s, "kills");
@@ -1206,7 +1276,7 @@
   }
   function spicaHalfTurn(s) {
     const b=s.battle;
-    for(const hero of b.heroes){if(hero.hp<=0||hero.id==='kazua'||b.elapsed<(hero.stunUntil||0))continue;const enemies=b.enemies.filter(e=>e.hp>0);if(!enemies.length)break;
+    for(const hero of b.heroes){if(hero.hp<=0||hero.id==='kazua'||hero.id==='hyeokjin'||b.elapsed<(hero.stunUntil||0))continue;const enemies=b.enemies.filter(e=>e.hp>0);if(!enemies.length)break;
       if(hero.id==='horas'){horasTurn(s,hero,enemies);continue;}
       if(hero.id==='osia'&&b.osiaCast)continue;
       if(basicDue(hero,b.elapsed))heroBasic(s,hero,enemies);
@@ -1244,6 +1314,8 @@
     const osia=b.heroes.find(h=>h.id==='osia');
     if(osia)osiaWeaponStep(osia,b.enemies,b.elapsed,STEP_MS,(target,amount,detail)=>hurt(s,'osia',target,amount,'enemy',true,detail),(kind,extra)=>event(s,kind,{from:'osia',...extra}),b.elapsed<(osia.stunUntil||0));
     horasStep(s);
+    const berserker=b.heroes.find(h=>h.id==='hyeokjin');
+    if(berserker)hyeokjinStep(berserker,b.heroes,b.enemies,b.elapsed,STEP_MS,(target,amount,detail)=>{const critical=!detail.fixed&&random(s)<(berserker.critChance??CRITICAL.chance);return hurt(s,berserker.id,target,detail.fixed?amount:amount*(berserker.damageMultiplier||1)*(b.buff?1.3:1)*(.9+random(s)*.2)*(critical?berserker.critMultiplier||CRITICAL.multiplier:1),'enemy',!!detail.skill,{...detail,critical});},(kind,extra)=>{if(kind==='heal')meter(s,'hyeokjin','healing',extra.amount);event(s,kind,{from:'hyeokjin',...extra});},b.elapsed<(berserker.stunUntil||0),basicAttackRate(berserker,b.elapsed));
     const gunner=b.heroes.find(h=>h.id==='kazua');
     if(gunner)kazuaStep(gunner,b.heroes,b.enemies,b.elapsed,STEP_MS,(target,mult,detail)=>{
       const critical=random(s)<(gunner.critChance??CRITICAL.chance);
@@ -1277,7 +1349,7 @@
   function combatTurn(s, startIndex, osiaImpact) {
     const b = s.battle,rhythm=spicaRhythm(b);
     for (let index = startIndex; index < b.heroes.length; index++) {
-      const hero = b.heroes[index]; if (hero.hp <= 0 || hero.id==='kazua'||b.elapsed<(hero.stunUntil||0)) continue;
+      const hero = b.heroes[index]; if (hero.hp <= 0 || hero.id==='kazua'||hero.id==='hyeokjin'||b.elapsed<(hero.stunUntil||0)) continue;
       const enemies = b.enemies.filter(e => e.hp > 0); if (!enemies.length) break;
       const def = BY_ID[hero.id];
       if (hero.id === "horas") { horasTurn(s, hero, enemies); continue; }
@@ -1446,16 +1518,16 @@
       const ur = odds.UR || 0;
       let rarity = roll < ur ? "UR" : roll < Math.round((ur + odds.SSR) * 1e9) / 1e9 ? "SSR" : roll < Math.round((ur + odds.SSR + odds.SR) * 1e9) / 1e9 ? "SR" : "R";
       const pity = progress.pity >= RECRUIT_PITY.hard - 1;
-      if (pity) rarity = banner === "horas" ? "UR" : "SSR";
+      if (pity) rarity = isURBanner(banner) ? "UR" : "SSR";
       if (count === 10 && i === 9 && !premium && rarity === "R") rarity = "SR";
       if (rarity !== "R") premium = true;
       // One grade roll and one character roll per slot, including a guaranteed
       // featured SSR, keeps replay and ten-pull sequencing deterministic.
       const pick = Math.max(0, Math.min(1 - Number.EPSILON, rng()));
-      const guaranteed = banner === "horas" ? rarity === "UR" && pity : rarity === "SSR" && progress.guaranteed;
+      const guaranteed = isURBanner(banner) ? rarity === "UR" && pity : rarity === "SSR" && progress.guaranteed;
       let h;
-      if (rarity === "UR") h = BY_ID.horas;
-      else if (rarity === "SSR" && banner === "horas") h = BY_ID[STANDARD_SSR[Math.min(STANDARD_SSR.length - 1, Math.floor(pick * STANDARD_SSR.length))]];
+      if (rarity === "UR") h = BY_ID[featured];
+      else if (rarity === "SSR" && isURBanner(banner)) h = BY_ID[STANDARD_SSR[Math.min(STANDARD_SSR.length - 1, Math.floor(pick * STANDARD_SSR.length))]];
       else if(rarity==='SSR'&&banner==='standard'){
         h=BY_ID[guaranteed?guaranteedHero:STANDARD_SSR[Math.floor(pick*STANDARD_SSR.length)]];
         if(guaranteed)progress.guarantees--;progress.guaranteed=progress.guarantees>0;
@@ -1466,13 +1538,13 @@
         const candidates = HEROES.filter(hero => hero.rarity === rarity);
         h = candidates[Math.min(candidates.length - 1, Math.floor(pick * candidates.length))];
       }
-      if(rarity===(banner==='horas'?'UR':'SSR')){progress.pity=banner==='standard'?progress.reserve:0;if(banner==='standard')progress.reserve=0;}else progress.pity++;
+      if(rarity===(isURBanner(banner)?'UR':'SSR')){progress.pity=banner==='standard'?progress.reserve:0;if(banner==='standard')progress.reserve=0;}else progress.pity++;
       const fresh = !s.units[h.id], shards = rarity === "UR" ? 30 : rarity === "SSR" ? 20 : rarity === "SR" ? 10 : 5;
       const converted=!fresh&&s.units[h.id].stars===5&&shardWallet.unlocked&&['SR','SSR'].includes(rarity)?{rarity,count:10}:null;
       if (fresh) {s.units[h.id] = { level: 1, xp: 0, stars: 0, shards: s.heroShards?.[h.id]||0 };if(s.heroShards)delete s.heroShards[h.id];}
       else if(converted){s.shardExchange||={SR:0,SSR:0};s.shardExchange[rarity]+=10;}
       else s.units[h.id].shards += shards;
-      results.push({ id: h.id, fresh, shards: fresh || converted ? 0 : shards, ...(converted?{converted}:{}), pity, ssrChance: odds.SSR, ...(banner === "horas" ? { urChance: odds.UR } : {}), banner, featured: h.id === featured, guaranteed, lostFeatured: banner !== "horas" && banner !== "standard" && rarity === "SSR" && h.id !== featured });
+      results.push({ id: h.id, fresh, shards: fresh || converted ? 0 : shards, ...(converted?{converted}:{}), pity, ssrChance: odds.SSR, ...(isURBanner(banner) ? { urChance: odds.UR } : {}), banner, featured: h.id === featured, guaranteed, lostFeatured: !isURBanner(banner) && banner !== "standard" && rarity === "SSR" && h.id !== featured });
     }
     nextBanners[banner] = progress; s.banners = nextBanners; s.pity = nextBanners.standard.pity;
     s.gems -= cost; s.pulls += count; s.history = results.concat(s.history).slice(0, 30);
@@ -1799,5 +1871,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_CHARACTERS,BOND_DAILY_LIMIT,SHARD_SSR,BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { isURBanner,HYEOKJIN_RULES,HYEOKJIN_MOVES,hyeokjinInit,hyeokjinAwake,hyeokjinRefresh,hyeokjinGuard,hyeokjinRecord,hyeokjinStep,validHyeokjin, OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_CHARACTERS,BOND_DAILY_LIMIT,SHARD_SSR,BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

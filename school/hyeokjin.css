@@ -1,0 +1,23 @@
+/* Keep the complete illustration inside its own area on wide and narrow screens. */
+.app #tab-recruit[data-pickup=hyeokjin][data-recruit-category=heroes]{--pickup-accent:#71374e;--pickup-soft:#ffd3e3;background:#1b1523}
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-stage{background:#1b1523;background-image:none}
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-copy{width:29%;max-width:none;background:linear-gradient(90deg,#231728,#201526ee);z-index:2;padding-inline:clamp(12px,2vw,30px);color:#ffe9ee}
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-illustrations{inset:0 0 0 29%;background:#1b1523}
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-preview{inset:0;width:100%;height:100%;padding:0}
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-preview img{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;object-position:center;transform:none;visibility:visible;filter:none}
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-hero-title strong{color:#fff0f6;text-shadow:0 2px #702631}
+.app #tab-recruit[data-pickup=hyeokjin] #pickup-tagline,.app #tab-recruit[data-pickup=hyeokjin] #pickup-element,.app #tab-recruit[data-pickup=hyeokjin] .recruit-count{color:#f2cfdd}
+.app #tab-recruit[data-pickup=hyeokjin] .recruit-buttons .primary{background:linear-gradient(135deg,#a63d67,#612e53);color:#fff4f8;border-color:#e8a3c1}
+.school-presentation[data-cinematic=hyeokjin] .presentation-scene{background:#160d20;overflow:hidden}
+.hyeok-recruit-art{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0}
+.hyeok-recruit-copy{position:absolute;inset:auto 0 0;padding:36px 20px 16px;text-align:left;background:linear-gradient(transparent,#170e23ee 40%);color:#fff0f7;opacity:0}
+.hyeok-recruit-copy b{font-size:clamp(20px,4vw,34px);color:#ffe4aa}.hyeok-recruit-copy p{font-size:clamp(12px,2vw,16px);margin:8px 0 0}
+.hyeok-recruit-seal{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);border-block:2px solid #ef81b3;color:#ffe3f0;padding:25px;white-space:nowrap;text-shadow:0 0 16px #ff467d;font-size:clamp(22px,4vw,36px)}
+@media(max-width:680px) and (orientation:portrait){
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-copy{width:100%;padding:14px 18px;background:#231728;order:2}
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-stage{display:flex;flex-direction:column}
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-illustrations{position:relative;inset:auto;width:100%;height:auto;aspect-ratio:3/2;min-height:190px;order:1}
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-preview{position:absolute}
+}
+
+.app #tab-recruit[data-pickup=hyeokjin] .pickup-preview>span{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);white-space:nowrap}

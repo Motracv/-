@@ -106,7 +106,7 @@ test('Each hero performs their automatic skill; damage and healing stay bounded'
     const s=G.create(1000,21);s.units[hero.id]={level:1,xp:0,stars:0,shards:0};s.team=[hero.id,...['taeo','harin','sua'].filter(id=>id!==hero.id)].slice(0,3);
     G.action(s,{kind:'stage',stage:1,mode:'farm'});
     for(const e of s.battle.enemies){e.hp=e.max=100000;e.atk=1;} for(const h of s.battle.heroes)h.hp=Math.floor(h.max*.75);
-    run(s,Math.max(8,hero.cooldown+1));assert.ok(s.events.some(e=>(e.kind==='skill'||e.kind==='kazua-shot'&&e.mode==='red')&&e.from===hero.id),hero.id);
+    run(s,Math.max(8,hero.cooldown+1));assert.ok(s.events.some(e=>(e.kind==='skill'||e.kind==='kazua-shot'&&e.mode==='red'||e.kind==='hyeokjin-mode'&&e.mode==='recovery')&&e.from===hero.id),hero.id);
     assert.ok(s.battle.heroes.every(h=>h.hp>=0&&h.hp<=h.max&&h.shield>=0));
     if(hero.role==='치유') assert.ok(s.events.some(e=>e.kind==='heal'&&e.from===hero.id));
     if(hero.role==='수호'&&hero.id!=='ryusion') assert.ok(s.events.some(e=>e.kind==='guard'&&e.to===hero.id));
