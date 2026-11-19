@@ -36,7 +36,7 @@ const document={hidden:false,createElement:()=>new Canvas()},window={SchoolRPG:G
 const sandbox={window,document,SchoolRPG:G,Image,Event,console,Uint8ClampedArray,Promise,
  setTimeout:f=>0,clearTimeout(){}};
 const load=file=>vm.runInNewContext(fs.readFileSync(file,'utf8'),sandbox,{filename:file});
-load('school/osia-weapon-art.js');load('school/art.js');sandbox.SchoolArt=window.SchoolArt;load('school/raid-vfx.js');
+load('school/osia-weapon-art.js');load('school/battle-polish.js');load('school/art.js');sandbox.SchoolArt=window.SchoolArt;load('school/raid-vfx.js');
 const W=window.SchoolOsiaWeaponArt,A=window.SchoolArt,canvas=new Canvas(),c=canvas.getContext('2d');
 const ex={id:'osia_scepter'},owner={id:'osia',exclusive:ex};
 assert(W.equipped(owner));assert(!W.equipped({id:'taeo',exclusive:ex}));assert(!W.equipped({id:'osia'}));

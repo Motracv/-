@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 32;
+  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 33;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -386,7 +386,7 @@
     stars=clamp(Math.floor(stars)||0,0,5);
     const strength=(10+stars*1.6)/100, skill=(12+stars*1.6)/100;
     if(def.owner==='osia')return {id:item,owner:def.owner,name:def.passive,stars,divine:true,attack:.35+stars*.02,vitality:.25,basic:.25+stars*.03,skill:.6+stars*.04,dragon:1.6,dragonShield:.8+stars*.08,
-      description:`오시아 전용: 공격력 +${35+stars*2}%, 최대 HP +25%, 평타 피해 +${25+stars*3}%, 물 스킬 피해 +${60+stars*4}%. 거대 수룡이 용의 신수로 변화하며 피해가 추가로 60% 증가하고 공격력 ${80+stars*8}%의 보호막을 얻습니다. 10초마다 해연의 창이 적 하나에게 2초 동안 최대 HP 10%의 익사 피해(마법 속성·방어/보호막 무시)를 줍니다. 보스도 최대 HP 10% 적용. 마법 피해 감소는 적용되며 아레나에서만 공격력 250% 한도입니다.`};
+      description:`오시아 전용: 공격력 +${35+stars*2}%, 최대 HP +25%, 평타 피해 +${25+stars*3}%, 물 스킬 피해 +${60+stars*4}%. 거대 수룡이 용의 신수로 변화하며 피해가 추가로 60% 증가하고 공격력 ${80+stars*8}%의 보호막을 얻습니다. 전투당 최초 1회, 전투 시작 10초 후 해연의 창이 적 하나에게 2초 동안 최대 HP 10%의 익사 피해(마법 속성·방어/보호막 무시)를 줍니다. 길드 보스에게는 발동하지 않습니다. 다른 보스는 최대 HP 10% 적용. 마법 피해 감소는 적용되며 아레나에서만 공격력 250% 한도입니다.`};
     if(def.owner==='ryusion')return {id:item,owner:def.owner,name:def.passive,stars,tauntReduction:.68+.008*stars,shieldRatio:.105+.003*stars,tauntShieldRatio:.03+.004*stars,
       description:`도발 중 피해 감소 ${68+.8*stars}%. 전체 보호막이 최대 HP ${(10.5+.3*stars).toFixed(1)}%로 증가. 도발 시작 시 본인에게 최대 HP ${3+.4*stars}%의 대지 보호막(기존 보호막과 중첩되지 않음). 아군 피해 감소 8%는 그대로 유지됩니다.`};
     return {id:item,owner:def.owner,name:def.passive,stars,strength,skill,
@@ -406,15 +406,17 @@
   function validOsiaWeapon(value){
     if(value===undefined)return true;
     const time=n=>Number.isSafeInteger(n)&&n>=0,d=value?.dot;
-    return !!(value&&time(value.lastAt)&&time(value.nextAt)&&(d===undefined||d&&typeof d.targetId==='string'&&d.targetId.length<=100&&time(d.nextAt)&&Number.isSafeInteger(d.remaining)&&d.remaining>=1&&d.remaining<=4&&Number.isSafeInteger(d.total)&&d.total>=0&&Number.isSafeInteger(d.paid)&&d.paid>=0&&d.paid<=d.total));
+    return !!(value&&time(value.lastAt)&&time(value.nextAt)&&(value.used===undefined||typeof value.used==='boolean')&&(d===undefined||d&&typeof d.targetId==='string'&&d.targetId.length<=100&&time(d.nextAt)&&Number.isSafeInteger(d.remaining)&&d.remaining>=1&&d.remaining<=4&&Number.isSafeInteger(d.total)&&d.total>=0&&Number.isSafeInteger(d.paid)&&d.paid>=0&&d.paid<=d.total));
   }
   // One shared clock drives campaign, raids and PvP. A resumed/stunned caster
   // never drains a cooldown backlog into one rendered frame.
   function osiaWeaponStep(unit,targets,now,delta,hit,emit,blocked=false,context={}){
     if(!unit)return;
-    if(!osiaDivine(unit)){delete unit.osiaWeapon;return;}
+    if(!osiaDivine(unit)||context.guildRaid){delete unit.osiaWeapon;return;}
     const rule=OSIA_WEAPON_RULES;
-    const state=unit.osiaWeapon||={lastAt:Math.max(0,now-delta),nextAt:Math.max(0,now-delta)+rule.interval};
+    const state=unit.osiaWeapon||={lastAt:Math.max(0,now-delta),nextAt:Math.max(0,now-delta)+rule.interval,used:false};
+    // Legacy active battles may already have spent their first cast.
+    if(state.used===undefined)state.used=!!state.dot||state.nextAt>rule.interval;
     if(now<=state.lastAt)return;
     const dt=Math.min(delta,now-state.lastAt);state.lastAt=now;
     if(unit.hp<=0){delete state.dot;state.nextAt=now+rule.interval;return;}
@@ -424,11 +426,11 @@
       else if(now>=dot.nextAt){const cumulative=Math.round(dot.total*(rule.ticks-dot.remaining+1)/rule.ticks),amount=cumulative-dot.paid;dot.paid=cumulative;dot.remaining--;dot.nextAt=now+rule.tickMs;
         if(amount>0)hit(target,amount,{drowning:true,directHp:true,damageType:'magic',critical:false,name:'익사'});if(!dot.remaining)delete state.dot;}
     }
-    if(now<state.nextAt||state.dot)return;
+    if(state.used||now<state.nextAt||state.dot)return;
     const target=targets.find(e=>e.hp>0);if(!target)return;
     const cap=context.arena?unit.atk*rule.arenaCap:Infinity;
     const total=Math.max(0,Math.floor(Math.min(target.max*rule.healthRatio,cap)));
-    state.nextAt=now+rule.interval;state.dot={targetId:target.id,total,paid:0,remaining:rule.ticks,nextAt:now+rule.tickMs};
+    state.used=true;state.nextAt=now+rule.interval;state.dot={targetId:target.id,total,paid:0,remaining:rule.ticks,nextAt:now+rule.tickMs};
     emit('osia-drowning',{to:target.id,target:target.id,targets:[target.id],name:'해연의 창 · 익사',duration:rule.tickMs*rule.ticks,until:now+rule.tickMs*rule.ticks,element:'water',divine:true});
   }
   function weaponRates(pity=0) { const r=recruitRates(pity); return {EX:r.SSR,SR:r.SR,R:r.R}; }
@@ -826,7 +828,7 @@
       profile: {avatar:'leader',title:'',beta:false}, gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
       banners: { standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
-      offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
+      offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], codexClaimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
   }
@@ -898,6 +900,7 @@
       validActivities(s.activities) &&
       (s.battle.activity === undefined || s.activities?.run && s.battle.runId === s.activities.run.id && s.battle.activity.kind === s.activities.run.kind) &&
       (!s.activities?.run || s.battle.activity && (s.activities.run.settled ? s.activities.lastResult?.runId === s.activities.run.id && ["victory", "defeat"].includes(s.battle.phase) : s.battle.phase === "fight")) &&
+      (s.codexClaimed===undefined||Array.isArray(s.codexClaimed)&&s.codexClaimed.length<=HEROES.length&&new Set(s.codexClaimed).size===s.codexClaimed.length&&s.codexClaimed.every(id=>Object.hasOwn(BY_ID,id)&&!!s.units[id])) &&
       Array.isArray(s.events) && Array.isArray(s.logs) && Array.isArray(s.claimed) && Array.isArray(s.receipts) && Array.isArray(s.history) &&
       (s.redeemedCodes === undefined || Array.isArray(s.redeemedCodes) && s.redeemedCodes.length <= 1000 && new Set(s.redeemedCodes).size === s.redeemedCodes.length && s.redeemedCodes.every(code => typeof code === "string" && /^[A-Z0-9_]{1,40}$/.test(code))) &&
       s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) &&
@@ -1497,6 +1500,14 @@
     if(kind==='bond-read') {
       const e=bondInfo(s,now).episodes.find(e=>e.id===input.episode);fail(e?.unlocked,'오시아 영입·인연 레벨·이전 이야기를 확인하세요.');
       const b=bondState(s),fresh=!b.read.includes(e.id);if(fresh)b.read.push(e.id);return {kind,episode:e.id,fresh,reward:e.reward};
+    }
+    if(kind==='codex-claim'){
+      const id=input.hero;
+      fail(typeof id==='string'&&Object.hasOwn(BY_ID,id)&&!!s.units[id],'보유한 용병의 보상만 받을 수 있어요.');
+      fail(!(s.codexClaimed||[]).includes(id),'이미 받은 도감 보상이에요.');
+      fail(Number.isSafeInteger(s.gems+100),'보석 수량을 확인해 주세요.');
+      (s.codexClaimed||=[]).push(id);s.gems+=100;
+      return {kind,hero:id,gems:100};
     }
     if (kind === 'profile') {
       const current = profileInfo(s), avatar = input.avatar ?? current.avatar, title = input.title ?? current.title;

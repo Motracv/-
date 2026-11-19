@@ -1,0 +1,36 @@
+/* Separate collection inspection and one-time rewards. */
+.codex-card{min-width:0;display:flex;flex-direction:column;border:1px solid #64748b;border-radius:12px;overflow:hidden;background:#17283b}
+.codex-card .codex-entry{border:0;border-radius:0;width:100%;height:100%;min-height:190px;position:relative}
+.codex-picture{display:block;position:relative}.codex-card .codex-picture img{max-height:112px;object-fit:contain}
+.codex-card.is-locked .codex-entry{filter:grayscale(1);color:#c6ccd4;background:#27313d}.codex-card.is-locked img{opacity:.45}
+.codex-card.is-locked small{color:#c6ccd4}
+.codex-lock{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:24px;text-shadow:0 2px 6px #000}
+.app .codex-claim{border:0;border-top:1px solid #7697b5;border-radius:0;min-height:44px;font-weight:800;font-size:14px;background:#c2ecff;color:#123c59;width:100%;padding:9px 4px}
+.app .codex-claim:disabled{background:#273747;color:#b3c1cc;opacity:1;cursor:default}
+/* Artwork gets its own column; no cover-crop or text layered on the character. */
+.app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes]{background:#111c30;overflow-y:auto;grid-template-rows:auto minmax(210px,1fr) auto}
+.app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes] .pickup-stage{display:grid;grid-template-columns:minmax(180px,30%) minmax(0,1fr);background:#111c30;min-height:210px;overflow:visible}
+.app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes] .pickup-copy{grid-column:1;width:auto;max-width:none;height:auto;padding:16px 18px;gap:8px;background:#142239;min-width:0}
+.app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes] .pickup-illustrations{grid-column:2;position:relative;inset:auto;min-width:0;min-height:200px}
+.app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes] .pickup-preview{padding:8px;gap:6px}
+.app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes] .pickup-preview img{visibility:visible;object-fit:contain;object-position:center;image-rendering:auto;filter:none;width:100%;height:calc(100% - 46px);min-height:0}
+.app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas]) #pickup-name{font-size:clamp(25px,3.5vw,52px)}
+.app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas]) .pickup-hero-title{margin-top:0}
+.lobby-panel{background-image:url('assets/lobby/courtyard-winter.webp?v=winter-polish1')}
+.lobby-snow{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.lobby-snow::before,.lobby-snow::after{content:'';position:absolute;inset:-100% -30px 0;opacity:.45;background-image:radial-gradient(circle,#eaf8ff 1.5px,transparent 2px),radial-gradient(circle,#eaf8ff 1px,transparent 1.6px);background-size:143px 163px,211px 197px;background-position:0 0,87px 61px;animation:lobby-snow-drift 24s linear infinite;animation-play-state:paused}
+.lobby-snow::after{opacity:.22;transform:translateX(41px);animation-duration:36s;background-size:227px 191px,311px 241px}
+.app[data-tab=lobby] .lobby-snow::before,.app[data-tab=lobby] .lobby-snow::after{animation-play-state:running}
+@keyframes lobby-snow-drift{from{translate:-12px -8%}to{translate:18px 42%}}
+html[data-motion=reduced] .lobby-snow{display:none}
+@media(prefers-reduced-motion:reduce){.lobby-snow{display:none}}
+@media(max-height:620px) and (orientation:landscape){
+ .app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas]) .pickup-copy{padding:8px 14px;gap:4px}
+ .app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas]) .pickup-skill-list{margin-top:0}
+}
+@media(max-width:640px) and (orientation:portrait){
+ .app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes]{grid-template-rows:auto auto auto}
+ .app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes] .pickup-stage{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;min-height:0}
+ .app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes] .pickup-illustrations{grid-column:1;grid-row:1;min-height:0;aspect-ratio:1.35}
+ .app #tab-recruit:is([data-pickup=kazua],[data-pickup=horas])[data-recruit-category=heroes] .pickup-copy{grid-column:1;grid-row:2;width:auto;justify-content:flex-start}
+}

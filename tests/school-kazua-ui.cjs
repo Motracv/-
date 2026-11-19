@@ -17,6 +17,18 @@ for(const banner of Object.keys(G.BANNERS)){context.selectedBanner=banner;vm.run
 context.selectedBanner='standard';context.state.banners.standard={pity:79,reserve:79,guarantees:2,guaranteed:true};context.standardGuarantee='lava';vm.runInContext('renderRecruitment();ratesModal()',context);assert(!nodes.get('standard-guarantee').hidden);assert(nodes.get('banner-status').textContent.includes('라바'));assert(modal.includes('확정')&&modal.includes('79'));
 context.recruitCategory='weapons';vm.runInContext('renderRecruitment()',context);assert.equal(context.selectedBanner,'osia');assert.deepEqual(visible(),['ryusion','horas','osia','lava']);assert(nodes.get('standard-guarantee').hidden);
 context.recruitCategory='heroes';vm.runInContext('renderRecruitment()',context);assert.equal(context.selectedBanner,'standard');assert.deepEqual(visible(),['kazua','standard','ryusion','horas']);
-const html=fs.readFileSync('school.html','utf8'),sw=fs.readFileSync('school-sw.js','utf8');assert(html.indexOf('school/kazua-art.js')<html.indexOf('school/art.js'));assert(html.includes('school/kazua.css?v=school-osia-look4'));assert(sw.includes("'kazua-art.js','kazua.css'"));assert(sw.includes("['combat.webp','portrait.webp','pickup.webp']"));for(const file of ['combat','portrait','pickup'])assert(fs.existsSync(`school/assets/kazua/${file}.webp`));
-assert(fs.readFileSync('school/farming-worker.js','utf8').includes("engine.js?v=school-osia-look4"));assert(fs.readFileSync('school/qol.js','utf8').includes("farming-worker.js?v=school-osia-look4"));
+const html=fs.readFileSync('school.html','utf8'),sw=fs.readFileSync('school-sw.js','utf8');assert(html.indexOf('school/kazua-art.js')<html.indexOf('school/art.js'));assert(html.includes('school/kazua.css?v=school-winter-polish1'));assert(sw.includes("'kazua-art.js','kazua.css'"));assert(sw.includes("['combat.webp','portrait.webp','pickup.webp']"));for(const file of ['combat','portrait','pickup'])assert(fs.existsSync(`school/assets/kazua/${file}.webp`));
+assert(fs.readFileSync('school/farming-worker.js','utf8').includes("engine.js?v=school-winter-polish1"));assert(fs.readFileSync('school/qol.js','utf8').includes("farming-worker.js?v=school-winter-polish1"));
 console.log('PASS actual recruitment rendering/rate panels, standard guarantee selection, separate weapon tabs, merged previews and atomic release assets');
+
+context.Art={rosterPortrait:id=>`portrait-${id}`};
+vm.runInContext(source.slice(source.indexOf('  function codexModal()'),source.indexOf('  function heroDetail(')),context);
+const entry=id=>modal.match(new RegExp(`<article[^>]*>.*?data-codex-hero="${id}".*?</article>`))?.[0].split('<article').pop();
+vm.runInContext('codexModal()',context);
+assert(entry('osia').includes('is-locked'));assert(entry('osia').includes('codex-lock'));assert(entry('osia').includes('data-codex-claim="osia" disabled'));
+assert(!entry('taeo').includes('is-locked'));assert(!entry('taeo').includes('data-codex-claim="taeo" disabled'));
+G.action(context.state,{kind:'codex-claim',hero:'taeo'},context.state.at);vm.runInContext('codexModal()',context);
+assert(entry('taeo').includes('수령 완료'));assert(entry('taeo').includes('data-codex-claim="taeo" disabled'));
+context.state.units.osia={level:1,xp:0,stars:0,shards:0};vm.runInContext('codexModal()',context);
+assert(!entry('osia').includes('is-locked'));assert(!entry('osia').includes('codex-lock'));assert(!entry('osia').includes('data-codex-claim="osia" disabled'));
+console.log('PASS real codex markup locks missing heroes, enables owned rewards, persists claimed state and unlocks a newly acquired hero');

@@ -99,6 +99,7 @@ window.SchoolRaidFX=(()=>{
    c.save();c.globalAlpha=1-f*f;c.font=`800 ${Math.max(13,Math.min(20,h*.065))}px Pretendard, sans-serif`;c.textAlign='center';c.lineWidth=3;c.strokeStyle='#102034';c.strokeText(word,x,y);c.fillStyle=e.kind==='heal'?'#afffc5':e.kind==='hurt'&&e.amount?'#ffb0a0':e.kind==='shield'||e.absorbed?'#c6edff':e.crit?'#ffe98c':'#fff9e2';c.fillText(word,x,y);
    if(e.crit)star(c,x-30,y-6,6,'#ffeb85',.2);if(e.kind==='hurt'&&e.amount&&e.absorbed){c.font='11px Pretendard, sans-serif';c.fillStyle='#b6e7ff';c.fillText('보호막 '+e.absorbed,x,y+13);}c.restore();
   }
+  if(live){window.SchoolBattlePolish?.speedField(c,units,[{...battle.boss,boss:true}],t,w,8);window.SchoolBattlePolish?.focus(c,own,now,w,h,reduced);}
   c.restore();return{effects:recent.length,hits:own.filter(e=>e.kind==='hurt').length};
  }
  return{draw};

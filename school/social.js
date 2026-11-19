@@ -461,7 +461,11 @@
     }
     function apply(event) {
       const from = byKey.get(`${event.side}:${event.from}`), target = byKey.get(`${event.toSide}:${event.target}`);
-      if(event.kind==='spica-wind'&&from?.id==='spica')spicaUntil=Math.max(spicaUntil,event.hasteUntil||event.t+6000);
+      if(event.kind==='spica-wind'&&from?.id==='spica'){
+        spicaUntil=Math.max(spicaUntil,event.hasteUntil||event.t+6000);
+        for(const u of units[event.side])u.hasteUntil=Math.max(u.hasteUntil||0,event.hasteUntil||event.t+6000);
+        for(const u of units[1-event.side])u.slowUntil=Math.max(u.slowUntil||0,event.slowUntil||event.t+5000);
+      }
       if (from && ['attack','skill','heal','shield','spica-wind'].includes(event.kind)) {from.actAt = event.t;from.actKind=event.kind==='spica-wind'?'skill':event.kind;from.skill=event.skill || '';from.actStage=event.stage || 1;}
       if(from?.id==='kazua'){
         from.kazua||={mode:'fire',modeSince:0,power:1};
@@ -561,7 +565,7 @@
         const recent=effects.filter(event=>event.side===side&&event.from==='horas').map(event=>({...event,time:event.t/1000,from:'horas',to:event.toSide===side?'horas':`enemy:${event.target}`,targetId:event.targetId?`enemy:${event.targetId}`:undefined,targets:event.targets?.map(id=>`enemy:${id}`)}));
         const battle={elapsed:clock,skipHorasCutin:true,horasEffectScale:1.55,horas:{stacks:caster.horasStacks},horasCast:caster.hp>0?cast:null,heroes:[{...caster,id:'horas'}],enemies:units[1-side].map(unit=>({...unit,id:`enemy:${unit.id}`}))};
         c.save();if(side){c.translate(960,0);c.scale(-1,1);}
-        window.SchoolArt?.horasVisualEffects?.(c,battle,recent,p,clock/1000,reduced,false);c.restore();
+        window.SchoolArt?.horasVisualEffects?.(c,battle,recent,p,clock/1000,reduced,false,0,!!window.SchoolBattlePolish);c.restore();
       }
       for(const event of effects){
         if(event.kind.startsWith('horas-'))continue;
@@ -575,7 +579,8 @@
         c.restore();
       }
       const cutin=units.flat().find(unit=>unit.id==='horas'&&unit.hp>0&&unit.horasCast&&clock-unit.horasCastAt>=580&&clock-unit.horasCastAt<1160);
-      if(cutin){c.save();c.scale(2,1.5);window.SchoolArt?.horasCutin?.(c,(clock-cutin.horasCastAt)/1000,reduced);c.restore();}
+      if(cutin&&!window.SchoolBattlePolish){c.save();c.scale(2,1.5);window.SchoolArt?.horasCutin?.(c,(clock-cutin.horasCastAt)/1000,reduced);c.restore();}
+      if(!finished){window.SchoolBattlePolish?.speedField(c,units[me],units[1-me],clock,960,8);window.SchoolBattlePolish?.focus(c,effects,clock,960,420,reduced);}
       if(clock-lastDom>=200||finished){lastDom=clock;const seconds=Math.floor(clock/1000),label=document.getElementById('arena-clock'),progress=document.getElementById('arena-progress');if(label)label.textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;if(progress)progress.value=clock;}
     }
     function tick(now){

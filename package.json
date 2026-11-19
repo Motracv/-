@@ -1,6 +1,6 @@
 {
   "name": "friends-card-table",
-  "version": "4.21.5",
+  "version": "4.22.0",
   "private": true,
   "scripts": {
     "start": "node server.cjs",
@@ -51,7 +51,8 @@
     "test:school:expansion": "node tests/school-expansion.cjs && node tests/school-winter2-art.cjs && node tests/school-winter2-ui.cjs",
     "test:school:kazua": "node tests/school-kazua.cjs && node tests/school-kazua-server.cjs && node tests/school-kazua-ui.cjs && node tests/school-kazua-motion.cjs",
     "test:school:notices": "node tests/school-notice.cjs",
-    "test:school:weekend": "node tests/school-weekend.cjs && node tests/school-weekend-server.cjs && node tests/school-weekend-ui.cjs && node tests/school-osia-ur.cjs && node tests/school-osia-divine-art.cjs && node tests/school-combat-presentation.cjs && node tests/school-private-rewards.cjs"
+    "test:school:weekend": "node tests/school-weekend.cjs && node tests/school-weekend-server.cjs && node tests/school-weekend-ui.cjs && node tests/school-osia-ur.cjs && node tests/school-osia-divine-art.cjs && node tests/school-combat-presentation.cjs && node tests/school-private-rewards.cjs",
+    "test:school:winter-polish": "node tests/school-codex.cjs && node tests/school-codex-server.cjs && node tests/school-battle-polish.cjs && node tests/school-kazua-ui.cjs && node tests/school-osia-ur.cjs && node tests/school-winter2-combat.cjs && node tests/school-osia-divine-art.cjs && node tests/school-winter2-art.cjs"
   },
   "engines": {
     "node": ">=20"
