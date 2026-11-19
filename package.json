@@ -1,6 +1,6 @@
 {
   "name": "friends-card-table",
-  "version": "4.29.0",
+  "version": "4.30.0",
   "private": true,
   "scripts": {
     "start": "node server.cjs",
@@ -56,6 +56,7 @@
     "test:school:osia-breath": "node tests/school-osia-breath.cjs && node tests/school-osia-divine-art.cjs && node tests/school-battle-polish.cjs && node tests/school-combat-presentation.cjs",
     "test:school:bonds": "node tests/school-bonds2.cjs && node tests/school-insights.cjs && node tests/school-insights-ui.cjs && node tests/school-insights-server.cjs && node tests/school-refinement.cjs && node tests/school-refinement-server.cjs",
     "test:school:hyeokjin": "node tests/school-hyeokjin.cjs && node tests/school-hyeokjin-art.cjs && node tests/school-hyeokjin-server.cjs && node tests/school-hyeokjin-balance.cjs",
+    "test:school:live-report": "node tests/school-insights.cjs && node tests/school-insights-ui.cjs && node tests/school-ui-budget.cjs && node tests/school-kazua-motion.cjs && node tests/school-combat-presentation.cjs",
     "test:school:render-budget": "node tests/school-render-budget.cjs && node tests/school-ui-budget.cjs",
     "test:school:balance": "node tests/school-balance1.cjs && node tests/school-balance1-server.cjs"
   },

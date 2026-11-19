@@ -1,4 +1,4 @@
-/* Report snapshots and bond stories. Mutations use the account's action queue. */
+/* Live combat reports, saved results and bond stories. Mutations use the account's action queue. */
 window.SchoolInsights=(()=>{
   'use strict';
   const G=window.SchoolRPG,Art=window.SchoolArt;
@@ -19,24 +19,69 @@ window.SchoolInsights=(()=>{
     if(fallen)out.push(['회복 담당 전투불능',`${clock(fallen.ms)} · ${fallen.name}. 후열 보호와 수호 용병 배치를 확인해 보세요.`]);
     if(r.reason==='timeout')out.push(['제한 시간 종료','시간 안에 적을 처치하지 못했어요. 공격 기여도와 적의 감소 특성을 함께 확인하세요.']);
     else if(r.phase==='defeat'&&!fallen)out.push(['용병 전원 전투불능','받은 피해가 높은 동료의 보호막·회복·배치를 확인해 보세요.']);
-    if(!out.length)out.push(['전투 기록 확인',r.phase==='fight'?'진행 중인 전투의 조회 시점 기록이에요. 새로고침으로 다시 확인할 수 있어요.':'용병별 기여도와 주요 기술 시점을 비교해 다음 편성을 준비하세요.']);
+    if(!out.length)out.push(['전투 기록 확인',r.phase==='fight'?'현재 웨이브의 피해·회복·보호막 기록을 자동으로 갱신하고 있어요.':'용병별 기여도와 주요 기술 시점을 비교해 다음 편성을 준비하세요.']);
     return out.slice(0,3);
   }
   function create(ctx){
     const $=id=>document.getElementById(id);let report=null,metric='damage',episode=0,line=0,readingScope='',pending=false,bondKey='',hero='osia';
     const state=()=>ctx.getState(),isBond=()=>ctx.modalKind()==='bond',open=()=>ctx.modalKind()==='damage';
+    // Keep DOM nodes, scroll and the selected metric while the battle advances.
+    let reportSource='current',reportScope='',reportKey='',rowsKey='';
+    const write=(id,value)=>{const node=$(id),text=String(value);if(node&&node.textContent!==text)node.textContent=text;};
+    const markup=(id,html)=>{const node=$(id);if(node&&node.innerHTML!==html)node.innerHTML=html;};
     function reportRows(){
-      if(!open()||!report)return;const total=report.totals[metric]||0,rows=[...report.rows].sort((a,b)=>(b[metric]||0)-(a[metric]||0));
-      $('insight-rows').innerHTML=rows.map(r=>{const h=G.BY_ID[r.id],value=r[metric]||0,share=total?value/total*100:0;return `<article class="insight-row" data-rarity="${h.rarity}"><img src="${Art.portrait(r.id)}" alt=""><div><div class="insight-row-label"><b>${esc(h.name)}</b><span>${fmt(value)} <small>${share.toFixed(1)}%</small></span></div><div class="insight-bar"><i style="width:${share}%"></i></div><small>${esc(h.role)} · ${metric==='damage'?`${fmt(r.dps)} DPS`:metric==='healing'?'실제 회복 · 초과 치유 제외':metric==='absorbed'?'이 용병이 부여한 보호막의 실제 흡수량':'보호막 흡수 후 실제 HP 피해'}</small></div></article>`;}).join('');
+      if(!open()||!report)return;
+      const total=report.totals[metric]||0,rows=[...report.rows].sort((a,b)=>(b[metric]||0)-(a[metric]||0));
+      const key=report.rows.map(r=>r.id).join('|');
+      if(rowsKey!==key){
+        rowsKey=key;
+        $('insight-rows').innerHTML=report.rows.map(r=>{const h=G.BY_ID[r.id];return `<article id="insight-row-${r.id}" class="insight-row" data-rarity="${h.rarity}"><img src="${Art.portrait(r.id)}" alt=""><div><div class="insight-row-label"><b>${esc(h.name)}</b><span><b id="insight-value-${r.id}"></b><small id="insight-share-${r.id}"></small></span></div><div class="insight-bar"><i id="insight-bar-${r.id}"></i></div><small id="insight-detail-${r.id}"></small></div></article>`;}).join('');
+      }
+      rows.forEach((r,index)=>{
+        const value=r[metric]||0,share=total?value/total*100:0;
+        const row=$('insight-row-'+r.id),bar=$('insight-bar-'+r.id);
+        if(row.style.order!==String(index))row.style.order=String(index);
+        const width=`${Math.max(0,Math.min(100,share))}%`;if(bar.style.width!==width)bar.style.width=width;
+        write('insight-value-'+r.id,fmt(value));write('insight-share-'+r.id,share.toFixed(1)+'%');
+        write('insight-detail-'+r.id,`${G.BY_ID[r.id].role} · ${metric==='damage'?`${fmt(r.dps)} DPS`:metric==='healing'?'실제 회복 · 초과 치유 제외':metric==='absorbed'?'이 용병이 부여한 보호막의 실제 흡수량':'보호막 흡수 후 실제 HP 피해'}`);
+      });
       $('insight-tabs').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.metric===metric)));
     }
-    function showReport(source='last'){
-      report=G.clone(source==='last'&&state().lastCombatReport||G.damageReport(state()));metric='damage';
-      const r=report,place=r.activity?`${G.DUNGEONS[r.activity.kind].name} · ${r.activity.floor?`${r.activity.floor}층`:`${r.activity.tier}단계`}`:`${G.stageName(r.stage)} · ${G.CHAPTERS[G.chapter(r.stage)]} · WAVE ${r.wave}/4`;
-      ctx.openModal('전투 결과',`<div class="insight-report"><header class="insight-heading"><div><small>${esc(place)}</small><h3 class="${r.phase==='defeat'?'lost':''}">${r.phase==='victory'?'도전 성공':r.phase==='defeat'?'도전 종료':'전투 진행 중'}</h3></div><div class="insight-switch"><button data-report="last" ${!state().lastCombatReport?'disabled':''} aria-pressed="${source==='last'}">최근 결과</button><button data-report="current" aria-pressed="${source==='current'}">현재 전투 ↻</button></div></header><div class="insight-totals">${[['총 피해',fmt(r.totals.damage)],['실제 회복',fmt(r.totals.healing)],['보호막 흡수',fmt(r.totals.absorbed)],['전투 시간',clock(r.elapsedMs)]].map(([a,b])=>`<div><small>${a}</small><strong>${b}</strong></div>`).join('')}</div><div class="insight-columns"><section><nav id="insight-tabs" aria-label="전투 기여도 종류">${[['damage','피해량'],['healing','회복량'],['absorbed','보호막'],['taken','받은 피해']].map(([k,v])=>`<button data-metric="${k}" aria-pressed="${k===metric}">${v}</button>`).join('')}</nav><div id="insight-rows"></div></section><aside class="insight-findings"><h4>다음 도전을 위한 기록</h4>${findings(r).map(([title,text])=>`<article><b>${title}</b><p>${esc(text)}</p></article>`).join('')}<small>기록에 나타난 사실을 바탕으로 한 제안입니다.</small></aside></div><details class="insight-timeline"><summary>주요 전투 기록 · 최근 32건</summary><ol>${(r.timeline||[]).map(e=>`<li><time>${clock(e.ms)}</time><span>${esc(G.BY_ID[e.from]?.name||'적')} · ${esc(e.kind==='fallen'?'전투불능':e.name)}</span></li>`).join('')||'<li>다음 전투부터 주요 기술 기록이 쌓여요.</li>'}</ol></details><footer class="insight-actions"><button class="secondary" id="insight-formation">편성 바꾸기</button><button class="primary" id="insight-retry">${r.activity?'던전 선택으로':'다시 도전'}</button></footer><p class="insight-note">모험은 최근 보스전 또는 패배 결과를 보관합니다. 현재 전투는 웨이브 단위예요.</p></div>`,'damage');
-      $('insight-tabs').onclick=e=>{const b=e.target.closest('[data-metric]');if(b){metric=b.dataset.metric;reportRows();}};
-      document.querySelectorAll('[data-report]').forEach(b=>b.onclick=()=>showReport(b.dataset.report));
-      $('insight-formation').onclick=ctx.openFormation;$('insight-retry').onclick=()=>ctx.retry(report);reportRows();
+    function refreshReport(force=false){
+      if(!open())return;
+      if(reportScope!==ctx.scope())return ctx.closeModal();
+      if(reportSource==='current')report=G.damageReport(state());
+      if(!report)return;
+      const r=report,key=JSON.stringify([reportSource,r,!!state().lastCombatReport]);
+      if(!force&&key===reportKey)return;reportKey=key;
+      const place=r.activity?`${G.DUNGEONS[r.activity.kind].name} · ${r.activity.floor?`${r.activity.floor}층`:`${r.activity.tier}단계`}`:`${G.stageName(r.stage)} · ${G.CHAPTERS[G.chapter(r.stage)]} · WAVE ${r.wave}/4`;
+      write('insight-place',place);
+      write('insight-outcome',r.phase==='victory'?'도전 성공':r.phase==='defeat'?'도전 종료':'전투 진행 중');
+      $('insight-outcome').classList.toggle('lost',r.phase==='defeat');
+      write('insight-status',reportSource==='current'?'● 실시간 · 현재 웨이브 자동 갱신':'저장된 전투 결과');
+      $('insight-status').dataset.live=String(reportSource==='current');
+      for(const k of ['damage','healing','absorbed'])write('insight-total-'+k,fmt(r.totals[k]));
+      write('insight-time',clock(r.elapsedMs));
+      $('insight-last').disabled=!state().lastCombatReport;
+      $('insight-last').setAttribute('aria-pressed',String(reportSource==='last'));
+      $('insight-current').setAttribute('aria-pressed',String(reportSource==='current'));
+      markup('insight-findings',findings(r).map(([title,text])=>`<article><b>${esc(title)}</b><p>${esc(text)}</p></article>`).join(''));
+      markup('insight-events',(r.timeline||[]).slice(-32).map(e=>`<li><time>${clock(e.ms)}</time><span>${esc(G.BY_ID[e.from]?.name||'적')} · ${esc(e.kind==='fallen'?'전투불능':e.name)}</span></li>`).join('')||'<li>기술을 사용하면 이곳에 기록돼요.</li>');
+      write('insight-retry',r.activity?'던전 선택으로':'다시 도전');reportRows();
+    }
+    function showReport(source='current'){
+      const same=open()&&reportScope===ctx.scope()&&!!$('insight-rows');
+      reportSource=source==='last'&&state().lastCombatReport?'last':'current';
+      report=reportSource==='last'?G.clone(state().lastCombatReport):G.damageReport(state());
+      reportScope=ctx.scope();reportKey='';
+      if(!same){
+        metric='damage';rowsKey='';
+        ctx.openModal('전투 기록',`<div class="insight-report"><header class="insight-heading"><div><small id="insight-place"></small><h3 id="insight-outcome"></h3><small id="insight-status" role="status"></small></div><div class="insight-switch"><button id="insight-last" data-report="last">최근 결과</button><button id="insight-current" data-report="current">현재 전투</button></div></header><div class="insight-totals">${[['총 피해','damage'],['실제 회복','healing'],['보호막 흡수','absorbed'],['전투 시간','time']].map(([a,b])=>`<div><small>${a}</small><strong id="${b==='time'?'insight-time':'insight-total-'+b}"></strong></div>`).join('')}</div><div class="insight-columns"><section><nav id="insight-tabs" aria-label="전투 기여도 종류">${[['damage','피해량'],['healing','회복량'],['absorbed','보호막'],['taken','받은 피해']].map(([k,v])=>`<button data-metric="${k}" aria-pressed="${k===metric}">${v}</button>`).join('')}</nav><div id="insight-rows"></div></section><aside class="insight-findings"><h4>다음 도전을 위한 기록</h4><div id="insight-findings"></div><small>기록에 나타난 사실을 바탕으로 한 제안입니다.</small></aside></div><details class="insight-timeline" id="insight-timeline"><summary>주요 전투 기록 · 최근 32건</summary><ol id="insight-events"></ol></details><footer class="insight-actions"><button class="secondary" id="insight-formation">편성 바꾸기</button><button class="primary" id="insight-retry">다시 도전</button></footer><p class="insight-note">현재 전투는 웨이브가 바뀌면 새 기록으로 전환돼요. 피해량은 실제로 깎인 HP, 회복량은 초과 치유를 제외한 수치예요. 최근 결과는 저장된 보스전 또는 패배 기록입니다.</p></div>`,'damage');
+        $('insight-tabs').onclick=e=>{const b=e.target.closest('[data-metric]');if(b){metric=b.dataset.metric;reportRows();}};
+        document.querySelectorAll('[data-report]').forEach(b=>b.onclick=()=>showReport(b.dataset.report));
+        $('insight-formation').onclick=ctx.openFormation;$('insight-retry').onclick=()=>ctx.retry(report);
+      }
+      refreshReport(true);
     }
     function bond(id='osia'){
       if(pending)return;hero=Object.hasOwn(G.BOND_CHARACTERS,id)?id:'osia';episode=0;line=0;bondKey='';readingScope=ctx.scope();
@@ -59,7 +104,7 @@ window.SchoolInsights=(()=>{
       $('bond-next').onclick=async()=>{if(pending)return;if(!last){line++;story();return;}if(ctx.blocked())return ctx.toast('연결과 저장 상태를 확인해 주세요.');const id=episode,scope=readingScope;pending=true;story();try{await ctx.dispatch({kind:'bond-read',hero,episode:id});if(isBond()&&ctx.scope()===scope&&G.bondInfo(state(),ctx.now(),hero).episodes[id-1].read){episode=0;}}finally{pending=false;if(isBond()&&ctx.scope()===scope){if(episode)story();else refreshBond(true);}}};
     }
     function back(){if(isBond()&&episode){episode=0;refreshBond(true);return true;}return false;}
-    return {report:showReport,bond,refresh:refreshBond,back};
+    return {report:showReport,bond,refresh(force=false){refreshBond(force);refreshReport(force);},back};
   }
   return {create,findings,STORIES};
 })();

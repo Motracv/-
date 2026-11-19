@@ -1,8 +1,8 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');const G=require('../school/engine.js');
 const nodes=new Map();let elements=[];
 class Node{
- constructor(id='',attrs=''){this.id=id;this.dataset={};this.disabled=/\bdisabled\b/.test(attrs);this.attributes={};for(const m of attrs.matchAll(/data-([\w-]+)="([^"]*)"/g))this.dataset[m[1].replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=m[2];}
- set innerHTML(v){this.html=v;for(const m of v.matchAll(/<(button|div|nav|section|aside)[^>]*>/g)){const attrs=m[0],id=attrs.match(/\bid="([^"]*)"/)?.[1],node=new Node(id,attrs);node.tag=m[1];elements.push(node);if(id)nodes.set(id,node);}}
+ constructor(id='',attrs=''){this.id=id;this.dataset={};this.style={};this.textContent='';this.classList={toggle(){}};this.writes=0;this.disabled=/\bdisabled\b/.test(attrs);this.attributes={};for(const m of attrs.matchAll(/data-([\w-]+)="([^"]*)"/g))this.dataset[m[1].replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=m[2];}
+ set innerHTML(v){this.writes++;this.html=v;for(const m of v.matchAll(/<(button|div|nav|section|aside|article|strong|small|span|b|i|h3|ol|details)[^>]*>/g)){const attrs=m[0],id=attrs.match(/\bid="([^"]*)"/)?.[1],node=new Node(id,attrs);node.tag=m[1];elements.push(node);if(id)nodes.set(id,node);}}
  get innerHTML(){return this.html||'';}
  querySelectorAll(selector){return select(selector);}
  setAttribute(k,v){this.attributes[k]=v;}
@@ -14,7 +14,24 @@ let s=G.create(Date.now()),kind='',scope='guest',blocked=false,dispatches=[],toa
 s.units.osia={level:70,xp:0,stars:2,shards:0};G.action(s,{kind:'team',team:['osia','sua','taeo']},s.at);
 const ui=window.SchoolInsights.create({getState:()=>s,scope:()=>scope,now:()=>s.at,modalKind:()=>kind,blocked:()=>blocked,openModal(title,html,k){kind=k;nodes.clear();elements=[];new Node('root').innerHTML=html;},closeModal(){kind='';},toast:m=>toast=m,openFormation:()=>formation++,retry:r=>retry=r,dispatch:async input=>{dispatches.push(input);if(resolveAction)await new Promise(r=>resolveAction=r);G.action(s,input,s.at);}});
 (async()=>{
- ui.report('current');assert.equal(kind,'damage');assert(nodes.get('insight-rows').innerHTML.includes('오시아'));let b=select('[data-metric]').find(b=>b.dataset.metric==='healing');nodes.get('insight-tabs').onclick({target:b});assert(nodes.get('insight-rows').innerHTML.includes('초과 치유 제외'));assert.equal(b.attributes['aria-pressed'],'true');nodes.get('insight-formation').onclick();assert.equal(formation,1);nodes.get('insight-retry').onclick();assert.equal(retry.battleId,s.battle.id);
+ ui.report('current');assert.equal(kind,'damage');assert(nodes.get('insight-rows').innerHTML.includes('오시아'));let b=select('[data-metric]').find(b=>b.dataset.metric==='healing');nodes.get('insight-tabs').onclick({target:b});assert(nodes.get('insight-detail-osia').textContent.includes('초과 치유 제외'));assert.equal(b.attributes['aria-pressed'],'true');nodes.get('insight-formation').onclick();assert.equal(formation,1);nodes.get('insight-retry').onclick();assert.equal(retry.battleId,s.battle.id);
+
+ // Actual report controller: exact engine totals, no polling timer or DOM rebuild.
+ const originalRow=nodes.get('insight-row-osia'),timeline=nodes.get('insight-timeline');timeline.open=true;
+ const rosterWrites=nodes.get('insight-rows').writes;nodes.get('insight-rows').scrollTop=90;
+ s.battle.damage.osia={damage:800,healing:250,absorbed:50,taken:200};s.battle.elapsed=2000;
+ const unchanged=JSON.stringify(s);ui.refresh();assert.equal(JSON.stringify(s),unchanged);
+ assert.equal(nodes.get('insight-total-damage').textContent,'800');assert.equal(nodes.get('insight-total-healing').textContent,'250');assert.equal(nodes.get('insight-total-absorbed').textContent,'50');
+ assert.equal(nodes.get('insight-value-osia').textContent,'250','Selected healing tab survives refresh');
+ assert.equal(nodes.get('insight-row-osia'),originalRow);assert.equal(nodes.get('insight-rows').writes,rosterWrites);assert.equal(nodes.get('insight-rows').scrollTop,90);assert(timeline.open);
+ for(const [metric,value] of [['taken','200'],['absorbed','50']]){b=select('[data-metric]').find(b=>b.dataset.metric===metric);nodes.get('insight-tabs').onclick({target:b});ui.refresh();assert.equal(nodes.get('insight-value-osia').textContent,value);}
+ b=select('[data-metric]').find(b=>b.dataset.metric==='damage');nodes.get('insight-tabs').onclick({target:b});assert(nodes.get('insight-detail-osia').textContent.includes('400 DPS'));
+ s.lastCombatReport=G.clone(G.damageReport(s));ui.report('last');s.battle.damage.osia.damage=1200;s.battle.elapsed=3000;ui.refresh();assert.equal(nodes.get('insight-total-damage').textContent,'800','Saved result never changes with live battle');
+ ui.report('current');assert.equal(nodes.get('insight-total-damage').textContent,'1,200');assert.equal(nodes.get('insight-time').textContent,'00:03');assert.equal(nodes.get('insight-status').dataset.live,'true');
+ s.battle={...s.battle,id:'next-wave',wave:2,elapsed:0,damage:{},timeline:[]};ui.refresh();assert.equal(nodes.get('insight-total-damage').textContent,'0');assert.equal(nodes.get('insight-value-osia').textContent,'0');assert(nodes.get('insight-place').textContent.includes('WAVE 2'));
+ assert.equal(nodes.get('insight-row-osia'),originalRow,'Wave reset preserves nodes and focus');assert(timeline.open);
+ kind='settings';s.battle.damage.osia={damage:900};ui.refresh();assert.equal(nodes.get('insight-total-damage').textContent,'0','Closed report does no hidden DOM work');
+ ui.report('current');scope='different-account';ui.refresh();assert.equal(kind,'','Report closes on account switch');scope='guest';
  ui.bond();assert.equal(kind,'bond');assert(select('[data-episode]').find(b=>b.dataset.episode==='2').disabled);select('[data-episode]').find(b=>b.dataset.episode==='1').onclick();assert(nodes.get('bond-content').innerHTML.includes('낯선 교실의 파도'));assert(ui.back());assert.equal(ui.back(),false);
  select('[data-episode]').find(b=>b.dataset.episode==='1').onclick();for(let i=1;i<window.SchoolInsights.STORIES[0].length;i++)await nodes.get('bond-next').onclick();blocked=true;await nodes.get('bond-next').onclick();assert.equal(dispatches.length,0);assert(toast.includes('연결'));blocked=false;await nodes.get('bond-next').onclick();assert.equal(dispatches[0].kind,'bond-read');assert.deepEqual(s.bonds.osia.read,[1]);assert(nodes.get('bond-content').innerHTML.includes('다시 읽기'));
  s.bonds.osia.daily.waves=10;ui.refresh(true);const claim=select('[data-bond-mission]').filter(b=>b.dataset.bondMission==='waves').at(-1);await claim.onclick();assert.equal(dispatches.at(-1).kind,'bond-mission');assert.equal(s.bonds.osia.xp,8);assert(s.bonds.osia.daily.claimed.includes('waves'));
@@ -27,5 +44,5 @@ const ui=window.SchoolInsights.create({getState:()=>s,scope:()=>scope,now:()=>s.
  }
  scope='different-account';ui.refresh();assert.equal(kind,'');
  const html=fs.readFileSync('school.html','utf8'),sw=fs.readFileSync('school-sw.js','utf8'),client=fs.readFileSync('school/client.js','utf8');for(const name of ['insights.js','insights.css']){assert(html.includes('school/'+name));assert(sw.includes("'"+name+"'"));}assert(sw.includes('school/assets/bonds/osia-memory.webp'));assert(fs.existsSync('school/assets/bonds/osia-memory.webp'));assert(client.includes('osia-bond-entry'));assert(client.includes('result-analysis'));assert(client.includes('if(insights?.back())return'));
- console.log('PASS contribution tabs, report actions, locked episode, story back, blocked save, completion persistence, mission claim, account-scope cleanup and offline asset wiring');
+ console.log('PASS live totals/DPS, history isolation, wave transitions, stable DOM/scroll, report actions, locked episode, story back, blocked save, completion persistence, mission claim, account-scope cleanup and offline asset wiring');
 })().catch(e=>{console.error(e);process.exitCode=1;});

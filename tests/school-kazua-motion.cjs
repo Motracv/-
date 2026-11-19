@@ -62,6 +62,38 @@ c.records.length=0;K.effects(c,{...options,mode:'fire',age:.05});assert.equal(c.
 c.records.length=0;K.effects(c,{source:{x:NaN,y:0},targets:[]});assert.equal(c.records.length,0);
 console.log('PASS bounded normal/economy/reduced and mirrored gunfire; restored Canvas state, no simulation mutation or per-frame textures');
 
+// The campaign must use the recorded victim and replay short weapon swaps.
+const campaignUnit={id:'kazua',hp:100,kazua:{mode:'fire',phase:'fire',phaseMs:1000,modeSince:4000,power:1}};
+const campaignBattle={id:'battle-a',elapsed:5000,phase:'fight',enemies:[{id:'dead-target',hp:0},{id:'next-target',hp:100}]};
+let shots=[{kind:'kazua-shot',from:'kazua',battleId:'battle-a',mode:'fire',time:5,targets:['dead-target']}];
+const campaignVisual=(time=5.1)=>A.kazuaCampaignVisual(campaignUnit,campaignBattle,shots,time,.1);
+assert.deepEqual(Array.from(campaignVisual().targets,t=>t.id),['dead-target'],'Lethal bullet stays on the actual victim');
+assert.deepEqual(Array.from(campaignVisual(5.6).targets,t=>t.id),['next-target'],'Expired shot releases its target');
+shots.push({...shots[0],mode:'pistol',time:5.1});campaignUnit.kazua.mode='reload';
+assert.equal(campaignVisual(5.2).frame.kazuaMode,'pistol','Short shot is visible even if the next snapshot is already reloading');
+assert(Math.abs(campaignVisual(5.2).frame.kazuaAge-.1)<1e-8);
+assert.equal(campaignVisual(5.7).frame.kazuaMode,'reload','No repeated pistol once the recorded shot expires');
+shots.push({...shots[0],time:5.3,targets:['next-target']});campaignUnit.kazua.mode='fire';assert.equal(campaignVisual(5.4).frame.kazuaMode,'fire','Newer firing is never overridden by an older pistol');
+shots=[{...shots[0],mode:'bazooka',targets:['dead-target','next-target']}];
+assert.equal(campaignVisual(5.9).frame.kazuaMode,'bazooka');assert.equal(campaignVisual(5.9).targets.length,2,'Area detonation includes the killed target');
+campaignUnit.kazua.mode='red';assert.equal(campaignVisual(5.1).frame.kazuaMode,'red','Ultimate takes precedence over an older bazooka');
+shots[0].battleId='old-battle';campaignUnit.kazua.mode='fire';assert.equal(campaignVisual().frame.kazuaMode,'fire','No weapon replay from the preceding wave');
+shots[0].battleId=campaignBattle.id;
+campaignUnit.stunUntil=6000;assert.equal(campaignVisual().targets.length,0);delete campaignUnit.stunUntil;
+campaignUnit.hp=0;assert.equal(campaignVisual().targets.length,0);campaignUnit.hp=100;
+campaignBattle.phase='victory';assert.equal(campaignVisual().targets.length,0);campaignBattle.phase='fight';
+const untouched=JSON.stringify([campaignUnit,campaignBattle,shots]);for(let i=0;i<120;i++)campaignVisual(5+i/60);assert.equal(JSON.stringify([campaignUnit,campaignBattle,shots]),untouched);
+// Integration through the real campaign compositor, not only the helper.
+const live=G.create(1000);live.units.kazua={level:70,xp:0,stars:0,shards:0};G.action(live,{kind:'team',team:['kazua','taeo']},live.at);
+live.simTime=5000;live.battle.elapsed=5000;live.battle.phase='fight';Object.assign(live.battle.heroes.find(u=>u.id==='kazua'),campaignUnit);
+const victim=live.battle.enemies[0];victim.hp=0;
+const shot={kind:'kazua-shot',from:'kazua',battleId:live.battle.id,mode:'pistol',time:5,targets:[victim.id]};
+let paintedGun;window.SchoolKazuaArt={...K,effects(ctx,o){paintedGun=o;}};
+c.records.length=0;A.draw(c,live,5.1,[shot],false);
+assert.equal(paintedGun.mode,'pistol');assert.equal(paintedGun.targets.length,1);assert(Number.isFinite(paintedGun.targets[0].x));assert.equal(c.stack.length,0);
+window.SchoolKazuaArt=K;
+console.log('PASS campaign shot targeting, weapon catch-up, new-shot precedence, wave/stun/death/settlement gates and actual compositor');
+
 // Real cooperative/replay controllers: effects must be above the target sprite
 // and stop on frozen/withdrawn/dead parties and settled battles.
 const duoCanvas=new Canvas(),replayCanvas=new Canvas();duoCanvas.getBoundingClientRect=()=>({width:800,height:448});replayCanvas.getBoundingClientRect=()=>({width:960,height:420});

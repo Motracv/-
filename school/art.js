@@ -679,6 +679,19 @@ window.SchoolArt = (() => {
     const age=q&&q.mode===q.phase&&Number.isFinite(q.phaseMs)?q.phaseMs/1000+Math.max(0,Math.min(.5,(time-sampledTime)/1000)):(time-(q?.modeSince||0))/1000;
     return {kazuaMode:q?.mode||'idle',kazuaAge:Math.max(0,age),kazuaLastStand:Math.max(0,((q?.power||1)-1)/.8)};
   }
+  function kazuaCampaignVisual(unit,battle,effects,time,interpolation=0){
+    if(!unit)return {frame:{},targets:[]};
+    let frame=kazuaFrame(unit,battle.elapsed+interpolation*1000,battle.elapsed);
+    if(unit.hp<=0||battle.phase!=='fight'||unit.stunUntil>battle.elapsed)return {frame,targets:[]};
+    // Fast-forward steps can finish a short weapon swap before the next paint.
+    // The most recent shot supplies both the pose and its actual hit targets.
+    // A killed target must not move that shot onto the next living monster.
+    const shot=lastEffect(effects,e=>e.kind==='kazua-shot'&&e.from==='kazua'&&(!e.battleId||e.battleId===battle.id)&&time>=e.time&&time-e.time<1.5);
+    const age=shot?time-shot.time:Infinity,active=age<(shot?.mode==='bazooka'?1.5:.55);
+    if(active&&frame.kazuaMode!=='red'&&['pistol','bazooka'].includes(shot.mode))frame={...frame,kazuaMode:shot.mode,kazuaAge:age};
+    const targets=active&&shot.mode===frame.kazuaMode?(shot.targets||[]).map(id=>battle.enemies.find(e=>e.id===id)).filter(Boolean):battle.enemies.filter(e=>e.hp>0);
+    return {frame,targets};
+  }
   function heroShape(c, id, x, y, scale = 2, frame = {}) {
     if(id==='hyeokjin'&&window.SchoolHyeokjinArt){window.SchoolHyeokjinArt.hero(c,x,y,scale,frame);return;}
     if(id==='kazua'&&window.SchoolKazuaArt){window.SchoolKazuaArt.hero(c,x,y,scale,frame);return;}
@@ -1857,6 +1870,7 @@ window.SchoolArt = (() => {
       else if(strongHit){const age=time-strongHit.time,decay=1-age/.16;c.translate(Math.sin(age*75)*1.4*decay,Math.cos(age*65)*.7*decay);}
     }
     const horasInterpolation = Math.max(0, Math.min(.5, time - (state.simTime || 0) / 1000));
+    const gunner=battle.heroes.find(u=>u.id==='kazua'),gunVisual=kazuaCampaignVisual(gunner,battle,effects,time,horasInterpolation);
     if(battle.phase==='fight'){const h=battle.heroes.find(u=>u.id==='hyeokjin'),clock=battle.elapsed+horasInterpolation*1000;window.SchoolHyeokjinArt?.field(c,h,clock,480,280,reduced);const shake=window.SchoolHyeokjinArt?.shake(h,clock,reduced);if(shake)c.translate(shake.x,shake.y);}
     const lifecycle = sceneLife(c.canvas, battle, time, effects);
     const positions = {};
@@ -1884,7 +1898,7 @@ window.SchoolArt = (() => {
       const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : ["lava","horas","kazua","hyeokjin"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
-        time:sceneTime, exclusive:item.exclusive, osiaBreathAge:combo?.breath?castAge:undefined, osiaSpearAge:visual.spear?time-visual.spear.time:-1, kazuaActive:battle.phase==='fight', ...kazuaFrame(item,battle.elapsed+horasInterpolation*1000,battle.elapsed),...hyeokjinFrame(item,battle.elapsed+horasInterpolation*1000),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
+        time:sceneTime, exclusive:item.exclusive, osiaBreathAge:combo?.breath?castAge:undefined, osiaSpearAge:visual.spear?time-visual.spear.time:-1, kazuaActive:battle.phase==='fight', ...(item.id==='kazua'?gunVisual.frame:{}),...hyeokjinFrame(item,battle.elapsed+horasInterpolation*1000),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
         horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
         horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasImpact ? 1.5+time-visual.horasImpact.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
@@ -1913,8 +1927,7 @@ window.SchoolArt = (() => {
     }
     const berserker=battle.heroes.find(u=>u.id==='hyeokjin');
     if(battle.phase==='fight')window.SchoolHyeokjinArt?.effects(c,{unit:berserker,time:battle.elapsed+horasInterpolation*1000,source:visualPositions.hyeokjin,targets:battle.enemies.map(e=>({...visualPositions[e.id],id:e.id})),scale:extendedParty?1.3:1.8,reduced,economy,viewport:{width:480,height:280}});
-    const gunner=battle.heroes.find(u=>u.id==='kazua');
-    if(gunner&&gunner.hp>0&&battle.phase==='fight'&&!(gunner.stunUntil>battle.elapsed)&&!lastEffect(effects,e=>e.kind==='dodge'&&e.to==='kazua'&&time-e.time<.35))window.SchoolKazuaArt?.effects(c,{source:visualPositions.kazua,targets:battle.enemies.filter(e=>e.hp>0).map(e=>visualPositions[e.id]),mode:gunner.kazua?.mode||'idle',age:kazuaFrame(gunner,battle.elapsed+horasInterpolation*1000,battle.elapsed).kazuaAge,time:sceneTime,scale:extendedParty?1.3:1.8,reduced,economy});
+    if(gunVisual.targets.length&&!lastEffect(effects,e=>e.kind==='dodge'&&e.to==='kazua'&&time-e.time<.35))window.SchoolKazuaArt?.effects(c,{source:visualPositions.kazua,targets:gunVisual.targets.map(e=>visualPositions[e.id]),mode:gunVisual.frame.kazuaMode,age:gunVisual.frame.kazuaAge,time:sceneTime,scale:extendedParty?1.3:1.8,reduced,economy});
     waterEffects(c, effects, visualPositions, time, reduced, battle.osiaCast, battle.cinematic,economy,window.SchoolOsiaWeaponArt?.equipped(battle.heroes.find(h=>h.id==='osia')));
     lavaEffects(c, effects, visualPositions, time, reduced,economy);
     spicaEffects(c,battle,effects,visualPositions,time,reduced);
@@ -2011,5 +2024,5 @@ window.SchoolArt = (() => {
     osiaCinematic(c, state, time, effects, reduced);
     }
   }
-  return { hyeokjinFrame,kazuaFrame, combatNumber, hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='kazua'?!!window.SchoolKazuaArt?.assetsReady():id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { hyeokjinFrame,kazuaFrame,kazuaCampaignVisual, combatNumber, hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='kazua'?!!window.SchoolKazuaArt?.assetsReady():id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

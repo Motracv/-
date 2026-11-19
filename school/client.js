@@ -104,7 +104,17 @@
   function createRaid(){return window.SchoolRaid?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
   function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
   function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openYeti:()=>yeti?.open(),openHero:heroDetail,openAccount:accountModal,openCaptain:captainModal}); }
-  function damageModal() { insights?.report(state.lastCombatReport?'last':'current'); }
+  function damageModal() { insights?.report('current'); }
+  // Browsing a dialog does not pause combat. Only another full battle scene
+  // needs the campaign canvas to sleep; hidden tabs still stop painting.
+  function battleVisible() {
+    return tab === 'adventure' && !($('modal').open && ['raid','yeti','social-arena'].includes(modalKind));
+  }
+  function syncBattleOverlay() {
+    const side = $('modal').open && tab === 'adventure' && ['damage','settings','diagnostics','help','dungeon-help'].includes(modalKind);
+    $('modal').classList.toggle('battle-side', side);
+    setAttr($('app'), 'data-battle-drawer', String(side));
+  }
 
   // A received server timestamp is a lower bound for the current server time.
   // Keep it moving between replies; a delayed snapshot must not rewind combat.
@@ -171,7 +181,7 @@
       app:matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches, hidden:document.hidden,
       account:{mode,connected,busy,pending:!!pending}, battle:state ? {stage:state.stage,wave:state.wave,phase:state.battle.phase,elapsed:state.battle.elapsed,simTime:state.simTime,cutin:state.battle.cinematic?.remaining || 0} : null,
       equipment:state&&G.equipmentInfo ? G.equipmentInfo(state).items.filter(item=>item.count||item.wearers.length).map(item=>({id:item.id,count:item.count,free:item.free,stars:item.stars,wearers:item.wearers})) : null,
-      graphics:{...graphics,lastFrame:age(graphics.lastFrame),lastDraw:age(graphics.lastDraw),modal:modalKind,view:tab,covered:tab !== 'adventure' || resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden},
+      graphics:{...graphics,lastFrame:age(graphics.lastFrame),lastDraw:age(graphics.lastDraw),modal:modalKind,view:tab,covered:!battleVisible() || resultPresentationBusy() || !$('rotate-prompt').hidden},
       timing:frameTimingReport(),
       support:{findLast:typeof Array.prototype.findLast==='function',abortTimeout:typeof window.AbortSignal?.timeout==='function',contextLost:typeof canvas?.getContext('2d')?.isContextLost==='function'}
     };
@@ -583,7 +593,7 @@
     stopTraining();formationUI?.cancel();
     const previousTab=tab;
     if(previousTab==='dungeons'&&next!=='dungeons')dungeonPortal?.close();
-    tab = next;if(tab==='roster')filter='owned'; $('app').dataset.tab = tab;
+    tab = next;if(tab==='roster')filter='owned'; $('app').dataset.tab = tab; syncBattleOverlay();
     setHidden($('lobby-panel'), tab !== 'lobby');
     setHidden(document.querySelector('.battle-panel'), tab !== 'adventure');
     setHidden(document.querySelector('.party-panel'), tab !== 'adventure');
@@ -718,7 +728,7 @@
   function render(periodic = false) {
     if (!state || document.hidden) return;
     const now = performance.now();
-    if (periodic && now-lastUIRender < (tab==='adventure'&&!$('modal').open?240:480)) return;
+    if (periodic && now-lastUIRender < (battleVisible() || modalKind==='damage'?240:480)) return;
     lastUIRender = now;
     const quests = questSnapshot();
     lobby?.render(state, serverNow(), quests);
@@ -733,7 +743,7 @@
     setAttr($('captain-button'), 'aria-label', `${state.commanderName || '단장'} Lv.${state.captain.level} · 이름과 랭킹`);
     setWidth($('captain-xp'), `${state.captain.level >= G.CAPTAIN_MAX_LEVEL ? 100 : state.captain.xp / G.captainNeed(state.captain.level) * 100}%`);
     setText($('account-label'), mode === 'cloud' ? '계정 저장' : '게스트'); toggleClass($('account-button'), 'cloud', mode === 'cloud');
-    if (tab === 'adventure' && !$('modal').open) renderBattleHUD();
+    if (battleVisible()) renderBattleHUD();
     social?.refresh();
     setText($('offline-summary'), state.offline.seconds ? `${duration(state.offline.seconds)} · 골드 ${fmt(state.offline.gold)} 수령 가능` : '자리를 비워도 최대 8시간까지');
     const key = panelContentKey();
@@ -1020,7 +1030,7 @@
     const refund = result.refunded ? '입장 열쇠를 돌려받았어요.' : result.won || result.kind === 'tower' ? '' : '충전 기간이 바뀐 경우 새 열쇠 수량을 유지해요.';
     openModal(result.won ? '던전 클리어' : '던전 결과', `<div class="dungeon-result ${result.won ? '' : 'is-defeat'}"><h3>${heading}</h3><p>${activityTitle(result.kind)} · ${activityLevel(result)}</p><div class="reward-tokens">${result.won ? (result.reward.gold || result.reward.gems || result.reward.xp ? ['gold','gems','xp'].filter(key => result.reward[key]).map(key => `<span>${key === 'gold' ? '골드' : key === 'gems' ? '보석' : '용병 경험치'} +${fmt(result.reward[key])}</span>`).join('') : '<span>클리어한 층 · 추가 보상 없음</span>') : '<span>이번 도전 보상 없음</span>'}</div>${result.won ? window.SchoolEquipment?.lootMarkup(result)||'' : ''}<p>${refund}</p><small>결과와 보상은 저장되었어요.</small><div class="run-actions">${resultActions(result, info)}</div></div>`, 'dungeon-result');
     $('modal').dataset.activityResult = activityResultKey(result);
-    $('modal-content').insertAdjacentHTML('beforeend','<button class="secondary full" id="result-analysis">전투 결과 분석 보기</button>');$('result-analysis').onclick=()=>{dismissedActivityResult=activityResultKey(result);damageModal();};
+    $('modal-content').insertAdjacentHTML('beforeend','<button class="secondary full" id="result-analysis">전투 결과 분석 보기</button>');$('result-analysis').onclick=()=>{dismissedActivityResult=activityResultKey(result);insights?.report('last');};
     renderButtons(); if (result.won) play('reward');
   }
   const activityResultKey = result => `${accountScope()}:${result.runId}`;
@@ -1120,14 +1130,14 @@
     $('modal').classList.toggle('shards-modal',kind==='shards');
     $('modal').classList.toggle('insights-modal',['damage','bond'].includes(kind));
     loginGeneration++; modalKind = kind; delete $('modal').dataset.activityResult; $('modal-title').textContent = title; $('modal-content').innerHTML = html;
-    if (!$('modal').open) $('modal').showModal(); setAttr($('app'), 'data-modal-open', 'true'); $('modal').scrollTop = 0; renderCounter();
+    if (!$('modal').open) $('modal').showModal(); setAttr($('app'), 'data-modal-open', 'true'); syncBattleOverlay(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
   }
   async function requestModalClose(){if(coop?.closePicker())return;if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
     qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
-    raid?.destroy(); yeti?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); setAttr($('app'), 'data-modal-open', 'false'); modalKind = ''; loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
+    raid?.destroy(); yeti?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); setAttr($('app'), 'data-modal-open', 'false'); modalKind = ''; syncBattleOverlay(); loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
   }
   function codexModal(){
     const owned=Object.keys(state.units).length,claimed=new Set(state.codexClaimed||[]);
@@ -1381,6 +1391,7 @@
       stopTraining();
       if ($('modal').open) return;
       setAttr($('app'), 'data-modal-open', 'false');
+      syncBattleOverlay();
       if (modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
       qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
       delete $('modal').dataset.activityResult; modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
@@ -1549,7 +1560,7 @@
     document.addEventListener('fullscreenchange', () => { canvasSizeDirty = true; });
     function animate(time) {
       frameId = requestAnimationFrame(animate); graphics.lastFrame = performance.now();
-      if (document.hidden || tab !== 'adventure' || resultPresentationBusy() || $('modal').open || !$('rotate-prompt').hidden) { nextDrawAt = 0; previousRaf = 0; previousPaint = 0; previousAnimation = null; sampleStarted = 0; sampleFrames = slowFrames = drawCost = drawSamples = 0; return; }
+      if (document.hidden || !battleVisible() || resultPresentationBusy() || !$('rotate-prompt').hidden) { nextDrawAt = 0; previousRaf = 0; previousPaint = 0; previousAnimation = null; sampleStarted = 0; sampleFrames = slowFrames = drawCost = drawSamples = 0; return; }
       if (graphics.lost || time < retryDrawAt) return;
       if (previousRaf && time - previousRaf < 300) { sampleFrames++; if (time - previousRaf > 25) slowFrames++; }
       previousRaf = time; sampleStarted ||= time;
