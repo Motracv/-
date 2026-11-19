@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-weekend1';
+const RELEASE = 'school-osia-motion1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -12,6 +12,7 @@ const required = [
   ...['combat.webp','portrait.webp','pickup.webp'].map(p => `school/assets/kazua/${p}?v=kazua1`),
   'school/assets/kazua/basic-motion.webp?v=kazua-motion1',
   'school/assets/osia/divine-dragon.webp?v=osia-ur1',
+  'school/assets/osia/divine-dragon-motion.webp?v=osia-motion1',
   'school/assets/battlefields/chapters-13-15.webp?v=expansion1',
   'school/assets/lobby/shop-shards.webp', 'school/assets/bonds/osia-memory.webp',
   'assets/fonts/Galmuri11.woff2', 'assets/fonts/PretendardVariable.woff2',

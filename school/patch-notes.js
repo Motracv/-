@@ -1,7 +1,12 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-weekend1',
+  version:'school-osia-motion1',
   entries:Object.freeze([
+    {version:'school-osia-motion1',date:'2026.11.19',title:'오시아 · 살아 움직이는 용의 신수',items:[
+      'UR 전용 무기 궁극기에 12가지 용의 자세를 추가했어요. 몸을 웅크리는 소환부터 턱을 벌리는 돌진, 앞발과 꼬리가 이어지는 마무리까지 움직입니다.',
+      '몸통과 꼬리는 자세 사이에서도 물결처럼 움직이고, 명중 순간에 충격파가 펼쳐져요. 소환을 가리던 컷인은 짧게 줄였어요.',
+      '모험·예티·길드전·아레나에 같은 모션을 적용했어요. 모션 줄이기에서는 흔들림을 줄인 자세로 표시합니다.'
+    ]},
     {version:'school-weekend1',date:'2026.11.19',title:'96시간 더블 보상 · 해연의 신수',items:[
       '한국 시간 11월 19일 17:17:32부터 11월 23일 17:17:32까지 96시간! 플레이로 획득하는 눈송이·코인·용병 및 단장 경험치가 2배입니다. 오프라인 보상은 이벤트에 포함되는 시간만 적용돼요. 상점·교환·쿠폰·룰렛은 정해진 수량 그대로입니다.',
       '예티·길드전에서 공격 효과와 피해가 몰려 보이던 표시를 개선하고, 오시아 궁 연출 중에도 다른 전투가 계속 진행되도록 변경했어요.',

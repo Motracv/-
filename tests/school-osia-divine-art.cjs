@@ -49,6 +49,20 @@ console.log('PASS owner gating and stable blocked/reduced floating weapon');
 const opt={source:{x:120,y:220},target:{x:380,y:200},age:.6};
 W.dragon(c,opt);assert(!W.assetsReady(),'Fallback is available before image loads');
 images.find(i=>i.src.includes('divine-dragon')).load();assert(W.assetsReady());W.dragon(c,opt);
+const atlas=images.find(i=>i.src.includes('divine-dragon-motion'));atlas.load();assert(W.motionReady());
+const usedFrames=new Set();
+for(let i=0;i<12;i++){
+ const age=W.frameTimes[i]+.02;c.records.length=0;W.dragon(c,{...opt,age});
+ assert.equal(W.motion(age).frame,i);usedFrames.add(W.motion(age).frame);
+ const slices=c.records.filter(r=>r[0]==='drawImage'&&r[1]===atlas);
+ assert.equal(slices.length,16,'Animated anatomy uses a bounded continuous spine mesh');
+ for(const r of slices){const [,img,x,y,w,h]=r;assert(x>=i%4*384&&x+w<=(i%4+1)*384+.001);assert.equal(y,Math.floor(i/4)*1024/3);assert(y+h<=img.naturalHeight+.001);}
+}
+assert.equal(usedFrames.size,12,'Every authored attack pose is displayed');
+const meshAt=age=>{c.records.length=0;W.dragon(c,{...opt,age});return JSON.stringify(c.records.filter(r=>r[0]==='transform'&&r[2]!==0));};
+assert.equal(W.motion(.55).frame,W.motion(.60).frame);assert.notEqual(meshAt(.55),meshAt(.60),'Tail and spine continue moving between key poses');
+c.records.length=0;W.dragon(c,{...opt,reduced:true});assert.equal(c.records.filter(r=>r[0]==='drawImage'&&r[1]===atlas).length,1,'Reduced motion uses one stable pose without a spine warp');
+console.log('PASS 12 real poses, cell-isolated cropping, continuous spine/tail motion and reduced-motion fallback');
 const warm={allocated,gradients},input=JSON.stringify(opt);let maxCommands=0;
 for(let i=0;i<100;i++)for(const effect of ['dragon','drowning']){
  c.records.length=0;c.globalAlpha=.65;const before=c.getTransform();

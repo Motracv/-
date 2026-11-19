@@ -2,13 +2,28 @@
 window.SchoolOsiaWeaponArt=(()=>{
  'use strict';
  const TAU=Math.PI*2,clamp=n=>Math.max(0,Math.min(1,n)),mix=(a,b,t)=>a+(b-a)*t;
- const image=new Image();let loaded=false,dragonSource=null;
- const ready=new Promise(resolve=>{
+ const image=new Image(),motionImage=new Image();let loaded=false,motionLoaded=false,dragonSource=null;
+ const stillReady=new Promise(resolve=>{
   const timer=setTimeout(()=>resolve(false),5000);
   image.onload=()=>{loaded=true;dragonSource=null;clearTimeout(timer);resolve(true);window.dispatchEvent(new Event('school-art-ready'));};
   image.onerror=()=>{clearTimeout(timer);resolve(false);};
  });
  image.src='school/assets/osia/divine-dragon.webp?v=osia-ur1';
+ const motionReady=new Promise(resolve=>{
+  const timer=setTimeout(()=>resolve(false),5000);
+  motionImage.onload=()=>{motionLoaded=true;clearTimeout(timer);resolve(true);window.dispatchEvent(new Event('school-art-ready'));};
+  motionImage.onerror=()=>{clearTimeout(timer);resolve(false);};
+ });
+ motionImage.src='school/assets/osia/divine-dragon-motion.webp?v=osia-motion1';
+ const ready=Promise.all([stillReady,motionReady]);
+ const FRAME_TIMES=Object.freeze([0,.10,.20,.31,.42,.53,.65,.79,1.00,1.14,1.32,1.55]);
+ const ease=t=>{t=clamp(t);return t*t*(3-2*t);};
+ function motion(age,reduced=false){
+  const t=Number.isFinite(age)?Math.max(0,age):0;
+  let frame=0;for(let i=1;i<FRAME_TIMES.length;i++)if(t>=FRAME_TIMES[i])frame=i;
+  return {frame:reduced?6:frame,charge:ease(t/.42),rush:reduced?1:ease((t-.42)/.58),
+   impact:clamp((t-1)/.7),fade:1-clamp((t-1.45)/.4),age:t};
+ }
  const equipped=u=>u?.id==='osia'&&u.exclusive?.id==='osia_scepter';
  const valid=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
  function pixel(c,color,x,y,w,h){c.fillStyle=color;c.fillRect(Math.round(x),Math.round(y),Math.max(1,w),Math.max(1,h));}
@@ -46,6 +61,25 @@ window.SchoolOsiaWeaponArt=(()=>{
    pixel(c,'#e7fbfa',-width*.1,-width*.07,width*.11,width*.1);diamond(c,-width*.08,-width*.1,width*.07,'#f5d181');pixel(c,'#0a5385',-width*.025,-width*.04,width*.017,width*.012);
   }c.restore();
  }
+ function animatedFigure(c,x,y,width,flip,pose,reduced,economy){
+  const source=motionLoaded?motionImage:sprite();
+  if(!source){figure(c,x,y,width,flip);return;}
+  const fw=motionLoaded?motionImage.naturalWidth/4:source.width,fh=motionLoaded?motionImage.naturalHeight/3:source.height;
+  const column=motionLoaded?pose.frame%4:0,row=motionLoaded?Math.floor(pose.frame/4):0;
+  const x0=column*fw,y0=row*fh,height=width*fh/fw,top=-width*(motionLoaded?.36:.29);
+  c.save();c.translate(x,y);c.scale(flip?-1:1,1);c.imageSmoothingEnabled=false;
+  if(reduced){c.drawImage(source,x0,y0,fw,fh,-width*.96,top,width,height);c.restore();return;}
+  // Key drawings change the jaw, neck and paws. A continuous spine wave then
+  // carries momentum back into the tail between drawings, with a steady face.
+  const strips=economy?8:16,amplitude=width*(.010+.018*pose.rush);
+  const bend=u=>Math.sin(pose.age*12-u*6)*amplitude*Math.pow(Math.max(0,1-u/.84),1.35);
+  for(let i=0;i<strips;i++){
+   const u=i/strips,v=(i+1)/strips,dx=width/strips,a=bend(u),b=bend(v);
+   c.save();c.transform(1,(b-a)/dx,0,1,(u-.96)*width,top+a);
+   c.drawImage(source,x0+u*fw,y0,fw/strips,fh,0,0,dx+.2,height);c.restore();
+  }
+  c.restore();
+ }
  function sigil(c,x,y,size,progress,reduced,economy){
   c.save();c.globalAlpha*=.8;ring(c,x,y,size,size*.23,'#dcfafa',1.5);ring(c,x,y,size*.8,size*.18,'#decd8b',1);
   const n=economy?4:8,turn=reduced?0:progress*1.4;
@@ -73,9 +107,10 @@ window.SchoolOsiaWeaponArt=(()=>{
   const {source,target,reduced=false,economy=false}=o,age=Number(o.age),s=Math.max(.4,Math.min(3,Number(o.scale)||1));
   if(!valid(source)||!valid(target)||!Number.isFinite(age)||age<0||age>1.85)return false;
   const dir=target.x>=source.x?1:-1,tx=target.x,ty=Number.isFinite(target.aimY)?target.aimY:target.y-37*s;
-  const charge=clamp(age/.38),rush=reduced?1:clamp((age-.25)/.58),impact=clamp((age-.83)/.8),fade=1-clamp((age-1.3)/.55);
+  const pose=motion(age,reduced),{charge,rush,impact,fade}=pose;
   const width=Math.min(330*s,Math.max(185*s,Math.abs(tx-source.x)*1.1));
-  const nose=mix(source.x+dir*80*s,tx+dir*28*s,rush),headY=mix(source.y-62*s,ty,rush)-(reduced?0:Math.sin(rush*Math.PI)*42*s);
+  const recoil=reduced?0:Math.sin(clamp((age-1)/.35)*Math.PI)*12*s;
+  const nose=mix(source.x+dir*80*s,tx+dir*28*s,rush)-dir*recoil,headY=mix(source.y-62*s,ty,rush)-(reduced?0:Math.sin(rush*Math.PI)*30*s);
   c.save();c.globalAlpha*=fade;
   sigil(c,source.x,source.y-3*s,(24+charge*18)*s,age,reduced,economy);
   if(!reduced){
@@ -87,8 +122,8 @@ window.SchoolOsiaWeaponArt=(()=>{
    }
    for(let i=0,n=economy?4:9;i<n;i++){const x=nose-dir*(20+i*26)*s,y=headY+Math.sin(age*7+i*.65)*13*s+i*3*s;pixel(c,i%3?'#9beaff':'#f2d992',x,y,(12+charge*10)*s,2*s);}
   }
-  c.save();c.globalAlpha*=Math.max(.2,charge);figure(c,nose,headY,width*(.65+charge*.35),dir<0);c.restore();
-  if(age>=.75||reduced){
+  c.save();c.globalAlpha*=Math.max(.2,charge);animatedFigure(c,nose,headY,width*(.72+charge*.28),dir<0,pose,reduced,economy);c.restore();
+  if(age>=1||reduced){
    const r=(18+impact*60)*s;c.save();c.globalAlpha*=1-impact*.65;
    ring(c,tx,ty,r,r*.8,'#bffaff',3*s);ring(c,tx,ty,r*.7,r,'#efdd9f',1.5*s);
    sigil(c,tx,target.y-2*s,r,age,reduced,economy);
@@ -99,5 +134,5 @@ window.SchoolOsiaWeaponArt=(()=>{
  }
  function portrait(c,x,y,width,flip=false){figure(c,x,y,width,flip);}
  function reset(){dragonSource=null;}
- return Object.freeze({ready,equipped,spear,dragon,drowning,portrait,reset,assetsReady:()=>loaded});
+ return Object.freeze({ready,equipped,spear,dragon,drowning,portrait,reset,motion,frameTimes:FRAME_TIMES,assetsReady:()=>loaded,motionReady:()=>motionLoaded});
 })();

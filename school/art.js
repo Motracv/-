@@ -1529,23 +1529,28 @@ window.SchoolArt = (() => {
     const enter = reduced ? 1 : Math.min(1, age / .12), offset = reduced ? 0 : (1 - enter) * -45;
     const bounds = sceneBounds(c.canvas);
     const divine=window.SchoolOsiaWeaponArt?.equipped(state.battle.heroes.find(h=>h.id==='osia'));
-    c.save(); rect(c, "#081c32b8", bounds.x, bounds.y, bounds.width, bounds.height);
+    // The short title beat leaves the actual summoning and dragon anatomy
+    // visible; combat continues while the nonblocking cast is in flight.
+    if(divine&&age>=.30)return;
+    const cutinAlpha=c.globalAlpha*(divine?Math.max(0,1-Math.max(0,age-.18)/.12):1);
+    c.save();c.globalAlpha=cutinAlpha;c.save();
+    rect(c, "#081c32b8", bounds.x, bounds.y, bounds.width, bounds.height);
     c.beginPath(); c.rect(bounds.x, 61, bounds.width, 143); c.clip(); c.translate(offset, 0);
     rect(c, "#123a55f5", bounds.x - 50, 62, bounds.width + 100, 141); rect(c, "#1a5671", bounds.x, 69, bounds.width, 126);
     for (let i = 0; i < 15; i++) { const x = reduced ? i * 41 : (i * 41 + age * 230) % 550 - 50; rect(c, i % 2 ? "#75d8e741" : "#b6f6f12e", x, 78 + i * 8, 65 + i % 4 * 21, 2); }
-    c.globalAlpha = divine?.8:.42;if(divine)window.SchoolOsiaWeaponArt.portrait(c,465,122,255);else c.drawImage(dragonSprite(), 278, 69, 195, 135);c.globalAlpha = 1;
+    c.globalAlpha = cutinAlpha*(divine?.8:.42);if(divine)window.SchoolOsiaWeaponArt.portrait(c,465,122,255);else c.drawImage(dragonSprite(), 278, 69, 195, 135);c.globalAlpha = cutinAlpha;
     // Charge and release use the original illustrated poses and identity.
     const charge=reduced?.65:clamp01(age/duration);
     c.save();c.translate(80+(reduced?0:charge*10),234);c.scale(2.55,2.55);
     osiaFigure(c,age,{charge,reduced,blink:false});c.restore();
     const orbX=102+charge*40,orbY=153-Math.sin(charge*Math.PI)*19;
-    c.save();c.globalAlpha=.4+Math.sin(charge*Math.PI)*.5;waterOrb(c,orbX,orbY,9+charge*8);c.restore();
+    c.save();c.globalAlpha=cutinAlpha*(.4+Math.sin(charge*Math.PI)*.5);waterOrb(c,orbX,orbY,9+charge*8);c.restore();
     if(!reduced)for(let i=0;i<6;i++){const angle=i*Math.PI/3-age*2.5;rect(c,"#d2ffff",orbX+Math.cos(angle)*(23-charge*8),orbY+Math.sin(angle)*(18-charge*6),2,3);}
     c.textAlign = "left"; c.font = "11px Galmuri, monospace"; c.fillStyle = "#9ee8ed"; c.fillText("물의 용왕  OSIA", 174, 99);
     const title=divine?'용왕의 권능 · 용의 신수':'용왕의 권능 · 거대 수룡';
     c.font = "17px Galmuri, monospace"; c.fillStyle = "#062b43"; c.fillText(title, 175, 132); c.fillStyle = "#f4ffef"; c.fillText(title, 174, 131);
     c.font = "9px Galmuri, monospace"; c.fillStyle = "#bee6e7"; c.fillText(divine?'UR 전용 무기 · 신수 강림':'궁극기 발동', 175, 155);
-    c.restore(); detail(c, "#adf4ed", bounds.x, 61, bounds.width, 1.5); detail(c, "#87c7dc", bounds.x, 202, bounds.width, 1.5);
+    c.restore(); detail(c, "#adf4ed", bounds.x, 61, bounds.width, 1.5); detail(c, "#87c7dc", bounds.x, 202, bounds.width, 1.5);c.restore();
   }
   function criticalMark(c,x,y,size=1){
     c.save();c.translate(Math.round(x),Math.round(y));c.scale(size,size);
