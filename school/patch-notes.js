@@ -1,7 +1,10 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-osia-look1',
+  version:'school-osia-look2',
   entries:Object.freeze([
+    {version:'school-osia-look2',date:'2026.11.19',title:'오시아 · 도트 인체 비율 조정',items:[
+      '오시아의 머리 크기와 몸통·팔다리 비율을 다듬어 호라스처럼 성숙하고 자연스러운 실루엣으로 변경했어요. 기존 의상과 파란 단발, 각 자세의 발 위치는 유지했어요.'
+    ]},
     {version:'school-osia-look1',date:'2026.11.19',title:'오시아 · 새 도트와 상시 모집 일러스트',items:[
       '오시아의 인게임 도트를 새 디자인으로 바꿨어요. 파란 단발·양쪽 지느러미 장식·흰 티셔츠를 살리고 대기·마법 모으기·손 뻗기 자세를 적용했어요.',
       '상시뽑기는 오시아·라바가 함께하는 새 일러스트로 표시돼요. 오시아의 영입 결과와 미리보기 그림도 새 일러스트로 맞췄어요.'
