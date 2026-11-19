@@ -18,20 +18,18 @@ window.SchoolBattlePolish=(()=>{
   const def=window.SchoolRPG.BY_ID[shot.id],color=({water:'#7eeaff',blossom:'#ffb6e8',ice:'#b1edff',earth:'#e5c676',wind:'#9fe5bd'})[def.element]||'#f0bc86';
   c.save();c.beginPath();c.rect(0,0,w,h);c.clip();
   const fade=clamp(shot.age/.075)*clamp((.72-shot.age)/.16);c.globalAlpha*=fade;
-  if(reduced){
-   c.fillStyle='#101b2de8';c.fillRect(w*.25,6,w*.5,25);c.fillStyle=color;c.textAlign='center';c.font=`bold ${Math.max(10,w/60)}px Galmuri, sans-serif`;c.fillText(`${def.name} · ${shot.name}`,w*.5,23,w*.48);c.restore();return true;
+  // A compact left-side notice keeps the battlefield and targets visible.
+  const unit=Math.min(w/480,h/280,1.6),x=8*unit,y=h*.16;
+  const panelW=156*unit,panelH=(reduced?42:56)*unit;
+  c.fillStyle='#101b2de8';c.fillRect(x,y,panelW,panelH);
+  c.fillStyle=color;c.fillRect(x,y,2*unit,panelH);
+  if(!reduced){
+   // Fixed size: no full-screen dimming, camera push-in or oversized portrait.
+   window.SchoolArt.hero(c,shot.id,x+25*unit,y+50*unit,1*unit,{pose:2,casting:true,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
   }
-  // A diagonal panel and a short 12% push-in; simulation and inputs never pause.
-  c.fillStyle='#070f1a70';c.fillRect(0,0,w,h);
-  c.fillStyle='#101b2deb';c.beginPath();c.moveTo(0,h*.08);c.lineTo(w*.66,0);c.lineTo(w*.48,h);c.lineTo(0,h);c.closePath();c.fill();
-  c.strokeStyle=color;c.lineWidth=Math.max(1,w/400);c.beginPath();c.moveTo(0,h*.1);c.lineTo(w*.65,0);c.moveTo(0,h*.96);c.lineTo(w*.49,h*.87);c.stroke();
-  for(let i=0;i<5;i++){c.globalAlpha=fade*(.1+i*.025);c.strokeStyle=color;c.beginPath();c.moveTo(0,h*(.2+i*.13));c.lineTo(w*(.25+i*.03),h*(.13+i*.13));c.stroke();}
-  c.globalAlpha=fade;
-  const push=1+.12*Math.sin(clamp(shot.age/.55)*Math.PI),scale=h*.81/48*push;
-  window.SchoolArt.hero(c,shot.id,w*.25,h*.94,scale,{pose:2,casting:true,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
-  c.textAlign='left';c.fillStyle=color;c.font=`bold ${Math.max(12,w*.026)}px Galmuri, sans-serif`;c.fillText(def.name,w*.48,h*.42,w*.47);
-  c.fillStyle='#ffffff';c.font=`bold ${Math.max(15,w*.038)}px Galmuri, sans-serif`;c.fillText(shot.name,w*.48,h*.55,w*.49);
-  c.fillStyle=color;c.fillRect(w*.48,h*.61,w*.37,Math.max(2,h*.009));
+  const textX=x+(reduced?10:50)*unit,textY=y+(reduced?15:20)*unit,textW=panelW-(reduced?20:57)*unit;
+  c.textAlign='left';c.fillStyle=color;c.font=`bold ${10*unit}px Galmuri, sans-serif`;c.fillText(def.name,textX,textY,textW);
+  c.fillStyle='#ffffff';c.font=`bold ${11*unit}px Galmuri, sans-serif`;c.fillText(shot.name,textX,textY+17*unit,textW);
   c.restore();return true;
  }
  function speedField(c,allies,enemies,time,w,y=32){
