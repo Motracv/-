@@ -32,10 +32,10 @@ window.SchoolInsights=(()=>{
     function reportRows(){
       if(!open()||!report)return;
       const total=report.totals[metric]||0,rows=[...report.rows].sort((a,b)=>(b[metric]||0)-(a[metric]||0));
-      const key=report.rows.map(r=>r.id).join('|');
+      const key=report.rows.map(r=>r.id+':'+G.equippedSkin?.(ctx.getState(),r.id)).join('|');
       if(rowsKey!==key){
         rowsKey=key;
-        $('insight-rows').innerHTML=report.rows.map(r=>{const h=G.BY_ID[r.id];return `<article id="insight-row-${r.id}" class="insight-row" data-rarity="${h.rarity}"><img src="${Art.portrait(r.id)}" alt=""><div><div class="insight-row-label"><b>${esc(h.name)}</b><span><b id="insight-value-${r.id}"></b><small id="insight-share-${r.id}"></small></span></div><div class="insight-bar"><i id="insight-bar-${r.id}"></i></div><small id="insight-detail-${r.id}"></small></div></article>`;}).join('');
+        $('insight-rows').innerHTML=report.rows.map(r=>{const h=G.BY_ID[r.id];return `<article id="insight-row-${r.id}" class="insight-row" data-rarity="${h.rarity}"><img src="${Art.portrait(r.id,G.equippedSkin?.(ctx.getState(),r.id))}" alt=""><div><div class="insight-row-label"><b>${esc(h.name)}</b><span><b id="insight-value-${r.id}"></b><small id="insight-share-${r.id}"></small></span></div><div class="insight-bar"><i id="insight-bar-${r.id}"></i></div><small id="insight-detail-${r.id}"></small></div></article>`;}).join('');
       }
       rows.forEach((r,index)=>{
         const value=r[metric]||0,share=total?value/total*100:0;

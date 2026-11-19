@@ -1,0 +1,307 @@
+{
+  "id": "horas_after_school",
+  "hero": "horas",
+  "name": "방과 후의 성좌",
+  "status": "production",
+  "stats": {},
+  "sourceSize": [
+    1536,
+    1024
+  ],
+  "frames": [
+    {
+      "index": 0,
+      "name": "idle",
+      "rect": [
+        0,
+        0,
+        384,
+        341
+      ],
+      "bounds": [
+        106,
+        5,
+        166,
+        311
+      ],
+      "anchor": [
+        215,
+        316
+      ],
+      "bodyHeight": 311
+    },
+    {
+      "index": 1,
+      "name": "basic-a-windup",
+      "rect": [
+        384,
+        0,
+        384,
+        341
+      ],
+      "bounds": [
+        86,
+        16,
+        186,
+        300
+      ],
+      "anchor": [
+        206.5,
+        316
+      ],
+      "bodyHeight": 300
+    },
+    {
+      "index": 2,
+      "name": "basic-a-release",
+      "rect": [
+        768,
+        0,
+        384,
+        341
+      ],
+      "bounds": [
+        64,
+        17,
+        253,
+        299
+      ],
+      "anchor": [
+        212.5,
+        316
+      ],
+      "bodyHeight": 299
+    },
+    {
+      "index": 3,
+      "name": "basic-a-recover",
+      "rect": [
+        1152,
+        0,
+        384,
+        341
+      ],
+      "bounds": [
+        78,
+        16,
+        225,
+        300
+      ],
+      "anchor": [
+        213,
+        316
+      ],
+      "bodyHeight": 300
+    },
+    {
+      "index": 4,
+      "name": "basic-b-windup",
+      "rect": [
+        0,
+        341,
+        384,
+        342
+      ],
+      "bounds": [
+        102,
+        14,
+        189,
+        303
+      ],
+      "anchor": [
+        208,
+        317
+      ],
+      "bodyHeight": 303
+    },
+    {
+      "index": 5,
+      "name": "basic-b-release",
+      "rect": [
+        384,
+        341,
+        384,
+        342
+      ],
+      "bounds": [
+        77,
+        13,
+        230,
+        304
+      ],
+      "anchor": [
+        212,
+        317
+      ],
+      "bodyHeight": 304
+    },
+    {
+      "index": 6,
+      "name": "basic-b-recover",
+      "rect": [
+        768,
+        341,
+        384,
+        342
+      ],
+      "bounds": [
+        76,
+        13,
+        219,
+        304
+      ],
+      "anchor": [
+        214,
+        317
+      ],
+      "bodyHeight": 304
+    },
+    {
+      "index": 7,
+      "name": "fusion-gather",
+      "rect": [
+        1152,
+        341,
+        384,
+        342
+      ],
+      "bounds": [
+        90,
+        11,
+        183,
+        306
+      ],
+      "anchor": [
+        211.5,
+        317
+      ],
+      "bodyHeight": 306
+    },
+    {
+      "index": 8,
+      "name": "fusion-join",
+      "rect": [
+        0,
+        683,
+        384,
+        341
+      ],
+      "bounds": [
+        97,
+        7,
+        177,
+        311
+      ],
+      "anchor": [
+        212.5,
+        318
+      ],
+      "bodyHeight": 311
+    },
+    {
+      "index": 9,
+      "name": "ritual-command",
+      "rect": [
+        384,
+        683,
+        384,
+        341
+      ],
+      "bounds": [
+        47,
+        9,
+        267,
+        309
+      ],
+      "anchor": [
+        208.5,
+        318
+      ],
+      "bodyHeight": 309
+    },
+    {
+      "index": 10,
+      "name": "ritual-release",
+      "rect": [
+        768,
+        683,
+        384,
+        341
+      ],
+      "bounds": [
+        41,
+        15,
+        277,
+        303
+      ],
+      "anchor": [
+        206,
+        318
+      ],
+      "bodyHeight": 303
+    },
+    {
+      "index": 11,
+      "name": "skill-wink",
+      "rect": [
+        1152,
+        683,
+        384,
+        341
+      ],
+      "bounds": [
+        88,
+        6,
+        182,
+        311
+      ],
+      "anchor": [
+        204.5,
+        317
+      ],
+      "bodyHeight": 311
+    }
+  ],
+  "animations": {
+    "idle": [
+      0
+    ],
+    "basicA": [
+      1,
+      2,
+      3,
+      0
+    ],
+    "basicB": [
+      4,
+      5,
+      6,
+      0
+    ],
+    "fusion": [
+      7,
+      8
+    ],
+    "ritual": [
+      7,
+      8,
+      9,
+      10,
+      11,
+      0
+    ]
+  },
+  "effectsBaked": false,
+  "sourceSha256": "703f256088a85fc506b4fd495683015a5ed3280f9b346d1e56e244586ae7cf08",
+  "encoding": "Lossless WebP; original approved RGBA artwork preserved",
+  "nominalBodyHeight": 44,
+  "sourceBodyHeight": 311,
+  "timings": {
+    "basicEnd": 1.18,
+    "basicRelease": 0.18,
+    "ultimateImpact": 1.5,
+    "castEnd": 2.45
+  },
+  "hurtFrame": 0,
+  "winkFrame": 11
+}

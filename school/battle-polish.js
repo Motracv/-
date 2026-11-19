@@ -9,11 +9,11 @@ window.SchoolBattlePolish=(()=>{
    const t=e.shown??e.t??e.time*1000,age=(now-t)/1000;if(!Number.isFinite(age)||age<0||age>=.72)continue;
    const special=['osia-breath','horas-cast','spica-skill','spica-wind','ryusion-skill','lava-skill'].includes(e.kind)||e.kind==='kazua-mode'&&e.mode==='red'||e.kind==='hyeokjin-mode'&&e.mode!=='basic';
    const skill=['skill-stage','cast','skill','heal','shield'].includes(e.kind)&&(!e.breath||['skill-stage','cast'].includes(e.kind))&&!['kazua','horas','hyeokjin'].includes(id)&&(id!=='osia'||e.stage===4)&&(!['heal','shield'].includes(e.kind)||!!e.skill);
-   if((special||skill)&&t>=at){found={id,age,stage:e.stage||1,name:e.name||e.skill||window.SchoolRPG.BY_ID[id].skill};at=t;}
+   if((special||skill)&&t>=at){found={id,age,team:e.team,side:e.side,stage:e.stage||1,name:e.name||e.skill||window.SchoolRPG.BY_ID[id].skill};at=t;}
   }
   return found;
  }
- function focus(c,events,now,w,h,reduced=false){
+ function focus(c,events,now,w,h,reduced=false,appearance=()=>null){
   const shot=latest(events,now);if(!shot)return false;
   const def=window.SchoolRPG.BY_ID[shot.id],color=({water:'#7eeaff',blossom:'#ffb6e8',ice:'#b1edff',earth:'#e5c676',wind:'#9fe5bd',dark:'#ef8fbd'})[def.element]||'#f0bc86';
   c.save();c.beginPath();c.rect(0,0,w,h);c.clip();
@@ -29,7 +29,7 @@ window.SchoolBattlePolish=(()=>{
   if(!reduced){
    // Gently push in on the portrait only; the small panel stays anchored.
    const zoom=1+.08*(1-Math.pow(1-clamp(shot.age/.3),3));
-   window.SchoolArt.hero(c,shot.id,x+25*unit,y+50*unit,zoom*unit,{pose:2,casting:true,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
+   window.SchoolArt.hero(c,shot.id,x+25*unit,y+50*unit,zoom*unit,{skin:appearance(shot),pose:2,casting:true,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
   }
   const textX=x+(reduced?10:50)*unit,textY=y+(reduced?15:20)*unit,textW=panelW-(reduced?20:57)*unit;
   c.textAlign='left';c.fillStyle=color;c.font=`bold ${10*unit}px Galmuri, sans-serif`;c.fillText(def.name,textX,textY,textW);

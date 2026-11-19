@@ -1,0 +1,40 @@
+const assert=require('node:assert/strict'),{randomBytes,createHash}=require('node:crypto');
+const G=require('../school/engine.js'),R=require('../school/raid-engine.js'),Y=require('../school/yeti-engine.js');
+const {fixture}=require('./account-fixture.cjs');
+const ID='horas_after_school',receipt=G.SKINS[ID].receipt;
+const clean=x=>JSON.parse(JSON.stringify(x,(key,value)=>['skin','skins','redeemedCodes'].includes(key)?undefined:value));
+(async()=>{
+ const s=G.create(Date.now(),1729);assert(G.validate(s));assert.equal(G.equippedSkin(s,'horas'),null);
+ s.units.horas={level:70,stars:3,xp:0,shards:0};G.action(s,{kind:'team',team:['horas','sua','taeo']},s.at);
+ for(const skin of [ID,'forged',{},0])assert.throws(()=>G.action(s,{kind:'skin-equip',hero:'horas',skin},s.at));
+ const forged=G.clone(s);forged.skins={horas:ID};assert(!G.validate(forged));
+ s.redeemedCodes.push(receipt);const before=G.clone(s),stats=G.stats('horas',s.units.horas,s);
+ G.action(s,{kind:'skin-equip',hero:'horas',skin:ID},s.at);assert(G.validate(s));assert.deepEqual(G.stats('horas',s.units.horas,s),stats);assert.deepEqual(clean(s),clean(before));assert.equal(s.battle.heroes[0].skin,ID);
+ assert.throws(()=>G.action(s,{kind:'skin-equip',hero:'sua',skin:ID},s.at));assert(G.validate(JSON.parse(JSON.stringify(s))));
+ const bare=G.clone(s);G.action(bare,{kind:'skin-equip',hero:'horas',skin:null},bare.at);
+ G.advance(s,s.at+60000);G.advance(bare,bare.at+60000);assert.deepEqual(clean(s),clean(bare));
+ const squad=()=>{const v=G.create(Date.now(),12);v.units.horas={level:80,stars:3,xp:0,shards:0};G.action(v,{kind:'team',team:['horas','sua','taeo']},v.at);v.redeemedCodes.push(receipt);return v;};
+ const dressed=squad(),base=G.clone(dressed);G.action(dressed,{kind:'skin-equip',hero:'horas',skin:ID},dressed.at);
+ const now=dressed.at,ra=R.create(G,[{account:'a',save:dressed},{account:'b',save:base}],now,123),rb=R.create(G,[{account:'a',save:base},{account:'b',save:base}],now,123);
+ assert.equal(ra.teams[0].units[0].skin,ID);assert.equal(ra.teams[1].units[0].skin,undefined);R.advance(G,ra,now+90000);R.advance(G,rb,now+90000);assert.deepEqual(clean(ra),clean(rb));
+ const ya=Y.create(G,[{account:'a',save:dressed},{account:'b',save:base}],now,71),yb=Y.create(G,[{account:'a',save:base},{account:'b',save:base}],now,71);Y.advance(G,ya,now+90000);Y.advance(G,yb,now+90000);assert.deepEqual(clean(ya),clean(yb));
+ const {simulateArena}=await import('../online/arena.mjs');const arenaA=simulateArena(G,[dressed,base],['A','B'],123),arenaB=simulateArena(G,[base,base],['A','B'],123);assert.deepEqual(clean(arenaA),clean(arenaB));
+ const snap={team:[...dressed.team],units:dressed.units,...G.snapshotSkins(dressed)};assert.equal(G.equippedSkin(snap,'horas'),ID);assert.equal(snap.redeemedCodes.length,1);
+ console.log('PASS old saves, ownership/equip validation, immediate appearance without stat/timer changes, reload, deterministic campaign/raid/arena and ranked snapshots');
+ const t=await fixture(),code=randomBytes(18).toString('hex').toUpperCase();t.env.PRIVATE_HORAS_SKIN_HASH=createHash('sha256').update(code).digest('hex');
+ const call=(who,route,data={})=>t.call('/api/school/'+route,{catalogVersion:G.CATALOG_VERSION,...data},null,{'X-Account-Session':who.token});
+ const saved=who=>t.sqlite.prepare('SELECT * FROM school_saves WHERE account_id=?').get(who.profile.id);
+ const people=[];for(const name of ['skin-owner-A','skin-owner-B']){const who=(await t.login(name)).data;assert.equal((await call(who,'state')).status,200);people.push(who);}
+ const redeem=(who,id,c=code,revision=saved(who).revision)=>call(who,'action',{revision,requestId:id,action:{kind:'redeem',code:c,gems:1e9,skin:'forged'}});
+ assert.equal((await redeem(people[0],'skin-wrong-request00','WRONG')).status,400);
+ const start=JSON.parse(saved(people[0]).payload),rev=saved(people[0]).revision;
+ const results=await Promise.all([redeem(people[0],'skin-unique-request1',' '+code.toLowerCase()+' '),redeem(people[0],'skin-unique-request2')]);assert.equal(results.filter(r=>r.status===200).length,1);assert([400,409].includes(results.find(r=>r.status!==200).status));
+ const won=results.findIndex(r=>r.status===200),owned=JSON.parse(saved(people[0]).payload);assert.equal(owned.gems,start.gems);assert.equal(owned.gold,start.gold);assert(!owned.units.horas);assert(G.ownsSkin(owned,ID));assert.equal(owned.redeemedCodes.filter(x=>x===receipt).length,1);assert(!saved(people[0]).payload.includes(code));
+ const repeat=await redeem(people[0],'skin-unique-request'+(won+1),code,rev);assert.equal(repeat.status,200);assert(repeat.data.repeated);
+ assert.equal((await redeem(people[1],'skin-other-account01')).status,200);
+ assert.equal((await call(people[0],'action',{revision:saved(people[0]).revision,requestId:'skin-no-hero-equip01',action:{kind:'skin-equip',hero:'horas',skin:ID}})).status,400);
+ // Grant only a test character to the isolated database, then exercise real API equip/reload.
+ const state=JSON.parse(saved(people[0]).payload);state.units.horas={level:1,stars:0,xp:0,shards:0};t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),people[0].profile.id);
+ const equipped=await call(people[0],'action',{revision:saved(people[0]).revision,requestId:'skin-real-equip-test01',action:{kind:'skin-equip',hero:'horas',skin:ID}});assert.equal(equipped.status,200);assert.equal(G.equippedSkin((await call(people[0],'state')).data.state,'horas'),ID);
+ assert.throws(()=>G.action(G.create(),{kind:'redeem',code},Date.now()));t.sqlite.close();console.log('PASS server-only hash redemption, per-account grant, concurrent claims, receipt retries, no currency/hero grant, no plaintext receipt, API equip/reload');
+})().catch(e=>{console.error(e);process.exitCode=1;});

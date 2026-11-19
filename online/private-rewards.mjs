@@ -52,3 +52,15 @@ export async function commitPrivateRankReward(db, {accountId, revision, payload,
   ]);
   return results[0];
 }
+
+// Per-account cosmetic redemption. The normal save CAS/receipt transaction
+// commits this entitlement; it never changes money, hero ownership or stats.
+export async function matchesPrivateHorasSkin(env,input){
+  return matchesPrivateRankReward({PRIVATE_RANK_REWARD_HASH:env.PRIVATE_HORAS_SKIN_HASH},input);
+}
+export function awardPrivateHorasSkin(game,state){
+  const skin=game.SKINS.horas_after_school;
+  if(game.ownsSkin(state,skin.id))throw Object.assign(new Error('이미 획득한 스킨입니다.'),{status:400});
+  state.redeemedCodes=[...(state.redeemedCodes||[]),skin.receipt];
+  return {kind:'redeem',code:skin.receipt,skin:skin.id,skinName:skin.name,hero:skin.hero,gold:0,gems:0,expiresAt:null};
+}

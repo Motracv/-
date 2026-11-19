@@ -14,7 +14,7 @@ window.SchoolLobby = (() => {
     };
     function render(state, now = Date.now(), questBoard) {
       if (!state) return;
-      const key = state.team.join('|');
+      const key = state.team.map(id=>id+':'+game.equippedSkin?.(state,id)).join('|');
       if (key !== partyKey || !ready) {
         ready = true; partyKey = key; slots.clear();
         const fragment = document.createDocumentFragment();
@@ -29,7 +29,7 @@ window.SchoolLobby = (() => {
             button.style.setProperty('--breath-delay',`${-(i*.63)}s`);
             button.innerHTML = '<span class="lobby-unit-label"><small></small><b></b></span><span class="lobby-stars" aria-hidden="true"></span><img class="lobby-sprite" alt="" draggable="false">';
             button.querySelector('b').textContent = definition.name;
-            button.querySelector('img').src = art.portrait(id);
+            button.querySelector('img').src = art.portrait(id,game.equippedSkin?.(state,id));
             slots.set(id, button);
           } else {
             button.classList.add('empty'); button.dataset.tab = 'roster';
@@ -54,11 +54,11 @@ window.SchoolLobby = (() => {
         if(id===speaker&&!quote){const bubble=document.createElement('span');bubble.className='bond-lobby-quote';bubble.textContent=game.BOND_CHARACTERS[id].quote;slot.append(bubble);}
         else if(quote&&id!==speaker)quote.remove();
       }
-      const leader = state.team[0], appearance=game.profileInfo(state), identity=[leader,appearance.avatar,appearance.title].join('|');
+      const leader = state.team[0], appearance=game.profileInfo(state), identity=[leader,game.equippedSkin?.(state,leader),appearance.avatar,appearance.title].join('|');
       if (leader && identity !== captainId) {
         captainId = identity;
         const image=document.getElementById('captain-portrait'),custom=document.getElementById('captain-custom-avatar'),label=document.getElementById('captain-title');
-        image.src=art.portrait(leader);image.hidden=appearance.avatar!=='leader';custom.hidden=appearance.avatar==='leader';
+        image.src=art.portrait(leader,game.equippedSkin?.(state,leader));image.hidden=appearance.avatar!=='leader';custom.hidden=appearance.avatar==='leader';
         custom.innerHTML=appearance.avatar==='leader'?'':window.SchoolGuild.avatar(appearance,leader);
         label.innerHTML=window.SchoolGuild.title(appearance);label.hidden=!appearance.title;
         document.getElementById('captain-button').classList.toggle('has-title',!!appearance.title);

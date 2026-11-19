@@ -6,7 +6,7 @@ export function simulateArena(game, saves, names, seed) {
   const teams = saves.map((s,side) => ({ name:names[side], units:s.team.slice(0,6).map(id => {
     const unit = s.units[id], def = game.BY_ID[id], st = game.stats(id,unit,s);
     // PvP vitality gives healers, shields and Osia's complete cycle time to act.
-    return { id,name:def.name,role:def.role,level:unit.level,stars:unit.stars,max:st.hp*3,hp:st.hp*3,atk:st.atk,defense:st.defense,shield:0,...(id==='osia'&&game.exclusivePassive?.(s,id)?{exclusive:game.exclusivePassive(s,id)}:{}) };
+    return { id,...(game.equippedSkin?.(s,id)?{skin:game.equippedSkin(s,id)}:{}),name:def.name,role:def.role,level:unit.level,stars:unit.stars,max:st.hp*3,hp:st.hp*3,atk:st.atk,defense:st.defense,shield:0,...(id==='osia'&&game.exclusivePassive?.(s,id)?{exclusive:game.exclusivePassive(s,id)}:{}) };
   }) }));
   // Replays retain only gear worn by this formation. Unused inventory,
   // duplicate stacks and campaign currency never enter a public replay.

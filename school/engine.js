@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 40;
+  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 41;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -804,9 +804,15 @@
     return { hp: Math.pow(1.18, Math.min(29, stage - 1)) * Math.pow(1.055, Math.max(0, stage - 30)) * (1 + middle * .25 + late * (BOSS_RULES.storyHp - 1.25)),
       atk: Math.pow(1.14, Math.min(29, stage - 1)) * Math.pow(1.015, Math.max(0, stage - 30)) * (1 + late * (BOSS_RULES.storyAttack - 1)) };
   }
+  // Appearance is an account entitlement, never a source of combat stats.
+  const SKINS = Object.freeze({horas_after_school:Object.freeze({id:'horas_after_school',hero:'horas',name:'방과 후의 성좌',receipt:'HORAS_AFTER_SCHOOL_SKIN'})});
+  function ownsSkin(s,id){return !!SKINS[id] && (s.redeemedCodes||[]).includes(SKINS[id].receipt);}
+  function equippedSkin(s,hero){const id=s.skins?.[hero];return s.units?.[hero]&&SKINS[id]?.hero===hero&&ownsSkin(s,id)?id:null;}
+  function validSkins(s){return s.skins===undefined||!!s.skins&&typeof s.skins==='object'&&!Array.isArray(s.skins)&&Object.entries(s.skins).every(([hero,id])=>typeof id==='string'&&!!s.units?.[hero]&&SKINS[id]?.hero===hero&&ownsSkin(s,id));}
+  function snapshotSkins(s,team=s.team){const skins=Object.fromEntries(team.map(id=>[id,equippedSkin(s,id)]).filter(([,v])=>v));return {skins,redeemedCodes:Object.values(skins).map(id=>SKINS[id].receipt)};}
   function freshHeroes(s, previousOsia) {
     const synergy = partySynergies(s);
-    const heroes = s.team.map(id => { const st = stats(id, s.units[id], s); return { id, hp: st.hp, max: st.hp, atk: st.atk, defense: 1 - (1 - st.defense) * synergy.incomingMultiplier, damageMultiplier: synergy.damageMultiplier, healMultiplier: synergy.healMultiplier, critChance: st.critChance, critMultiplier: st.critMultiplier, energy: id === "osia" && previousOsia ? previousOsia.energy : 0, shield: 0, ...(exclusivePassive(s,id)?{exclusive:exclusivePassive(s,id)}:{}) }; });
+    const heroes = s.team.map(id => { const st = stats(id, s.units[id], s); return { id, ...(equippedSkin(s,id)?{skin:equippedSkin(s,id)}:{}), hp: st.hp, max: st.hp, atk: st.atk, defense: 1 - (1 - st.defense) * synergy.incomingMultiplier, damageMultiplier: synergy.damageMultiplier, healMultiplier: synergy.healMultiplier, critChance: st.critChance, critMultiplier: st.critMultiplier, energy: id === "osia" && previousOsia ? previousOsia.energy : 0, shield: 0, ...(exclusivePassive(s,id)?{exclusive:exclusivePassive(s,id)}:{}) }; });
     heroes.forEach(u=>hyeokjinInit(u,heroes));return heroes;
   }
   function monsterAbility(enemy, stage) {
@@ -1010,7 +1016,7 @@
       s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) &&
       (s.offline.captainXp === undefined || Number.isFinite(s.offline.captainXp) && s.offline.captainXp >= 0) &&
       (s.heroShards===undefined||s.heroShards&&typeof s.heroShards==='object'&&!Array.isArray(s.heroShards)&&Object.entries(s.heroShards).every(([id,n])=>Object.hasOwn(BY_ID,id)&&Number.isSafeInteger(n)&&n>=0)) &&
-      validProfile(s.profile,s) && s.captain && Number.isInteger(s.captain.level) && s.captain.level >= 1 && s.captain.level <= CAPTAIN_MAX_LEVEL && Number.isFinite(s.captain.xp) && s.captain.xp >= 0);
+      validSkins(s) && validProfile(s.profile,s) && s.captain && Number.isInteger(s.captain.level) && s.captain.level >= 1 && s.captain.level <= CAPTAIN_MAX_LEVEL && Number.isFinite(s.captain.xp) && s.captain.xp >= 0);
   }
   function newHoras(stacks = 0) {
     return { stacks, nextBasicAt: HORAS_RULES.basicMs, basicPose: 1, lastHitStackAt: -HORAS_RULES.hitStackMs, lastCastAt: -HORAS_RULES.minCastMs };
@@ -1710,6 +1716,16 @@
       s.speed = input.speed;
       return { kind, speed: s.speed };
     }
+    if (kind === 'skin-equip') {
+      fail(!!s.units[input.hero] && !!BY_ID[input.hero], '보유한 용병을 선택하세요.');
+      const skin=input.skin;
+      fail(skin===null || typeof skin==='string'&&SKINS[skin]?.hero===input.hero&&ownsSkin(s,skin), '아직 획득하지 않은 스킨입니다.');
+      s.skins ||= {};
+      if(skin===null)delete s.skins[input.hero];else s.skins[input.hero]=skin;
+      // Change only appearance; no spawn, stat refresh, timers or random rolls.
+      const actor=s.battle?.heroes?.find(h=>h.id===input.hero);if(actor){if(skin===null)delete actor.skin;else actor.skin=skin;}
+      return {kind,hero:input.hero,skin};
+    }
     if (kind === "redeem") {
       fail(typeof input.code === "string" && input.code.length <= 128, "코드를 확인해 주세요.");
       const code = normalizeCouponCode(input.code);
@@ -1889,5 +1905,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { isURBanner,HYEOKJIN_RULES,HYEOKJIN_MOVES,hyeokjinInit,hyeokjinAwake,hyeokjinRefresh,hyeokjinGuard,hyeokjinRecord,hyeokjinStep,validHyeokjin, OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_CHARACTERS,BOND_DAILY_LIMIT,SHARD_SSR,BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { SKINS,ownsSkin,equippedSkin,snapshotSkins,isURBanner,HYEOKJIN_RULES,HYEOKJIN_MOVES,hyeokjinInit,hyeokjinAwake,hyeokjinRefresh,hyeokjinGuard,hyeokjinRecord,hyeokjinStep,validHyeokjin, OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_CHARACTERS,BOND_DAILY_LIMIT,SHARD_SSR,BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

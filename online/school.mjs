@@ -6,7 +6,7 @@ import { createRaids } from './raids.mjs';
 import { createYeti, collectYetiRewards } from './yeti.mjs';
 import { createCoop } from './coop.mjs';
 import { guildActivity, guildProjectClaim } from './guild-progress.mjs';
-import { matchesPrivateRankReward, privateRankRetry, awardPrivateRankReward, commitPrivateRankReward } from './private-rewards.mjs';
+import { matchesPrivateHorasSkin, awardPrivateHorasSkin, matchesPrivateRankReward, privateRankRetry, awardPrivateRankReward, commitPrivateRankReward } from './private-rewards.mjs';
 
 export function createSchool() {
   const game = globalThis.SchoolRPG;
@@ -59,7 +59,7 @@ export function createSchool() {
         const row=await env.DB.prepare('SELECT n.display_name AS name,s.payload FROM school_names n JOIN school_saves s ON s.account_id=n.account_id WHERE n.name_key=?').bind(nameKey(name)).first();
         requireSchool(row,'단장을 찾지 못했어요.',404);let saved;try{saved=JSON.parse(row.payload);}catch{}requireSchool(game.validate(saved),'프로필을 불러올 수 없어요.',409);
         const appearance=game.publicProfile(saved),info=game.profileInfo(saved);
-        return {name:row.name,...appearance,title:info.title,level:saved.captain.level,power:game.power(saved),best:saved.best,tower:game.activityInfo(saved).tower.best,team:saved.team.map(id=>({id,name:game.BY_ID[id].name,rarity:game.BY_ID[id].rarity,level:saved.units[id].level,stars:saved.units[id].stars}))};
+        return {name:row.name,...appearance,title:info.title,level:saved.captain.level,power:game.power(saved),best:saved.best,tower:game.activityInfo(saved).tower.best,team:saved.team.map(id=>({id,skin:game.equippedSkin(saved,id),name:game.BY_ID[id].name,rarity:game.BY_ID[id].rarity,level:saved.units[id].level,stars:saved.units[id].stars}))};
       }
       if (path === '/api/school/coop') return await coop.request(request,env,data,accounts);
       if (path === '/api/school/yeti') return await yeti.request(request, env, data, accounts);
@@ -90,6 +90,7 @@ export function createSchool() {
         requireSchool(data.action && typeof data.action === "object" && !Array.isArray(data.action), "잘못된 행동입니다.");
       }
       const privateRank = action && data.action.kind === 'redeem' && await matchesPrivateRankReward(env, data.action.code);
+      const privateSkin = action && data.action.kind === 'redeem' && await matchesPrivateHorasSkin(env,data.action.code);
       let acceptedRevision = data.revision;
       // Login/state sync also delivers old unclaimed victory rewards.
       if(!action)await collectYetiRewards(env.DB,game,signed.id,Date.now());
@@ -132,7 +133,7 @@ export function createSchool() {
           continue;
         }
         let result = null;
-        const privateReward = privateRank ? await awardPrivateRankReward(env.DB, game, state) : null;
+        const privateReward = privateRank ? await awardPrivateRankReward(env.DB, game, state) : privateSkin ? awardPrivateHorasSkin(game,state) : null;
         const renaming = action && data.action.kind === 'rename';
         if (renaming) {
           const normalized = game.normalizeCommanderName(data.action.name);

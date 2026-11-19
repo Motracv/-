@@ -20,11 +20,11 @@
   const slotName = index => `${index + 1}번 · ${state.team.length > 3 || index >= 3 ? index < 3 ? '전열' : '후열' : ['전열','중열','후열'][index]}`;
   const formationHint = () => state.team.length > 3 ? '전열 3명을 중심으로 공격을 받아요. 수호 용병을 전열에 배치해 보세요.' : '맨 앞 용병이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.';
   const icon = name => `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`;
-  const portrait = (id, cls = '') => `<img class="${cls}" src="${Art.portrait(id)}" alt="${G.BY_ID[id].name}">`;
+  const portrait = (id, cls = '') => `<img class="${cls}" src="${Art.portrait(id,G.equippedSkin(state,id))}" alt="${G.BY_ID[id].name}">`;
   const rarity = id => `<span class="rarity ${G.BY_ID[id].rarity}">${G.BY_ID[id].rarity}</span>`;
   const storage = { get(key, session = false) { try { return (session ? sessionStorage : localStorage).getItem(key); } catch { return null; } }, set(key, value, session = false) { try { (session ? sessionStorage : localStorage).setItem(key, value); return true; } catch { return false; } }, remove(key, session = false) { try { (session ? sessionStorage : localStorage).removeItem(key); } catch {} } };
   let state, mode = 'guest', profile = null, token = null, revision = 0, cloudClock = null, busy = false, pending = null, connected = true;
-  let formationUI=null,coop=null,notice=null;
+  let skinsUI=null,formationUI=null,coop=null,notice=null;
   let tab = 'lobby', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
   let confirmedActivityScope = '', confirmedActivityResult = null, dismissedActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null, selectedDungeon = 'daily';
   let recruitCategory = 'heroes';
@@ -510,9 +510,10 @@
     if (result.kind === 'recruit') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.recruit({results:result.results,key:`${accountScope()}:recruit:${completedActionKey}`}); if (!shown?.cancelled) reveal(result.results); }
     else if (result.kind === 'weapon-recruit') { operation=''; renderButtons(); revealWeapons(result.results); }
     else if (result.kind === 'redeem') {
-      const message = result.avatar ? `${result.avatarName} 프로필을 받았어요! 왼쪽 위 프로필에서 선택해 주세요.` : `${result.code} · 보석 +${fmt(result.gems)} · 코인 +${fmt(result.gold)}${result.snowflakes?` · 눈송이 +${fmt(result.snowflakes)}`:""} 수령 완료!`;
+      const message = result.skin ? `${result.skinName} 스킨을 받았어요! 호라스 육성 → 스킨에서 선택하세요.` : result.avatar ? `${result.avatarName} 프로필을 받았어요! 왼쪽 위 프로필에서 선택해 주세요.` : `${result.code} · 보석 +${fmt(result.gems)} · 코인 +${fmt(result.gold)}${result.snowflakes?` · 눈송이 +${fmt(result.snowflakes)}`:""} 수령 완료!`;
       $('coupon-code').value = ''; couponMessage(message, 'success'); toast(message); play('reward');
     }
+    else if(result.kind==='skin-equip'){lobby?.invalidate();renderKey=partyKey='';skinsUI?.refresh();toast(result.skin?'스킨을 적용했어요.':'기본 의상으로 바꿨어요.');}
     else if(result.kind==='codex-claim'){toast(`${G.BY_ID[result.hero].name} 도감 보상 · 보석 +100`);play('reward');if(modalKind==='codex')codexModal();}
     else if (result.kind === 'quest' || result.kind === 'quest-all') { toast(`임무 ${result.claimed?.length || 1}개 보상 · 보석 +${fmt(result.gems)} · 골드 +${fmt(result.gold)}`); play('reward'); }
     else if (result.kind === 'train') { if (!trainingHold) toast(`${G.BY_ID[result.hero].name} Lv.${result.level}!`); renderButtons(); play('level'); }
@@ -833,7 +834,7 @@
     });
   }
   function renderButtons() {
-    formationUI?.controls();coop?.refresh();notice?.refresh();
+    skinsUI?.refresh();formationUI?.controls();coop?.refresh();notice?.refresh();
     renderCounter();
     setHidden($('operation-status'), !operation || !busy || operation === 'counter');
     setText($('operation-message'), ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중',quest:'임무 보상 저장 중','quest-all':'임무 보상 모으는 중','gear-equip':'장비 착용 저장 중','gear-unequip':'장비 해제 저장 중','gear-awaken':'장비 각성 저장 중'})[operation] || '저장 확인 중');
@@ -949,7 +950,7 @@
     inspectDialog?.remove();const dialog=document.createElement('dialog'),version=++inspectVersion;inspectDialog=dialog;dialog.className='commander-inspector';dialog.innerHTML='<button class="inspector-close" aria-label="닫기">×</button><div class="inspector-content">프로필을 불러오는 중…</div>';document.body.append(dialog);dialog.showModal();
     dialog.querySelector('button').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());dialog.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();dialog.close();}},true);
     try{const p=await request('/api/school/profile',{name},'public');if(!dialog.open||version!==inspectVersion)return;
-      dialog.querySelector('.inspector-content').innerHTML=`<header>${window.SchoolGuild.avatar({...p,name:undefined},p.hero)}<div><h2>${esc(p.name)}</h2>${window.SchoolGuild.title(p)}<p>단장 Lv.${fmt(p.level)}</p></div></header><div class="inspect-stats"><span>전투력<b>${fmt(p.power)}</b></span><span>최고 지역<b>${esc(G.stageName(Math.max(1,p.best)))}</b></span><span>뫼비우스<b>${fmt(p.tower)}층</b></span></div><h3>출전 용병</h3><div class="inspect-team">${p.team.map(u=>`<article data-rarity="${esc(u.rarity)}"><img src="${esc(window.SchoolArt.portrait(u.id))}" alt=""><b>${esc(u.name)}</b><small>Lv.${fmt(u.level)} · ${'★'.repeat(u.stars)||'기본'}</small></article>`).join('')}</div>`;
+      dialog.querySelector('.inspector-content').innerHTML=`<header>${window.SchoolGuild.avatar({...p,name:undefined},p.hero)}<div><h2>${esc(p.name)}</h2>${window.SchoolGuild.title(p)}<p>단장 Lv.${fmt(p.level)}</p></div></header><div class="inspect-stats"><span>전투력<b>${fmt(p.power)}</b></span><span>최고 지역<b>${esc(G.stageName(Math.max(1,p.best)))}</b></span><span>뫼비우스<b>${fmt(p.tower)}층</b></span></div><h3>출전 용병</h3><div class="inspect-team">${p.team.map(u=>`<article data-rarity="${esc(u.rarity)}"><img src="${esc(window.SchoolArt.portrait(u.id,u.skin))}" alt=""><b>${esc(u.name)}</b><small>Lv.${fmt(u.level)} · ${'★'.repeat(u.stars)||'기본'}</small></article>`).join('')}</div>`;
     }catch(e){if(dialog.open)dialog.querySelector('.inspector-content').textContent=e.message;}
   }
   function shardResult(r){return r.fresh?'NEW · 첫 만남':r.converted?`풀각 → 공용 ${r.converted.rarity} 조각 +${r.converted.count}`:`조각 +${r.shards}`;}
@@ -1122,6 +1123,7 @@
     }
   }
   function openModal(title, html, kind = '') {
+    skinsUI?.destroy();$('modal').classList.toggle('skin-modal',kind==='skin');
     formationUI?.cancel();$('modal').classList.toggle('formation-hero-modal',['hero','codex-hero'].includes(kind));
     qol?.close();equipmentUI?.close();$('modal').classList.remove('qol-modal','equipment-modal');
     worldMap?.destroy(); worldMap = null;
@@ -1133,10 +1135,10 @@
     if (!$('modal').open) $('modal').showModal(); setAttr($('app'), 'data-modal-open', 'true'); syncBattleOverlay(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
   }
-  async function requestModalClose(){if(coop?.closePicker())return;if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
+  async function requestModalClose(){if(coop?.closePicker())return;if(modalKind==='skin'){heroDetail('horas');return;}if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
   function closeModal(dismissResult = false) {
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
-    qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
+    skinsUI?.destroy();qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
     raid?.destroy(); yeti?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); setAttr($('app'), 'data-modal-open', 'false'); modalKind = ''; syncBattleOverlay(); loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
   }
   function codexModal(){
@@ -1148,9 +1150,10 @@
     const h = G.BY_ID[id], u = readOnly?null:state.units[id]; if (!h) return; selectedHero = id;
     const st = G.stats(id, u || {level:1, stars:0}, readOnly?undefined:state);
     const skills = `<details class="hero-skills" ${u ? '' : 'open'}><summary>스킬 · 패시브</summary><div class="skill-box"><b>${h.skill} <span>· ${id === 'horas' ? '벚꽃 구슬 5개' : `${h.cooldown}초 충전`}</span></b>${h.desc}</div>${h.passive ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive}</b>${h.passiveDesc}</div>` : ''}${h.passive2 ? `<div class="skill-box passive-box"><b>패시브 · ${h.passive2}</b>${h.passive2Desc}</div>` : ''}</details>`;
-    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><aside class="hero-profile"><div class="hero-detail-header">${G.BOND_CHARACTERS[id]?`<img class="detail-portrait bond-detail-portrait" src="school/assets/bonds/${id}-profile.webp?v=bond-art1" width="256" height="256" alt="${h.name}">`:portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'earth' ? '<p class="hero-element">Ryusion · 여성 · 인간 · 대지 속성</p>' : h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : id === 'horas' ? '<p class="hero-element">Horas · 여성 · 벚꽃 속성</p>' : id==='hyeokjin'?'<p class="hero-element">남성 · 이계의 인간 · 어둠 · 물리 대검</p>':id==='spica'?'<p class="hero-element">Spica · 여성 · 설녀 · 얼음 · 지원</p>':''}</div></div></aside><section class="hero-growth"><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div><p class="detail-note">치명타 ${Math.round((st.critChance || .12)*100)}% · 피해 ${(st.critMultiplier || 1.5)}배</p>${u ? window.SchoolEquipment?.slotsMarkup(state,id)||'' : ''}${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">레벨업 · 꾹 누르기<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${Array.from({length:maxTeam()}, (_, i) => { const member = state.team[i]; return `<button data-slot="${i}" class="${member === id ? 'selected' : ''} ${member ? '' : 'empty'}">${member ? portrait(member) : '<span class="empty-slot-mark" aria-hidden="true">+</span>'}${slotName(i)}<br>${member ? G.BY_ID[member].name : '빈자리에 추가'}</button>`; }).join('')}</div>${state.team.includes(id) ? `<button class="text-button remove-hero-action" id="remove-hero">출전에서 빼기</button>` : ''}<p class="detail-note" id="formation-status">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : readOnly ? `${skills}<p class="detail-note">Lv.1 기본 능력치 · ${state.units[id]?'보유한 용병':'아직 만나지 못한 용병'}</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">${id==='spica'?'겨울 이벤트에서 영입 →':'모집에서 만나기 →'}</button>`}</section></div>`, readOnly?'codex-hero':'hero');
+    openModal(u ? '용병 육성' : '용병 정보', `<div class="hero-management"><aside class="hero-profile"><div class="hero-detail-header">${G.BOND_CHARACTERS[id]&&!G.equippedSkin(state,id)?`<img class="detail-portrait bond-detail-portrait" src="school/assets/bonds/${id}-profile.webp?v=bond-art1" width="256" height="256" alt="${h.name}">`:portrait(id, 'detail-portrait')}<div>${rarity(id)}<h3>${h.name}</h3><p>${h.club} · ${h.role}</p>${h.element === 'earth' ? '<p class="hero-element">Ryusion · 여성 · 인간 · 대지 속성</p>' : h.element === 'water' ? '<p class="hero-element">Osia · 물고기 종족 · 물 속성</p>' : h.element === 'wind' ? '<p class="hero-element">Lava · 남성 · 인간 · 바람 속성</p>' : id === 'horas' ? '<p class="hero-element">Horas · 여성 · 벚꽃 속성</p>' : id==='hyeokjin'?'<p class="hero-element">남성 · 이계의 인간 · 어둠 · 물리 대검</p>':id==='spica'?'<p class="hero-element">Spica · 여성 · 설녀 · 얼음 · 지원</p>':''}</div></div></aside><section class="hero-growth"><div class="hero-stat-grid"><div><small>레벨</small><b id="hero-level">${u ? u.level : 1}</b><small>/ ${G.MAX_LEVEL}</small></div><div><small>체력</small><b id="hero-hp">${fmt(st.hp)}</b></div><div><small>공격력</small><b id="hero-atk">${fmt(st.atk)}</b></div></div><p class="detail-note">치명타 ${Math.round((st.critChance || .12)*100)}% · 피해 ${(st.critMultiplier || 1.5)}배</p>${u ? window.SchoolEquipment?.slotsMarkup(state,id)||'' : ''}${u ? `<div class="hero-wallet">보유 골드 <b id="hero-gold">${fmt(state.gold)}</b><span id="hero-xp"></span></div><div class="detail-actions"><button class="primary" id="train-hero">레벨업 · 꾹 누르기<small id="train-cost"></small></button><button class="secondary" id="awaken-hero">각성<small id="awaken-cost"></small></button></div><p class="upgrade-feedback" id="training-status" role="status"></p><div class="detail-note"><span id="hero-stars"></span> · <span id="hero-shards"></span><br>훈련·각성 능력치는 다음 전투부터 적용됩니다.</div><button class="secondary full" id="change-hero">용병 교체 · 보유 동료 보기</button>${skills}<h3 class="stage-title">출전 위치</h3><div class="slot-buttons">${Array.from({length:maxTeam()}, (_, i) => { const member = state.team[i]; return `<button data-slot="${i}" class="${member === id ? 'selected' : ''} ${member ? '' : 'empty'}">${member ? portrait(member) : '<span class="empty-slot-mark" aria-hidden="true">+</span>'}${slotName(i)}<br>${member ? G.BY_ID[member].name : '빈자리에 추가'}</button>`; }).join('')}</div>${state.team.includes(id) ? `<button class="text-button remove-hero-action" id="remove-hero">출전에서 빼기</button>` : ''}<p class="detail-note" id="formation-status">전열이 공격을 더 자주 받습니다. 편성을 바꾸면 현재 전투를 다시 시작합니다.</p>` : readOnly ? `${skills}<p class="detail-note">Lv.1 기본 능력치 · ${state.units[id]?'보유한 용병':'아직 만나지 못한 용병'}</p>` : `${skills}<p class="detail-note">아직 만나지 못한 용병입니다.</p><button class="primary full" id="to-recruit">${id==='spica'?'겨울 이벤트에서 영입 →':'모집에서 만나기 →'}</button>`}</section></div>`, readOnly?'codex-hero':'hero');
     if(G.BOND_CHARACTERS[id]&&!readOnly){const bond=G.bondInfo(state,state.at,id);$('modal-content').querySelector('.hero-profile').insertAdjacentHTML('beforeend',`<button class="bond-entry bond-icon-button" id="osia-bond-entry" aria-label="${h.name} 인연 기록"><svg aria-hidden="true"><use href="#i-book"/></svg><span>인연 기록<small>인연 Lv.${bond.level} · ${bond.episodes.filter(e=>e.read).length}/4화</small></span></button>`);$('osia-bond-entry').onclick=()=>insights?.bond(id);}
 
+    if(u&&id==='horas'){$('modal-content').querySelector('.hero-profile').insertAdjacentHTML('beforeend',`<button class="skin-entry" id="hero-skins">${icon('star')}<span>스킨<small>${G.equippedSkin(state,id)?G.SKINS[G.equippedSkin(state,id)].name:'기본 의상'}</small></span></button>`);$('hero-skins').onclick=()=>skinsUI?.open(id);}
     if (u) {
       $('train-hero').style.touchAction = 'none'; $('train-hero').style.userSelect = 'none';
       $('train-hero').onpointerdown = event => beginTraining(event,id);
@@ -1296,6 +1299,7 @@
     });
     dungeonPortal=window.SchoolDungeonPortal?.create($('tab-dungeons'),{reduced:()=>reduced});
     $('dungeon-back').onclick=()=>{if(!dungeonPortal?.back())setTab('lobby');};
+    skinsUI=window.SchoolSkins?.create({getState:()=>state,scope:accountScope,blocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,openHero:heroDetail,reduced:()=>reduced});
     lobby = window.SchoolLobby?.create($('lobby-party'), {game:G, art:Art});
     qol = window.SchoolQoL?.create({getState:()=>state,accountScope,serverNow,modalKind:()=>modalKind,activityActive,isBlocked:()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,toast,openRoster:()=>{filter='owned';setTab('roster');},openHelp:help});
     $('formation-bond-open').onclick=()=>insights?.bond();
@@ -1393,7 +1397,7 @@
       setAttr($('app'), 'data-modal-open', 'false');
       syncBattleOverlay();
       if (modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
-      qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
+      skinsUI?.destroy();qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
       delete $('modal').dataset.activityResult; modalKind = ''; loginGeneration++; queueMicrotask(maybeShowActivityResult);
     });
     document.addEventListener('close', event => { if (event.target.id === 'school-presentation') queueMicrotask(maybeShowActivityResult); }, true);

@@ -31,7 +31,7 @@ window.SchoolFormation=(()=>{
   }
   const blocked=()=>sending||ctx.blocked()||ctx.activityActive();
   const active=()=>!root.hidden&&!document.hidden&&!ctx.modalOpen();
-  const portrait=id=>`<span class="formation-figure"><img src="${(window.SchoolArt.rosterPortrait||window.SchoolArt.portrait)(id)}" alt="" draggable="false"></span>`;
+  const portrait=id=>`<span class="formation-figure"><img src="${(window.SchoolArt.rosterPortrait||window.SchoolArt.portrait)(id,G.equippedSkin?.(ctx.getState(),id))}" alt="" draggable="false"></span>`;
   const stars=u=>`<span class="formation-stars" aria-label="${u.stars}성">${'★'.repeat(u.stars)}${'☆'.repeat(5-u.stars)}</span>`;
   const say=text=>{$('formation-status-live').textContent=text;};
   function hint(){say(ctx.activityActive()?'던전 도전을 마친 뒤 편성을 바꿀 수 있어요.':selection?`${G.BY_ID[selection].name} 선택 · ${ctx.getState().team.length===6?'교체할':'넣을'} 자리를 누르세요. ESC로 취소`:'짧게 누르면 육성 · 꾹 눌러 끌면 배치 · 출전 중인 두 용병은 자리 교환');}
@@ -56,7 +56,7 @@ window.SchoolFormation=(()=>{
    if(!ctx.getState())return;owned=filter;const s=ctx.getState(),nextScope=ctx.scope();
    if(scope!==nextScope){cancel();scope=nextScope;readPreferences();viewKey='';}
    if(selection&&!s.units[selection])selection=null;
-   const key=JSON.stringify([scope,owned,role,sort,query,bench,s.team,Object.entries(s.units).map(([id,u])=>[id,u.level,u.stars]),G.presetInfo(s),s.equipment]);
+   const key=JSON.stringify([scope,owned,role,sort,query,bench,s.team,Object.entries(s.units).map(([id,u])=>[id,u.level,u.stars]),G.presetInfo(s),s.equipment,s.skins]);
    if(key===viewKey){controls();return;}cleanup();viewKey=key;
    $('roster-count').textContent=`${Object.keys(s.units).length} / ${G.HEROES.length}`;
    $('formation-presets').innerHTML=G.presetInfo(s).map(p=>`<button data-form-preset="${p.slot}" data-form-mutate data-unavailable="${!p.saved}" aria-pressed="${p.active}" title="${p.saved?'저장된 편성 불러오기':'저장한 편성에서 먼저 저장하세요'}">${esc(p.name)}${p.active?' ✓':''}</button>`).join('');
