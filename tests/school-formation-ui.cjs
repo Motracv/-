@@ -21,6 +21,7 @@ class Element{
 const root=new Element(),body=new Element('body');body.append(root);root.innerHTML=fs.readFileSync('school.html','utf8').split('<article class="tab-panel" id="tab-roster" hidden>')[1].split('</article>')[0];
 const document=new Element(),window=new Element();document.body=body;document.hidden=false;document.createElement=tag=>new Element(tag);let hit=null;document.elementFromPoint=()=>hit;
 window.SchoolRPG=G;window.SchoolArt={portrait:id=>'portrait-'+id};
+const preferences=new Map();window.localStorage={getItem:key=>preferences.get(key)||null,setItem:(key,value)=>preferences.set(key,value)};
 vm.runInNewContext(fs.readFileSync('school/formation.js','utf8'),{window,document,performance:{now:()=>clock},setTimeout:fn=>{timers.set(++timer,fn);return timer;},clearTimeout:id=>timers.delete(id)});
 const flush=async()=>{for(let i=0;i<10;i++)await Promise.resolve();};
 const tick=()=>{clock+=330;for(const [id,fn] of [...timers]){timers.delete(id);fn();}};
@@ -31,6 +32,19 @@ const find=(key,value)=>root.querySelectorAll(`[data-${key}]`).find(n=>n.dataset
 const click=n=>root.emit('click',{target:n});const pointer=(node,extra={})=>({target:node,button:0,isPrimary:true,pointerId:7,clientX:20,clientY:30,...extra});
 (async()=>{
  ui.refresh();assert.equal(root.querySelectorAll('[data-form-slot]').length,6);assert(root.querySelector('#formation-power').textContent);
+ const search=root.querySelector('#formation-search'),sort=root.querySelector('#formation-sort'),bench=root.querySelector('#formation-bench'),quick=root.querySelector('#formation-quick-place');
+ const searchFor=value=>{search.value=value;search.emit('input',{target:search});};
+ searchFor('  OSIA  ');assert.equal(root.querySelectorAll('[data-form-detail]').length,1);assert(find('form-detail','osia'));
+ searchFor('SSR');assert(root.querySelectorAll('[data-form-detail]').every(n=>G.BY_ID[n.dataset.formDetail].rarity==='SSR'));assert(find('form-detail','osia'));
+ searchFor('SR');assert(root.querySelectorAll('[data-form-detail]').every(n=>G.BY_ID[n.dataset.formDetail].rarity==='SR'),'SR search must not include SSR');
+ searchFor('없는 용병');assert.equal(root.querySelectorAll('[data-form-detail]').length,0);assert.equal(root.querySelector('#formation-results').textContent,'0명 표시');
+ click(root.querySelector('#formation-search-clear'));assert.equal(search.value,'');assert(find('form-detail','osia'));assert.equal(actions.length,0,'searching never changes the party');
+ click(bench);assert.equal(bench.attrs['aria-pressed'],'true');assert(root.querySelectorAll('[data-form-detail]').every(n=>!s.team.includes(n.dataset.formDetail)));
+ click(find('form-role','치유'));sort.value='name';sort.emit('change',{target:sort});
+ assert.deepEqual(JSON.parse(preferences.get('school-formation-view:a')),{role:'치유',sort:'name',bench:true});
+ scope='preference-other';ui.refresh();assert.equal(find('form-role','all').attrs['aria-pressed'],'true');assert.equal(sort.value,'grade');assert.equal(bench.attrs['aria-pressed'],'false');
+ scope='a';ui.refresh();assert.equal(find('form-role','치유').attrs['aria-pressed'],'true');assert.equal(sort.value,'name');assert.equal(bench.attrs['aria-pressed'],'true');
+ click(find('form-role','all'));click(bench);sort.value='grade';sort.emit('change',{target:sort});
  click(find('form-detail','osia'));assert.deepEqual(opened,['osia']);assert.equal(actions.length,0);
  click(find('form-select','osia'));click(find('form-target','1'));await flush();assert.equal(s.team[1],'osia');assert.equal(actions.length,1);
  const before=s.team.slice();root.emit('pointerdown',pointer(find('form-drag','osia')));tick();hit=find('form-slot','0');window.emit('pointerup',pointer(hit));await flush();assert.equal(s.team[0],'osia');assert.equal(s.team[1],before[0]);assert.equal(new Set(s.team).size,s.team.length);assert.equal(body.querySelectorAll('.formation-drag-ghost').length,0);
@@ -42,8 +56,12 @@ const click=n=>root.emit('click',{target:n});const pointer=(node,extra={})=>({ta
  blocked=true;ui.controls();assert(find('form-select','lava').disabled);blocked=false;activity=true;ui.controls();assert(find('form-select','lava').disabled);activity=false;ui.controls();
  s.team=['osia'];ui.refresh();click(find('form-remove','osia'));await flush();assert.equal(actions.length,2);assert(message.includes('최소 한 명'));
  waiter=true;click(find('form-select','lava'));click(find('form-target','5'));assert.equal(actions.length,3);assert(find('form-select','lava').disabled);click(find('form-select','lava'));assert.equal(actions.length,3);const release=waiter;waiter=null;release();await flush();assert.deepEqual(s.team,['osia','lava']);
+ click(find('form-select','horas'));assert(!quick.hidden);assert(root.classList.contains('has-selection'));click(quick);await flush();assert.deepEqual(s.team,['osia','lava','horas']);assert.equal(actions.length,4);assert(quick.hidden);
+ click(find('form-select','horas'));assert(quick.hidden,'already deployed mercenaries cannot fill another slot');ui.cancel();assert.equal(find('form-select','horas').attrs['aria-pressed'],'false');assert.equal(find('form-select','horas').textContent,'자리 변경');assert(!root.classList.contains('has-selection'));
+ const original=s.team.slice();s.team=['osia','lava','horas','ryusion','sua','taeo'];ui.refresh();click(find('form-select','ryusion'));assert(quick.hidden);click(quick);await flush();assert.equal(actions.length,4,'empty-slot shortcut never replaces a full party');s.team=original;ui.cancel();ui.refresh();
+ const storage=window.localStorage;window.localStorage={getItem(){throw Error('private storage');},setItem(){throw Error('private storage');}};scope='storage-blocked';assert.doesNotThrow(()=>ui.refresh());assert.doesNotThrow(()=>click(find('form-role','치유')));window.localStorage=storage;scope='b';ui.refresh();
  const place=window.SchoolFormation.place;const all=['osia','lava','horas','ryusion','sua','taeo'];assert.deepEqual(Array.from(place(all,'lava',5,s.units)),['osia','taeo','horas','ryusion','sua','lava']);assert.deepEqual(Array.from(place(all,'lumi',1,s.units)),all);assert.deepEqual(Array.from(place(all,'osia',-1,s.units)),all);
  const html=fs.readFileSync('school.html','utf8'),sw=fs.readFileSync('school-sw.js','utf8');for(const file of ['formation.js','formation.css']){assert(html.includes('school/'+file));assert(sw.includes("'"+file+"'"));}
  assert(new RegExp('CATALOG_VERSION\\s*=\\s*'+G.CATALOG_VERSION+'\\b').test(fs.readFileSync('school/engine.js','utf8')));assert(sw.includes('\\s*'+G.CATALOG_VERSION+'\\b'));
- console.log('PASS detail tap, click-to-place, long-press swap, scroll/cancel, account switch, Escape, blocked/dungeon locks, last-member guard, save lock, six unique slots and offline wiring');
+ console.log('PASS formation search/rarity accuracy, bench filter, account-local preferences, storage fallback, empty-slot shortcut, detail tap, drag swaps, scroll/cancel, account switch, Escape, dungeon/save locks, six unique slots and offline wiring');
 })().catch(e=>{console.error(e);process.exitCode=1;});

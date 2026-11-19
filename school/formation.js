@@ -13,17 +13,37 @@ window.SchoolFormation=(()=>{
  }
  function create(root,ctx){
   const $=id=>root.querySelector('#'+id);
-  let role='all',sort='grade',selection=null,gesture=null,ghost=null,hold=0,suppressUntil=0,viewKey='',scope='',owned='owned',sending=false;
+  let role='all',sort='grade',query='',bench=false,selection=null,gesture=null,ghost=null,hold=0,suppressUntil=0,viewKey='',scope='',owned='owned',sending=false;
+  const roles={all:'전체',수호:'◇ 수호',damage:'⚔ 딜러',치유:'＋ 치유',지원:'✧ 지원'},sorts=['grade','level','name'];
+  const matchesRole=(h,r)=>r==='all'||(r==='damage'?['전사','사수','마법'].includes(h.role):h.role===r);
+  const normalized=value=>String(value||'').normalize('NFKC').trim().toLocaleLowerCase('ko-KR');
+  const search=document.createElement('div');search.setAttribute('class','formation-search-tools');
+  search.innerHTML='<label class="formation-search"><span>용병 찾기</span><input id="formation-search" type="search" placeholder="이름 · 등급 · 역할" aria-label="용병 이름, 등급, 역할 검색" autocomplete="off" maxlength="40"><button id="formation-search-clear" type="button" aria-label="용병 검색 지우기">×</button></label><button id="formation-bench" type="button" aria-pressed="false">대기 용병만</button><span id="formation-results" role="status" aria-live="polite"></span>';
+  root.querySelector('.formation-toolbar').append(search);
+  const nameOption=document.createElement('option');nameOption.setAttribute('value','name');nameOption.textContent='이름순';$('formation-sort').append(nameOption);
+  const quickPlace=document.createElement('button');quickPlace.setAttribute('id','formation-quick-place');quickPlace.setAttribute('data-form-mutate','');quickPlace.hidden=true;quickPlace.textContent='빈자리에 배치';root.querySelector('.formation-footer').append(quickPlace);
+  const composition=document.createElement('p');composition.setAttribute('id','formation-composition');composition.setAttribute('class','formation-composition');root.querySelector('.formation-squad').append(composition);
+  function savePreferences(){try{window.localStorage?.setItem('school-formation-view:'+scope,JSON.stringify({role,sort,bench}));}catch(_){/* Browsing still works when storage is unavailable. */}}
+  function readPreferences(){
+   let prefs;try{prefs=JSON.parse(window.localStorage?.getItem('school-formation-view:'+scope)||'null');}catch(_){}
+   role=prefs&&Object.hasOwn(roles,prefs.role)?prefs.role:'all';sort=sorts.includes(prefs?.sort)?prefs.sort:'grade';bench=prefs?.bench===true;query='';
+   $('formation-sort').value=sort;$('formation-search').value='';
+  }
   const blocked=()=>sending||ctx.blocked()||ctx.activityActive();
   const active=()=>!root.hidden&&!document.hidden&&!ctx.modalOpen();
   const portrait=id=>`<span class="formation-figure"><img src="${(window.SchoolArt.rosterPortrait||window.SchoolArt.portrait)(id)}" alt="" draggable="false"></span>`;
   const stars=u=>`<span class="formation-stars" aria-label="${u.stars}성">${'★'.repeat(u.stars)}${'☆'.repeat(5-u.stars)}</span>`;
   const say=text=>{$('formation-status-live').textContent=text;};
-  function hint(){say(ctx.activityActive()?'던전 도전을 마친 뒤 편성을 바꿀 수 있어요.':selection?`${G.BY_ID[selection].name} · 넣을 자리를 누르세요. ESC로 취소`:'짧게 누르면 육성 · 꾹 눌러 끌면 배치');}
+  function hint(){say(ctx.activityActive()?'던전 도전을 마친 뒤 편성을 바꿀 수 있어요.':selection?`${G.BY_ID[selection].name} 선택 · ${ctx.getState().team.length===6?'교체할':'넣을'} 자리를 누르세요. ESC로 취소`:'짧게 누르면 육성 · 꾹 눌러 끌면 배치 · 출전 중인 두 용병은 자리 교환');}
   function cleanup(){clearTimeout(hold);hold=0;const g=gesture;gesture=null;if(g?.node.hasPointerCapture?.(g.pointer))g.node.releasePointerCapture(g.pointer);ghost?.remove();ghost=null;root.classList.remove('is-placing');root.querySelectorAll('.drop-target').forEach(n=>n.classList.remove('drop-target'));}
-  function cancel(){cleanup();selection=null;root.querySelectorAll('[data-form-select]').forEach(n=>n.setAttribute('aria-pressed','false'));hint();}
+  function cancel(){cleanup();selection=null;root.querySelectorAll('[data-form-select]').forEach(n=>{n.setAttribute('aria-pressed','false');n.textContent=ctx.getState()?.team.includes(n.dataset.formSelect)?'자리 변경':'배치';});root.querySelectorAll('.formation-card').forEach(n=>n.classList.remove('is-selected'));controls();hint();}
   function controls(){
    if(!active())cleanup();
+   root.classList.toggle('has-selection',!!selection);
+   const team=ctx.getState()?.team||[];
+   quickPlace.hidden=!selection||team.length===6||team.includes(selection);
+   $('formation-cancel').disabled=!selection&&!gesture;
+   $('formation-search-clear').disabled=!query;
    root.querySelectorAll('[data-form-mutate]').forEach(n=>n.disabled=blocked()||n.dataset.unavailable==='true');
   }
   async function dispatch(action){
@@ -34,8 +54,9 @@ window.SchoolFormation=(()=>{
   function drop(id,slot){const s=ctx.getState(),team=place(s.team,id,slot,s.units);if(team.join()===s.team.join()){cancel();return;}dispatch({kind:'team',team});}
   function refresh(filter=owned){
    if(!ctx.getState())return;owned=filter;const s=ctx.getState(),nextScope=ctx.scope();
-   if(scope!==nextScope){cancel();scope=nextScope;viewKey='';}
-   const key=JSON.stringify([scope,owned,role,sort,s.team,Object.entries(s.units).map(([id,u])=>[id,u.level,u.stars]),G.presetInfo(s),s.equipment]);
+   if(scope!==nextScope){cancel();scope=nextScope;readPreferences();viewKey='';}
+   if(selection&&!s.units[selection])selection=null;
+   const key=JSON.stringify([scope,owned,role,sort,query,bench,s.team,Object.entries(s.units).map(([id,u])=>[id,u.level,u.stars]),G.presetInfo(s),s.equipment]);
    if(key===viewKey){controls();return;}cleanup();viewKey=key;
    $('roster-count').textContent=`${Object.keys(s.units).length} / ${G.HEROES.length}`;
    $('formation-presets').innerHTML=G.presetInfo(s).map(p=>`<button data-form-preset="${p.slot}" data-form-mutate data-unavailable="${!p.saved}" aria-pressed="${p.active}" title="${p.saved?'저장된 편성 불러오기':'저장한 편성에서 먼저 저장하세요'}">${esc(p.name)}${p.active?' ✓':''}</button>`).join('');
@@ -46,25 +67,32 @@ window.SchoolFormation=(()=>{
    $('formation-power').textContent=G.power(s).toLocaleString('ko-KR');
    $('formation-synergies').textContent=synergies.map(x=>x.name).join(' · ')||'같은 역할 3명으로 파티 보너스';
    $('formation-team-count').textContent=s.team.length+' / 6';
-   const accepts=h=>role==='all'||(role==='damage'?['전사','사수','마법'].includes(h.role):h.role===role);
-   const list=G.HEROES.filter(h=>(owned==='all'||s.units[h.id])&&accepts(h)).sort((a,b)=>Number(!!s.units[b.id])-Number(!!s.units[a.id])||(sort==='level'?(s.units[b.id]?.level||0)-(s.units[a.id]?.level||0):grades[b.rarity]-grades[a.rarity])||a.name.localeCompare(b.name,'ko'));
-   $('roster').innerHTML=list.map(h=>{const u=s.units[h.id],on=s.team.includes(h.id);return `<article class="formation-card ${h.rarity} ${u?'':'unowned'}"><button class="formation-card-main" data-form-detail="${h.id}" ${u?`data-form-drag="${h.id}"`:''} aria-label="${h.name} ${h.rarity}${u?' '+u.level+'레벨 육성':' 미보유 정보'}"><span class="formation-grade">${h.rarity}</span><span class="formation-level">${u?'Lv.'+u.level:'미보유'}</span>${portrait(h.id)}${on?'<span class="formation-on-team">출전</span>':''}<strong>${h.name}</strong><small>${h.role}</small>${u?stars(u):'<span class="formation-stars">미보유</span>'}</button>${u?`<button class="formation-place" data-form-select="${h.id}" data-form-mutate aria-pressed="${selection===h.id}">${on?'자리 변경':'배치'}</button>`:`<button class="formation-place" data-form-detail="${h.id}">정보 보기</button>`}</article>`;}).join('')||'<p class="formation-no-results">이 역할의 용병이 없어요.</p>';
-   root.querySelectorAll('[data-form-role]').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.formRole===role)));
+   const party=s.team.map(id=>G.BY_ID[id]);
+   composition.textContent=['수호','damage','치유','지원'].map(r=>`${r==='damage'?'딜러':r} ${party.filter(h=>matchesRole(h,r)).length}`).join(' · ');
+   const terms=normalized(query).split(/\s+/).filter(Boolean),pool=G.HEROES.filter(h=>(owned==='all'||s.units[h.id])&&(!bench||s.units[h.id]&&!s.team.includes(h.id))&&terms.every(term=>Object.hasOwn(grades,term.toUpperCase())?h.rarity===term.toUpperCase():normalized([h.id,h.name,h.role,h.element].join(' ')).includes(term)));
+   const list=pool.filter(h=>matchesRole(h,role)).sort((a,b)=>Number(!!s.units[b.id])-Number(!!s.units[a.id])||(sort==='level'?(s.units[b.id]?.level||0)-(s.units[a.id]?.level||0):sort==='grade'?grades[b.rarity]-grades[a.rarity]:0)||a.name.localeCompare(b.name,'ko'));
+   $('roster').innerHTML=list.map(h=>{const u=s.units[h.id],on=s.team.includes(h.id);return `<article class="formation-card ${h.rarity} ${u?'':'unowned'} ${selection===h.id?'is-selected':''}"><button class="formation-card-main" data-form-detail="${h.id}" ${u?`data-form-drag="${h.id}"`:''} aria-label="${h.name} ${h.rarity}${u?' '+u.level+'레벨 육성':' 미보유 정보'}"><span class="formation-grade">${h.rarity}</span><span class="formation-level">${u?'Lv.'+u.level:'미보유'}</span>${portrait(h.id)}${on?'<span class="formation-on-team">출전</span>':''}<strong>${h.name}</strong><small>${h.role}</small>${u?stars(u):'<span class="formation-stars">미보유</span>'}</button>${u?`<button class="formation-place" data-form-select="${h.id}" data-form-mutate aria-pressed="${selection===h.id}">${selection===h.id?'선택됨 · 취소':on?'자리 변경':'배치'}</button>`:`<button class="formation-place" data-form-detail="${h.id}">정보 보기</button>`}</article>`;}).join('')||'<p class="formation-no-results">조건에 맞는 용병이 없어요.<br>검색어나 역할 필터를 바꿔 보세요.</p>';
+   root.querySelectorAll('[data-form-role]').forEach(n=>{const r=n.dataset.formRole;n.setAttribute('aria-pressed',String(r===role));n.innerHTML=`${roles[r]} <small>${pool.filter(h=>matchesRole(h,r)).length}</small>`;});
+   $('formation-bench').setAttribute('aria-pressed',String(bench));$('formation-results').textContent=`${list.length}명 표시`;
    hint();controls();
   }
   root.addEventListener('click',e=>{
    const button=e.target.closest('button');if(!button||button.disabled)return;
    if(performance.now()<suppressUntil){e.preventDefault();e.stopPropagation();return;}
    const d=button.dataset;
-   if(d.formRole!==undefined){role=d.formRole;refresh();}
+   if(d.formRole!==undefined){role=d.formRole;savePreferences();refresh();}
    else if(d.formSelect){selection=selection===d.formSelect?null:d.formSelect;viewKey='';refresh();}
    else if(d.formTarget!==undefined){if(selection)drop(selection,Number(d.formTarget));else {const id=ctx.getState().team[Number(d.formTarget)];if(id)ctx.openHero(id);else say('오른쪽 용병의 배치를 누르거나 꾹 눌러 끌어오세요.');}}
    else if(d.formDetail)ctx.openHero(d.formDetail);
    else if(d.formRemove){const team=ctx.getState().team.filter(id=>id!==d.formRemove);if(!team.length)return ctx.toast('최소 한 명은 출전해야 해요.');dispatch({kind:'team',team});}
    else if(d.formPreset!==undefined)dispatch({kind:'preset-apply',slot:Number(d.formPreset)});
+   else if(button.id==='formation-bench'){bench=!bench;savePreferences();refresh();}
+   else if(button.id==='formation-search-clear'){query='';$('formation-search').value='';refresh();$('formation-search').focus?.();}
+   else if(button.id==='formation-quick-place'){const s=ctx.getState();if(selection&&s.team.length<6&&!s.team.includes(selection))drop(selection,s.team.length);}
    else if(button.id==='formation-cancel')cancel();
   });
-  $('formation-sort').addEventListener('change',e=>{sort=e.target.value;refresh();});
+  $('formation-sort').addEventListener('change',e=>{sort=sorts.includes(e.target.value)?e.target.value:'grade';savePreferences();refresh();});
+  $('formation-search').addEventListener('input',e=>{query=String(e.target.value||'').slice(0,40);refresh();});
   root.addEventListener('contextmenu',e=>{if(e.target.closest('[data-form-drag]'))e.preventDefault();});
   root.addEventListener('dragstart',e=>e.preventDefault());
   root.addEventListener('pointerdown',e=>{

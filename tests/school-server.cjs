@@ -2,6 +2,8 @@ const assert=require('node:assert/strict');
 const {fixture}=require('./account-fixture.cjs');
 const G=require('../school/engine.js');
 (async()=>{
+ const suiteNow=Date.now;Date.now=()=>Date.parse('2026-11-18T12:00:00+09:00');
+ try{
  const t=await fixture();let passed=0;
  const test=async(name,fn)=>{await fn();passed++;console.log('PASS',name);};
  const a=(await t.login('school-A')).data,b=(await t.login('school-B')).data;
@@ -95,8 +97,7 @@ const G=require('../school/engine.js');
    try{
      Date.now=()=>now;let r=await call(who,'state',{nextSkill:4,stunUntil:0,state:{battle:{osiaCast:null}}});assert.equal(r.status,200);assert.deepEqual(r.data.state.battle.osiaCast,state.battle.osiaCast);assert.equal(r.data.state.units.osia.nextSkill,1);
      const again=(await t.login('school-cycle')).data;
-     for(let paused=500;paused<=G.OSIA_CINEMATIC_MS;paused+=500){now+=500;r=await call(again,'state');assert.equal(r.data.state.battle.osiaCast.stage,4);assert.ok(r.data.state.battle.enemies.every(e=>!e.stunUntil));assert.equal(r.data.state.battle.elapsed,20000);if(paused<G.OSIA_CINEMATIC_MS)assert.equal(r.data.state.battle.cinematic.remaining,G.OSIA_CINEMATIC_MS-paused);}
-     now+=500;r=await call(again,'state');assert.equal(r.data.state.battle.elapsed,20500);assert.ok(r.data.state.battle.osiaCast);
+     now+=500;r=await call(again,'state');assert.equal(r.data.state.battle.osiaCast.stage,4);assert.ok(r.data.state.battle.enemies.every(e=>!e.stunUntil));assert.equal(r.data.state.battle.elapsed,20500);assert.equal(r.data.state.battle.cinematic.nonBlocking,true);assert.equal(r.data.state.battle.cinematic.remaining,G.OSIA_CINEMATIC_MS-500);
      now+=500;r=await call(again,'state');assert.equal(r.status,200);assert.equal(r.data.state.battle.osiaCast,undefined);assert.ok(r.data.state.battle.enemies.every(e=>e.stunUntil===22500));
      now+=1000;r=await call(who,'state');assert.equal(r.data.state.battle.elapsed,22000);assert.ok(!r.data.state.events.some(e=>e.kind==='hit'&&e.side==='hero'&&e.at>now-1000));
      now+=1000;r=await call(again,'state');assert.equal(r.data.state.battle.elapsed,23000);assert.equal(r.data.state.events.filter(e=>e.kind==='hit'&&e.side==='hero'&&e.at===now).length,3);
@@ -316,4 +317,5 @@ const G=require('../school/engine.js');
    }finally{Date.now=realNow;}
  });
  t.sqlite.close();console.log(`${passed} school server checks passed (SQLite + signed test Google credentials)`);
+ }finally{Date.now=suiteNow;}
 })().catch(e=>{console.error(e);process.exitCode=1;});

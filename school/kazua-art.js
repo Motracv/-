@@ -284,6 +284,33 @@ window.SchoolKazuaArt = (() => {
     }
   }
 
+  // A short white-hot core opens into a fireball and a low, rolling shockwave.
+  // Every fragment is derived from age: no particle arrays or frame-time writes.
+  function bombardment(c,x,y,age,scale,reduced,economy,seed){
+    if(age<0||age>1.12)return;
+    const p=age/1.12,fade=1-p,burst=Math.min(1,age/.13),r=(8+burst*23+p*12)*scale;
+    light(c,x,y-8*scale,r*1.7,false,fade*(reduced?.42:.85));
+    c.save();c.translate(x,y);c.globalAlpha*=fade;
+    c.strokeStyle='#ffd99a';c.lineWidth=(1.8-p)*scale;
+    c.beginPath();c.ellipse(0,12*scale,(8+p*62)*scale,(3+p*16)*scale,0,0,TAU);c.stroke();
+    const lobes=economy||reduced?2:4;
+    for(let i=0;i<lobes;i++){
+      const a=i*2.399+seed,dx=Math.cos(a)*r*.35,dy=-p*26*scale+Math.sin(a)*r*.3;
+      c.fillStyle=p>.48?'#433b4d9c':'#be381bdc';c.beginPath();c.ellipse(dx,dy,r*(.6-i*.055),r*(.67-i*.045),0,0,TAU);c.fill();
+      if(p<.52){c.fillStyle=p<.14?'#fff8cf':'#ffad37';c.beginPath();c.ellipse(dx,dy+3*scale,r*.39*(1-p),r*.55*(1-p),0,0,TAU);c.fill();}
+    }
+    if(!reduced){
+      const count=economy?4:8;
+      for(let i=0;i<count;i++){
+        const a=i*2.399+seed,dist=(5+burst*18+p*(24+i%3*12))*scale;
+        const dx=Math.cos(a)*dist,dy=Math.sin(a)*dist*.65+p*p*34*scale;
+        c.strokeStyle=i%2?'#ffb358':'#fff4bf';c.lineWidth=(i%3?1:1.8)*scale;
+        c.beginPath();c.moveTo(dx,dy);c.lineTo(dx-Math.cos(a)*7*scale*fade,dy-Math.sin(a)*7*scale*fade);c.stroke();
+      }
+    }
+    c.restore();
+  }
+
   /** Instant-looking ballistics: 35 ms transit, short afterimage and deterministic
    * shot scheduling. At most 7 tracer paths, 6 impacts and 5 shells per frame.
    * No simulation writes; damage remains grouped by the server's 500 ms volleys.
@@ -298,16 +325,36 @@ window.SchoolKazuaArt = (() => {
     const attachment=muzzle(mode,age,reduced),sx=source.x+direction*attachment.x*scale,sy=source.y+attachment.y*scale;
     const point=target=>[target.x,Number.isFinite(target.aimY)?target.aimY:target.y-24*scale];
     if(mode==='bazooka'){
-      if(age>.8)return;const [tx,ty]=point(targets[0]),arrival=.10;
-      if(age<arrival){tracer(c,sx,sy,tx,ty,-7*scale,age/arrival,false,2.2*scale,1,.5);muzzleFlash(c,sx,sy,direction,scale*1.4,false,age/.1,reduced);}
-      else{const p=(age-arrival)/.7;for(const t of targets){const [x,y]=point(t);impact(c,x,y,p,scale*(reduced?1.6:2.5),false,direction,reduced,economy);}}
+      if(age>1.5)return;const [tx,ty]=point(targets[0]),arrival=.12;
+      if(age<arrival){
+        const p=age/arrival,pt=curvePoint(sx,sy,tx,ty,(sx+tx)/2,(sy+ty)/2-14*scale,p);
+        tracer(c,sx,sy,tx,ty,-14*scale,p,false,3.4*scale,1,.48);
+        light(c,pt[0],pt[1],15*scale,false,.85);
+        c.save();c.translate(pt[0],pt[1]);c.rotate(Math.atan2(ty-sy,tx-sx));
+        c.fillStyle='#fff3c4';c.fillRect(-6*scale,-1.4*scale,10*scale,2.8*scale);c.restore();
+        muzzleFlash(c,sx,sy,direction,scale*1.8,false,age/arrival,reduced);
+      }
+      // A visible wave of secondary detonations follows the first direct hit.
+      // These are cosmetic; one authoritative area hit still determines damage.
+      for(let i=0;i<targets.length;i++){
+        const [x,y]=point(targets[i]);
+        bombardment(c,x,y,age-arrival-i*.045,scale*(reduced?.65:i===0?1.1:.82),reduced,economy,i*.71);
+      }
+      if(!reduced&&targets.length<3)for(let i=0;i<2;i++)bombardment(c,tx+(i?1:-1)*26*scale,ty+8*scale,age-.29-i*.1,scale*.7,false,true,i+3);
       return;
     }
     if(mode==='pistol'){
-      if(age>.35)return;const [tx,ty]=point(targets[0]);
-      if(age<.075)tracer(c,sx,sy,tx,ty,0,Math.min(1,age/.025),false,1.2*scale,1-age/.075,.4);
-      if(age<.11)muzzleFlash(c,sx,sy,direction,scale,false,age/.11,reduced);
-      if(age>=.025)impact(c,tx,ty,(age-.025)/.325,scale*1.35,false,direction,reduced,economy);
+      if(age>.55)return;const [tx,ty]=point(targets[0]);
+      if(age<.095)tracer(c,sx,sy,tx,ty,0,Math.min(1,age/.018),false,2*scale,1-age/.095,.85);
+      if(age<.14)muzzleFlash(c,sx,sy,direction,scale*1.65,false,age/.14,reduced);
+      if(age>=.018){
+        const p=(age-.018)/.532;impact(c,tx,ty,p,scale*1.9,false,direction,reduced,economy);
+        if(!reduced&&p<.55){
+          c.save();c.translate(tx,ty);c.rotate(Math.atan2(ty-sy,tx-sx));c.globalAlpha*=1-p/.55;
+          c.fillStyle='#fff4d2';c.beginPath();c.moveTo(-15*scale,0);c.lineTo(0,-1.3*scale);c.lineTo(23*scale,0);c.lineTo(0,1.3*scale);c.closePath();c.fill();
+          c.strokeStyle='#ffe6aa';c.lineWidth=.8*scale;c.beginPath();c.ellipse(p*7*scale,0,(2+p*10)*scale,(6+p*19)*scale,0,0,TAU);c.stroke();c.restore();
+        }
+      }
       return;
     }
     if(age<FIRE_START)return;

@@ -146,14 +146,14 @@ function osiaBattle(boss = false) {
   if(boss){s.battle.boss=true;s.battle.enemies=s.battle.enemies.slice(0,1);s.battle.enemies[0].boss=true;}
   for(const e of s.battle.enemies){e.hp=e.max=100000;e.atk=1;}return s;
 }
-test('Osia casts successive skills on the combat clock; the dragon cinematic adds its configured pause',()=>{
+test('Osia casts successive skills on the combat clock without pausing battle for the dragon cinematic',()=>{
   const s=osiaBattle(),seen=[],hitStages=[];let seq=s.seq;
   for(let ms=500;ms<=27000;ms+=500){
     G.advance(s,s.at+500);for(const e of s.events.filter(e=>e.seq>seq)){if(e.from==='osia')seen.push(e);if(e.kind==='hit'&&e.skill&&e.from==='osia')hitStages.push(e);}seq=s.seq;
   }
-  const casts=seen.filter(e=>e.kind==='skill-stage');assert.deepEqual(casts.map(e=>e.stage),[1,2,3,4,1]);assert.deepEqual(casts.map(e=>e.at),[6000,11000,16000,21000,26000+G.OSIA_CINEMATIC_MS]);
+  const casts=seen.filter(e=>e.kind==='skill-stage');assert.deepEqual(casts.map(e=>e.stage),[1,2,3,4,1]);assert.deepEqual(casts.map(e=>e.at),[6000,11000,16000,21000,26000]);
   for(let i=0;i<casts.length;i++){
-    const cast=casts[i],hits=hitStages.filter(e=>e.castId===cast.castId);assert.equal(hits.length,3);assert.ok(hits.every(e=>e.stage===cast.stage&&e.at===cast.at+(cast.stage===4?G.OSIA_CINEMATIC_MS+1000:500)&&e.amount>=40&&e.amount<=73));
+    const cast=casts[i],hits=hitStages.filter(e=>e.castId===cast.castId);assert.equal(hits.length,3);assert.ok(hits.every(e=>e.stage===cast.stage&&e.at===cast.at+(cast.stage===4?1000:500)&&e.amount>=40&&e.amount<=73));
     if(i<casts.length-1)assert.ok(seen.filter(e=>e.kind==='hit'&&!e.skill&&e.at>cast.at&&e.at<casts[i+1].at).length>=3);
   }
   assert.equal(s.units.osia.nextSkill,2);assert.equal(G.BY_ID.osia.passive,'용왕의 권능');
@@ -163,28 +163,24 @@ test('Water dragon deals no damage or stun while summoning; impact stuns all sur
     const s=osiaBattle(boss);s.units.osia.nextSkill=4;run(s,5);const id=s.battle.osiaCast.id;
     assert.ok(!s.events.some(e=>e.castId===id&&e.kind==='hit'));assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
     const frozen=G.clone(s.battle),at=s.at;G.advance(s,at+250);assert.deepEqual(s.battle,frozen);
-    for(let paused=500;paused<=G.OSIA_CINEMATIC_MS;paused+=500){
-      G.advance(s,at+paused);assert.equal(s.battle.elapsed,frozen.elapsed);assert.deepEqual(s.battle.enemies,frozen.enemies);assert.ok(!s.events.some(e=>e.castId===id&&e.kind==='hit'));assert.ok(s.battle.osiaCast);assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
-      if(paused<G.OSIA_CINEMATIC_MS){assert.deepEqual(s.battle.heroes,frozen.heroes);assert.equal(s.battle.cinematic.remaining,G.OSIA_CINEMATIC_MS-paused);}
-    }
-    G.advance(s,s.at+500);assert.equal(s.battle.elapsed,5500);assert.ok(s.battle.osiaCast);assert.ok(s.battle.enemies.every(e=>!e.stunUntil));
+    G.advance(s,at+500);assert.equal(s.battle.elapsed,5500);assert.deepEqual(s.battle.enemies,frozen.enemies);assert.ok(!s.events.some(e=>e.castId===id&&e.kind==='hit'));assert.ok(s.battle.osiaCast);assert.ok(s.battle.enemies.every(e=>!e.stunUntil));assert.equal(s.battle.cinematic.remaining,G.OSIA_CINEMATIC_MS-500);
     G.advance(s,s.at+500);assert.equal(s.battle.elapsed,6000);assert.equal(s.battle.osiaCast,undefined);assert.ok(s.battle.enemies.every(e=>e.stunUntil===7500));
     for(let i=0;i<2;i++){G.advance(s,s.at+500);assert.ok(s.battle.enemies.every(e=>e.stunUntil>s.battle.elapsed));assert.ok(!s.events.some(e=>e.kind==='hit'&&e.side==='hero'&&e.at===s.at));}
     G.advance(s,s.at+500);assert.equal(s.battle.elapsed,7500);assert.ok(s.battle.enemies.every(e=>e.stunUntil===s.battle.elapsed));
     G.advance(s,s.at+500);assert.equal(s.events.filter(e=>e.kind==='hit'&&e.side==='hero'&&e.at===s.at).length,boss?1:3);
   }
 });
-test('The dragon cut-in resumes the remaining ally turns instead of deleting a back-row heal',()=>{
+test('The dragon cut-in lets later allies act immediately without deleting a back-row heal',()=>{
   const s=G.create(UPDATE_TIME,26);s.units.osia={level:1,xp:0,stars:0,shards:0};s.units.lava={level:1,xp:0,stars:0,shards:0};G.action(s,{kind:'team',team:['taeo','osia','lava']});
   for(const e of s.battle.enemies){e.hp=e.max=1000000;e.atk=0;}for(const h of s.battle.heroes){h.max=10000;h.hp=5000;}
-  const seen=[];let seq=s.seq;for(let step=0;step<(20000+G.OSIA_CINEMATIC_MS)/500;step++){G.advance(s,s.at+500);seen.push(...s.events.filter(e=>e.seq>seq));seq=s.seq;}
+  const seen=[];let seq=s.seq;for(let step=0;step<20000/500;step++){G.advance(s,s.at+500);seen.push(...s.events.filter(e=>e.seq>seq));seq=s.seq;}
   assert.deepEqual(seen.filter(e=>e.kind==='lava-skill').map(e=>e.stage),[1,2,1,2]);
   assert.equal(seen.filter(e=>e.from==='lava'&&e.kind==='hit'&&!e.skill).length,16);
   assert.equal(seen.filter(e=>e.kind==='cinematic').length,1);
 });
 test('The dragon remains visible when 1.5× speed consumes two simulation ticks in one server step',()=>{
   const s=osiaBattle();s.speed=1.5;s.simCredit=250;s.battle.elapsed=500;s.battle.heroes.find(h=>h.id==='osia').energy=4;s.units.osia.nextSkill=4;
-  G.advance(s,s.at+500);assert.equal(s.battle.osiaCast.stage,4);assert.ok(s.battle.cinematic);assert.equal(s.battle.cinematic.duration,G.OSIA_CINEMATIC_MS);assert.equal(s.battle.cinematic.remaining,G.OSIA_CINEMATIC_MS-500);assert.ok(s.battle.cinematic.remaining>0);assert.equal(s.battle.elapsed,1000);
+  G.advance(s,s.at+500);assert.equal(s.battle.osiaCast.stage,4);assert.ok(s.battle.cinematic);assert.equal(s.battle.cinematic.duration,G.OSIA_CINEMATIC_MS);assert.equal(s.battle.cinematic.remaining,G.OSIA_CINEMATIC_MS-500);assert.ok(s.battle.cinematic.remaining>0);assert.equal(s.battle.elapsed,1500);
   const loaded=G.clone(s);G.advance(s,s.at+2000);for(let i=0;i<4;i++)G.advance(loaded,loaded.at+500);assert.deepEqual(loaded,s);assert.equal(s.battle.cinematic,undefined);assert.equal(s.battle.osiaCast,undefined);
 });
 test('Every pending skill, next stage and stun survives reload and produces identical fine/batched results',()=>{

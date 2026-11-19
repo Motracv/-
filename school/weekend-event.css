@@ -1,0 +1,36 @@
+/* The lobby uses full-scene coordinates, including the HUD. Reserve both
+   shortcut rails and put the event below the header, never beneath it. */
+.weekend-event{position:absolute;z-index:6;top:calc(var(--hud-height,72px) + 10px);left:50%;transform:translateX(-50%);box-sizing:border-box;width:min(440px,calc(100% - 300px));color:#f4faff;border:1px solid #8fcee9;border-radius:12px;background:linear-gradient(115deg,#122b42f2,#25415ded);box-shadow:0 4px 18px #03132166;overflow:hidden}
+.weekend-event[hidden]{display:none}
+.weekend-event summary{display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;gap:10px;min-height:56px;padding:8px 12px;cursor:pointer;list-style:none;touch-action:manipulation}
+.weekend-event summary::-webkit-details-marker{display:none}
+.weekend-event summary>span{min-width:0}
+.weekend-event-seal{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:10px;border:1px solid #ffe8a1;background:linear-gradient(145deg,#795432,#3c3041);color:#ffe6a2;font-size:22px;font-weight:900}
+.weekend-event summary b{display:block;color:#fff2c7;font-size:14px;line-height:1.4;word-break:keep-all}
+.weekend-event summary small{display:block;color:#d5e8f5;font-size:11px;line-height:1.45;margin-top:3px;word-break:keep-all}
+.weekend-event time{justify-self:end;white-space:nowrap;font-size:11px;font-weight:700;color:#c7ecff;font-variant-numeric:tabular-nums}
+.weekend-event-detail{padding:10px 14px 14px;border-top:1px solid #7797b34d;font-size:12px;line-height:1.6;max-height:min(280px,calc(100dvh - var(--hud-height,72px) - 140px));overflow-y:auto;overscroll-behavior:contain;scrollbar-color:#7ba5be #19354e;scrollbar-width:thin}
+.weekend-event-detail p{margin:5px 0;color:#e0ebf5}.weekend-event-detail small{color:#bed6e8}
+.weekend-event summary:focus-visible{outline:3px solid #ffe7a1;outline-offset:-4px}
+.app[data-tab=lobby] .connection:not([hidden]) ~ .workspace .weekend-event{top:8px}
+@media(max-width:700px) and (orientation:landscape){
+ .weekend-event{left:104px;right:128px;width:auto;transform:none}
+ .weekend-event summary{grid-template-columns:28px minmax(0,1fr) auto;padding:6px 8px;gap:6px;min-height:44px}
+ .weekend-event-seal{width:28px;height:28px;font-size:18px}.weekend-event summary b{font-size:12px}.weekend-event summary small{display:none}.weekend-event time{font-size:10px}
+ .weekend-event-detail{padding:8px;font-size:11px}
+}
+@media(max-height:500px) and (orientation:landscape){
+ .weekend-event{top:calc(var(--hud-height,48px) + 5px)}
+ .weekend-event summary{grid-template-columns:28px minmax(0,1fr) auto;min-height:44px;padding:5px 8px;gap:7px}
+ .weekend-event-seal{width:28px;height:28px;font-size:17px}.weekend-event summary small{display:none}
+}
+@media(max-height:310px) and (orientation:landscape){
+ .app[data-tab=lobby] .connection:not([hidden]) ~ .workspace .weekend-event{left:104px;right:176px;width:auto;transform:none}
+}
+@media(max-width:1000px) and (orientation:portrait){
+ /* The scene remains an 800px board; the event fits the real phone viewport. */
+ .weekend-event{left:76px;right:auto;transform:none;width:min(440px,calc(100vw - 152px));top:calc(var(--hud-height,52px) + 9px)}
+ .weekend-event summary{grid-template-columns:28px minmax(0,1fr);min-height:44px;padding:7px 8px;gap:3px 7px}
+ .weekend-event-seal{width:28px;height:28px;grid-row:1 / span 2;font-size:18px}.weekend-event summary b{font-size:12px}.weekend-event summary small{display:none}
+ .weekend-event time{grid-column:2;justify-self:start;font-size:10px}.weekend-event-detail{padding:8px;font-size:11px}
+}

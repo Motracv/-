@@ -1,6 +1,6 @@
 /* Dedicated background analysis. Never reads storage or writes a game save. */
 'use strict';
-importScripts('./engine.js?v=school-kazua-motion1');
+importScripts('./engine.js?v=school-weekend1');
 const G = self.SchoolRPG, cache = new Map();
 let generation = 0;
 self.onmessage = async ({ data }) => {

@@ -51,9 +51,9 @@ const G = require('../school/engine.js');
       assert(!('receipts' in r.value.data.state));
     });
     await test('Server RNG is private, obeys selected hard pity, and shares only permanent weapon progress',async()=>{
-      const a=await account('pity');patch(a,s=>{s.weaponBanners.standard.pity=78;s.banners.osia={pity:55,guaranteed:true};s.pity=55;});
+      const a=await account('pity');patch(a,s=>{s.weaponBanners.standard.pity=78;s.banners.standard={pity:55,reserve:0,guarantees:1,guaranteed:true};s.pity=55;});
       const a1=await secure(0xffffffff,()=>act(a,{kind:'weapon-recruit',banner:'osia',count:1,random:0}));assert.equal(a1.value.data.result.results[0].item,'chalk_star');assert.equal(saved(a).weaponBanners.standard.pity,79);
-      const a2=await secure(0xffffffff,()=>act(a,{kind:'weapon-recruit',banner:'lava',count:1}));assert.equal(a2.value.data.result.results[0].item,'lava_fan');assert.equal(saved(a).weaponBanners.standard.pity,0);assert.equal(saved(a).weaponBanners.limited.pity,0);assert.equal(saved(a).pulls,0);assert.deepEqual(saved(a).banners.osia,{pity:55,guaranteed:true});
+      const a2=await secure(0xffffffff,()=>act(a,{kind:'weapon-recruit',banner:'lava',count:1}));assert.equal(a2.value.data.result.results[0].item,'lava_fan');assert.equal(saved(a).weaponBanners.standard.pity,0);assert.equal(saved(a).weaponBanners.limited.pity,0);assert.equal(saved(a).pulls,0);assert.deepEqual(saved(a).banners.standard,{pity:55,reserve:0,guarantees:1,guaranteed:true});
       const again=(await t.login('signature-security-pity')).data,r=await call(again,'state');assert.deepEqual(r.data.state.weaponHistory,saved(a).weaponHistory);assert.equal(r.data.state.gems,1600);
     });
     await test('Five concurrent duplicate requests and a new login charge exactly once with one result',async()=>{

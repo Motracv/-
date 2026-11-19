@@ -6,6 +6,7 @@ import { createRaids } from './raids.mjs';
 import { createYeti, collectYetiRewards } from './yeti.mjs';
 import { createCoop } from './coop.mjs';
 import { guildActivity, guildProjectClaim } from './guild-progress.mjs';
+import { matchesPrivateRankReward, privateRankRetry, awardPrivateRankReward, commitPrivateRankReward } from './private-rewards.mjs';
 
 export function createSchool() {
   const game = globalThis.SchoolRPG;
@@ -88,6 +89,7 @@ export function createSchool() {
         requireSchool(typeof data.requestId === "string" && /^[A-Za-z0-9_-]{16,80}$/.test(data.requestId), "행동 요청을 확인하세요.");
         requireSchool(data.action && typeof data.action === "object" && !Array.isArray(data.action), "잘못된 행동입니다.");
       }
+      const privateRank = action && data.action.kind === 'redeem' && await matchesPrivateRankReward(env, data.action.code);
       let acceptedRevision = data.revision;
       // Login/state sync also delivers old unclaimed victory rewards.
       if(!action)await collectYetiRewards(env.DB,game,signed.id,Date.now());
@@ -105,6 +107,10 @@ export function createSchool() {
         requireSchool(game.validate(state), "저장 정보를 읽지 못했습니다. 운영자에게 문의하세요.", 500);
         const prior = action && state.receipts.find(r => r.id === data.requestId);
         if (prior) return { state: game.view(state), revision: row.revision, serverTime: now, result: prior.result, repeated: true };
+        // The one-use reward keeps its idempotency receipt even after the
+        // ordinary bounded action history has expired or its code is disabled.
+        const privateRetry = action && data.action.kind === 'redeem' && await privateRankRetry(env.DB, signed.id, data.requestId);
+        if (privateRetry) return { state: game.view(state), revision: row.revision, serverTime: now, result: privateRetry, repeated: true };
         if (action && acceptedRevision !== row.revision) {
           return { conflict: true, state: game.view(state), revision: row.revision, serverTime: now };
         }
@@ -126,6 +132,7 @@ export function createSchool() {
           continue;
         }
         let result = null;
+        const privateReward = privateRank ? await awardPrivateRankReward(env.DB, game, state) : null;
         const renaming = action && data.action.kind === 'rename';
         if (renaming) {
           const normalized = game.normalizeCommanderName(data.action.name);
@@ -159,7 +166,7 @@ export function createSchool() {
           // The client submits intentions only. Time, loot, draws and costs are server-owned.
           // Speed changes can consume a fractional combat step and settle a
           // dungeon too, so they share the same authoritative loot context.
-          try { if(yetiClaim){state.winter.snowflakes+=yetiReward.snowflakes;state.winter.earned+=yetiReward.snowflakes;if(yetiReward.snowmen){state.winter.snowmen=(state.winter.snowmen||0)+yetiReward.snowmen;state.winter.snowmenEarned=(state.winter.snowmenEarned||0)+yetiReward.snowmen;}result={kind:'yeti-claim',snowflakes:yetiReward.snowflakes,snowmen:yetiReward.snowmen};}else if(projectReward){requireSchool(Number.isSafeInteger(state.gold+projectReward.gold)&&Number.isSafeInteger(state.gems+projectReward.gems),'재화를 확인해 주세요.');state.gold+=projectReward.gold;state.gems+=projectReward.gems;result={kind:'guild-project-claim',gold:projectReward.gold,gems:projectReward.gems};}else if(raidClaim){state.gold+=raidReward.gold;state.gems+=raidReward.gems;result={kind:'raid-claim',gold:raidReward.gold,gems:raidReward.gems};}else if(checkingIn){state.gems+=30;result={kind:'guild-checkin',gems:30,day:game.day(now)};}else result = game.action(state, data.action, now, secure, { gearRng: secure }); }
+          try { if(privateReward){result=privateReward;}else if(yetiClaim){state.winter.snowflakes+=yetiReward.snowflakes;state.winter.earned+=yetiReward.snowflakes;if(yetiReward.snowmen){state.winter.snowmen=(state.winter.snowmen||0)+yetiReward.snowmen;state.winter.snowmenEarned=(state.winter.snowmenEarned||0)+yetiReward.snowmen;}result={kind:'yeti-claim',snowflakes:yetiReward.snowflakes,snowmen:yetiReward.snowmen};}else if(projectReward){requireSchool(Number.isSafeInteger(state.gold+projectReward.gold)&&Number.isSafeInteger(state.gems+projectReward.gems),'재화를 확인해 주세요.');state.gold+=projectReward.gold;state.gems+=projectReward.gems;result={kind:'guild-project-claim',gold:projectReward.gold,gems:projectReward.gems};}else if(raidClaim){state.gold+=raidReward.gold;state.gems+=raidReward.gems;result={kind:'raid-claim',gold:raidReward.gold,gems:raidReward.gems};}else if(checkingIn){state.gems+=30;result={kind:'guild-checkin',gems:30,day:game.day(now)};}else result = game.action(state, data.action, now, secure, { gearRng: secure }); }
           catch (error) { throw Object.assign(error, { status: 400 }); }
           state.receipts.push({ id: data.requestId, result }); state.receipts = state.receipts.slice(-20);
           if (renaming) state.nameNeedsClaim = false;
@@ -169,7 +176,9 @@ export function createSchool() {
         const update = env.DB.prepare("UPDATE school_saves SET payload = ?, revision = revision + 1, updated_at = ? WHERE account_id = ? AND revision = ?")
           .bind(payload, now, signed.id, row.revision);
         let written;
-        if(yetiClaim){
+        if(privateRank){
+          written=await commitPrivateRankReward(env.DB,{accountId:signed.id,revision:row.revision,payload,requestId:data.requestId,now});
+        }else if(yetiClaim){
           const results=await env.DB.batch([
            env.DB.prepare('UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=? AND EXISTS(SELECT 1 FROM school_yeti_rewards WHERE account_id=? AND room_id=? AND claimed=0)').bind(payload,now,signed.id,row.revision,signed.id,yetiReward.room_id),
            env.DB.prepare("UPDATE school_yeti_rewards SET claimed=1 WHERE account_id=? AND room_id=? AND claimed=0 AND EXISTS(SELECT 1 FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=?)").bind(signed.id,yetiReward.room_id,signed.id,row.revision+1,data.requestId)

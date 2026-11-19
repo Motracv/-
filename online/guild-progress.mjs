@@ -22,7 +22,7 @@ export async function guildProjects(db,game,gid,account,now){
  const earned=await db.prepare('SELECT COALESCE(SUM(stars),0) AS stars FROM school_guild_projects WHERE guild_id=?').bind(gid).first();
  const room=await db.prepare('SELECT theme,rug,furniture,revision FROM school_guild_rooms WHERE guild_id=?').bind(gid).first();
  return{week,resetsAt:((week+1)*7-3)*86400000-9*3600000,eligible:!!contributor,stars:earned.stars,
-  quests:GUILD_PROJECTS.map(q=>({...q,value:Math.min(q.goal,done.some(d=>d.quest_id===q.id)?q.goal:totals[q.id]||0),complete:done.some(d=>d.quest_id===q.id),claimed:claimed.some(c=>c.quest_id===q.id)})),
+  quests:GUILD_PROJECTS.map(q=>({...game.rewardBonus(q,now),value:Math.min(q.goal,done.some(d=>d.quest_id===q.id)?q.goal:totals[q.id]||0),complete:done.some(d=>d.quest_id===q.id),claimed:claimed.some(c=>c.quest_id===q.id)})),
   room:room||{theme:'dawn',rug:'teal',furniture:'plants',revision:0},choices:GUILD_DECOR};
 }
 export function guildActivity(db,{key,gid,account,week,kind,reference,amount=1,coop=0,at,condition,bindings=[]}){
@@ -37,5 +37,5 @@ export async function guildProjectClaim(db,game,id,action,now){
  fail(member&&member.guild_id===action.guildId,'현재 길드에서만 받을 수 있어요.');
  const p=await guildProjects(db,game,member.guild_id,id,now),quest=p.quests.find(a=>a.id===q.id);
  fail(quest.complete,'아직 길드 공동 목표를 달성하지 않았어요.');fail(p.eligible,'이번 주 현재 길드에서 출석 또는 보스전에 참여해 주세요.');fail(!quest.claimed,'이번 주 이 퀘스트 보상은 이미 받았어요.');
- return{...q,week,guildId:member.guild_id,memberKey:member.membership_key};
+ return{...game.rewardBonus(q,now),week,guildId:member.guild_id,memberKey:member.membership_key};
 }

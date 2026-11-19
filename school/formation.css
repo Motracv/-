@@ -121,3 +121,42 @@ dialog.formation-hero-modal .slot-buttons{grid-template-columns:repeat(3,minmax(
  #tab-roster .roster-grid{grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}.formation-footer{position:static}#tab-roster .section-heading{flex-wrap:wrap}#tab-roster .section-heading h2{font-size:18px}
  .app[data-tab=roster] .brand,.app[data-tab=roster] .header-actions,.app[data-tab=roster] .captain{display:none}.app[data-tab=roster] .resources{margin-left:auto}.app[data-tab=roster] .currency{min-width:65px}
 }
+
+/* Party tools stay outside the roster's scroll area and never change a team
+   until a player explicitly chooses a destination. */
+.formation-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto}
+.formation-search-tools{grid-column:1/-1;display:flex;align-items:center;gap:8px;min-width:0}
+.formation-search{display:flex;align-items:center;gap:8px;flex:1;min-width:0;border:1px solid #869cb7;border-radius:9px;background:#16263b;padding-left:10px}
+.formation-search>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#formation-search{width:100%;min-width:0;min-height:44px;border:0;outline:none;background:transparent;color:#fff;font:inherit;font-size:14px;padding:8px 0}
+#formation-search::placeholder{color:#bfcee0;opacity:1}
+#formation-search::-webkit-search-cancel-button{display:none}
+.formation-search:focus-within{outline:2px solid #a7dfff;outline-offset:2px}
+#tab-roster #formation-search-clear{flex:none;width:40px;min-height:44px;padding:0;border:0;background:transparent;color:#ecf6ff;font-size:23px}
+#tab-roster #formation-bench{min-height:44px;flex:none;padding:8px 11px;border:1px solid #879bb4;border-radius:8px;background:#20324b;color:#eff7ff;font-size:12px;font-weight:700;white-space:nowrap}
+#tab-roster #formation-bench[aria-pressed=true]{background:#c6e6f8;border-color:#e7f7ff;color:#18364c}
+#formation-results{font-size:12px;color:#cfdeef;white-space:nowrap;font-variant-numeric:tabular-nums}
+#tab-roster .formation-roles button{min-height:44px;font-weight:700;color:#eef4ff}
+.formation-roles small{display:inline-block;min-width:17px;padding:1px 3px;border-radius:8px;background:#b6d6f01c;color:#d8e9f9;font-size:10px}
+.formation-composition{flex:none;margin:0;border-top:1px solid #a4bed32b;padding-top:8px;font-size:12px;line-height:1.5;color:#c8e0ef;text-align:center}
+#tab-roster .formation-place{min-height:42px;font-size:13px;font-weight:700}
+.formation-card.is-selected{outline:2px solid #ffe9a7;outline-offset:-2px;box-shadow:0 0 14px #ffd17738}
+#tab-roster.has-selection .formation-slot{border-style:dashed;border-color:#e9ca8d}
+#tab-roster.has-selection .formation-slot.empty{background:#3b473e;box-shadow:inset 0 0 18px #ddcf6814}
+#tab-roster .formation-slot.drop-target{border-style:solid;border-color:#ffe7aa;box-shadow:inset 0 0 20px #ffda6744,0 0 0 2px #ffdc83}
+#tab-roster #formation-cancel{min-height:44px;order:3}
+#tab-roster #formation-quick-place{min-height:44px;order:2;padding:8px 14px;border:1px solid #ffe7ae;border-radius:8px;background:#e1bd79;color:#1d2d3f;font-size:13px;font-weight:800;white-space:nowrap}
+#tab-roster #formation-quick-place[hidden]{display:none}
+@media(orientation:portrait) and (max-width:1000px){
+ .formation-search-tools{flex-wrap:wrap}.formation-search{flex-basis:calc(100% - 108px)}#formation-results{width:100%;text-align:right}
+ .formation-footer{flex-wrap:wrap}#formation-status-live{flex-basis:100%}#tab-roster #formation-quick-place{flex:1}
+ .formation-roles{padding:8px}.formation-toolbar{padding:8px}.formation-composition{font-size:11px}
+}
+@media(orientation:landscape) and (max-height:600px){
+ .formation-toolbar{display:flex;flex-wrap:wrap;gap:6px}#tab-roster .formation-toolbar .filter-row{display:none}.formation-search-tools{display:contents}
+ .formation-search{order:0;min-width:90px}.formation-sort{order:2}.formation-sort select{max-width:82px}
+ #tab-roster #formation-bench{order:1;min-height:36px;padding:5px 8px;font-size:11px}#formation-search{min-height:36px;font-size:12px}#tab-roster #formation-search-clear{min-height:36px;width:30px}
+ #formation-results{display:none}#tab-roster .formation-roles button{min-height:36px;padding:4px 8px;font-size:11px}
+ .formation-composition{display:none}#tab-roster .formation-place{min-height:36px;font-size:12px}
+ #tab-roster #formation-quick-place,#tab-roster #formation-cancel{min-height:36px;padding:5px 8px;font-size:11px}
+}

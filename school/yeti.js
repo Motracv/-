@@ -6,22 +6,23 @@ window.SchoolYeti=(()=>{
  function assets(){if(loaded)return;loaded=true;bg.src='school/assets/yeti/background.webp?v=yeti1';atlas.src='school/assets/yeti/poses.png?v=yeti1';}
  function create(ctx){
   let data=null,busy=false,polling=false,epoch=0,timer=0,raf=0,pending=null,received=0,lastFrame=0,seen=0,events=[],signature='',lastSound=0,rewardKey='';
-  const rescueInput=window.SchoolRescue.create(send),health=window.SchoolCombatFeedback?.createHealthTracker();
+  const rescueInput=window.SchoolRescue.create(send),health=window.SchoolCombatFeedback?.createHealthTracker(),timeline=window.SchoolCombatFeedback?.createSnapshotTimeline?.({limit:100});
+  let pollBegan=0;
   const own=()=>!!document.getElementById('yeti-view')?.closest('dialog')?.open;
   const key=()=>`school-yeti-request:${ctx.scope()}`;
   const message=(text,error=false)=>{const n=document.getElementById('yeti-message');if(n){n.textContent=text;n.dataset.error=String(error);}};
   function remember(body){pending=body;try{body?sessionStorage.setItem(key(),JSON.stringify(body)):sessionStorage.removeItem(key());}catch{}}
-  function stop(){rescueInput.destroy();epoch++;clearTimeout(timer);cancelAnimationFrame(raf);polling=false;busy=false;}
-  function schedule(){clearTimeout(timer);timer=setTimeout(()=>{if(!own())return;if(document.hidden)schedule();else load();},data?.room?.status==='fighting'?800:2000);}
+  function stop(){rescueInput.destroy();timeline?.clear();epoch++;clearTimeout(timer);cancelAnimationFrame(raf);polling=false;busy=false;}
+  function schedule(){clearTimeout(timer);const period=data?.room?.status==='fighting'?800:2000;timer=setTimeout(()=>{if(!own())return;if(document.hidden){timeline?.suspend();schedule();}else load();},document.hidden||data?.room?.status!=='fighting'?period:Math.max(180,period-(performance.now()-pollBegan)));}
   function accept(next){
    if(data?.room?.id!==next.room?.id){seen=0;events=[];health?.clear();}
    data=next;received=performance.now();const b=data.room?.battle;
-   if(b){for(const e of b.events)if(e.seq>seen&&e.t>=b.elapsed-2200)events.push({...e,shown:received-Math.min(1000,b.elapsed-e.t)+120});seen=b.seq;events=events.slice(-100);}
+   if(b){events=timeline?.accept(b,data.room.id,received,{active:data.room.status==='fighting',hidden:document.hidden})||[];seen=b.seq;}else timeline?.clear();
    const nextKey=(next.rewards||[]).filter(r=>r.claimed).map(r=>r.roomId).sort().join('|');
    if(nextKey&&nextKey!==rewardKey){rewardKey=nextKey;ctx.refreshRewards?.();}
    render();
   }
-  async function load(){if(!own()||busy||polling||!ctx.isCloud())return;const ticket=epoch;polling=true;
+  async function load(){if(!own()||busy||polling||!ctx.isCloud())return;const ticket=epoch;polling=true;pollBegan=performance.now();
    try{const next=await ctx.request('/api/school/yeti',{kind:'state',roomId:data?.room?.id});if(ticket===epoch&&own()){accept(next);message('');}}
    catch(e){if(ticket===epoch)message(e.message+' · 다시 연결 중',true);}
    finally{if(ticket===epoch){polling=false;schedule();}}
@@ -30,7 +31,7 @@ window.SchoolYeti=(()=>{
    if(!own()||busy||ctx.isBlocked())return false;
    if(pending&&!retry){message('이전 요청의 결과를 먼저 확인해 주세요.',true);return false;}
    const body=retry?pending:{kind,requestId:crypto.randomUUID(),roomId:data?.room?.id,...extra};if(!body)return false;
-   const ticket=++epoch,storageKey=key();clearTimeout(timer);remember(body);busy=true;controls();message(kind==='thaw'?'동료를 구하고 있어요…':'서버 확인 중…');
+   const ticket=++epoch,storageKey=key();clearTimeout(timer);remember(body);busy=true;pollBegan=performance.now();controls();message(kind==='thaw'?'동료를 구하고 있어요…':'서버 확인 중…');
    try{const next=await ctx.request('/api/school/yeti',body);try{sessionStorage.removeItem(storageKey);}catch{}if(ticket===epoch&&own()){remember(null);accept(next);message('');return true;}return false;}
    catch(e){if(ticket===epoch){if(e.status&&e.status<500)remember(null);message(e.message,true);}return false;}
    finally{if(ticket===epoch){busy=false;polling=false;signature='';render();schedule();}}
@@ -65,23 +66,25 @@ window.SchoolYeti=(()=>{
    }
    controls();rescueInput.update(data);
   }
-  function draw(now){if(!own())return;raf=requestAnimationFrame(draw);if(document.hidden||now-lastFrame<16)return;lastFrame=now;
+  function draw(now){if(!own())return;raf=requestAnimationFrame(draw);if(document.hidden){timeline?.suspend();lastFrame=0;return;}if(now-lastFrame<16)return;lastFrame=now;
    const canvas=document.getElementById('yeti-canvas'),rect=canvas?.getBoundingClientRect();if(!rect||rect.width<1||rect.height<1)return;
    const width=Math.min(1440,Math.round(rect.width*Math.min(devicePixelRatio||1,1.5))),height=Math.round(width*rect.height/rect.width);
    if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
    const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;c.setTransform(width/1000,0,0,height/560,0,0);c.imageSmoothingEnabled=false;
    c.fillStyle='#142a45';c.fillRect(0,0,1000,560);if(bg.complete&&bg.naturalWidth)c.drawImage(bg,0,0,1000,560);
-   const b=data?.room?.battle,live=data?.room?.status==='fighting',time=b?b.elapsed+(live?Math.min(1000,now-received):0):0,reduced=ctx.reduced?.(),gunners=[];
+   events=timeline?.events(now)||events.filter(e=>now-e.shown<2200);
+   const visual=timeline?.view(now),b=visual||data?.room?.battle,live=data?.room?.status==='fighting',time=b?(visual?timeline.clock(now):b.elapsed+(live?Math.max(0,now-received):0)):0,reduced=ctx.reduced?.(),gunners=[];
    health?.begin(data?.room?.id,now/1000);
-   const myIndex=Math.max(0,b?.teams.findIndex(t=>t.isMe)??0);events=events.filter(e=>now-e.shown<2200);
+   const myIndex=Math.max(0,b?.teams.findIndex(t=>t.isMe)??0);
    let winterUntil=0;if(live)for(const team of b?.teams||[])winterUntil=Math.max(winterUntil,window.SchoolArt.spicaFieldUntil(team.units));
    const pos=(ti,i)=>({x:100+(i%3)*132+(i>=3?30:0),y:ti===myIndex?374+(i>=3?76:0):199+(i>=3?76:0)});
    if(b)for(let ti=0;ti<b.teams.length;ti++){
     const team=b.teams[ti];c.fillStyle='#e0f7ff';c.font='bold 15px sans-serif';c.fillText(team.isMe?'나의 용병단':'동료 용병단',55,ti===myIndex?319:159);
     team.units.forEach((u,i)=>{const p=pos(ti,i),hit=events.findLast(e=>e.kind==='hit'&&e.team===ti&&e.id===u.id&&now>=e.shown&&now-e.shown<(u.id==='spica'?850:600)),cast=events.findLast(e=>e.kind==='cast'&&e.team===ti&&e.id===u.id&&now>=e.shown&&now-e.shown<(u.id==='spica'?1600:1300));
      const age=cast?(now-cast.shown)/1000:-1,motion=cast?window.SchoolArt.poseForSkill(u.id,cast.stage||1,age,reduced):null;
-     window.SchoolArt.hero(c,u.id,p.x+(motion?.dx||0),p.y+(motion?.dy||0),1.3,{kazuaActive:live,...window.SchoolArt.kazuaFrame(u,time,b.elapsed),time:now/1000,reduced,dead:u.hp<=0,frozen:!!team.frozen,stunned:u.stunUntil>time,taunting:u.id==='ryusion'&&window.SchoolRPG.ryusionGuard(team.units,time).taunting,attack:!!hit,attackAge:hit?(now-hit.shown)/1000:undefined,pose:motion?.pose,motion,casting:!!cast,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0});
-     if(live&&u.id==='kazua'&&u.hp>0&&!team.frozen&&!team.withdrawn&&!(u.stunUntil>time))gunners.push({source:p,mode:u.kazua?.mode||'idle',age:window.SchoolArt.kazuaFrame(u,time,b.elapsed).kazuaAge,time:now/1000,scale:1.3,reduced,economy:width<900});
+     const sampledFrame=window.SchoolArt.kazuaFrame(u,time,b.elapsed),gunFrame=window.SchoolCombatFeedback?.kazuaPresentation?.(u,ti,events,now,sampledFrame)||sampledFrame,spear=u.id==='osia'?events.findLast(e=>e.kind==='osia-drowning'&&e.team===ti&&e.shown<=now):null;
+     window.SchoolArt.hero(c,u.id,p.x+(motion?.dx||0),p.y+(motion?.dy||0),1.3,{kazuaActive:live,...gunFrame,exclusive:u.exclusive,osiaSpearAge:spear?(now-spear.shown)/1000:undefined,time:now/1000,reduced,dead:u.hp<=0,frozen:!!team.frozen,stunned:u.stunUntil>time,taunting:u.id==='ryusion'&&window.SchoolRPG.ryusionGuard(team.units,time).taunting,attack:!!hit,attackAge:hit?(now-hit.shown)/1000:undefined,pose:motion?.pose,motion,casting:!!cast,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0});
+     if(live&&u.id==='kazua'&&u.hp>0&&!team.frozen&&!team.withdrawn&&!(u.stunUntil>time))gunners.push({source:p,mode:gunFrame.kazuaMode||u.kazua?.mode||'idle',age:gunFrame.kazuaAge,time:now/1000,scale:1.3,reduced,economy:width<900});
      if(u.id==='spica'&&cast&&u.hp>0&&!team.frozen)window.SchoolArt.spicaSkillEffect?.(c,p,team.units.flatMap((ally,ai)=>ally.hp>0?[pos(ti,ai)]:[]),[{x:790,y:350}],age,reduced,.8);
      const heal=events.findLast(e=>e.kind==='heal'&&e.team===ti&&e.id===u.id&&e.shown<=now),visual=health?.sample(ti+':'+u.id,u.hp,u.max,now/1000,reduced,heal?{time:heal.shown/1000}:null)||{ratio:u.hp/u.max};
      window.SchoolCombatFeedback?.drawHealth(c,{x:p.x,y:p.y+7,width:58,...visual,shield:(u.shield||0)/u.max});
@@ -96,6 +99,12 @@ window.SchoolYeti=(()=>{
    if(atlas.complete&&atlas.naturalWidth)window.SchoolArt.hitSprite(c,atlas,[(pose%3)*512,Math.floor(pose/3)*512,512,512,bx-256*scale,by-anchors[pose]*scale,512*scale,512*scale],bossHit?(now-bossHit.shown)/1000:1);
    else{c.fillStyle='#c4edff';c.beginPath();c.ellipse(bx,by-100,100,110,0,0,Math.PI*2);c.fill();}
    for(const gunner of gunners)window.SchoolKazuaArt?.effects(c,{...gunner,targets:[{x:bx,y:by,aimY:by-165}]});
+   if(live&&window.SchoolOsiaWeaponArt)for(const e of events.filter(e=>e.shown<=now&&now-e.shown<(e.kind==='osia-drowning'?2150:1850)&&['dragon','osia-drowning'].includes(e.kind)).slice(-6)){
+    const team=b?.teams[e.team],index=team?.units.findIndex(u=>u.id==='osia'),unit=team?.units[index];
+    if(!unit||!window.SchoolOsiaWeaponArt.equipped(unit))continue;
+    const options={source:pos(e.team,index),target:{x:bx,y:by,aimY:by-165},age:(now-e.shown)/1000,reduced,economy:width<900,scale:1.3};
+    if(e.kind==='dragon')window.SchoolOsiaWeaponArt.dragon(c,options);else window.SchoolOsiaWeaponArt.drowning(c,options);
+   }
    if(live)window.SchoolArt.spicaBlizzard(c,{x:0,y:86,width:1000,height:474},time,winterUntil,reduced,width<900);
    for(const e of events){const age=(now-e.shown)/1000;if(age<0||age>1.5)continue;
     c.save();c.globalAlpha=Math.max(0,1-age/1.5);
@@ -112,7 +121,7 @@ window.SchoolYeti=(()=>{
     c.restore();
    }
    if(!reduced&&winterUntil<=time){c.fillStyle='#d9f6ff88';for(let i=0;i<25;i++){const x=(i*173+now*.015)%1000,y=(i*67+now*.026)%560;c.fillRect(x,y,3,3);}}
-   const maximum=b?.boss.max||data?.rules?.hp||Y.HP,hp=b?.boss.hp??maximum;c.fillStyle='#0b1d33cc';c.fillRect(260,26,480,40);c.fillStyle='#8ce0f4';c.fillRect(266,56,468*hp/maximum,4);c.fillStyle='#effbff';c.textAlign='center';c.font='bold 18px sans-serif';c.fillText(`만년설 예티 · ${fmt(hp)} / ${fmt(maximum)}`,500,48);c.textAlign='start';
+   const maximum=b?.boss.max||data?.rules?.hp||Y.HP,hp=b?.boss.hp??maximum,bossHealth=health?.sample('boss',hp,maximum,now/1000,reduced)||{ratio:hp/maximum};c.fillStyle='#0b1d33cc';c.fillRect(260,26,480,40);c.fillStyle='#8ce0f4';c.fillRect(266,56,468*bossHealth.ratio,4);c.fillStyle='#effbff';c.textAlign='center';c.font='bold 18px sans-serif';c.fillText(`만년설 예티 · ${fmt(hp)} / ${fmt(maximum)}`,500,48);c.textAlign='start';
    const warning=document.getElementById('yeti-warning'),label=b?.teams[myIndex]?.rescueLockUntil>time?`구출 실패 · 내 용병단 ${Math.ceil((b.teams[myIndex].rescueLockUntil-time)/1000)}초 정지`:cast?Y.PATTERNS.find(p=>p.id===cast.id)?.name:live?'동료가 얼면 7초 구출 도전!':'두 단장이 함께하는 겨울 토벌';if(warning.textContent!==label)warning.textContent=label;
    document.getElementById('yeti-clock').textContent=live?`${Math.max(0,Math.ceil(((b?.yetiRules?.duration||(b?150000:data?.rules?.duration||Y.DURATION))-time)/1000))}초`:'어려움 · 권장 Lv.70 이상';
    if(now-lastSound>150){const sound=events.findLast(e=>!e.sounded&&e.shown<=now&&now-e.shown<300&&['impact','thaw','hit'].includes(e.kind));if(sound){ctx.play?.(sound.kind==='thaw'?'reward':sound.kind==='impact'?'critical':'hit');lastSound=now;}for(const e of events)if(e.shown<=now)e.sounded=true;}

@@ -3,23 +3,24 @@ window.SchoolRaid=(()=>{
  'use strict';const R=window.SchoolRaidRules,esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),fmt=n=>Math.round(n||0).toLocaleString('ko-KR');
  const bg=new Image(),atlas=new Image();bg.src='school/assets/raid/gymnasium.png?v=raid1';atlas.src='school/assets/raid/balloon-poses.png?v=raid1';
  function create(ctx){let data=null,busy=false,polling=false,timer=0,raf=0,epoch=0,focus=0,seen=0,received=0,events=[],pending=null,lastFrame=0,renderKey='',bars=new Map(),lastSound=0;
+  const timeline=window.SchoolCombatFeedback?.createSnapshotTimeline?.(),health=window.SchoolCombatFeedback?.createHealthTracker();let pollBegan=0;
   const own=()=>!!document.querySelector('#raid-view')?.closest('dialog')?.open;
   const key=()=>`school-raid-request:${ctx.scope()}`;
   const remember=p=>{pending=p;try{p?sessionStorage.setItem(key(),JSON.stringify(p)):sessionStorage.removeItem(key());}catch{}};
   const message=(s,error=false)=>{const n=document.getElementById('raid-message');if(n){n.textContent=s;n.dataset.error=String(error);}};
-  function stop(){epoch++;clearTimeout(timer);cancelAnimationFrame(raf);busy=false;polling=false;}
-  function schedule(){clearTimeout(timer);timer=setTimeout(()=>{if(!own())return;if(!document.hidden)load();else schedule();},data?.room?.status==='fighting'?1000:2500);}
-  function accept(next){const old=data?.room?.id,phase=data?.room?.status;if(phase!==next.room?.status){document.getElementById('modal').scrollTop=0;document.getElementById('modal-content').scrollTop=0;}if(old!==next.room?.id){seen=0;events=[];focus=0;bars.clear();}data=next;received=performance.now();const battle=data.room?.battle;if(battle){focus=Math.min(focus,Math.max(0,battle.teams.length-1));if(!old||old!==data.room.id)focus=Math.max(0,battle.teams.findIndex(t=>data.room.members.find(m=>m.account===t.account)?.isMe));for(const e of battle.events)if(e.seq>seen&&e.t>=battle.elapsed-2200)events.push({...e,shown:received-Math.min(1000,battle.elapsed-e.t)+180});seen=battle.seq;events=events.slice(-160);}render();}
-  async function load(){if(!own()||busy||polling)return;const ticket=epoch;polling=true;try{const next=await ctx.request('/api/school/raid',{kind:'state'});if(ticket===epoch&&own()){accept(next);message('');}}catch(e){if(ticket===epoch)message(e.message+' · 자동으로 다시 연결합니다.',true);}finally{polling=false;if(ticket===epoch){controls();schedule();}}}
-  async function send(kind,retry=false){if(!own()||busy||ctx.isBlocked())return;if(pending&&!retry){message('이전 요청의 결과를 먼저 확인해 주세요.',true);return false;}const ticket=++epoch;clearTimeout(timer);const body=retry?pending:{kind,roomId:data?.room?.id,requestId:crypto.randomUUID()};if(!body)return;remember(body);const storageKey=key();busy=true;controls();message('서버 확인 중…');
+  function stop(){timeline?.clear();health?.clear();epoch++;clearTimeout(timer);cancelAnimationFrame(raf);busy=false;polling=false;}
+  function schedule(){clearTimeout(timer);const period=data?.room?.status==='fighting'?1000:2500;timer=setTimeout(()=>{if(!own())return;if(!document.hidden)load();else{timeline?.suspend();schedule();}},document.hidden||data?.room?.status!=='fighting'?period:Math.max(180,period-(performance.now()-pollBegan)));}
+  function accept(next){const old=data?.room?.id,phase=data?.room?.status;if(phase!==next.room?.status){document.getElementById('modal').scrollTop=0;document.getElementById('modal-content').scrollTop=0;}if(old!==next.room?.id){seen=0;events=[];focus=0;bars.clear();health?.clear();}data=next;received=performance.now();const battle=data.room?.battle;if(battle){focus=Math.min(focus,Math.max(0,battle.teams.length-1));if(!old||old!==data.room.id)focus=Math.max(0,battle.teams.findIndex(t=>data.room.members.find(m=>m.account===t.account)?.isMe));events=timeline?.accept(battle,data.room.id,received,{active:data.room.status==='fighting',hidden:document.hidden})||[];seen=battle.seq;}else timeline?.clear();render();}
+  async function load(){if(!own()||busy||polling)return;const ticket=epoch;polling=true;pollBegan=performance.now();try{const next=await ctx.request('/api/school/raid',{kind:'state'});if(ticket===epoch&&own()){accept(next);message('');}}catch(e){if(ticket===epoch)message(e.message+' · 자동으로 다시 연결합니다.',true);}finally{if(ticket===epoch){polling=false;controls();schedule();}}}
+  async function send(kind,retry=false){if(!own()||busy||ctx.isBlocked())return;if(pending&&!retry){message('이전 요청의 결과를 먼저 확인해 주세요.',true);return false;}const ticket=++epoch;clearTimeout(timer);const body=retry?pending:{kind,roomId:data?.room?.id,requestId:crypto.randomUUID()};if(!body)return;remember(body);const storageKey=key();busy=true;pollBegan=performance.now();controls();message('서버 확인 중…');
    try{const next=await ctx.request('/api/school/raid',body);try{sessionStorage.removeItem(storageKey);}catch{}if(ticket===epoch&&own()){remember(null);accept(next);message('');return true;}return false;}
    catch(e){if(ticket===epoch){if(e.status&&e.status<500)remember(null);message(e.message,true);}return false;}
-   finally{if(ticket===epoch){busy=false;renderKey='';render();schedule();}}
+   finally{if(ticket===epoch){busy=false;polling=false;renderKey='';render();schedule();}}
   }
   function controls(){document.querySelectorAll('#raid-view button').forEach(b=>b.disabled=busy||ctx.isBlocked()||b.dataset.unavailable==='true');}
   function html(id,value){const n=document.getElementById(id);if(n._raidHTML!==value){n.innerHTML=value;n._raidHTML=value;}}
   function render(){if(!own()||!data)return;const room=data.room,b=room?.battle,me=room?.members.find(m=>m.isMe),host=me&&room.host===me.account;
-   document.getElementById('raid-hp').textContent=fmt(data.hp)+' / 50,000,000';document.getElementById('raid-health').value=data.hp;document.getElementById('raid-attempts').textContent=`오늘 ${data.remaining} / 5회`;
+   const visualHP=timeline?.view(performance.now())?.boss.hp??data.hp;document.getElementById('raid-hp').textContent=fmt(visualHP)+' / 50,000,000';document.getElementById('raid-health').value=visualHP;document.getElementById('raid-attempts').textContent=`오늘 ${data.remaining} / 5회`;
    const status=room?.status||'empty';document.getElementById('raid-view').dataset.phase=status;
    const key=JSON.stringify({id:room?.id,status,host,m:room?.members,rewards:data.rewards,pending:!!pending,remaining:data.remaining,cycle:data.cycle});
    if(key!==renderKey){renderKey=key;
@@ -41,16 +42,19 @@ window.SchoolRaid=(()=>{
    if(b)document.querySelectorAll('[data-raid-focus] small').forEach((n,i)=>n.textContent=fmt(b.teams[i]?.damage)+' 피해');controls();
   }
   function draw(now){
-   if(!own())return;raf=requestAnimationFrame(draw);if(document.hidden||now-lastFrame<16)return;
+   if(!own())return;raf=requestAnimationFrame(draw);if(document.hidden){timeline?.suspend();lastFrame=0;return;}if(now-lastFrame<16)return;
    const dt=Math.min(50,now-lastFrame||16);lastFrame=now;
    const canvas=document.getElementById('raid-canvas'),rect=canvas.getBoundingClientRect();if(rect.width<1||rect.height<1)return;
    const density=Math.min(window.devicePixelRatio||1,1.5),cw=Math.min(1600,Math.round(rect.width*density)),ch=Math.round(cw*rect.height/rect.width);
    if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
    const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;
    c.setTransform(cw/1000,0,0,cw/1000,0,0);c.imageSmoothingEnabled=false;
-   const battle=data?.room?.battle,live=data?.room?.status==='fighting',t=battle?battle.elapsed+Math.min(1000,now-received):0;
-   const units=battle?.teams[focus]?.units||ctx.getState().team.map(id=>({id,hp:1,max:1,shield:0}));events=events.filter(e=>now-e.shown<2200);
-   const info=window.SchoolRaidFX.draw(c,{w:1000,h:ch/cw*1000,now,dt,battle,focus,events,bg,atlas,bars,reduced:ctx.reduced?.()||false,units,received,live,hp:data?.hp});
+   events=timeline?.events(now)||events.filter(e=>now-e.shown<2200);
+   const visual=timeline?.view(now),battle=visual||data?.room?.battle,live=data?.room?.status==='fighting',t=battle?(visual?timeline.clock(now):battle.elapsed+(live?Math.max(0,now-received):0)):0;
+   const units=battle?.teams[focus]?.units||ctx.getState().team.map(id=>({id,hp:1,max:1,shield:0}));
+   const info=window.SchoolRaidFX.draw(c,{w:1000,h:ch/cw*1000,now,dt,battle,focus,events,bg,atlas,bars,reduced:ctx.reduced?.()||false,units,received,visualTime:t,live,hp:battle?.boss.hp??data?.hp});
+   const hp=battle?.boss.hp??data?.hp??R.HP;health?.begin(data?.room?.id,now/1000);const bossHealth=health?.sample('boss',hp,R.HP,now/1000,ctx.reduced?.())||{ratio:hp/R.HP};
+   const hpText=fmt(hp)+' / 50,000,000';if(document.getElementById('raid-hp').textContent!==hpText)document.getElementById('raid-hp').textContent=hpText;document.getElementById('raid-health').value=bossHealth.ratio*R.HP;
    const fresh=events.filter(e=>!e.sounded&&e.shown<=now&&now-e.shown<400);for(const e of fresh)e.sounded=true;
    if(now-lastSound>130){const boss=fresh.find(e=>e.kind==='impact'),hit=fresh.findLast(e=>e.team===focus&&['hit','cast'].includes(e.kind));if(boss||hit){ctx.play?.(boss?'critical':hit.id==='osia'&&hit.kind==='cast'?'water':hit.id==='horas'&&hit.skill?'blossom':hit.crit?'critical':'hit',hit?.stage||1);lastSound=now;}}
    canvas.dataset.effects=String(info.effects);canvas.dataset.hurtEffects=String(info.hits);canvas.dataset.draws=String((Number(canvas.dataset.draws)||0)+1);

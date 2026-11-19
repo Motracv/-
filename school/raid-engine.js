@@ -44,6 +44,7 @@
    if(!b.cast&&s.elapsed>=b.nextBasicAt){b.nextBasicAt=nextBasic(b.nextBasicAt,BOSS_BASIC_MS,b,true);emit('impact',{pattern:'basic'});s.teams.forEach((t,ti)=>hurt(ti,living(t)[0],.75,'basic'));}
   }
   function act(ti,u){const t=s.teams[ti];
+   if(u.id==='osia')g.osiaWeaponStep?.(u,[s.boss],s.elapsed,STEP,(target,amount,detail)=>{const before=target.hp,n=u.magic?Math.min(target.hp,Math.max(0,Math.round(amount*(target.guardUntil>s.elapsed?.6:1)))):0;target.hp-=n;s.damage+=n;t.damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:false,skill:'익사',drowning:true,damageType:'magic',hpBefore:before,hpAfter:target.hp});return n;},(kind,extra)=>emit(kind,{team:ti,id:u.id,...extra}),u.stunUntil>s.elapsed||t.frozen||t.withdrawn);
    if(u.id==='kazua'){g.kazuaStep(u,t.units,[s.boss],s.elapsed,STEP,(_,mult,d)=>hit(ti,u,mult,d.skill),(kind,extra)=>emit(kind,{team:ti,id:u.id,...extra}),u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn,basicRate(u));return;}
    if(u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn)return;
    if(u.cast){if(s.elapsed<u.cast.at)return;const cast=u.cast;delete u.cast;if(!cast.miss){hit(ti,u,g.HORAS_RULES.primaryMultiplier,'벚꽃의식');emit('ritual',{team:ti,id:u.id});}else emit('miss',{team:ti,id:u.id});return;}
@@ -55,16 +56,16 @@
    const skill=s.elapsed>=u.nextSkillAt;u.energy=Math.max(0,def.cooldown-(u.nextSkillAt-s.elapsed)/1000);
    if(!skill&&s.elapsed<u.nextBasic)return;u.nextBasic=skill?(tactical?Math.max(u.nextBasic||s.elapsed,s.elapsed):s.elapsed)+BASIC_MS/basicRate(u):nextBasic(u.nextBasic,BASIC_MS,u);
    if(skill){u.energy=0;u.nextSkillAt=s.elapsed+def.cooldown*1000;}
-   if(skill){emit('cast',{team:ti,id:u.id,skill:u.id==='osia'?g.OSIA_SKILLS[u.stage-1].name:def.skill,stage:u.stage});
+   if(skill){emit('cast',{team:ti,id:u.id,skill:u.id==='osia'?g.osiaSkillName(u,u.stage):def.skill,stage:u.stage});
     if(u.id==='ryusion'){if(u.stage===2)for(const a of living(t)){const n=g.addEarthShield(a,u.max*defense(u).shieldRatio,s.elapsed);emit('shield',{team:ti,id:a.id,from:u.id,amount:n});}else hit(ti,u,1,'돌격 앞으로');u.stage=u.stage%2+1;return;}
     if(u.id==='spica'){const p=g.SPICA_RULES;for(const a of living(t))a.hasteUntil=Math.max(a.hasteUntil||0,s.elapsed+p.hasteMs);s.boss.slowUntil=Math.max(s.boss.slowUntil||0,s.elapsed+p.slowMs);emit('spica-wind',{team:ti,id:u.id,hasteUntil:s.elapsed+p.hasteMs,slowUntil:s.boss.slowUntil});hit(ti,u,p.skillMultiplier,def.skill);return;}
     if(u.id==='lava'){const bonus=1+(u.exclusive?.strength||0);if(u.stage===1)for(const a of living(t)){heal(ti,a,u.atk*1.6*bonus,u.id);shield(ti,a,u.atk*.9*bonus,u.id);}else{const a=weak(t);if(a)heal(ti,a,u.atk*4.5*bonus,u.id);}u.stage=u.stage%2+1;return;}
     if(u.role==='치유'){for(const a of living(t))heal(ti,a,u.atk*2.2,u.id);return;}
     if(u.role==='수호')shield(ti,u,u.max*.25,u.id);
     if(u.role==='지원')t.buffUntil=s.elapsed+3000;
-    if(u.id==='osia'){hit(ti,u,2.2*(1+(u.exclusive?.skill||0)),g.OSIA_SKILLS[u.stage-1].name);if(u.stage===4){s.boss.stunUntil=s.elapsed+1500;emit('dragon',{team:ti,id:u.id});if(u.exclusive)shield(ti,u,u.atk*.2,u.id);}u.stage=u.stage%4+1;return;}
+    if(u.id==='osia'){hit(ti,u,2.2*g.osiaSkillMultiplier(u,u.stage),g.osiaSkillName(u,u.stage));if(u.stage===4){s.boss.stunUntil=s.elapsed+1500;emit('dragon',{team:ti,id:u.id,divine:g.osiaDivine(u)});if(g.osiaDivine(u))shield(ti,u,u.atk*(u.exclusive.dragonShield||.2),u.id);}u.stage=u.stage%4+1;return;}
    }
-   const n=hit(ti,u,skill?(u.role==='마법'?1.7:u.role==='사수'?2.6:u.role==='전사'?3:1):1,skill?def.skill:null);
+   const n=hit(ti,u,skill?(u.role==='마법'?1.7:u.role==='사수'?2.6:u.role==='전사'?3:1):g.osiaBasicMultiplier(u),skill?def.skill:null);
    if(u.id==='lava'&&n>0&&++u.hits%10===0){const a=weak(t);if(a)shield(ti,a,(u.atk*2+a.max*.08)*(1+(u.exclusive?.strength||0)),u.id);}
   }
   while(!s.ended&&s.elapsed<end){s.elapsed+=STEP;encounter?.tick?.({s,emit,hurt,living});if(s.ended)break;

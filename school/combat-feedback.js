@@ -2,6 +2,59 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.SchoolCombatFeedback=api;})(typeof globalThis!=='undefined'?globalThis:this,()=>{
   'use strict';
   const clamp=n=>Math.max(0,Math.min(1,n));
+  // Only replay events already confirmed by the server. A poll may contain
+  // several 250ms turns; backdating all of them made short shots disappear and
+  // every HP change arrive in the same paint. This bounded queue preserves
+  // simultaneous server turns and spreads different turns over at most 650ms.
+  function createSnapshotTimeline({limit=160,spreadMs=650,staleMs=2200}={}){
+    let id=null,battle=null,seq=0,received=0,anchor=0,live=false,queue=[],painted=null;
+    const clock=now=>battle?anchor+(live?Math.max(0,now-received):0):0;
+    function clear(){id=null;battle=null;seq=0;received=anchor=0;live=false;queue=[];painted=null;}
+    function suspend(){queue=[];painted=null;}
+    function accept(next,key,now,{active=true,hidden=false}={}){
+      if(!next||!Number.isFinite(now)||!Number.isFinite(next.elapsed)){clear();return [];}
+      const changed=id!==key||!battle,oldTime=clock(now),oldElapsed=battle?.elapsed??0;
+      const resuming=hidden||!changed&&(now-received>staleMs||next.elapsed<oldElapsed);
+      // Joining an existing battle never replays the combat that happened away.
+      const initial=changed&&next.elapsed>1000;
+      if(changed||resuming){queue=[];seq=initial||resuming?next.seq:0;painted=null;}
+      id=key;battle=next;anchor=active&&!changed&&!resuming?Math.max(next.elapsed,oldTime):next.elapsed;received=now;live=active;
+      const fresh=(next.events||[]).filter(e=>e.seq>seq&&Number.isFinite(e.t)&&e.t>=next.elapsed-staleMs).sort((a,b)=>a.t-b.t||a.seq-b.seq);
+      seq=Math.max(seq,next.seq||0);
+      queue=queue.filter(e=>now-e.shown<staleMs);
+      if(fresh.length&&!hidden&&!initial&&!resuming){
+        const first=fresh[0].t,last=fresh[fresh.length-1].t,tail=queue[queue.length-1];
+        const start=Math.min(now+spreadMs,Math.max(now,tail?.shown>now?tail.shown+Math.min(120,Math.max(0,first-tail.t)):now));
+        const span=Math.min(Math.max(0,last-first),Math.max(0,now+spreadMs-start));
+        queue.push(...fresh.map(e=>({...e,shown:start+(last>first?(e.t-first)/(last-first)*span:0)})));
+      }
+      // A finished result must never show a still-living visual copy of a unit.
+      if(!active)for(const e of queue)e.shown=Math.min(now,e.shown);
+      queue=queue.slice(-limit);return queue;
+    }
+    function events(now){
+      if(painted!==null&&now-painted>staleMs)queue=[];
+      painted=now;queue=queue.filter(e=>now-e.shown<staleMs);return queue;
+    }
+    function view(now){
+      if(!battle)return null;
+      const waiting=queue.filter(e=>e.shown>now);
+      if(!waiting.length)return battle;
+      const bossPending=waiting.reduce((sum,e)=>sum+(e.kind==='hit'?Math.max(0,e.amount||0):0),0),deltas=new Map();
+      for(const e of waiting)if(e.kind==='hurt'||e.kind==='heal'){
+        const key=e.team+':'+e.id;deltas.set(key,(deltas.get(key)||0)+(e.kind==='hurt'?1:-1)*Math.max(0,e.amount||0));
+      }
+      // Work backwards from the newest confirmed HP. No simulated damage,
+      // randomness, combat timers or account state are modified here.
+      return {...battle,boss:{...battle.boss,hp:Math.min(battle.boss.max,battle.boss.hp+bossPending)},teams:battle.teams.map((team,ti)=>({...team,units:team.units.map(u=>({...u,hp:team.withdrawn?u.hp:Math.max(0,Math.min(u.max,u.hp+(deltas.get(ti+':'+u.id)||0)))}))}))};
+    }
+    return {accept,events,view,clock,clear,suspend};
+  }
+  function kazuaPresentation(unit,team,events,now,frame={}){
+    if(unit?.id!=='kazua'||unit.hp<=0)return frame;
+    const shot=events.findLast(e=>e.kind==='kazua-shot'&&e.team===team&&e.shown<=now&&['pistol','bazooka'].includes(e.mode)&&now-e.shown<(e.mode==='bazooka'?1500:550));
+    return shot?{...frame,kazuaMode:shot.mode,kazuaAge:(now-shot.shown)/1000}:frame;
+  }
   function numbers(effects,time) {
     const groups=new Map();
     for(const e of effects){
@@ -41,5 +94,5 @@
     if(healing>0&&r>0){c.globalAlpha*=clamp(healing);c.fillStyle='#e5fff5';c.fillRect(left+width*r-1,top-1,2,h+2);c.fillRect(left+width+5,top+1,2,6);c.fillRect(left+width+3,top+3,6,2);}
     c.restore();
   }
-  return Object.freeze({numbers,createHealthTracker,drawHealth});
+  return Object.freeze({numbers,createHealthTracker,drawHealth,createSnapshotTimeline,kazuaPresentation});
 });

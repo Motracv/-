@@ -6,7 +6,7 @@ export function simulateArena(game, saves, names, seed) {
   const teams = saves.map((s,side) => ({ name:names[side], units:s.team.slice(0,6).map(id => {
     const unit = s.units[id], def = game.BY_ID[id], st = game.stats(id,unit,s);
     // PvP vitality gives healers, shields and Osia's complete cycle time to act.
-    return { id,name:def.name,role:def.role,level:unit.level,stars:unit.stars,max:st.hp*3,hp:st.hp*3,atk:st.atk,defense:st.defense,shield:0 };
+    return { id,name:def.name,role:def.role,level:unit.level,stars:unit.stars,max:st.hp*3,hp:st.hp*3,atk:st.atk,defense:st.defense,shield:0,...(id==='osia'&&game.exclusivePassive?.(s,id)?{exclusive:game.exclusivePassive(s,id)}:{}) };
   }) }));
   // Replays retain only gear worn by this formation. Unused inventory,
   // duplicate stacks and campaign currency never enter a public replay.
@@ -41,22 +41,22 @@ export function simulateArena(game, saves, names, seed) {
     return gained;
   }
   function hit(side,from,target,raw,skill,stage,detail={}) {
-    const original=target;target=redirect(side,target);
+    const original=target;target=detail.directHp?target:redirect(side,target);
     if(target.hp<=0)return 0;
-    if(target.id==='kazua'&&random()<game.KAZUA_RULES.evasion){target.evadedAt=t;emit('dodge',1-side,'kazua',1-side,target,0);return 0;}
+    if(!detail.directHp&&target.id==='kazua'&&random()<game.KAZUA_RULES.evasion){target.evadedAt=t;emit('dodge',1-side,'kazua',1-side,target,0);return 0;}
     if(target.id==='kazua')target.evadedAt=-1;
-    const enemySide=1-side, crit=typeof detail.critical==='boolean'?detail.critical:random()<.12;
-    const power=detail.snapshot?raw:raw*(.9+random()*.2)*(crit?1.5:1);
+    const enemySide=1-side, crit=detail.directHp?false:typeof detail.critical==='boolean'?detail.critical:random()<.12;
+    const power=detail.snapshot||detail.directHp?raw:raw*(.9+random()*.2)*(crit?1.5:1);
     const stunBonus=from==='horas'&&target.stunUntil>t;
-    let value=Math.max(1,Math.round(power*(stunBonus?H.stunMultiplier:1)*(1-target.defense)*synergy[enemySide].incomingMultiplier*(guard(enemySide).hero?1-R.teamReduction:1)*(guard(enemySide).taunting&&target.id==='ryusion'?1-defense(guard(enemySide).hero).tauntReduction:1)));
-    const absorbed=Math.min(target.shield,value);target.shield-=absorbed;value-=absorbed;game.absorbEarthShield?.(target,absorbed);
+    let value=Math.max(1,Math.round(power*(stunBonus?H.stunMultiplier:1)*(detail.directHp?1:1-target.defense)*synergy[enemySide].incomingMultiplier*(guard(enemySide).hero?1-R.teamReduction:1)*(guard(enemySide).taunting&&target.id==='ryusion'?1-defense(guard(enemySide).hero).tauntReduction:1)));
+    const absorbed=detail.directHp?0:Math.min(target.shield,value);target.shield-=absorbed;value-=absorbed;game.absorbEarthShield?.(target,absorbed);
     if(value>=target.hp&&!rescued[enemySide]&&alive(enemySide).some(u=>u.id==='lava')){
       rescued[enemySide]=true;target.protectedUntil=t+2000;
       emit('shield',enemySide,'lava',enemySide,target,0,{skill:'긴급생존',protectedUntil:target.protectedUntil});
     }
     if(target.protectedUntil>t)value=Math.min(value,Math.max(0,target.hp-1));
     const amount=Math.min(target.hp,value);target.hp-=amount;meter(side,from).damage+=amount;meter(enemySide,target.id).taken+=amount;if(crit&&amount>0)meter(side,from).criticals++;
-    emit(skill?'skill':'attack',side,from,enemySide,target,amount,{crit:crit&&amount>0,absorbed,...(target!==original?{redirectedFrom:original.id}:{}),...(skill?{skill}:{}),...(stage?{stage}:{}),...(stunBonus?{stunBonus:true}:{}),...(detail.castId?{castId:detail.castId,primary:detail.primary}:{})});
+    emit(skill?'skill':'attack',side,from,enemySide,target,amount,{crit:crit&&amount>0,absorbed,...(target!==original?{redirectedFrom:original.id}:{}),...(skill?{skill}:{}),...(stage?{stage}:{}),...(stunBonus?{stunBonus:true}:{}),...(detail.castId?{castId:detail.castId,primary:detail.primary}:{}),...(detail.drowning?{drowning:true,damageType:'magic'}:{})});
     if(target.id==='horas'&&target.hp>0&&t>=horas[enemySide].lastHitStackAt+H.hitStackMs){horas[enemySide].lastHitStackAt=t;addHorasStack(enemySide,1,'hit',sides[side].find(u=>u.id===from));}
     if(target.hp<=0){
       emit('down',side,from,enemySide,target,0);
@@ -149,14 +149,14 @@ export function simulateArena(game, saves, names, seed) {
     if(skill&&unit.role==='수호')shield(side,unit.id,unit,unit.max/3*.25,def.skill);
     if(skill&&unit.role==='지원'){buffUntil[side]=t+3000;emit('shield',side,unit.id,side,unit,0,{skill:def.skill});}
     if(skill&&unit.id==='osia'){
-      const stage=unit.stage, name=game.OSIA_SKILLS[stage-1].name;
-      for(const target of alive(1-side)){const victim=redirect(side,target);hit(side,unit.id,target,attack*2.2*(1+(unit.exclusive?.skill||0)),name,stage);if(stage===4&&victim.hp>0&&victim.evadedAt!==t){victim.stunUntil=t+1500;emit('stun',side,unit.id,1-side,victim,0,{skill:name,duration:1500});}}
-      if(stage===4&&unit.exclusive)shield(side,unit.id,unit,unit.atk*.2,'용왕의 해류');
+      const stage=unit.stage, name=game.osiaSkillName(unit,stage);
+      for(const target of alive(1-side)){const victim=redirect(side,target);hit(side,unit.id,target,attack*2.2*game.osiaSkillMultiplier(unit,stage),name,stage);if(stage===4&&victim.hp>0&&victim.evadedAt!==t){victim.stunUntil=t+1500;emit('stun',side,unit.id,1-side,victim,0,{skill:name,duration:1500});}}
+      if(stage===4&&game.osiaDivine(unit))shield(side,unit.id,unit,unit.atk*(unit.exclusive.dragonShield||.2),'신수의 왕권');
       unit.stage=stage%4+1;return;
     }
     const targets=skill&&unit.role==='마법'?alive(1-side):[skill&&unit.role==='사수'?alive(1-side).sort((a,b)=>a.hp-b.hp)[0]:game.lowAggroTarget(alive(1-side)[0],alive(1-side),random)];
     const multiplier=skill?(unit.role==='마법'?1.7:unit.role==='사수'?2.6:['수호','지원'].includes(unit.role)?1:3):1;
-    let dealt=0;for(const target of targets)dealt+=hit(side,unit.id,target,attack*multiplier,skill?def.skill:null);
+    let dealt=0;for(const target of targets)dealt+=hit(side,unit.id,target,attack*multiplier*(!skill?game.osiaBasicMultiplier(unit):1),skill?def.skill:null);
     if(unit.id==='lava'&&dealt>0&&++unit.hits%10===0){const target=weakest(side);if(target)shield(side,unit.id,target,unit.atk*2+target.max/3*.08,'신내림');}
   }
   // Side initiative alternates each second; the initial side comes from the
@@ -166,6 +166,7 @@ export function simulateArena(game, saves, names, seed) {
     const first=(Math.floor(t/1000)+initial)%2;
     ryusionStep(first);ryusionStep(1-first);
     horasStep(first);horasStep(1-first);
+    for(const side of[first,1-first]){const u=sides[side].find(u=>u.id==='osia'),targets=alive(1-side);if(u&&targets.length){const taunt=guard(1-side);if(taunt.taunting)targets.sort((a,b)=>(b===taunt.hero)-(a===taunt.hero));game.osiaWeaponStep?.(u,targets,t,500,(target,amount,detail)=>hit(side,u.id,target,amount,'익사',null,detail),(kind,extra)=>{const target=targets.find(e=>e.id===extra.to);if(target)emit(kind,side,u.id,1-side,target,0,{...extra,targetId:target.id});},u.stunUntil>t,{arena:true});}}
     for(const side of[first,1-first]){const u=sides[side].find(u=>u.id==='kazua');if(u&&alive(1-side).length)game.kazuaStep(u,sides[side],sides[1-side],t,500,(target,mult,d)=>hit(side,u.id,target,u.atk*mult*synergy[side].damageMultiplier*(buffUntil[side]>t?1.3:1)*(t>=45000?1+(t-45000)/15000:1),d.skill),(kind,extra)=>emit(kind,side,u.id,side,u,0,extra),u.stunUntil>t,basicRate(u));}
     if((!tactical&&t%1000)||!alive(0).length||!alive(1).length)continue;
     for(let index=0;index<6;index++){for(const side of[first,1-first])if(sides[side][index])act(side,sides[side][index]);}

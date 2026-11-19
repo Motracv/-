@@ -9,3 +9,79 @@
 @media(max-height:500px){#yeti-lobby-toolbar{top:30px;padding:5px 9px}#yeti-view[data-phase=lobby] .yeti-arena{height:calc(100dvh - 230px);min-height:100px}}
 .rescue-overlay{position:absolute;inset:14% 2% 3%;z-index:8;pointer-events:none;display:grid;place-items:center;color:#f0fcff;text-shadow:0 2px 6px #03162a}
 .rescue-heading{position:absolute;top:0;left:50%;transform:translateX(-50%);padding:8px 18px;background:#10253be8;border:1px solid #a1e8ff;border-radius:12px;text-align:center;min-width:220px}.rescue-heading b,.rescue-heading small{display:block}.rescue-heading small{font-size:12px}.rescue-heading span{position:absolute;right:8px;top:8px;font-size:11px}.rescue-time{display:block;height:3px;background:#b6f5ff;transform-origin:left;animation:rescue-count linear forwards}.rescue-orb{position:absolute;transform:translate(-50%,-50%);width:56px;height:56px;display:grid;place-items:center;border:3px solid #defaff;border-radius:50%;background:#245b7fee;box-shadow:0 0 0 6px #8be2ff33,0 0 22px #5bbaff66;color:#fff;font:bold 26px sans-serif;pointer-events:auto;touch-action:none}.rescue-overlay span.rescue-orb{pointer-events:none}.yeti-rescue-hint{margin:4px;color:#bceaff;font-size:13px}.yeti-arena{overflow:hidden}@keyframes rescue-count{to{transform:scaleX(0)}}
+
+/* Frosted expedition camp. Decorative frost is static so it does not compete
+   with battle rendering or cover invitation and rescue controls. */
+#modal.yeti-modal{
+ --yeti-ice:#dcf6ff;--yeti-line:#8bc6df;--yeti-muted:#c1dbea;
+ border:1px solid #a9def3;border-radius:16px;
+ background:radial-gradient(circle at 90% 6%,#c8edff26 0 2px,transparent 3px),radial-gradient(circle at 22% 88%,#b5edff22 0 1px,transparent 2px),linear-gradient(145deg,#203e57,#102236 70%);
+ background-size:61px 67px,47px 53px,auto;color:#f0faff;
+ box-shadow:inset 0 1px 0 #e6faff77,0 15px 65px #03132399;
+}
+#modal.yeti-modal::backdrop{background:#071525c9}
+#modal.yeti-modal .modal-top{background:transparent;border-bottom:1px solid #93c6dd55}
+#modal.yeti-modal .modal-top h2{color:#effbff;font-weight:800;line-height:1.4;text-shadow:0 2px 8px #081e35;min-width:0}
+#modal.yeti-modal .modal-top h2::before{content:'❄';display:inline-block;margin-right:8px;color:#a9e8ff}
+#modal.yeti-modal .modal-top .close-button{background:#243e55;border:1px solid #8baec6;color:#fff;min-width:44px;min-height:44px;flex:none}
+#modal.yeti-modal #modal-content{scrollbar-color:#84b6d0 #18324b;scrollbar-width:thin;scroll-padding-top:90px}
+#modal.yeti-modal #yeti-view{gap:12px}
+#modal.yeti-modal .yeti-arena{border:1px solid #b0e4fa;border-radius:12px;box-shadow:inset 0 0 0 3px #f0fbff15,0 5px 18px #06182d55;background:#173950}
+#modal.yeti-modal .yeti-arena::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:2;border-radius:inherit;box-shadow:inset 0 2px 0 #e4faff77,inset 0 -3px 0 #8cd4f344;background:linear-gradient(135deg,#e5faff2b,transparent 12%,transparent 88%,#b4e3ff22)}
+#modal.yeti-modal #yeti-view[data-phase=fighting] .yeti-arena{border-color:#d8f7ff;box-shadow:0 0 18px #6dd8ff22}
+#modal.yeti-modal #yeti-clock{font-size:13px;font-weight:800;letter-spacing:.03em;border:1px solid #9bd1e777;border-radius:7px;background:#10283fec;color:#f1fbff;font-variant-numeric:tabular-nums;z-index:3}
+#modal.yeti-modal #yeti-warning{font-weight:700;color:#e3f8ff;border:1px solid #91d2ed66;background:#132c43eb;z-index:3}
+#modal.yeti-modal #yeti-lobby-toolbar{position:sticky;top:0;z-index:4;padding:10px 12px;border:1px solid #a0cde1;border-radius:11px;background:linear-gradient(120deg,#294e68,#1c3d57);box-shadow:0 3px 12px #081c3299}
+#modal.yeti-modal #yeti-party-count{font-size:14px;line-height:1.4;color:#ecfaff}
+#modal.yeti-modal #yeti-lobby-toolbar #yeti-invite-friends{min-height:48px;border:1px solid #effbff;border-radius:9px;background:linear-gradient(#e6faff,#b4e1f5);color:#12374d;font-size:14px;font-weight:800;box-shadow:inset 0 1px #fff,0 2px 6px #0b203b77}
+#modal.yeti-modal .yeti-member{padding:10px;border:1px solid #79abc766;border-radius:10px;background:linear-gradient(135deg,#2d4d66,#1e384e);box-shadow:inset 0 1px #bddff51c;align-items:center}
+#modal.yeti-modal .yeti-member .profile-avatar{flex:none;width:40px;height:40px;border:1px solid #baeaff;border-radius:8px;background:#132e45}
+#modal.yeti-modal .yeti-member>span{min-width:0;display:block}
+#modal.yeti-modal .yeti-member b{display:block;color:#f3fbff;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#modal.yeti-modal .yeti-member small{color:#c2e8fa;font-size:11px;line-height:1.5;margin-top:3px;white-space:normal}
+#modal.yeti-modal #yeti-actions{gap:9px;padding:11px;border:1px solid #6d9eb95c;border-radius:11px;background:#10293dc9}
+#modal.yeti-modal #yeti-actions button{min-height:46px;border-radius:9px;font-size:14px;font-weight:750;touch-action:manipulation;line-height:1.4}
+#modal.yeti-modal #yeti-actions .primary{background:linear-gradient(#d7f5ff,#a8d7ed);border-color:#e6f9ff;color:#15394e;box-shadow:inset 0 1px #fff,0 2px 5px #081a2d55}
+#modal.yeti-modal #yeti-actions .secondary{background:#29465d;border-color:#86b1c9;color:#f0f8ff}
+#modal.yeti-modal #yeti-actions #yeti-back{margin-left:auto;color:#f2d7d7;border-color:#9a8794;background:#363a4e}
+#modal.yeti-modal #yeti-actions button:hover:not(:disabled),#modal.yeti-modal #yeti-invite-friends:hover:not(:disabled){filter:brightness(1.12)}
+#modal.yeti-modal #yeti-view button:disabled{opacity:.5;box-shadow:none;cursor:not-allowed}
+#modal.yeti-modal #yeti-view button:focus-visible,#modal.yeti-modal #yeti-code:focus-visible{outline:3px solid #f8e6a7;outline-offset:2px}
+#modal.yeti-modal #yeti-join{gap:7px;min-width:0}
+#modal.yeti-modal #yeti-join label{color:#d9edfa;font-size:12px}
+#modal.yeti-modal #yeti-code{min-height:46px;max-width:100%;background:#0f263a;border:1px solid #92bdd4;color:#fff;font-size:15px}
+#modal.yeti-modal #yeti-code::placeholder{color:#bad4e5;opacity:1;font-size:12px;letter-spacing:0}
+#modal.yeti-modal .yeti-invite{padding:2px 0;flex-wrap:wrap}
+#modal.yeti-modal .yeti-invite span{color:#bddae9;line-height:1.6}
+#modal.yeti-modal .yeti-invite b{font-size:20px;letter-spacing:.12em;color:#e4f8ff;font-variant-numeric:tabular-nums}
+#modal.yeti-modal #yeti-message{font-size:13px;line-height:1.6;color:#cde7f5;padding:0 3px}
+#modal.yeti-modal #yeti-message[data-error=true]{color:#ffc8bd;font-weight:700}
+#modal.yeti-modal #yeti-result{z-index:4;border:1px solid #d3f4ff;border-radius:12px;background:radial-gradient(ellipse at top,#44677bec,#10283bf5 70%);box-shadow:inset 0 1px #f1faff99,0 8px 26px #02172799;padding:16px}
+#modal.yeti-modal #yeti-result strong{color:#fff1bc;text-shadow:0 2px 12px #e4c67d44}
+#modal.yeti-modal #yeti-result span{color:#e1f3ff;line-height:1.6}
+#modal.yeti-modal .yeti-reward{min-height:44px;background:linear-gradient(110deg,#2a5666,#244055);border:1px solid #abd8e8;border-radius:10px;color:#e7fbff;font-size:13px;line-height:1.6}
+#modal.yeti-modal .yeti-reward b{color:#fff0bc}
+#modal.yeti-modal #yeti-rewards:empty{display:none}
+#modal.yeti-modal .yeti-rules{border:1px solid #789fb650;border-radius:10px;background:#152e42a8;color:#c9dfed;font-size:13px}
+#modal.yeti-modal .yeti-rules summary{padding:12px;color:#e7f7ff;font-weight:700;min-height:44px}
+#modal.yeti-modal .yeti-rules p{padding:0 12px;margin:0 0 12px;line-height:1.75}
+#modal.yeti-modal .yeti-rescue-hint{flex:1;color:#e1f6ff;line-height:1.5;font-size:13px}
+#modal.yeti-modal .rescue-heading{border-color:#d4f6ff;box-shadow:0 3px 20px #091d3699;background:#15344def}
+#modal.yeti-modal .rescue-orb{border-color:#ecfbff;background:radial-gradient(circle at 35% 25%,#75c4ec,#164b7b);box-shadow:0 0 0 5px #b0edff40,0 0 20px #7bdaff99}
+@media(max-width:520px) and (orientation:portrait){
+ #modal.yeti-modal .modal-top h2{font-size:15px}#modal.yeti-modal #yeti-view{gap:9px}
+ #modal.yeti-modal #yeti-lobby-toolbar{gap:8px;padding:9px}#modal.yeti-modal #yeti-party-count{font-size:12px}#modal.yeti-modal #yeti-lobby-toolbar #yeti-invite-friends{font-size:13px;min-height:46px;padding:8px}
+ #modal.yeti-modal .yeti-member{padding:8px 6px;gap:6px}#modal.yeti-modal .yeti-member .profile-avatar{width:30px;height:30px}#modal.yeti-modal .yeti-member b{font-size:12px}#modal.yeti-modal .yeti-member small{font-size:10px}
+ #modal.yeti-modal #yeti-actions{padding:9px;gap:8px}#modal.yeti-modal #yeti-actions>button{flex:1 1 130px}#modal.yeti-modal #yeti-actions #yeti-back{flex-basis:100%}
+ #modal.yeti-modal .yeti-invite{flex-basis:100%;justify-content:space-between}#modal.yeti-modal #yeti-join{flex:1 1 100%}#modal.yeti-modal #yeti-code{flex:1;width:0}
+ #modal.yeti-modal #yeti-result{padding:10px}#modal.yeti-modal #yeti-result strong{font-size:21px}#modal.yeti-modal #yeti-result span{font-size:12px}
+}
+@media(max-height:500px) and (orientation:landscape){
+ #modal.yeti-modal #yeti-view{gap:7px}#modal.yeti-modal #yeti-lobby-toolbar{padding:7px;gap:6px}#modal.yeti-modal #yeti-party-count{font-size:12px}
+ #modal.yeti-modal #yeti-lobby-toolbar #yeti-invite-friends{min-height:44px;font-size:12px;padding:7px}
+ #modal.yeti-modal #yeti-actions{padding:7px;gap:6px}#modal.yeti-modal #yeti-actions button{min-height:44px;font-size:12px;padding:7px 9px}
+ #modal.yeti-modal .yeti-member{padding:6px;gap:5px}#modal.yeti-modal .yeti-member .profile-avatar{width:28px;height:28px}#modal.yeti-modal .yeti-member b{font-size:12px}#modal.yeti-modal .yeti-member small{font-size:10px}
+ #modal.yeti-modal .yeti-invite b{font-size:17px}#modal.yeti-modal #yeti-code{width:112px;font-size:13px;min-height:44px}
+ #modal.yeti-modal #yeti-result{padding:10px}#modal.yeti-modal #yeti-result strong{font-size:21px}#modal.yeti-modal #yeti-result span{font-size:12px}
+ #modal.yeti-modal #yeti-view[data-phase=fighting] #yeti-actions{padding:5px 8px}#modal.yeti-modal #yeti-view[data-phase=fighting] .yeti-rescue-hint{margin:0;font-size:11px}
+}

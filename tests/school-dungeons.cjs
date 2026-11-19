@@ -90,14 +90,13 @@ test('Very high tower floors remain finite and invalid saved activity counters a
  for(const change of [a=>a.daily.used=4,a=>a.weekly.used=-1,a=>a.daily.period=NaN,a=>a.towerBest=G.MAX_TOWER_FLOOR+1,a=>a.run={id:1,kind:'tower',floor:1,settled:'yes'}]){const invalid=state();change(invalid.activities);assert.equal(G.validate(invalid),false);}
 });
 
-test('A boss warns before its real attack and defers damage during the dragon cut-in and stun',()=>{
+test('A boss attacks during the visual dragon cut-in and defers attacks only after the actual stun',()=>{
  const s=state(),team=['geonu','ian','lumi','nari','lava','osia'];for(const id of team)s.units[id]={level:50,xp:0,stars:0,shards:0};act(s,{kind:'team',team});s.best=60;act(s,{kind:'activity',mode:'daily',tier:5});
  for(const h of s.battle.heroes){h.hp=h.max=1000000;h.atk=0;}const enemy=s.battle.enemies[0];enemy.hp=enemy.max=1e12;enemy.atk=100;
  G.advance(s,s.at+5000);const warning=s.events.find(e=>e.kind==='boss-warning');assert.ok(warning);assert.equal(warning.atElapsed,6000);assert.equal(warning.duration,1000);assert.equal(warning.targets.length,6);assert.ok(!s.events.some(e=>e.kind==='boss-skill'));
- s.units.osia.nextSkill=4;s.battle.heroes.find(h=>h.id==='osia').energy=4;G.advance(s,s.at+1000);assert.equal(s.battle.elapsed,6000);assert.ok(s.battle.cinematic);assert.ok(!s.events.some(e=>e.kind==='boss-skill'));const hp=s.battle.heroes.map(h=>h.hp);
- G.advance(s,s.at+G.OSIA_CINEMATIC_MS-500);assert.equal(s.battle.elapsed,6000);assert.deepEqual(s.battle.heroes.map(h=>h.hp),hp);assert.ok(!s.events.some(e=>e.kind==='boss-skill'));G.advance(s,s.at+500);
+ s.units.osia.nextSkill=4;s.battle.heroes.find(h=>h.id==='osia').energy=4;G.advance(s,s.at+1000);assert.equal(s.battle.elapsed,6000);assert.ok(s.battle.cinematic);assert.equal(s.battle.cinematic.nonBlocking,true);assert.ok(s.events.some(e=>e.kind==='boss-skill'));
  const impact=s.events.findLast(e=>e.kind==='boss-skill');assert.ok(impact);assert.equal(impact.atElapsed,6000);assert.equal(impact.targets.length,6);assert.equal(s.events.filter(e=>e.kind==='hit'&&e.bossSkill&&e.at===impact.at).length,6);
- G.advance(s,s.at+1000);assert.equal(s.battle.elapsed,7000);assert.equal(enemy.stunUntil,8500);enemy.nextAbilityAt=8000;enemy.warnedFor=0;const sequence=s.seq;G.advance(s,s.at+1500);assert.equal(s.battle.elapsed,8500);assert.ok(!s.events.some(e=>e.seq>sequence&&e.kind==='boss-skill'));G.advance(s,s.at+500);assert.equal(s.events.findLast(e=>e.kind==='boss-skill').atElapsed,9000);
+ G.advance(s,s.at+500);assert.equal(s.battle.elapsed,6500);assert.ok(s.battle.osiaCast);G.advance(s,s.at+500);assert.equal(s.battle.elapsed,7000);assert.equal(enemy.stunUntil,8500);enemy.nextAbilityAt=8000;enemy.warnedFor=0;const sequence=s.seq;G.advance(s,s.at+1500);assert.equal(s.battle.elapsed,8500);assert.ok(!s.events.some(e=>e.seq>sequence&&e.kind==='boss-skill'));G.advance(s,s.at+500);assert.equal(s.events.findLast(e=>e.kind==='boss-skill').atElapsed,9000);
 });
 
 test('A challenge times out after 120 combat seconds at either speed and refunds once without claiming a win',()=>{

@@ -536,7 +536,9 @@
     render();
   }
   function animationTime() {
-    const running = mode === 'cloud' ? hasCloudState && connected : hasGuestState && !guestSaveFailed;
+    // Connection failures disable spending, not an already-authorized combat
+    // preview. Stopping this clock froze every sprite until a later save poll.
+    const running = mode === 'cloud' ? hasCloudState : hasGuestState && !guestSaveFailed;
     const wall = serverNow();
     const fraction = running ? Math.min(500, Math.max(0, wall - state.at)) : 0;
     return ((state.simTime || 0) + (state.simCredit || 0) + fraction * (state.speed || 1)) / 1000;
@@ -563,11 +565,11 @@
     const cast = state.battle.osiaCast;
     if (cast && !effects.some(e => e.kind === 'skill-stage' && e.castId === cast.id)) {
       const part = G.OSIA_SKILLS[cast.stage - 1];
-      const elapsed = state.battle.elapsed - cast.began + ((cast.cinematicDuration || 0) - (state.battle.cinematic?.remaining || 0));
+      const elapsed = state.battle.elapsed - cast.began + (cast.nonBlocking?0:(cast.cinematicDuration || 0) - (state.battle.cinematic?.remaining || 0));
       const began = cast.simBegan ?? Math.max(0, (state.simTime || 0) - elapsed);
-      effects.push({kind:'skill-stage',from:'osia',castId:cast.id,battleId:state.battle.id,...part,cinematicDuration:cast.cinematicDuration || 0,targets:cast.targets.map(t=>t.id),time:began/1000});
+      effects.push({kind:'skill-stage',from:'osia',castId:cast.id,battleId:state.battle.id,...part,cinematicDuration:cast.cinematicDuration || 0,nonBlocking:!!cast.nonBlocking,targets:cast.targets.map(t=>t.id),time:began/1000});
       if (state.battle.cinematic && !effects.some(e => e.kind === 'cinematic' && e.castId === cast.id))
-        effects.push({kind:'cinematic',from:'osia',castId:cast.id,battleId:state.battle.id,duration:cast.cinematicDuration || G.OSIA_CINEMATIC_MS,time:began/1000});
+        effects.push({kind:'cinematic',from:'osia',castId:cast.id,battleId:state.battle.id,duration:cast.cinematicDuration || G.OSIA_CINEMATIC_MS,nonBlocking:!!cast.nonBlocking,time:began/1000});
     }
     const horasCast = state.battle.horasCast;
     if (horasCast && !effects.some(e => e.kind === 'horas-cast' && e.castId === horasCast.id)) {
@@ -647,7 +649,7 @@
     setAttr($('tab-recruit'),'data-art-banner',!weapons&&['ryusion','standard'].includes(selectedBanner)?'pixel':'');
     document.querySelectorAll('[data-recruit-category]').forEach(button=>{if(button.tagName==='BUTTON')setAttr(button,'aria-pressed',String(button.dataset.recruitCategory===recruitCategory));});
     setText('recruit-price-one',fmt(currentRecruitCost(1)));setText('recruit-price-ten',fmt(currentRecruitCost(10)));
-    document.querySelectorAll('[data-banner]').forEach(button=>{const id=button.dataset.banner,b=weapons?G.WEAPON_BANNERS[id]:G.BANNERS[id];setHidden(button,!b);if(!b)return;button.querySelector('.rarity').textContent=weapons?'EX':G.BY_ID[id]?.rarity||'SSR';button.querySelector('small').textContent=b.limited?'한정':weapons||id==='standard'?'상시':'픽업';});
+    document.querySelectorAll('[data-banner]').forEach(button=>{const id=button.dataset.banner,b=weapons?G.WEAPON_BANNERS[id]:G.BANNERS[id];setHidden(button,!b);if(!b)return;const grade=weapons?G.GEAR_BY_ID[b.item].rarity:G.BY_ID[id]?.rarity||'SSR';button.querySelector('.rarity').textContent=grade;button.querySelector('.rarity').className='rarity '+grade;button.querySelector('small').textContent=b.limited?'한정':weapons||id==='standard'?'상시':'픽업';});
     $('recruit-ten').querySelector('.button-ribbon').textContent=weapons?'SR 이상 무기 1개 확정':'SR 이상 1명 확정';
     setHidden($('weapon-preview'),!weapons);setHidden($('standard-guarantee'),true);
     $('tab-recruit').querySelector('.pickup-copy h2').textContent=weapons?'전용 무기':selectedBanner==='standard'?'상시뽑기':selectedBanner==='horas'?'한정 픽업':'픽업뽑기';
@@ -678,7 +680,7 @@
   function renderWeaponRecruitment(){
     const b=G.WEAPON_BANNERS[selectedBanner],item=G.GEAR_BY_ID[b.item],progress=G.weaponBannerState(state,selectedBanner),odds=G.weaponRates(progress.pity),passive=G.weaponPassive(item.id,0);
     setAttr($('tab-recruit'),'data-pickup',selectedBanner);
-    setText('pickup-kicker',b.limited?'기간 한정 · 전용 무기':'상시 · 선택한 무기 확정');setText('pickup-grade','EX');setText('pickup-name',item.name);
+    setText('pickup-kicker',b.limited?'기간 한정 · 전용 무기':'상시 · 선택한 무기 확정');setText('pickup-grade',item.rarity);setText('pickup-name',item.name);
     setText('pickup-tagline',`${G.BY_ID[item.owner].name} 전용 · ${passive.name}`);setText('pickup-element',weaponBonusLabel(item.id,0));
     $('pickup-skill-list').innerHTML=['✧ 추가 패시브','◈ 픽뚫 없음','☆ 중복 각성'].map(x=>`<span>${x}</span>`).join('');
     setText('recruit-count',passive.description);setAttr($('weapon-pickup-art'),'src',item.icon+'?v=gear1');setAttr($('weapon-pickup-art'),'alt',item.name);
@@ -699,12 +701,12 @@
   }
   function weaponRatesModal(){
     const b=G.WEAPON_BANNERS[selectedBanner],progress=G.weaponBannerState(state,selectedBanner),odds=G.weaponRates(progress.pity),item=G.GEAR_BY_ID[b.item];
-    openModal('무기 뽑기 확률',`<div class="modal-copy"><p><strong>${item.name} · 픽뚫 없음</strong><br>1회 100보석 / 10회 1,000보석</p><table class="probability-table"><thead><tr><th>결과</th><th>다음 1회 확률</th></tr></thead><tbody>${[['EX',item.name],['SR','균열의 지휘봉'],['R','별빛 분필']].map(([r,name])=>`<tr><td>${r} · ${name}</td><td>${Number((odds[r]*100).toFixed(2))}%</td></tr>`).join('')}</tbody></table><p>기본 전무 1% · SR 26% · R 73%. 전무 미획득 60회째부터 2%, 이후 매회 1%p 상승하여 80회에 선택한 전무가 확정됩니다. 전무 획득 시에만 누적이 초기화됩니다.</p><p>10회 결과에 SR 이상이 없으면 마지막 R을 SR로 올립니다. 전무 천장을 먼저 적용하며, 일반 무기가 나와도 전무 누적은 유지됩니다.</p><p>오시아·라바·류시온 상시 전무는 누적을 공유합니다. 한정 전무는 별도 누적이며 다음 한정 전무에도 이월됩니다. 캐릭터 뽑기와는 누적이 별도입니다.</p><p>${b.limited?'호라스 전무 종료: 2026년 12월 2일 23:59 · 한국 시간':'종료일이 없는 상시 무기입니다.'}<br>캐릭터가 없어도 무기를 얻고 보관할 수 있어요. 전무는 던전 보상이나 캐릭터 뽑기에서 나오지 않습니다.</p></div>`,'weapon-rates');
+    openModal('무기 뽑기 확률',`<div class="modal-copy"><p><strong>${item.name} · 픽뚫 없음</strong><br>1회 100보석 / 10회 1,000보석</p><table class="probability-table"><thead><tr><th>결과</th><th>다음 1회 확률</th></tr></thead><tbody>${[['EX',item.name],['SR','균열의 지휘봉'],['R','별빛 분필']].map(([r,name])=>`<tr><td>${r==='EX'?item.rarity:r} · ${name}</td><td>${Number((odds[r]*100).toFixed(2))}%</td></tr>`).join('')}</tbody></table><p>기본 전무 1% · SR 26% · R 73%. 전무 미획득 60회째부터 2%, 이후 매회 1%p 상승하여 80회에 선택한 전무가 확정됩니다. 전무 획득 시에만 누적이 초기화됩니다.</p><p>10회 결과에 SR 이상이 없으면 마지막 R을 SR로 올립니다. 전무 천장을 먼저 적용하며, 일반 무기가 나와도 전무 누적은 유지됩니다.</p><p>오시아·라바·류시온 상시 전무는 누적을 공유합니다. 한정 전무는 별도 누적이며 다음 한정 전무에도 이월됩니다. 캐릭터 뽑기와는 누적이 별도입니다.</p><p>${b.limited?'호라스 전무 종료: 2026년 12월 2일 23:59 · 한국 시간':'종료일이 없는 상시 무기입니다.'}<br>캐릭터가 없어도 무기를 얻고 보관할 수 있어요. 전무는 던전 보상이나 캐릭터 뽑기에서 나오지 않습니다.</p></div>`,'weapon-rates');
   }
   function revealWeapons(results,history=false){
     const featured=results.find(r=>G.GEAR_BY_ID[r.item]?.owner),item=featured&&G.GEAR_BY_ID[featured.item];
     if(!history)play(featured?'blossom':'reward');
-    openModal(history?'최근 무기 뽑기':featured?'전용 무기 획득':'무기 획득',`${!history&&item?`<div class="weapon-reveal-hero gear-EX"><span class="weapon-reveal-ring" aria-hidden="true"></span><img src="${item.icon}?v=gear1" alt=""><b>${item.name}</b><span>${G.BY_ID[item.owner].name} 전용 · ${featured.fresh?'첫 획득':'중복 +1'}</span></div>`:''}<div class="weapon-result-grid">${results.map((r,i)=>{const g=G.GEAR_BY_ID[r.item];return `<button type="button" class="weapon-result-card gear-${g.rarity}" data-weapon-details="${g.id}" style="--delay:${history?0:i*35}ms"><img src="${g.icon}?v=gear1" alt=""><small>${g.rarity}${r.pity?' · 확정':''}</small><b>${g.name}</b><span>${r.fresh?'첫 획득':'중복 +1'}</span></button>`;}).join('')}</div><p class="detail-note">보관함에 저장되었습니다. 용병을 눌러 장비 → 무기에서 장착하세요.</p>`,'weapon-results');
+    openModal(history?'최근 무기 뽑기':featured?'전용 무기 획득':'무기 획득',`${!history&&item?`<div class="weapon-reveal-hero gear-${item.rarity}"><span class="weapon-reveal-ring" aria-hidden="true"></span><img src="${item.icon}?v=gear1" alt=""><b>${item.name}</b><span>${G.BY_ID[item.owner].name} 전용 · ${featured.fresh?'첫 획득':'중복 +1'}</span></div>`:''}<div class="weapon-result-grid">${results.map((r,i)=>{const g=G.GEAR_BY_ID[r.item];return `<button type="button" class="weapon-result-card gear-${g.rarity}" data-weapon-details="${g.id}" style="--delay:${history?0:i*35}ms"><img src="${g.icon}?v=gear1" alt=""><small>${g.rarity}${r.pity?' · 확정':''}</small><b>${g.name}</b><span>${r.fresh?'첫 획득':'중복 +1'}</span></button>`;}).join('')}</div><p class="detail-note">보관함에 저장되었습니다. 용병을 눌러 장비 → 무기에서 장착하세요.</p>`,'weapon-results');
   }
   function dungeonContentKey() {
     const a = state.activities || {}, run = a.run;
@@ -717,7 +719,7 @@
     setText($('gold'), fmt(state.gold)); setText($('gems'), fmt(state.gems));
     setText($('captain-level'), `Lv.${state.captain.level}`);
     if (modalKind === 'captain' && $('captain-level-rewards')) {
-      const maxed = state.captain.level >= G.CAPTAIN_MAX_LEVEL, reward = G.captainReward(state.captain.level+1);
+      const maxed = state.captain.level >= G.CAPTAIN_MAX_LEVEL, reward = G.captainReward(state.captain.level+1,serverNow());
       setText('captain-modal-level', `Lv.${state.captain.level}`); setText('captain-reward-heading', maxed ? '단장 최대 레벨 달성' : `다음 Lv.${state.captain.level+1} 보상`);
       setHidden($('captain-next-reward'), maxed); setText('captain-next-gems', fmt(reward.gems)); setText('captain-next-gold', fmt(reward.gold));
     }
@@ -899,10 +901,11 @@
     return `${next}<button class="secondary" data-activity-mode="${mode}" ${level} data-unavailable="${unavailable}">${unavailable ? '열쇠 충전 대기' : '재도전'}</button><button class="secondary" data-activity-exit>모험 복귀</button>`;
   }
   function captainModal() {
-    const captain = state.captain, maxed = captain.level >= G.CAPTAIN_MAX_LEVEL, need = G.captainNeed(captain.level), nextReward = G.captainReward(captain.level + 1);
+    const captain = state.captain, maxed = captain.level >= G.CAPTAIN_MAX_LEVEL, need = G.captainNeed(captain.level), nextReward = G.captainReward(captain.level + 1,serverNow());
     openModal('내 단장', `<section class="captain-profile">${window.SchoolGuild.avatar(G.profileInfo(state),state.team[0])}<div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3>${window.SchoolGuild.title(G.profileInfo(state))}<p>단장 <strong id="captain-modal-level">Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>전투력</small>${fmt(G.power(state))}</span><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">${G.commanderNameInfo?.(state).cost ? '3,000 보석으로 변경' : '이름 확정'}</button></div><p id="name-message" role="status">첫 이름은 무료 · 변경은 보석 3,000개. 계정 이름은 중복될 수 없어요. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><section id="captain-level-rewards" class="captain-level-rewards"><b id="captain-reward-heading">${maxed ? '단장 최대 레벨 달성' : `다음 Lv.${captain.level + 1} 보상`}</b><div id="captain-next-reward" class="quest-rewards" ${maxed ? 'hidden' : ''}><span class="quest-gems">${icon('gem')}<strong id="captain-next-gems">${fmt(nextReward.gems)}</strong></span><span class="quest-gold">${icon('coin')}<strong id="captain-next-gold">${fmt(nextReward.gold)}</strong></span></div><p class="detail-note">새 단장 레벨마다 보석 160개와 골드를 받아요. 전투·방치 보상으로 성장합니다.</p></section>`, 'captain');
     const appearance=G.profileInfo(state), avatarNames=['학생 기사','달빛 마녀','책의 학자','수호 곰','하얀 고양이','전령새'];
-    $('modal-content').insertAdjacentHTML('beforeend',`<section class="profile-section"><h3>프로필 그림</h3><div class="profile-choices"><button data-profile-avatar="leader" aria-pressed="${appearance.avatar==='leader'}">${window.SchoolGuild.avatar({avatar:'leader'},state.team[0])}<small>출전 대표</small></button>${G.PROFILE_AVATARS.map((id,i)=>`<button data-profile-avatar="${id}" aria-pressed="${appearance.avatar===id}">${window.SchoolGuild.avatar({avatar:id})}<small>${avatarNames[i]}</small></button>`).join('')}${G.PROFILE_REWARDS.map(p=>`<button data-profile-avatar="${p.id}" aria-pressed="${appearance.avatar===p.id}" ${G.ownsProfileAvatar(state,p.id)?'':'disabled'}>${window.SchoolGuild.avatar({avatar:p.id})}<small>${esc(p.name)}</small><span class="profile-unlock-label">${G.ownsProfileAvatar(state,p.id)?'보유 중':'코드 기간 종료'}</span></button>`).join('')}</div><p class="detail-note">기념 프로필 코드의 사용 기간이 종료됐어요. 이미 해금한 프로필은 계속 사용할 수 있어요.</p></section><section class="profile-section"><h3>칭호</h3><div class="profile-title-options"><button data-profile-title="" aria-pressed="${!appearance.title}">사용 안 함</button><button data-profile-title="beta" aria-pressed="${appearance.title==='beta'}" ${appearance.beta?'':'disabled'}>${window.SchoolGuild.title({title:'beta'})}</button></div><p>${appearance.beta?'함께 시작한 단장님께 드리는 기념 칭호예요.':'베타 업데이트 이전부터 플레이한 기록에 해금되는 칭호예요.'} 능력치는 바뀌지 않아요.</p></section>`);
+    $('modal-content').insertAdjacentHTML('beforeend',`<section class="profile-section"><h3>프로필 그림</h3><div class="profile-choices"><button data-profile-avatar="leader" aria-pressed="${appearance.avatar==='leader'}">${window.SchoolGuild.avatar({avatar:'leader'},state.team[0])}<small>출전 대표</small></button>${G.PROFILE_AVATARS.map((id,i)=>`<button data-profile-avatar="${id}" aria-pressed="${appearance.avatar===id}">${window.SchoolGuild.avatar({avatar:id})}<small>${avatarNames[i]}</small></button>`).join('')}${G.PROFILE_REWARDS.filter(p=>!p.private||G.ownsProfileAvatar(state,p.id)).map(p=>`<button data-profile-avatar="${p.id}" aria-pressed="${appearance.avatar===p.id}" ${G.ownsProfileAvatar(state,p.id)?'':'disabled'}>${window.SchoolGuild.avatar({avatar:p.id})}<small>${esc(p.name)}</small><span class="profile-unlock-label">${G.ownsProfileAvatar(state,p.id)?'보유 중':'코드 기간 종료'}</span></button>`).join('')}</div><p class="detail-note">기념 프로필 코드의 사용 기간이 종료됐어요. 이미 해금한 프로필은 계속 사용할 수 있어요.</p></section><section class="profile-section"><h3>칭호</h3><div class="profile-title-options"><button data-profile-title="" aria-pressed="${!appearance.title}">사용 안 함</button><button data-profile-title="beta" aria-pressed="${appearance.title==='beta'}" ${appearance.beta?'':'disabled'}>${window.SchoolGuild.title({title:'beta'})}</button></div><p>${appearance.beta?'함께 시작한 단장님께 드리는 기념 칭호예요.':'베타 업데이트 이전부터 플레이한 기록에 해금되는 칭호예요.'} 능력치는 바뀌지 않아요.</p></section>`);
+    if(G.ownsProfileTitle?.(state,'rank-reclaimer'))$('modal-content').querySelector('.profile-title-options').insertAdjacentHTML('beforeend',`<button data-profile-title="rank-reclaimer" aria-pressed="${appearance.title==='rank-reclaimer'}">${window.SchoolGuild.title({title:'rank-reclaimer'})}</button>`);
     const bond=G.bondInfo(state);
     $('modal-content').querySelector('.profile-choices').insertAdjacentHTML('beforeend',`<button data-profile-avatar="osia-memory" aria-pressed="${appearance.avatar==='osia-memory'}" ${bond.avatar?'':'disabled'}>${window.SchoolGuild.avatar({avatar:'osia-memory'})}<small>기억 속 용왕</small><span class="profile-unlock-label">${bond.avatar?'보유 중':'오시아 인연 2화'}</span></button>`);
     $('modal-content').querySelector('.profile-title-options').insertAdjacentHTML('beforeend',`<button data-profile-title="osia-oath" aria-pressed="${appearance.title==='osia-oath'}" ${bond.title?'':'disabled'}>${window.SchoolGuild.title({title:'osia-oath'})}<small>${bond.title?'보유 중':'오시아 인연 3화'}</small></button>`);
@@ -1442,7 +1445,7 @@
       }
       // Saving serializes account actions, not the deterministic combat preview.
       // Only confirmed balances are spendable; applyCloud reconciles the result.
-      if (mode === 'cloud' && hasCloudState && connected) { advanceCloudPreview(); consumeEvents(); render(); }
+      if (mode === 'cloud' && hasCloudState) { advanceCloudPreview(); consumeEvents(); render(); }
       if (mode === 'cloud' && token && Date.now() - lastSync > 3000) { lastSync = Date.now(); sync(); }
     }, 250);
     let canvas = $('battle'), ctx = canvas.getContext('2d', {alpha:false, desynchronized:true});
@@ -1549,7 +1552,7 @@
           // for its next tick then pins animationTime at the step boundary for
           // up to 250ms. Catch up only due steps before painting, without DOM
           // work or network requests; confirmed balances stay clamped as usual.
-          if (mode === 'cloud' && hasCloudState && connected && serverNow()-state.at >= 500) { advanceCloudPreview(); consumeEvents(); }
+          if (mode === 'cloud' && hasCloudState && serverNow()-state.at >= 500) { advanceCloudPreview(); consumeEvents(); }
           const visualTime = animationTime();
           Art.draw(ctx, state, visualTime, effects, reduced);
           graphics.frames++; graphics.lastDraw = performance.now(); failedDraws = 0; recoveryTried = false;
