@@ -66,8 +66,8 @@ window.SchoolArt = (() => {
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
   const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready,window.SchoolOsiaWeaponArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
-  osiaImage.src = "school/assets/osia-sprites.png?v=osia1";
-  osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-front1";
+  osiaImage.src = "school/assets/osia-sprites.png?v=osia-look1";
+  osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-look1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
   lavaFanImage.src = "school/assets/lava-fan-basic.webp?v=lava-fan1";
   function rect(c, color, x, y, w, h) { c.fillStyle = color; c.fillRect(Math.round(x), Math.round(y), w, h); }
@@ -145,12 +145,13 @@ window.SchoolArt = (() => {
     if (frame.motion) c.transform(1, 0, frame.motion.lean, frame.motion.stretch, 0, 0);
     if (osiaLoaded) {
       const tile = osiaImage.naturalWidth / 3, pose = frame.pose ?? (frame.osiaSpearAge>=0&&frame.osiaSpearAge<.3?1:frame.attack || frame.casting ? 2 : frame.ready ? 1 : 0);
-      // The atlas is three equal right-facing cells, with identical foot anchors.
+      // Six square cells (3 columns × 2 rows); first row is idle/gather/release.
+      // All poses share foot anchors; portrait art is separate from combat.
       // Downsample each atlas cell once at the required display density; do
       // not repeatedly sample a large source PNG on the battle render path.
       const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d)),resolution=density>4?6:density>2?4:2;
       const key=pose+":"+resolution;let sprite=osiaPoses.get(key);
-      if(!sprite){sprite=document.createElement("canvas");sprite.width=sprite.height=44*resolution;const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.drawImage(osiaImage,pose*tile,0,tile,osiaImage.naturalHeight,0,0,sprite.width,sprite.height);osiaPoses.set(key,sprite);}
+      if(!sprite){sprite=document.createElement("canvas");sprite.width=sprite.height=44*resolution;const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.drawImage(osiaImage,(pose%3)*tile,Math.floor(pose/3)*tile,tile,tile,0,0,sprite.width,sprite.height);osiaPoses.set(key,sprite);}
       c.drawImage(sprite,-21,-40,44,44);
     } else {
       // Small, right-facing fallback when the optional art file cannot load.

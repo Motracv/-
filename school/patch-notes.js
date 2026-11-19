@@ -1,7 +1,11 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-osia-motion1',
+  version:'school-osia-look1',
   entries:Object.freeze([
+    {version:'school-osia-look1',date:'2026.11.19',title:'오시아 · 새 도트와 상시 모집 일러스트',items:[
+      '오시아의 인게임 도트를 새 디자인으로 바꿨어요. 파란 단발·양쪽 지느러미 장식·흰 티셔츠를 살리고 대기·마법 모으기·손 뻗기 자세를 적용했어요.',
+      '상시뽑기는 오시아·라바가 함께하는 새 일러스트로 표시돼요. 오시아의 영입 결과와 미리보기 그림도 새 일러스트로 맞췄어요.'
+    ]},
     {version:'school-osia-motion1',date:'2026.11.19',title:'오시아 · 살아 움직이는 용의 신수',items:[
       'UR 전용 무기 궁극기에 12가지 용의 자세를 추가했어요. 몸을 웅크리는 소환부터 턱을 벌리는 돌진, 앞발과 꼬리가 이어지는 마무리까지 움직입니다.',
       '몸통과 꼬리는 자세 사이에서도 물결처럼 움직이고, 명중 순간에 충격파가 펼쳐져요. 소환을 가리던 컷인은 짧게 줄였어요.',
