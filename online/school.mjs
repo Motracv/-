@@ -35,7 +35,7 @@ export function createSchool() {
       SELECT account_id, RANK() OVER (ORDER BY ${order}) AS rank,
         ROW_NUMBER() OVER (ORDER BY ${order}, account_id ASC) AS position,
         COUNT(*) OVER () AS total
-      FROM school_saves WHERE ${valid}
+      FROM school_saves WHERE ${valid} AND account_id NOT IN (SELECT id FROM accounts WHERE google_key='school:operator-test:v1')
     ) SELECT ranked.*, json_extract(${safePayload}, '$.commanderName') AS name,
       ${levelScore} AS level, ${towerScore} AS floor, json_object('profile',json_extract(${safePayload},'$.profile'),'team',json_extract(${safePayload},'$.team'),'redeemedCodes',json_extract(${safePayload},'$.redeemedCodes'),'bonds',json_extract(${safePayload},'$.bonds')) AS appearance
       FROM ranked JOIN school_saves USING (account_id)
@@ -54,6 +54,8 @@ export function createSchool() {
   return {
     async request(path, request, env, data, accounts) {
       try {
+      const isolated=await accounts.identity(request,env,Date.now()).catch(error=>{if(error.status===401)return null;throw error;});
+      if(isolated?.isTest)requireSchool(['/api/school/state','/api/school/action','/api/school/rankings'].includes(path),'운영 테스트 계정은 공개 랭킹·친구·길드·협동전에 참여하지 않습니다.',403);
       if(path==='/api/school/profile'){
         const name=game.normalizeCommanderName(data.name);requireSchool(name,'단장 이름을 확인해 주세요.');
         const row=await env.DB.prepare('SELECT n.display_name AS name,s.payload FROM school_names n JOIN school_saves s ON s.account_id=n.account_id WHERE n.name_key=?').bind(nameKey(name)).first();
@@ -67,14 +69,7 @@ export function createSchool() {
       if (path === '/api/school/guild') return await guilds.request(request, env, data, accounts);
       if (path === '/api/school/social') return await social.request(request, env, data, accounts);
       requireSchool(["/api/school/state", "/api/school/action", "/api/school/rankings"].includes(path), "지원하지 않는 경로입니다.", 404);
-      let signed;
-      try { signed = await accounts.identity(request, env, Date.now()); }
-      catch (error) {
-        // Public boards remain readable after a session expires. Only absence
-        // of identity is ignored; database/service failures still surface.
-        if (path !== '/api/school/rankings' || error.status !== 401) throw error;
-        signed = null;
-      }
+      const signed = isolated;
       if (path === '/api/school/rankings') {
         requireSchool(data.catalogVersion === game.CATALOG_VERSION, "게임이 업데이트되었습니다. 페이지를 새로고침해 주세요.", 426);
         return await rankings(env, data.mode, signed);
@@ -99,6 +94,15 @@ export function createSchool() {
         let row = await env.DB.prepare("SELECT payload, revision FROM school_saves WHERE account_id = ?").bind(signed.id).first();
         if (!row) {
           const initial = game.create(now, crypto.getRandomValues(new Uint32Array(1))[0]);
+          if(signed.isTest){
+            initial.commanderName='운영 테스트';initial.nameChanges=1;initial.gold=100000000;initial.gems=1000000;initial.best=game.MAX_STAGE;initial.captain={level:200,xp:0};
+            for(const h of game.HEROES)initial.units[h.id]={level:125,stars:5,xp:0,shards:9999};
+            initial.winter.snowflakes=100000;initial.winter.earned=100000;initial.winter.snowmen=1000;initial.winter.snowmenEarned=1000;
+            initial.activities.towerBest=1000;
+            for(const gear of game.GEAR)initial.equipment.inventory[gear.id]={count:10,stars:5};
+            initial.redeemedCodes.push(...Object.values(game.SKINS).map(s=>s.receipt));
+            game.action(initial,{kind:'team',team:['hyeokjin','horas','osia','kazua','ryusion','spica']},now);
+          }
           await env.DB.prepare("INSERT OR IGNORE INTO school_saves (account_id, payload, revision, updated_at) SELECT id, ?, 0, ? FROM accounts WHERE id = ?")
             .bind(JSON.stringify(initial), now, signed.id).run();
           row = await env.DB.prepare("SELECT payload, revision FROM school_saves WHERE account_id = ?").bind(signed.id).first();
@@ -115,7 +119,10 @@ export function createSchool() {
         if (action && acceptedRevision !== row.revision) {
           return { conflict: true, state: game.view(state), revision: row.revision, serverTime: now };
         }
-        await ensureSchoolName(env.DB, signed.id, state, game, now);
+        if(!signed.isTest)await ensureSchoolName(env.DB, signed.id, state, game, now);
+        else state.nameNeedsClaim=false;
+        // Every existing account is offered the new introduction exactly once.
+        state.onboarding ||= {version:1,step:0};
         // Gear is rolled only while a server-owned encounter settles. The
         // public combat seed must never predict cloud inventory rewards.
         const previousResult = state.activities?.lastResult?.runId;
@@ -210,7 +217,7 @@ export function createSchool() {
             guildActivity(env.DB,{key:'attendance:'+signed.id+':'+game.day(now),gid:guildMember.guild_id,account:signed.id,week:game.week(now),kind:'attendance',reference:String(game.day(now)),at:now,
               condition:"EXISTS(SELECT 1 FROM school_saves WHERE account_id=? AND revision=? AND json_extract(payload,'$.receipts[#-1].id')=?)",bindings:[signed.id,row.revision+1,data.requestId]})
           ]); written=results[0];
-        } else if (renaming) {
+        } else if (renaming && !signed.isTest) {
           try {
             const results = await env.DB.batch([update, env.DB.prepare(`INSERT INTO school_names(account_id,name_key,display_name,created_at)
               SELECT account_id,?,?,? FROM school_saves WHERE account_id = ? AND revision = ? AND json_extract(payload,'$.receipts[#-1].id') = ?

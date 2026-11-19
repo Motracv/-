@@ -23,8 +23,8 @@
   const portrait = (id, cls = '') => `<img class="${cls}" src="${Art.portrait(id,G.equippedSkin(state,id))}" alt="${G.BY_ID[id].name}">`;
   const rarity = id => `<span class="rarity ${G.BY_ID[id].rarity}">${G.BY_ID[id].rarity}</span>`;
   const storage = { get(key, session = false) { try { return (session ? sessionStorage : localStorage).getItem(key); } catch { return null; } }, set(key, value, session = false) { try { (session ? sessionStorage : localStorage).setItem(key, value); return true; } catch { return false; } }, remove(key, session = false) { try { (session ? sessionStorage : localStorage).removeItem(key); } catch {} } };
-  let state, mode = 'guest', profile = null, token = null, revision = 0, cloudClock = null, busy = false, pending = null, connected = true;
-  let battlePassUI=null,skinsUI=null,formationUI=null,coop=null,notice=null;
+  let state, mode = 'cloud', profile = null, token = null, revision = 0, cloudClock = null, busy = false, pending = null, connected = true;
+  let battlePassUI=null,skinsUI=null,formationUI=null,coop=null,notice=null,piyuGuide=null,afk=null,entry=null;
   let tab = 'lobby', filter = 'owned', selectedHero = null, modalKind = '', lastSeq = 0, effects = [], toastTimer, sdkPromise, loginGeneration = 0;
   let confirmedActivityScope = '', confirmedActivityResult = null, dismissedActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null, selectedDungeon = 'daily';
   let recruitCategory = 'heroes';
@@ -41,7 +41,7 @@
   let theme = preferences.theme === 'dark' ? 'dark' : 'light', operation = '', completedActionKey = '', confirmedScope = '', confirmedSeq = 0, rankingMode = 'level', rankingGeneration = 0;
   const rankingCache = new Map();
   const Presentation = window.SchoolPresentation;
-  Presentation?.configure({soundEnabled:()=>sound, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
+  Presentation?.configure({soundEnabled:()=>sound&&!!entry?.entered&&!afk?.active&&!piyuGuide?.storyOpen, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
   let social, guild, raid, yeti, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
@@ -74,6 +74,11 @@
     return {samples:costs.length,fps:round(gaps.length?1000*gaps.length/sum(gaps):0),frameGapP95:round(p95(gaps)),maxFrameGap:round(gaps.length?Math.max(...gaps):0),drawMean:round(costs.length?sum(costs)/costs.length:0),drawP95:round(p95(costs)),stalledAnimationFrames:stalled,animationJumps:jumps,motionReduced:reduced};
   }
   function clearLogin() { token = null; verifiedToken = null; storage.remove(SESSION); storage.remove(SESSION, true); }
+  function expireSession() {
+    clearLogin();clearPending();connected=false;hasCloudState=false;profile=null;
+    afk?.close();piyuGuide?.close();stopTraining();Presentation?.cancel();closeModal();
+    entry?.show();entry?.google();
+  }
   function stopTraining() { if (trainingHold) { trainingHold.stopped = true; clearTimeout(trainingHold.timer); } trainingHold = null; }
   function beginTraining(event, id) {
     if (event.type === 'pointerdown' && (event.button !== 0 || !event.isPrimary)) return;
@@ -90,25 +95,29 @@
   }
   async function logoutAccount() {
     if (busy || pending) return toast('진행 중인 저장을 먼저 확인해 주세요.');
-    qol?.close();
-    stopTraining(); busy = true;
-    coop?.depart();
-    try { if (token) await request('/api/account/logout', {}, 'account'); } catch { /* Local logout remains available offline. */ }
-    clearLogin(); profile = null; sessionFingerprint = null; hasCloudState = false; cloudBalance = null; cloudClock = null; clearPending();
-    storage.remove(CLOUD_CACHE, true); storage.set(MODE, 'guest'); mode = 'guest'; connected = true; effects = [];
-    coop?.reset(); formationUI?.cancel(); Presentation?.cancel(); rankingCache.clear(); social?.destroy(); guild?.destroy(); raid?.destroy(); yeti?.destroy(); social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti(); closeModal();
-    try { await guestUpdate(); lastSeq = state.seq; renderKey = partyKey = ''; render(); note(''); toast('로그아웃했어요. 게스트 기록으로 돌아왔어요.'); }
-    catch(error) { note(error.message); } finally { busy = false; renderButtons(); }
+    busy=true;coop?.depart();
+    try { if(token)await request('/api/account/logout',{},'account'); } catch {}
+    afk?.close();piyuGuide?.close();stopTraining();Presentation?.cancel();coop?.reset();raid?.destroy();yeti?.destroy();social?.destroy();guild?.destroy();
+    clearLogin();profile=null;hasCloudState=false;cloudBalance=null;cloudClock=null;sessionFingerprint=null;connected=false;clearPending();
+    storage.remove(CLOUD_CACHE,true);storage.set(MODE,'cloud');mode='cloud';state=freshGuest();effects=[];closeModal();busy=false;
+    social=createSocial();guild=createGuild();raid=createRaid();yeti=createYeti();entry?.show();entry?.google();renderButtons();
   }
-  function createYeti(){return window.SchoolYeti?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,refreshRewards:()=>{lastSync=0;return sync();},dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
+  async function acceptLogin(result){
+    if(busy||pending)throw Error('진행 중인 저장을 먼저 확인해 주세요.');
+    token=result.token;verifiedToken=null;profile=null;pending=null;connected=false;hasCloudState=false;cloudBalance=null;
+    storage.set(SESSION,JSON.stringify({token}),true);
+    if(!storage.set(SESSION,JSON.stringify({token})))throw Error('계정 세션을 저장할 수 없습니다. 브라우저 저장 설정을 확인해 주세요.');
+    return useCloud();
+  }
+  function createYeti(){return window.SchoolYeti?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,refreshRewards:()=>{lastSync=0;return sync();},dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
   function createRaid(){return window.SchoolRaid?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
-  function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
-  function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token,dispatch:act,openModal,toast,refresh:()=>sync(true),openYeti:()=>yeti?.open(),openHero:heroDetail,openAccount:accountModal,openCaptain:captainModal}); }
+  function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
+  function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token&&!profile?.isTest,dispatch:act,openModal,toast,refresh:()=>sync(true),openYeti:()=>yeti?.open(),openHero:heroDetail,openAccount:accountModal,openCaptain:captainModal}); }
   function damageModal() { insights?.report('current'); }
   // Browsing a dialog does not pause combat. Only another full battle scene
   // needs the campaign canvas to sleep; hidden tabs still stop painting.
   function battleVisible() {
-    return tab === 'adventure' && !($('modal').open && ['raid','yeti','social-arena'].includes(modalKind));
+    return !!entry?.entered && !afk?.active && tab === 'adventure' && !($('modal').open && ['raid','yeti','social-arena'].includes(modalKind));
   }
   function syncBattleOverlay() {
     const side = $('modal').open && tab === 'adventure' && ['damage','settings','diagnostics','help','dungeon-help'].includes(modalKind);
@@ -143,8 +152,9 @@
     const fresh = (source.events || []).filter(e => e.seq > confirmedSeq);
     confirmedSeq = Math.max(confirmedSeq, source.seq || 0);
     for (const event of fresh) {
-      if (event.kind === 'defeat' && event.boss && !document.hidden && serverNow() - event.at < 6000) Presentation?.defeat({key:`${scope}:defeat:${event.seq}`,description:'보스에게 패배했어요. 딜량을 확인하고 편성을 바꿔 보세요.'});
-      if (event.kind === 'captain') Presentation?.captain({level:event.level, gems:event.gems, gold:event.gold, key:`${scope}:captain:${event.seq}`});
+      if(!entry?.entered)continue;
+      if (!afk?.active && !piyuGuide?.storyOpen && event.kind === 'defeat' && event.boss && !document.hidden && serverNow() - event.at < 6000) Presentation?.defeat({key:`${scope}:defeat:${event.seq}`,description:'보스에게 패배했어요. 딜량을 확인하고 편성을 바꿔 보세요.'});
+      if (!afk?.active && !piyuGuide?.storyOpen && event.kind === 'captain') Presentation?.captain({level:event.level, gems:event.gems, gold:event.gold, key:`${scope}:captain:${event.seq}`});
       if (event.kind === 'clear') { toast(`${G.stageName(event.stage)} 클리어! 보석 +60`); play('reward'); }
     }
   }
@@ -167,10 +177,12 @@
       const events=document.createElement('details');events.className='qol-details';events.innerHTML=`<summary>모집·이벤트 일정</summary>${qol.eventRows()}`;$('school-install-controls').before(events);events.addEventListener('toggle',()=>qol.refreshCountdowns());qol.refreshCountdowns();
     }
     const repairs = document.createElement('div'); repairs.className = 'settings-links';
-    repairs.innerHTML = '<button class="secondary" id="settings-recover">전투 화면 복구</button><button class="secondary" id="settings-diagnostics">문제 정보</button>';
+    repairs.innerHTML = '<button class="secondary" id="settings-afk">☾ 잠수모드 · 화면 잠금</button><button class="secondary" id="settings-piyu">삐유의 첫 모험 안내</button><button class="secondary" id="settings-recover">전투 화면 복구</button><button class="secondary" id="settings-diagnostics">문제 정보</button>';
     $('school-install-controls').before(repairs);
     $('settings-recover').onclick = () => { closeModal(); setTab('adventure'); Presentation?.cancel(); repairBattle(true); };
     $('settings-diagnostics').onclick = diagnosticsModal;
+    $('settings-afk').onclick = () => afk?.open();
+    $('settings-piyu').onclick = () => {closeModal();piyuGuide?.start(true);};
   }
   function diagnosticsModal() {
     const canvas = $('battle'), box = canvas?.getBoundingClientRect(), script = document.querySelector('script[src*="school/client.js"]');
@@ -195,6 +207,7 @@
   function showBoot(message) { $('boot-message').textContent = message; }
   function finishBoot() { $('boot-screen').hidden = true; updateOrientation(); }
   function updateOrientation() {
+    if(!entry?.entered){$('rotate-prompt').hidden=true;$('app').inert=true;return;}
     const portrait = matchMedia('(orientation:portrait) and (max-width:1000px)').matches;
     const show = portrait && !storage.get('school-landscape-ack', true) && $('boot-screen').hidden;
     $('rotate-prompt').hidden = !show; $('app').inert = show;
@@ -465,21 +478,22 @@
     const checkingCoupon = pending?.action.kind === 'redeem';
     busy = true; renderButtons(); saveStatus('saving', '계정 저장 중');
     try {
-      if (pending) { const result = await sendPending(); await showResult(result); }
+      if (pending) { const result = await sendPending(); if(entry?.entered)await showResult(result); }
       else applyCloud(await request('/api/school/state'));
       lastSync = Date.now();
     } catch (error) {
       if (error.confirmedConflict) { if (checkingCoupon) couponMessage(error.message, 'error'); toast(error.message); return; }
       connected = false;
       saveStatus('error', '계정 연결 대기');
-      if (error.status === 401) { clearLogin(); }
-      if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
+      if (error.status && error.status < 500 && error.status !== 426) clearPending();
+      if (error.status === 401) expireSession();
       if (checkingCoupon) couponMessage(pending ? '보상 저장을 확인 중입니다. 연결되면 같은 요청을 이어 확인합니다.' : error.message, pending ? 'pending' : 'error');
       note(error.status === 426 ? error.message : error.status === 401 ? '로그인이 만료되었습니다. 계정 메뉴에서 다시 연결하세요.' : '계정 저장 연결을 기다리고 있어요. 재화 사용은 연결 후 계속됩니다.', error.status === 426 ? 'reload' : true);
       if (manual) toast(error.message);
     } finally { busy = false; renderButtons(); }
   }
   async function act(input) {
+    if(!entry?.entered||mode!=='cloud'||!token||verifiedToken!==token)return {error:'Google 계정으로 로그인해 주세요.'};
     if (busy || pending) { toast('이전 요청을 확인하고 있어요. 잠시 기다려주세요.'); return; }
     if (mode === 'cloud' && (!connected || verifiedToken !== token)) { sync(true); return; }
     busy = true; operation = input.kind; completedActionKey = crypto.randomUUID(); renderButtons(); saveStatus('saving', mode === 'cloud' ? '계정 저장 중' : '기기 저장 중');
@@ -490,11 +504,16 @@
         pending = { action: input, revision, requestId: crypto.randomUUID().replaceAll('-', ''), accountId: profile.id };
         if (!storage.set(PENDING, JSON.stringify(pending), true)) { pending = null; throw Error('이 브라우저는 안전한 요청 저장을 지원하지 않습니다. 일반 브라우저에서 다시 시도하세요.'); }
         result = await sendPending(); lastSync = Date.now();
-      } else result = await guestUpdate(input);
+      } else throw Error('Google 계정으로 로그인해 주세요.');
       await showResult(result);
+      piyuGuide?.onAction(input,result);
+      return result;
     } catch (error) {
       if (error.confirmedConflict) { if (input.kind === 'redeem') couponMessage(error.message, 'error'); toast(error.message); return; }
-      if (error.status && error.status < 500 && ![409, 426].includes(error.status)) clearPending();
+      // A rejected name/validation is definitive. Only transport/server errors
+      // retain the same request for recovery; revision conflicts arrive above.
+      if (error.status && error.status < 500 && error.status !== 426) clearPending();
+      if (error.status === 401) expireSession();
       if (input.kind === 'redeem') couponMessage(pending ? '보상 저장을 확인 중입니다. 연결되면 같은 요청을 이어 확인합니다.' : error.message, pending ? 'pending' : 'error');
       if (mode === 'cloud' && pending) { connected = false; saveStatus('error', '저장 결과 확인 중'); note(error.status === 426 ? error.message : '요청 결과를 확인 중입니다. 재연결 후 같은 요청을 안전하게 확인합니다.', error.status === 426 ? 'reload' : true); }
       else if (mode === 'cloud' && error.status && error.status < 500 && error.status !== 401) {
@@ -502,11 +521,12 @@
         catch { connected = false; saveStatus('error', '계정 연결 대기'); note('계정의 최신 비용과 재화를 확인하지 못했습니다. 다시 연결해 주세요.', true); }
       }
       else if (mode === 'cloud') { connected = false; saveStatus('error', '계정 연결 대기'); note(error.message, true); }
-      toast(error.message);
+      toast(error.message);return {error:error.message};
     } finally { busy = false; operation = ''; renderButtons(); }
   }
   async function showResult(result) {
     if (!result) return;
+    if (result.kind === 'onboarding') {render();return;}
     if (result.kind === 'recruit') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.recruit({results:result.results,key:`${accountScope()}:recruit:${completedActionKey}`}); if (!shown?.cancelled) reveal(result.results); }
     else if (result.kind === 'weapon-recruit') { operation=''; renderButtons(); revealWeapons(result.results); }
     else if (result.kind === 'redeem') {
@@ -537,7 +557,7 @@
     else if (result.kind === 'profile') { rankingCache.clear(); toast('프로필을 저장했어요.'); captainModal(); }
     else if(result.kind==='raid-claim'||result.kind==='guild-project-claim'){toast(`${result.kind==='raid-claim'?'길드전':'협동 퀘스트'} 보상 · 보석 +${result.gems} · 골드 +${fmt(result.gold)}`);play('reward');}
     else if (result.kind === 'guild-checkin') { toast('길드 출석 · 보석 +30'); play('reward'); }
-    else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); captainModal(); }
+    else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); if(!piyuGuide?.namingOpen)captainModal(); }
     else if (result.kind.startsWith('preset-')) { toast(({'preset-save':'현재 편성을 저장했어요.','preset-apply':'저장한 편성을 불러왔어요.','preset-delete':'저장한 편성을 비웠어요.','preset-rename':'편성 이름을 저장했어요.'})[result.kind] || '편성을 저장했어요.');qol?.refresh(); }
     else if (result.kind === 'team') { closeModal(); toast(`새 편성으로 출발합니다. ${formationHint()}`); }
     else if (result.kind === 'activity') { closeModal(); setTab('adventure'); toast('던전에 입장했어요. 전투가 끝나면 결과를 확인하세요.'); }
@@ -1066,18 +1086,27 @@
   const towerAutoEnabled=()=>storage.get(towerAutoKey())==='on';
   function setTowerAuto(enabled){storage.set(towerAutoKey(),enabled?'on':'off');towerAuto.reset();$('tower-auto-notice')?.remove();dungeonRenderKey='';}
   function autoNextTower(result,confirmed){
-    const blocked=busy||!!pending||resultPresentationBusy()||$('modal').open||!$('boot-screen').hidden||!$('rotate-prompt').hidden||document.hidden;
+    const blocked=busy||!!pending||resultPresentationBusy()||piyuGuide?.storyOpen||$('modal').open||!$('boot-screen').hidden||!$('rotate-prompt').hidden||document.hidden;
     const step=towerAuto.tick({scope:accountScope(),enabled:towerAutoEnabled(),result,confirmed,blocked,now:performance.now(),maxFloor:G.MAX_TOWER_FLOOR});
     if(step.stop)setTowerAuto(false);
     if(step.remaining){let node=$('tower-auto-notice');if(!node){node=document.createElement('aside');node.id='tower-auto-notice';node.className='tower-auto-notice';node.setAttribute('role','status');node.innerHTML='<span></span><button type="button">자동 진행 끄기</button>';node.querySelector('button').onclick=()=>{setTowerAuto(false);maybeShowActivityResult();};document.body.appendChild(node);}node.querySelector('span').textContent=`${result.floor}층 보상 저장 완료 · ${step.remaining}초 뒤 다음 층`;return true;}
     $('tower-auto-notice')?.remove();
-    if(step.floor){dismissedActivityResult=activityResultKey(result);act({kind:'activity',mode:'tower',floor:step.floor});return true;}
-    return false;
+    if(step.floor){
+      const scope=accountScope(),key=activityResultKey(result);
+      act({kind:'activity',mode:'tower',floor:step.floor}).then(reply=>{
+        if(scope!==accountScope())return;
+        const advanced=reply?.kind==='activity'||String(state.activities?.run?.id)!==String(result.runId);
+        towerAuto.acknowledge(advanced);if(advanced)dismissedActivityResult=key;
+      });return true;
+    }
+    return !!step.waiting;
   }
   function maybeShowActivityResult() {
+    if(!entry?.entered)return;
     const result = confirmedActivityResult, run = state?.activities?.run;
     const confirmed=!!run?.settled&&!!result&&String(run.id)===String(result.runId)&&!activityAwaitingConfirmation()&&!(mode==='cloud'&&(!connected||verifiedToken!==token));
     if(autoNextTower(result,confirmed))return;
+    if(afk?.active||piyuGuide?.storyOpen)return;
     if(!confirmed){pendingResultNotice(null);return;}
     const key = activityResultKey(result);
     if (key === dismissedActivityResult || ($('modal').open && modalKind === 'dungeon-result' && $('modal').dataset.activityResult === key)) { pendingResultNotice(null); return; }
@@ -1238,7 +1267,7 @@
     openModal('모집 확률 안내', `<div class="modal-copy"><p><strong>${banner.name}</strong><br>1회 보석 ${fmt(G.recruitCost(selectedBanner,1))}개 / 10회 ${fmt(G.recruitCost(selectedBanner,10))}개.</p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회</th><th>용병별 실제 확률</th></tr></thead><tbody>${rows}</tbody></table><p>현재 누적 ${progress.pity}회 · <strong>다음 ${progress.pity + 1}회째 확률</strong>입니다.</p>${rules}<p>단일·10회 모집 모두 한 번씩 계산합니다. 10회의 앞 9명에 SR 이상이 없고 마지막 결과가 R이면 SR로 올립니다. 최고 등급 천장을 먼저 적용합니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개 / UR 30개. 최대 5성까지 각성할 수 있습니다. 표의 소수점은 반올림하여 합계가 조금 다를 수 있습니다.</p></div>`, 'rates');
   }
   function help() {
-    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>안뜰의 용병을 눌러 육성하고, 모험 지도에서 구역과 지역을 골라 출발하세요. 전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>적의 공격 뒤 가끔 반격 버튼이 떠요. 3.5초 안에 누르면 생존 용병 중 공격력이 가장 높은 한 명이 공격력 180%로 추가 공격합니다. 놓쳐도 불이익 없이 자동 전투가 이어져요. 모험·던전에서만 적용되며 기회 간격은 최소 10초입니다.</li><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>최대 6명의 용병이 자동으로 싸웁니다. 1~3명은 맨 앞 용병이, 4~6명은 전열 3명이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>던전은 일일 열쇠 3개·주간 열쇠 2개로 도전합니다. 패배·포기하면 입장 열쇠가 돌아옵니다.</li><li>뫼비우스의 복도는 열쇠 없이 도전하며 층별 첫 클리어 때만 보상을 받습니다.</li><li>단장은 최대 Lv.${G.CAPTAIN_MAX_LEVEL}까지 성장하며, 새 단장 레벨마다 보석 160개와 골드를 받아요. 단장 버튼에서 이름을 정하고 레벨·복도 랭킹을 볼 수 있습니다. Google 계정에 저장한 기록과 게임 안에서 정한 이름만 공개됩니다.</li><li>기본 SSR 확률은 ${Number((G.RECRUIT_RATES.SSR * 100).toFixed(2))}%입니다. 픽업별 확률과 확정 횟수는 모집 화면의 확률 안내에서 확인하세요.</li><li>가로 화면에서는 전장과 용병을 함께 볼 수 있어요. 세로에서는 좌우로 밀어 이동하세요. 설정에서 다크 모드·효과음·모션을 바꿀 수 있고, 모집·각성·단장 성장 연출은 바로 건너뛸 수 있습니다.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>게스트는 이 브라우저에, 로그인은 계정에 저장합니다. <strong>게스트와 계정 진행은 별도</strong>이며 합쳐지지 않습니다. 기기 데이터를 지우면 게스트 기록은 사라집니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
+    openModal('학교용병단 안내', `<div class="modal-copy"><p><strong>방과 후, 작은 용병들의 큰 모험.</strong><br>안뜰의 용병을 눌러 육성하고, 모험 지도에서 구역과 지역을 골라 출발하세요. 전투는 자동! 용병을 모으고 키워 ${G.CHAPTERS.length}개 구역, ${G.MAX_STAGE}개 지역을 탐험하세요.</p><ul><li>적의 공격 뒤 가끔 반격 버튼이 떠요. 3.5초 안에 누르면 생존 용병 중 공격력이 가장 높은 한 명이 공격력 180%로 추가 공격합니다. 놓쳐도 불이익 없이 자동 전투가 이어져요. 모험·던전에서만 적용되며 기회 간격은 최소 10초입니다.</li><li>전투 속도 1.0×·1.5×를 선택할 수 있습니다. 방치 보상은 실제 경과 시간을 따릅니다.</li><li>최대 6명의 용병이 자동으로 싸웁니다. 1~3명은 맨 앞 용병이, 4~6명은 전열 3명이 주로 공격을 받아요. 전열에는 수호 용병을 추천해요.</li><li>승리하면 출전 용병이 경험치를 얻어요. 골드로 훈련하면 바로 1레벨 성장합니다.</li><li>지역마다 일반 전투 3번, 보스 1번. 처음 클리어하면 보석 60개!</li><li>3번 연속 패배하면 이전 지역을 반복합니다. 용병을 키우고 지도에서 다시 도전하세요.</li><li>90초 넘게 자리를 비우면 최대 8시간의 보상을 모읍니다. 보급소에서 받아 주세요.</li><li>던전은 일일 열쇠 3개·주간 열쇠 2개로 도전합니다. 패배·포기하면 입장 열쇠가 돌아옵니다.</li><li>뫼비우스의 복도는 열쇠 없이 도전하며 층별 첫 클리어 때만 보상을 받습니다.</li><li>단장은 최대 Lv.${G.CAPTAIN_MAX_LEVEL}까지 성장하며, 새 단장 레벨마다 보석 160개와 골드를 받아요. 단장 버튼에서 이름을 정하고 레벨·복도 랭킹을 볼 수 있습니다. Google 계정에 저장한 기록과 게임 안에서 정한 이름만 공개됩니다.</li><li>기본 SSR 확률은 ${Number((G.RECRUIT_RATES.SSR * 100).toFixed(2))}%입니다. 픽업별 확률과 확정 횟수는 모집 화면의 확률 안내에서 확인하세요.</li><li>가로 화면에서는 전장과 용병을 함께 볼 수 있어요. 세로에서는 좌우로 밀어 이동하세요. 설정에서 다크 모드·효과음·모션을 바꿀 수 있고, 모집·각성·단장 성장 연출은 바로 건너뛸 수 있습니다.</li><li>매일 한국 시간 0시에 일일 보급이 갱신됩니다.</li></ul><p>Google 계정으로 로그인하여 플레이합니다. 기록은 계정에 저장되며, 설정에서 로그아웃하거나 게임 계정을 삭제할 수 있습니다.</p><p>이 게임의 단장 레벨과 재화는 기존 카드게임과 별개입니다.</p><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 안내</a> · <a href="game.html">기존 카드게임</a></p></div>`, 'help');
   }
   async function sdk() {
     if (window.google?.accounts?.id) return;
@@ -1262,62 +1291,49 @@
       try { const saved = JSON.parse(storage.get(PENDING, true) || 'null'); pending = saved?.accountId === profile.id ? saved : null; if (!pending) storage.remove(PENDING, true); } catch { clearPending(); }
       applyCloud(body); closeModal(); toast('계정의 학교용병단을 불러왔어요.'); lastSync = Date.now(); loaded = true;
     } catch (error) {
-      if (error.status === 401) { clearLogin(); }
+      if (error.status === 401) expireSession();
       connected = false; saveStatus('error', '계정 연결 대기'); lastSync = Date.now();
       note(error.status === 426 ? error.message : error.status === 401 ? '로그인이 만료되었습니다. 계정 메뉴에서 다시 로그인해 주세요.' : '계정 기록을 불러오지 못했습니다. 계정 메뉴에서 다시 연결해 주세요.', error.status === 426 ? 'reload' : true);
       toast(error.message); const status = $('login-message'); if (status) status.textContent = error.message;
     } finally { busy = false; renderButtons(); }
+    entry?.refresh();
     if (loaded && pending) sync(true);
     return loaded;
   }
-  async function accountModal() {
-    openModal('내 용병단 저장', `<div class="modal-copy"><p>${mode === 'cloud' ? '<strong>Google 계정에 저장 중입니다.</strong><br>다른 기기에서도 같은 계정으로 이어 할 수 있어요.' : '<strong>지금은 이 브라우저에 저장 중입니다.</strong><br>Google 계정을 연결하면 기기를 바꿔도 이어 할 수 있어요.'}</p><div class="account-box"><span>${mode === 'cloud' ? '계정 용병단' : '게스트 용병단'}<br>단장 Lv.${state.captain.level}</span><b>${Object.keys(state.units).length}명 보유</b></div><p>게스트와 계정 기록은 따로 유지됩니다. 로그인 시 계정 기록을 불러오며 게스트 기록은 이 기기에 남습니다.</p><p>카드게임과 로그인은 공유하고, 성장 기록은 각각 저장합니다.</p></div><div id="account-controls"></div><div id="login-message" class="login-message" role="status"></div><p class="detail-note"><a href="privacy.html" target="_blank" rel="noopener">개인정보 및 계정 삭제 안내</a></p>`, 'account');
-    if (mode === 'cloud') {
-      $('account-controls').innerHTML = `<div class="account-actions"><button class="secondary" id="cloud-refresh">저장 확인</button><button class="secondary" id="guest-return">게스트로 전환</button><button class="secondary" id="logout-account">로그아웃</button>${!connected || !token ? '<button class="primary" id="cloud-login-again">다시 로그인</button>' : ''}</div>`;
-      if ($('cloud-login-again')) $('cloud-login-again').onclick = prepareGoogle;
-      $('logout-account').onclick = logoutAccount;
-      $('cloud-refresh').onclick = async () => { await sync(true); if (connected) toast('계정 저장을 확인했습니다.'); };
-      $('guest-return').onclick = async () => {
-        if (busy || pending) { toast('진행 중인 요청을 먼저 확인해 주세요.'); return; }
-        const prior = { profile, state, hasCloudState, cloudBalance, connected };
-        busy = true; renderButtons();
-        Presentation?.cancel(); confirmedScope = ''; rankingCache.clear();
-        mode = 'guest'; profile = null; storage.set(MODE, 'guest'); effects = []; connected = true; hasCloudState = false; cloudBalance = null;
-        try { await guestUpdate(); lastSeq = state.seq; document.querySelector('.workspace').style.visibility = ''; note(''); closeModal(); renderKey = partyKey = ''; render(); toast('이 기기의 게스트 기록으로 돌아왔어요.'); }
-        catch (error) { mode = 'cloud'; profile = prior.profile; state = prior.state; hasCloudState = prior.hasCloudState; cloudBalance = prior.cloudBalance; connected = prior.connected; storage.set(MODE, 'cloud'); saveStatus(connected ? 'saved' : 'error', connected ? '계정 저장 완료' : '계정 연결 대기'); toast(error.message); }
-        finally { busy = false; renderButtons(); }
+  function accountModal() {
+    openModal('내 계정', `<div class="modal-copy"><p><strong>${profile?.isTest?'비공개 운영 테스트 계정':'Google 계정에 저장 중입니다.'}</strong><br>다른 기기에서도 같은 계정으로 이어 할 수 있어요.</p><div class="account-box"><span>단장 Lv.${state.captain.level}</span><b>${Object.keys(state.units).length}명 보유</b></div></div><div class="account-actions"><button class="secondary" id="cloud-refresh">저장 확인</button><button class="secondary" id="logout-account">로그아웃 · 시작 화면</button><button class="secondary" id="delete-game-account">게임 계정 삭제</button></div><p><a href="privacy.html" target="_blank" rel="noopener">개인정보·계정 삭제 안내</a></p>`, 'account');
+    $('logout-account').onclick=logoutAccount;$('cloud-refresh').onclick=async()=>{await sync(true);if(connected)toast('계정 저장을 확인했어요.');};
+    $('delete-game-account').onclick=()=>{
+      openModal('게임 계정 삭제', '<div class="modal-copy"><p>학교용병단과 카드게임의 계정 기록·재화·캐릭터·랭킹이 영구 삭제됩니다. Google 계정 자체는 삭제되지 않습니다.</p><p>삭제하려면 아래에 <strong>DELETE</strong>를 입력해 주세요.</p><form id="account-delete-form"><input id="account-delete-confirm" autocomplete="off" aria-label="DELETE 입력"><button class="primary full" type="submit">게임 계정 영구 삭제</button><p id="account-delete-message" role="status"></p></form></div>', 'account-delete');
+      $('account-delete-form').onsubmit=async event=>{event.preventDefault();if(busy||pending)return;if($('account-delete-confirm').value!=='DELETE'){$('account-delete-message').textContent='DELETE를 정확히 입력해 주세요.';return;}busy=true;
+        try{await request('/api/account/delete',{confirm:'DELETE'},'account');busy=false;clearLogin();await logoutAccount();toast('게임 계정을 삭제했어요.');}catch(error){$('account-delete-message').textContent=error.message;}finally{busy=false;}
       };
-      return;
-    }
-    if (token) { $('account-controls').innerHTML = '<button class="primary full" id="existing-account">로그인된 계정으로 이어하기 →</button><button class="text-button history-button" id="different-account">다른 Google 계정으로 연결</button>'; const logout = document.createElement('button'); logout.id='logout-account'; logout.className='secondary full'; logout.textContent='로그아웃'; logout.onclick=logoutAccount; $('account-controls').append(logout); $('existing-account').onclick = useCloud; $('different-account').onclick = () => prepareGoogle(); }
-    else prepareGoogle();
-  }
-  async function prepareGoogle() {
-    const version = ++loginGeneration; $('account-controls').innerHTML = '<div id="google-host" class="login-host"></div>'; $('login-message').textContent = 'Google 로그인 버튼을 준비하고 있어요.';
-    try {
-      const config = await request('/api/account/config');
-      if (!config.enabled) throw Error('현재 계정 로그인을 준비 중입니다. 게스트로 먼저 플레이할 수 있어요.');
-      const [, challenge] = await Promise.all([sdk(), request('/api/account/challenge')]);
-      if (version !== loginGeneration || modalKind !== 'account') return;
-      google.accounts.id.initialize({ client_id: config.clientId, nonce: challenge.nonce, auto_select: false, callback: async response => {
-        if (version !== loginGeneration || busy) return;
-        busy = true; $('login-message').textContent = '계정을 확인하고 있어요.'; renderButtons();
-        try {
-          const result = await request('/api/account/google', { credential: response.credential, nonce: challenge.nonce });
-          token = result.token; verifiedToken = null; profile = null; pending = null; connected = false;
-          // Keep the pending storage receipt untouched until the new identity is verified.
-          if (mode === 'cloud') { hasCloudState = false; cloudBalance = null; document.querySelector('.workspace').style.visibility = 'hidden'; $('gold').textContent = $('gems').textContent = '—'; }
-          storage.set(SESSION, JSON.stringify({token}), true);
-          if (!storage.set(SESSION, JSON.stringify({token}))) throw Error('계정 세션을 저장할 수 없습니다. 브라우저의 저장 허용을 확인하세요.');
-          busy = false; await useCloud();
-        } catch (error) { if ($('login-message')) $('login-message').textContent = error.message; toast(error.message); busy = false; await prepareGoogle(); }
-        finally { busy = false; renderButtons(); }
-      } });
-      google.accounts.id.renderButton($('google-host'), { type:'standard', theme:'outline', size:'large', text:'signin_with', locale:'ko', width:Math.min(320, $('modal-content').clientWidth) });
-      $('login-message').textContent = 'Google로 로그인하면 계정의 모험 기록을 불러옵니다.';
-    } catch (error) { if (version === loginGeneration && $('login-message')) $('login-message').textContent = error.message; }
+    };
   }
   function bind() {
+    entry=window.SchoolEntry.create({request,sdk,profile:()=>profile,authenticated:()=>!!token&&verifiedToken===token&&hasCloudState&&connected,hasToken:()=>!!token,
+      login:acceptLogin,reconnect:useCloud,logout:logoutAccount,enter:()=>{
+        updateOrientation();render();
+        if(new URLSearchParams(location.search).get('account')==='delete'){
+          accountModal();$('delete-game-account').click();history.replaceState(history.state,'',location.pathname);
+        }else piyuGuide?.tick();
+        if(!history.state?.schoolGame)history.pushState({schoolGame:true},'');
+      }
+    });
+    const blocked=()=>busy||!!pending||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token);
+    piyuGuide=window.SchoolPiyuGuide?.create({getState:()=>state,scope:accountScope,blocked,dispatch:act,toast,
+      rename:name=>act({kind:'rename',name}),
+      ready:()=>clientReady&&!!state&&!!entry?.entered&&hasCloudState&&$('boot-screen').hidden,
+      obstructed:()=>!!afk?.active||$('modal').open||resultPresentationBusy()||!$('rotate-prompt').hidden||document.hidden,
+      navigate:kind=>{closeModal();if(kind==='recruit'){recruitCategory='heroes';selectedBanner='standard';renderKey='';}if(kind==='roster')filter='owned';setTab(kind);if(kind!=='adventure')boardJump('party');}
+    });
+    afk=window.SchoolAFK?.create({getState:()=>state,scope:accountScope,reduced:()=>reduced,toast,
+      balance:()=>mode==='cloud'&&cloudBalance?cloudBalance:state,
+      connected:()=>mode==='guest'?!guestSaveFailed:connected&&verifiedToken===token,
+      canOpen:()=>!blocked()&&!piyuGuide?.active&&!resultPresentationBusy()&&!['raid','yeti','social-arena'].includes(modalKind),
+      prepare:()=>{closeModal();setTab('adventure');},onClose:()=>{renderKey=partyKey='';render();}
+    });
+    $('afk-button').onclick=()=>afk?.open();
     $('counter-button').onclick=()=>{
       const info=state&&G.counterInfo(state,serverNow());
       if(!info?.active||tab!=='adventure'||document.hidden||$('modal').open)return;
@@ -1344,7 +1360,7 @@
     equipmentUI = window.SchoolEquipment?.create({getState:()=>state,accountScope,modalKind:()=>modalKind,isBlocked:()=>busy||!!pending||activityAwaitingConfirmation()||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,openHero:heroDetail,toast,play});
     social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti();
     notice=window.SchoolNotice?.create({now:serverNow,reduced:()=>reduced});
-    coop=window.SchoolCoop?.create({request,isLobby:(kind,id)=>kind==='yeti'?yeti?.canInvite(id):raid?.canInvite(id),scope:accountScope,now:serverNow,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token,blocked:()=>busy||!!pending||resultPresentationBusy(),inEncounter:()=>['yeti','raid'].includes(modalKind)||activityActive(),openEncounter:kind=>kind==='yeti'?yeti.open():raid.open(),toast,play});
+    coop=window.SchoolCoop?.create({request,isLobby:(kind,id)=>kind==='yeti'?yeti?.canInvite(id):raid?.canInvite(id),scope:accountScope,now:serverNow,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,blocked:()=>busy||!!pending||resultPresentationBusy(),inEncounter:()=>['yeti','raid'].includes(modalKind)||activityActive(),openEncounter:kind=>kind==='yeti'?yeti.open():raid.open(),toast,play});
     if ($('guild-button')) $('guild-button').onclick=()=>guild?.open();
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();
@@ -1412,12 +1428,26 @@
     $('account-button').onclick = accountModal; $('help-button').onclick = help; $('captain-button').onclick = captainModal;
     // A single Escape goes back exactly one layer; raid exits still reach the server.
     document.addEventListener('keydown',event=>{
-      if(event.key!=='Escape'||event.repeat||event.isComposing)return;
+      if(event.key!=='Escape'||event.repeat||event.isComposing||!entry?.entered)return;
+      if(afk?.active||piyuGuide?.storyOpen){event.preventDefault();return;}
       if(coop?.closePicker()){event.preventDefault();return;}
       if($('school-presentation')?.open){event.preventDefault();Presentation?.skip();return;}
       if($('modal').open){event.preventDefault();requestModalClose();return;}
       if(tab==='dungeons'&&dungeonPortal?.back()){event.preventDefault();return;}
       if(tab!=='lobby'){event.preventDefault();setTab('lobby');}
+    });
+    window.addEventListener('popstate',async()=>{
+      if(!entry?.entered)return;
+      // Keep a single in-app back entry. A second back from the title leaves
+      // the app normally; this never creates an unbounded history stack.
+      if(afk?.active||piyuGuide?.storyOpen){history.pushState({schoolGame:true},'');return;}
+      if(coop?.closePicker()){}
+      else if($('school-presentation')?.open)Presentation?.skip();
+      else if($('modal').open)await requestModalClose();
+      else if(tab==='dungeons'&&dungeonPortal?.back()){}
+      else if(tab!=='lobby')setTab('lobby');
+      else {stopTraining();entry.show();return;}
+      if(entry?.entered)history.pushState({schoolGame:true},'');
     });
     $('modal-close').title='닫기 · Esc';
     $('modal-close').onclick = requestModalClose;
@@ -1459,63 +1489,29 @@
     $('history-button').onclick = () => recruitCategory==='weapons'?revealWeapons(state.weaponHistory||[],true):openModal('최근 모집 기록', state.history.length ? state.history.map(r => `<div class="history-row">${portrait(r.id)}${rarity(r.id)}<b>${G.BY_ID[r.id].name}</b><small>${shardResult(r)}</small></div>`).join('') : '<p class="modal-copy">아직 모집한 용병이 없어요.</p>', 'history');
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) stopTraining();
-      if (mode === 'guest') guestUpdate().catch(() => {});
+      if(entry?.entered&&token)sync(true);
       else if (!document.hidden) sync(true);
     });
-    // Visible guest changes are already committed; these checkpoints cover the
-    // fractional elapsed time without relying on an unload promise succeeding.
-    window.addEventListener('pagehide', () => { if (mode === 'guest') guestUpdate().catch(() => {}); });
-    window.addEventListener('pageshow', () => { if (mode === 'guest') guestUpdate().catch(() => {}); else sync(true); });
+    // Reconcile confirmed progress when returning to the foreground.
+    window.addEventListener('pagehide', () => { if(entry?.entered&&token)sync(true); });
+    window.addEventListener('pageshow', () => { if(entry?.entered)sync(true); });
     window.addEventListener('online', () => sync(true));
     window.addEventListener('school-art-ready', () => { lobby?.invalidate(); renderKey = partyKey = ''; render(); if (modalKind === 'hero' && ['osia','lava','horas','ryusion','spica'].includes(selectedHero)) heroDetail(selectedHero); });
-    window.addEventListener('storage', e => { if (e.key === SESSION && !e.newValue) { clearLogin(); connected = mode !== 'cloud'; if (mode === 'cloud') { note('다른 창에서 로그아웃했어요. 계정 메뉴에서 다시 로그인할 수 있어요.'); renderButtons(); } } if (e.key === SAVE && mode === 'guest' && !busy) guestUpdate().catch(() => {}); });
+    window.addEventListener('storage', e => { if (e.key === SESSION && !e.newValue) { expireSession();note('다른 창에서 로그아웃했어요. 다시 로그인해 주세요.');renderButtons(); } });
   }
   async function boot() {
-    applyPreferences();
-    const wantsCloud = storage.get(MODE) === 'cloud';
-    showBoot(wantsCloud ? '계정 기록을 확인하고 있어요' : '기기에 저장된 모험을 불러와요');
-    if (wantsCloud) {
-      mode = 'cloud'; connected = false;
-      try {
-        sessionFingerprint = await tokenFingerprint(token);
-        const cache = JSON.parse(storage.get(CLOUD_CACHE, true) || 'null');
-        // Server views deliberately omit private action receipts.
-        if (sessionFingerprint && cache?.sessionFingerprint === sessionFingerprint && cache?.profile?.id && cache.state && G.validate({ ...cache.state, receipts: [] })) {
-          rememberActivityResult(cache.state); profile = cache.profile; state = cache.state; revision = cache.revision; hasCloudState = true;
-          cloudBalance = { gold: state.gold, gems: state.gems, winter: state.winter ? G.clone(state.winter) : null }; lastSeq = state.seq;
-        }
-      } catch {}
-      if (!state) { state = freshGuest(); document.querySelector('.workspace').style.visibility = 'hidden'; $('gold').textContent = $('gems').textContent = '—'; }
-      saveStatus('saving', '계정 불러오는 중');
-    } else {
-      try { await guestUpdate(); lastSeq = state.seq; }
-      catch (error) {
-        // Keep account/recovery controls available while preserving the original.
-        state = freshGuest(); document.querySelector('.workspace').style.visibility = 'hidden';
-        $('gold').textContent = $('gems').textContent = '—'; note(error.message);
-      }
-    }
-    showBoot('용병과 전장을 준비하고 있어요');
-    await Art.ready;
-    setupRecruitment();
-    $('recruit-count').textContent = 'SSR 카즈아 · 류시온 픽업 · 상시뽑기 · UR 호라스';
-    clientReady = true; bind(); setTab('lobby', false); refreshSound(); renderButtons();
-    if (!guestSaveFailed && (!wantsCloud || hasCloudState)) render();
-    if (wantsCloud) {
-      showBoot('서버의 최신 기록을 확인하고 있어요');
-      if (token) await useCloud(); else { saveStatus('error', '로그인 필요'); note('계정 기록을 이어 하려면 계정 메뉴에서 Google로 로그인하세요. 게스트 기록으로 자동 전환하지 않습니다.'); }
-    }
-    finishBoot();
-    setInterval(() => {
-      if (document.hidden || !state) return;
-      if (mode === 'guest' && Date.now() - lastGuestTick >= 250 && (Date.now()-state.at >= 500 || guestSaveFailed) && !busy && !guestTickPending && (!guestSaveFailed || Date.now() - lastSave > 2000)) {
-        lastGuestTick = Date.now(); guestTickPending = true; guestUpdate().then(() => { document.querySelector('.workspace').style.visibility = ''; }).catch(() => {}).finally(() => { guestTickPending = false; });
-      }
-      // Saving serializes account actions, not the deterministic combat preview.
-      // Only confirmed balances are spendable; applyCloud reconciles the result.
-      if (mode === 'cloud' && hasCloudState) { advanceCloudPreview(); consumeEvents(); render(true); }
-      if (mode === 'cloud' && token && Date.now() - lastSync > 3000) { lastSync = Date.now(); sync(); }
-    }, 250);
+    applyPreferences();mode='cloud';storage.set(MODE,'cloud');connected=false;state=freshGuest();
+    showBoot('학교용병단을 준비하고 있어요');
+    await Art.ready;setupRecruitment();clientReady=true;bind();setTab('lobby',false);refreshSound();renderButtons();
+    if(token){showBoot('계정을 확인하고 있어요');await useCloud();}
+    finishBoot();entry.refresh();
+    if(!hasCloudState||!connected)entry.google();else entry.message('준비됐어요. 게임 시작을 눌러 주세요.');
+    setInterval(()=>{
+      if(document.hidden||!state||!entry.entered)return;
+      if(mode==='cloud'&&hasCloudState){advanceCloudPreview();consumeEvents();render(true);}
+      if(mode==='cloud'&&token&&Date.now()-lastSync>3000){lastSync=Date.now();sync();}
+      piyuGuide?.tick();afk?.tick();
+    },250);
     let canvas = $('battle'), ctx = canvas.getContext('2d', {alpha:false, desynchronized:true});
     let nextDrawAt = 0, drawInterval = 0, canvasSizeDirty = true, canvasDpr = 0;
     let rasterScale = 1, previousRaf = 0, sampleStarted = 0, sampleFrames = 0, slowFrames = 0, drawCost = 0, drawSamples = 0, lastScaleChange = 0;

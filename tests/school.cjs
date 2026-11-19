@@ -249,8 +249,8 @@ test('1.5× speed advances combat only, persists fractional credit and remains d
   for(const speed of [0,2,1.25,'1.5',null,NaN]){const s=G.create(1000),old=G.clone(s);assert.throws(()=>G.action(s,{kind:'speed',speed},s.at));assert.deepEqual(s,old);}
   const slow=G.create(1000),fast=G.create(1000);G.action(fast,{kind:'speed',speed:1.5},fast.at);G.advance(slow,slow.at+12*3600000);G.advance(fast,fast.at+12*3600000);assert.deepEqual(fast.offline,slow.offline);assert.equal(fast.offline.seconds,28800);
 });
-test('Expansion retains beginner difficulty and saved progress while supporting all seventy-five stages and level 100',()=>{
-  assert.equal(G.MAX_STAGE,75);assert.equal(G.MAX_LEVEL,100);assert.equal(G.CHAPTERS.length,15);assert.equal(G.ENEMIES.length,15);assert.equal(G.BOSSES.length,15);
+test('Expansion retains beginner difficulty and saved progress while supporting normal/hard stages and awakened level 125',()=>{
+  assert.equal(G.MAX_STAGE,125);assert.equal(G.MAX_LEVEL,125);assert.equal(G.CHAPTERS.length,25);assert.equal(G.ENEMIES.length,25);assert.equal(G.BOSSES.length,25);
   for(const stage of [1,5,10,15,30,31,40,50,60]){
     const s=G.create(1000);s.best=59;G.action(s,{kind:'stage',stage,mode:'farm'});
     assert.equal(G.chapter(stage),Math.floor((stage-1)/5));assert.equal(s.battle.enemies[0].kind,G.chapter(stage));assert.ok(s.battle.enemies.every(e=>Number.isFinite(e.hp)&&e.hp>0&&Number.isFinite(e.atk)));
@@ -315,7 +315,7 @@ test('Commander names normalize Unicode and spaces; first name is free, later na
   for(const name of [null,12,{},'',' ','가','가'.repeat(13),'<script>','이름\n변경','이름\u0000','이름\u202E','이름😀']){const old=G.clone(s);assert.equal(G.normalizeCommanderName(name),null);assert.throws(()=>G.action(s,{kind:'rename',name},s.at));assert.deepEqual(s,old);}
 });
 test('Enemy variants cover all school regions while existing saved battles keep their appearance',()=>{
-  assert.equal(G.ENEMY_VARIANTS.length,15);assert.ok(G.ENEMY_VARIANTS.every(a=>a.length===3&&new Set(a).size===3&&a.every(name=>typeof name==='string'&&name.length>0)));
+  assert.equal(G.ENEMY_VARIANTS.length,25);assert.ok(G.ENEMY_VARIANTS.every(a=>a.length===3&&new Set(a).size===3&&a.every(name=>typeof name==='string'&&name.length>0)));
   for(const stage of [1,2,6,31,60]){const s=G.create(UPDATE_TIME);s.best=60;G.action(s,{kind:'stage',stage,mode:'farm'},s.at);assert.deepEqual(s.battle.enemies.map(e=>e.name),s.battle.enemies.map((_,i)=>G.ENEMY_VARIANTS[G.chapter(stage)][(stage-1+i)%3]));}
   const legacy=G.create(UPDATE_TIME);for(const e of legacy.battle.enemies){delete e.variant;e.name='기존 적 이름';}const battle=G.clone(legacy.battle);G.advance(legacy,legacy.at);assert.deepEqual(legacy.battle,battle);
 });

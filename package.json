@@ -58,7 +58,8 @@
     "test:school:hyeokjin": "node tests/school-hyeokjin.cjs && node tests/school-hyeokjin-art.cjs && node tests/school-hyeokjin-server.cjs && node tests/school-hyeokjin-balance.cjs",
     "test:school:live-report": "node tests/school-insights.cjs && node tests/school-insights-ui.cjs && node tests/school-ui-budget.cjs && node tests/school-kazua-motion.cjs && node tests/school-combat-presentation.cjs",
     "test:school:render-budget": "node tests/school-render-budget.cjs && node tests/school-ui-budget.cjs",
-    "test:school:balance": "node tests/school-balance1.cjs && node tests/school-balance1-server.cjs"
+    "test:school:balance": "node tests/school-balance1.cjs && node tests/school-balance1-server.cjs",
+    "test:school:piyu": "node tests/school-piyu.cjs && node tests/school-piyu-server.cjs && node tests/school-piyu-ui.cjs && node tests/school-entry.cjs && node tests/school-operator.cjs"
   },
   "engines": {
     "node": ">=20"

@@ -105,7 +105,7 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
     return accountHash("google:" + claims.sub);
   }
   async function profile(db, id) {
-    const exists = await db.prepare("SELECT id FROM accounts WHERE id = ?").bind(id).first();
+    const exists = await db.prepare("SELECT id,google_key FROM accounts WHERE id = ?").bind(id).first();
     if (!exists) throw accountError("다시 로그인하세요.", 401);
     // If storage was interrupted after committing a finished room, the next
     // account visit completes the durable award even when nobody returns to it.
@@ -115,25 +115,27 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
       await settle(db, JSON.parse(pending.payload));
     }
     const totals = await db.prepare("SELECT COALESCE(SUM(xp), 0) AS xp, COUNT(*) AS matches, COALESCE(SUM(result = 'win'), 0) AS wins, COALESCE(SUM(result = 'draw'), 0) AS draws FROM match_awards WHERE account_id = ?").bind(id).first();
-    return { id, ...accountLevel(totals.xp), matches: totals.matches, wins: totals.wins, draws: totals.draws,
+    return { id, ...(exists.google_key==='school:operator-test:v1'?{isTest:true}:{}), ...accountLevel(totals.xp), matches: totals.matches, wins: totals.wins, draws: totals.draws,
       losses: totals.matches - totals.wins - totals.draws };
   }
   async function session(db, token, now) {
     if (!/^[a-f0-9]{64}$/.test(token || "")) throw accountError("다시 로그인하세요.", 401);
     const hash = await accountHash(token);
-    const row = await db.prepare("SELECT account_id, expires FROM account_sessions WHERE hash = ? AND expires > ?").bind(hash, now).first();
+    const row = await db.prepare("SELECT account_id, expires,google_key FROM account_sessions JOIN accounts ON accounts.id=account_sessions.account_id WHERE hash = ? AND expires > ?").bind(hash, now).first();
     if (!row) throw accountError("로그인이 만료되었습니다. 다시 로그인하세요.", 401);
     let expires = row.expires;
     // Renew at most once per week; ordinary state polls remain read-only.
-    if (expires < now + 23 * 86400000) {
+    const isTest=row.google_key==='school:operator-test:v1';
+    if (!isTest && expires < now + 23 * 86400000) {
       expires = now + ACCOUNT_SESSION_MS;
       await db.prepare('UPDATE account_sessions SET expires = MAX(expires, ?) WHERE hash = ? AND expires > ?').bind(expires, hash, now).run();
     }
-    return { id: row.account_id, hash, expires };
+    return { id: row.account_id, hash, expires, ...(isTest?{isTest:true}:{}) };
   }
   async function member(request, env, now) {
     const s = await identity(request, env, now);
     if (!s) return null;
+    if(s.isTest)throw accountError('운영 테스트 계정은 공개 대전에 참가하지 않습니다.',403);
     return profile(env.DB, s.id);
   }
   async function identity(request, env, now) {
@@ -143,6 +145,27 @@ export function createAccounts({ fetchKeys = (...args) => fetch(...args) } = {})
   }
   async function route(path, request, data, env, now) {
     if (path === "/api/account/config") return config(env);
+    if(path==='/api/account/test-login'){
+      if(!request.headers.get('Origin'))throw accountError('게임 화면에서 로그인하세요.',403);
+      // A dedicated credential can only access an isolated game-test account.
+      // Store only a hash in server configuration, never the code in a bundle.
+      const configured=String(env.SCHOOL_TEST_LOGIN_HASH||'');
+      if(!/^[a-f0-9]{64}$/.test(configured))throw accountError('운영 테스트 로그인을 준비 중입니다.',503);
+      const key='test-login:'+await accountHash(request.headers.get('CF-Connecting-IP')||'unknown')+':'+Math.floor(now/60000)+':';
+      await env.DB.prepare('DELETE FROM login_challenges WHERE expires <= ?').bind(now).run();
+      const attempt=await env.DB.prepare('INSERT INTO login_challenges(hash,expires) SELECT ?,? WHERE (SELECT COUNT(*) FROM login_challenges WHERE hash LIKE ?)<5').bind(key+accountRandom(),now+60000,key+'%').run();
+      if(attempt.meta.changes!==1)throw accountError('요청이 많습니다. 1분 후 다시 시도하세요.',429);
+      const raw=typeof data.code==='string'?data.code.trim():'';
+      const actual=await accountHash(raw.length<=128?raw:'');let difference=0;
+      for(let i=0;i<64;i++)difference|=configured.charCodeAt(i)^actual.charCodeAt(i);
+      if(difference||raw.length<24)throw accountError('테스트 접속 코드를 확인해 주세요.',401);
+      const keyName='school:operator-test:v1';
+      await env.DB.prepare('INSERT OR IGNORE INTO accounts(id,google_key,created_at) VALUES(?,?,?)').bind(accountRandom(),keyName,now).run();
+      const account=await env.DB.prepare('SELECT id FROM accounts WHERE google_key=?').bind(keyName).first();
+      const token=accountRandom(),expires=now+12*3600000;
+      await env.DB.prepare('INSERT INTO account_sessions(hash,account_id,expires) VALUES(?,?,?)').bind(await accountHash(token),account.id,expires).run();
+      return {token,expires,profile:await profile(env.DB,account.id)};
+    }
     if (!clientId(env)) throw accountError("Google 로그인 연결을 준비 중입니다. 게스트로 플레이할 수 있습니다.", 503);
     if (path === "/api/account/challenge" || path === "/api/account/google") {
       if (!request.headers.get("Origin")) throw accountError("게임 화면에서 로그인하세요.", 403);

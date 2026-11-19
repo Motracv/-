@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 42;
+  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 43;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -993,6 +993,7 @@
     fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
       profile: {avatar:'leader',title:'',beta:false}, gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
+      onboarding: {version:1,step:0},
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
       banners: { hyeokjin:{pity:0,guaranteed:false}, standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], codexClaimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
@@ -1062,6 +1063,7 @@
   function validShards(s){return s.shardExchange===undefined||s.shardExchange&&typeof s.shardExchange==='object'&&!Array.isArray(s.shardExchange)&&Object.keys(s.shardExchange).length===2&&['SR','SSR'].every(r=>Number.isSafeInteger(s.shardExchange[r])&&s.shardExchange[r]>=0&&s.shardExchange[r]<=SHARD_LIMIT);}
   function validate(s) {
     return !!(s && s.version === 1 && Number.isFinite(s.at) && s.at >= 0 && Number.isInteger(s.seed) &&
+      (s.onboarding === undefined || s.onboarding && s.onboarding.version === 1 && Number.isInteger(s.onboarding.step) && s.onboarding.step >= 0 && s.onboarding.step <= 8) &&
       Number.isFinite(s.gold) && s.gold >= 0 && Number.isFinite(s.gems) && s.gems >= 0 &&
       (s.commanderName === undefined || typeof s.commanderName === "string" && normalizeCommanderName(s.commanderName) === s.commanderName) &&
       (s.nameChanges === undefined || Number.isSafeInteger(s.nameChanges) && s.nameChanges >= 0) && validWinter(s.winter) &&
@@ -1669,6 +1671,13 @@
   function actionCore(s, input, now, rng) {
     fail(input && typeof input === "object" && !Array.isArray(input), "잘못된 행동입니다.");
     const kind = input.kind;
+    if(kind === 'onboarding') {
+      fail(Number.isInteger(input.step) && input.step >= 0 && input.step <= 8, '안내 단계를 확인해 주세요.');
+      if(input.step>=5)fail(!s.nameNeedsClaim && s.commanderName!=='새내기 단장', '단장 이름을 먼저 등록해 주세요.');
+      // Tutorial progress never grants currency or pulls.
+      s.onboarding = {version:1,step:Math.max(s.onboarding?.step || 0,input.step)};
+      return {kind,step:s.onboarding.step};
+    }
     if(['shard-refine','shard-select','shard-recycle'].includes(kind)){
       const w=shardInfo(s),count=input.count??1;
       fail(w.unlocked,'단장 Lv.20부터 조각 교환소가 열려요.');
