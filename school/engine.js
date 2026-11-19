@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 34;
+  const MAX_STAGE = 75, MAX_LEVEL = 100, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 35;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -26,7 +26,7 @@
   }
   const PROFILE_AVATARS = Object.freeze(['knight','witch','scholar','bear','cat','bird']);
   const PROFILE_REWARDS = Object.freeze([Object.freeze({id:'rank-first',name:'랭킹 1등 기념',code:'랭킹1등축하드립니다',receipt:'RANKING_FIRST_CONGRATS',image:'school/assets/profile/rank-first.webp?v=rank-profile1'}),Object.freeze({id:'rank-first-2',name:'랭킹1위 프로필2',receipt:'RANK_RECLAIMER_2',private:true,image:'school/assets/profile/rank-first-2.webp?v=rank-profile2'})]);
-  const ownsProfileAvatar = (s, id) => id === 'osia-memory' && !!s.bonds?.osia?.read?.includes(2) || id === 'leader' || PROFILE_AVATARS.includes(id) || PROFILE_REWARDS.some(p => p.id === id && Array.isArray(s.redeemedCodes) && s.redeemedCodes.includes(p.receipt));
+  const ownsProfileAvatar = (s, id) => Object.values(BOND_CHARACTERS).some(m=>m.avatar===id&&s.bonds?.[m.id]?.read?.includes(2)) || id === 'leader' || PROFILE_AVATARS.includes(id) || PROFILE_REWARDS.some(p => p.id === id && Array.isArray(s.redeemedCodes) && s.redeemedCodes.includes(p.receipt));
   function normalizeCouponCode(value) {
     const code = String(value ?? '').normalize('NFC').trim().toUpperCase();
     return PROFILE_REWARDS.find(p => p.code === code)?.receipt || code;
@@ -834,46 +834,63 @@
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
   }
 
-  const BOND_LEVELS = Object.freeze([0,20,60,120,200,300,450,650]);
+  const BOND_LEVELS = Object.freeze([0,30,90,180,300,420,540,650]);
+  const BOND_DAILY_LIMIT = 60;
+  const BOND_CHARACTERS = Object.freeze(Object.fromEntries([
+    ['osia','수면 아래의 기억','기억 속 용왕','파도를 지키는 자','돌아갈 곳을 찾는 동안, 지키고 싶은 곳이 또 생겼어.',['낯선 교실의 파도','가라앉은 왕좌','용왕의 약속','학교에 남은 이유']],
+    ['ian','검집에 남은 이름','황혼의 파수꾼','마지막까지 남는 검','오늘 순찰은 함께 돌자. 돌아오는 사람까지 세어야 하니까.',['빈 출석부','금이 간 규율','물러서지 않는 이유','함께 돌아오는 길']],
+    ['lumi','달이 비추지 않는 방','달빛의 기록자','어둠의 이름을 부르는 자','무서운 밤이면 불러 줘. 이름을 알면 어둠도 조금 작아지거든.',['닫힌 관측실','지워진 관측자','응답하는 달빛','새벽의 기록']],
+    ['lava','바람이 남긴 목소리','귀환의 무당','돌아오는 바람','네 숨소리가 들리면 안심이 돼. 오늘도 무사히 돌아와.',['부러진 부채살','멈추지 않는 제사','살아 있는 이의 부탁','귀환의 바람']],
+    ['ryusion','방패 뒤의 자리','대지의 수호자','함께 버티는 방패','내 뒤에만 숨지 않아도 돼. 오늘은 나란히 서자.',['낡은 방패의 흠집','구하지 못한 문','대신 맞는다는 것','나란히 선 사람들']],
+    ['kazua','마지막 탄피','귀환의 사수','살아 돌아온 마지막 탄환','마지막 한 발은 남겨 둘게. 끝을 내려고가 아니라, 함께 돌아가려고.',['이름 없는 탄피','혼자 남은 교전','방아쇠에서 뗀 손','귀환 신호']],
+    ['spica','녹지 않는 편지','첫봄의 설녀','겨울 끝의 약속','천천히 가도 괜찮아. 이번 봄은 너희와 같이 기다릴게.',['눈 속의 우편함','멈춘 겨울','기다리는 속도','첫봄의 답장']],
+    ['horas','떨어지지 않은 별','벚꽃 아래의 별','별의 귀환을 기다리는 자','오늘 밤의 별은 같이 세자. 하나쯤 놓쳐도 다시 찾으면 되니까.',['다섯 개의 빈자리','빗나간 별','의식 밖의 소원','돌아오는 별빛']]
+  ].map(([id,name,avatarName,titleName,quote,titles])=>[id,Object.freeze({id,name,avatar:id+'-memory',title:id+'-oath',avatarName,titleName,quote,titles})])));
   const BOND_EPISODES = Object.freeze([
-    {id:1,level:1,title:'낯선 교실의 파도',reward:'이야기'},
-    {id:2,level:3,title:'가라앉은 왕좌',reward:'기억 속 용왕 · 프로필'},
-    {id:3,level:5,title:'용왕의 약속',reward:'파도를 지키는 자 · 칭호'},
-    {id:4,level:8,title:'학교에 남은 이유',reward:'오시아 · 로비 대사'}
+    {id:1,level:1,unitLevel:1,title:'낯선 교실의 파도',reward:'이야기'},
+    {id:2,level:3,unitLevel:30,title:'가라앉은 왕좌',reward:'프로필'},
+    {id:3,level:5,unitLevel:50,title:'용왕의 약속',reward:'칭호'},
+    {id:4,level:8,unitLevel:70,title:'학교에 남은 이유',reward:'로비 대사'}
   ].map(Object.freeze));
   const BOND_MISSIONS = Object.freeze([
-    {id:'waves',name:'같은 전선을 지키며',desc:'오시아와 보상 적용 전투 10회 승리',goal:10,xp:20},
-    {id:'bosses',name:'왕의 책임',desc:'오시아와 보상 적용 보스 3회 처치',goal:3,xp:30},
-    {id:'dragons',name:'잊지 않은 권능',desc:'보상 적용 전투에서 수룡 3회 명중',goal:3,xp:30}
+    {id:'waves',name:'같은 전선을 지키며',desc:'이 용병과 보상 적용 전투 10회 승리',goal:10,xp:8},
+    {id:'bosses',name:'함께 넘은 고비',desc:'이 용병과 보상 적용 보스 3회 처치',goal:3,xp:12},
+    {id:'dragons',name:'성장한 동료',desc:'이 용병을 Lv.30 이상으로 육성하고 보상 적용 전투 20회 승리',goal:20,xp:10}
   ].map(Object.freeze));
   const newBondDay = now => ({day:day(now),waves:0,bosses:0,dragons:0,earned:0,claimed:[]});
   function validBonds(s) {
     if(s.bonds===undefined)return true;
-    if(!s.bonds||typeof s.bonds!=='object'||Array.isArray(s.bonds)||Object.keys(s.bonds).some(k=>k!=='osia'))return false;
-    const b=s.bonds.osia;if(b===undefined)return true;
-    return !!s.units.osia&&b&&Number.isInteger(b.xp)&&b.xp>=0&&b.xp<=650&&Array.isArray(b.read)&&b.read.length<=4&&b.read.every((id,i)=>id===i+1)&&b.daily&&Number.isInteger(b.daily.day)&&b.daily.day>=0&&['waves','bosses','dragons','earned'].every(k=>Number.isInteger(b.daily[k])&&b.daily[k]>=0&&b.daily[k]<=200)&&Array.isArray(b.daily.claimed)&&b.daily.claimed.length<=3&&new Set(b.daily.claimed).size===b.daily.claimed.length&&b.daily.claimed.every(id=>BOND_MISSIONS.some(m=>m.id===id));
+    if(!s.bonds||typeof s.bonds!=='object'||Array.isArray(s.bonds))return false;
+    return Object.entries(s.bonds).every(([id,b])=>Object.hasOwn(BOND_CHARACTERS,id)&&!!s.units[id]&&b&&Number.isInteger(b.xp)&&b.xp>=0&&b.xp<=650&&Array.isArray(b.read)&&b.read.length<=4&&b.read.every((id,i)=>id===i+1)&&b.daily&&Number.isInteger(b.daily.day)&&b.daily.day>=0&&['waves','bosses','dragons','earned'].every(k=>Number.isInteger(b.daily[k])&&b.daily[k]>=0&&b.daily[k]<=200)&&Array.isArray(b.daily.claimed)&&b.daily.claimed.length<=3&&new Set(b.daily.claimed).size===b.daily.claimed.length&&b.daily.claimed.every(id=>BOND_MISSIONS.some(m=>m.id===id)));
   }
-  function bondInfo(s,now=s.at) {
-    const owned=!!s.units.osia,b=s.bonds?.osia||{xp:0,read:[],daily:newBondDay(now)},d=day(Math.max(s.at,now))>b.daily.day?newBondDay(Math.max(s.at,now)):b.daily;
+  function bondInfo(s,now=s.at,id='osia') {
+    const meta=BOND_CHARACTERS[id];if(!meta)return null;
+    const owned=!!s.units[id],b=s.bonds?.[id]||{xp:0,read:[],daily:newBondDay(now)},d=day(Math.max(s.at,now))>b.daily.day?newBondDay(Math.max(s.at,now)):b.daily;
     const level=BOND_LEVELS.filter(x=>x<=b.xp).length,base=BOND_LEVELS[level-1],next=BOND_LEVELS[level]??base;
-    return {owned,xp:b.xp,level,progress:b.xp-base,needed:next-base,dailyEarned:d.earned,dailyLimit:200,
-      episodes:BOND_EPISODES.map(e=>({...e,read:b.read.includes(e.id),unlocked:owned&&level>=e.level&&(e.id===1||b.read.includes(e.id-1))})),
-      missions:BOND_MISSIONS.map(m=>({...m,value:Math.min(m.goal,d[m.id]),claimed:d.claimed.includes(m.id),ready:owned&&d[m.id]>=m.goal&&!d.claimed.includes(m.id)&&d.earned<200&&b.xp<650})),
+    return {id,meta,owned,xp:b.xp,level,unitLevel:s.units[id]?.level||0,progress:b.xp-base,needed:next-base,dailyEarned:d.earned,dailyLimit:BOND_DAILY_LIMIT,
+      episodes:BOND_EPISODES.map(e=>({...e,title:meta.titles[e.id-1],reward:e.id===2?meta.avatarName+' · 프로필':e.id===3?meta.titleName+' · 칭호':e.reward,read:b.read.includes(e.id),unlocked:owned&&(b.read.includes(e.id)||level>=e.level&&s.units[id].level>=e.unitLevel&&(e.id===1||b.read.includes(e.id-1)))})),
+      missions:BOND_MISSIONS.map(m=>({...m,value:Math.min(m.goal,d[m.id]),claimed:d.claimed.includes(m.id),ready:owned&&s.units[id].level>=10&&d[m.id]>=m.goal&&!d.claimed.includes(m.id)&&d.earned<BOND_DAILY_LIMIT&&b.xp<650})),
       avatar:b.read.includes(2),title:b.read.includes(3),dialogue:b.read.includes(4)};
   }
-  function bondState(s) {
-    s.bonds||={};const b=s.bonds.osia||={xp:0,read:[],daily:newBondDay(s.at)};
+  function bondState(s,id='osia') {
+    s.bonds||={};const b=s.bonds[id]||={xp:0,read:[],daily:newBondDay(s.at)};
     if(day(s.at)>b.daily.day)b.daily=newBondDay(s.at);return b;
   }
   function bondCombat(s,metric) {
-    if(!s.units.osia||!s.battle.heroes.some(h=>h.id==='osia')||!questCombatEligible(s))return;
-    const b=bondState(s);b.daily[metric]=Math.min(200,b.daily[metric]+1);
-    if(metric==='waves'&&b.xp<650&&b.daily.earned<200){b.xp++;b.daily.earned++;}
+    if(!questCombatEligible(s))return;
+    for(const h of s.battle.heroes){const u=s.units[h.id];if(!BOND_CHARACTERS[h.id]||!u||u.level<10)continue;
+      const b=bondState(s,h.id);b.daily[metric]=Math.min(200,b.daily[metric]+1);
+      if(metric==='waves'){
+        if(u.level>=30)b.daily.dragons=Math.min(200,b.daily.dragons+1);
+        if(b.xp<650&&b.daily.earned<BOND_DAILY_LIMIT){b.xp++;b.daily.earned++;}
+      }
+    }
   }
-  const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||title==='osia-oath'&&!!s.bonds?.osia?.read?.includes(3)||title==='rank-reclaimer'&&!!s.redeemedCodes?.includes('RANK_RECLAIMER_2');
+  const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||Object.values(BOND_CHARACTERS).some(m=>m.title===title&&s.bonds?.[m.id]?.read?.includes(3))||title==='rank-reclaimer'&&!!s.redeemedCodes?.includes('RANK_RECLAIMER_2');
 
+  const SHARD_SSR = Object.freeze([...STANDARD_SSR,'ryusion','kazua']);
   const SHARD_LIMIT=1000000000;
-  function shardInfo(s){return {unlocked:s.captain.level>=20,SR:s.shardExchange?.SR||0,SSR:s.shardExchange?.SSR||0,choices:STANDARD_SSR.filter(id=>!!s.units[id]),recyclable:Object.entries(s.units).filter(([id,u])=>u.stars===5&&['SR','SSR'].includes(BY_ID[id].rarity)).map(([id,u])=>({id,rarity:BY_ID[id].rarity,shards:u.shards,batch:BY_ID[id].rarity==='SSR'?20:10}))};}
+  function shardInfo(s){return {unlocked:s.captain.level>=20,SR:s.shardExchange?.SR||0,SSR:s.shardExchange?.SSR||0,choices:SHARD_SSR.filter(id=>!!s.units[id]),recyclable:Object.entries(s.units).filter(([id,u])=>u.stars===5&&['SR','SSR'].includes(BY_ID[id].rarity)).map(([id,u])=>({id,rarity:BY_ID[id].rarity,shards:u.shards,batch:BY_ID[id].rarity==='SSR'?20:10}))};}
   function validShards(s){return s.shardExchange===undefined||s.shardExchange&&typeof s.shardExchange==='object'&&!Array.isArray(s.shardExchange)&&Object.keys(s.shardExchange).length===2&&['SR','SSR'].every(r=>Number.isSafeInteger(s.shardExchange[r])&&s.shardExchange[r]>=0&&s.shardExchange[r]<=SHARD_LIMIT);}
   function validate(s) {
     return !!(s && s.version === 1 && Number.isFinite(s.at) && s.at >= 0 && Number.isInteger(s.seed) &&
@@ -1093,7 +1110,7 @@
       const targets=b.enemies.filter(e=>e.hp>0&&cast.targets.some(t=>t.id===e.id));
       if(!tick){
         event(s,'skill-impact',{from:'osia',castId:cast.id,stage:4,name:'용의 신수',element:'water',breath:true,targets:targets.map(e=>e.id)});
-        if(targets.length){bondCombat(s,'dragons');const amount=Math.max(0,Math.min(Math.round(owner.atk*(owner.exclusive.dragonShield||.2)),Math.round(owner.max*.6)-owner.shield));owner.shield+=amount;owner.shieldSources||={};owner.shieldSources.osia=(owner.shieldSources.osia||0)+amount;if(amount)event(s,'guard',{from:'osia',to:'osia',amount,shield:owner.shield,passive:'weapon-tide',element:'water'});}
+        if(targets.length){const amount=Math.max(0,Math.min(Math.round(owner.atk*(owner.exclusive.dragonShield||.2)),Math.round(owner.max*.6)-owner.shield));owner.shield+=amount;owner.shieldSources||={};owner.shieldSources.osia=(owner.shieldSources.osia||0)+amount;if(amount)event(s,'guard',{from:'osia',to:'osia',amount,shield:owner.shield,passive:'weapon-tide',element:'water'});}
       }
       for(const enemy of targets){const hit=cast.targets.find(t=>t.id===enemy.id),amount=Math.round(hit.amount*(tick+1)/r.ticks)-Math.round(hit.amount*tick/r.ticks);
         if(amount>0)hurt(s,'osia',enemy,amount,'enemy',true,{castId:cast.id,stage:4,critical:!!hit.critical,breath:true,tick});
@@ -1104,7 +1121,7 @@
     if (b.elapsed < cast.began + step.impactDelay) return false;
     const targets = b.enemies.filter(e => e.hp > 0 && cast.targets.some(t => t.id === e.id));
     event(s, "skill-impact", { from: "osia", castId: cast.id, stage: step.stage, name: osiaSkillName(b.heroes.find(h=>h.id==='osia'),step.stage), element: "water", targets: targets.map(e => e.id) });
-    if(step.stage===4&&targets.length)bondCombat(s,"dragons");
+
     const owner=b.heroes.find(h=>h.id==="osia");
     if(step.stage===4&&targets.length&&osiaDivine(owner)){const amount=Math.max(0,Math.min(Math.round(owner.atk*(owner.exclusive.dragonShield||.2)),Math.round(owner.max*.6)-owner.shield));owner.shield+=amount;owner.shieldSources||={};owner.shieldSources.osia=(owner.shieldSources.osia||0)+amount;if(amount)event(s,"guard",{from:"osia",to:"osia",amount,shield:owner.shield,passive:"weapon-tide",element:"water"});}
     for (const enemy of targets) {
@@ -1488,7 +1505,7 @@
         source='SR';cost=count*50;reward=count*5;rarity='SSR';
         fail(w.SR>=cost,'공용 SR 조각이 부족해요.');fail(w.SSR+reward<=SHARD_LIMIT,'공용 조각 보유 한도입니다.');
       }else if(kind==='shard-select'){
-        hero=input.hero;fail(STANDARD_SSR.includes(hero),'상시 SSR만 선택할 수 있어요.');fail(!!s.units[hero],'보유한 SSR 캐릭터만 교환할 수 있어요.');
+        hero=input.hero;fail(SHARD_SSR.includes(hero),'상시·기간 제한 없는 픽업 SSR만 선택할 수 있어요.');fail(!!s.units[hero],'보유한 SSR 캐릭터만 교환할 수 있어요.');
         source='SSR';cost=count*10;reward=count*5;rarity='character';
         fail(w.SSR>=cost,'공용 SSR 조각이 부족해요.');
         fail(Number.isSafeInteger(s.units[hero].shards+reward),'캐릭터 조각 보유량을 확인해 주세요.');
@@ -1514,12 +1531,14 @@
       return {kind,item:item.id,gold:item.gold,price:item.price};
     }
     if(kind==='bond-mission') {
-      const m=bondInfo(s,now).missions.find(m=>m.id===input.mission);fail(m?.ready,'완료한 인연 임무와 오늘의 획득 한도를 확인하세요.');
-      const b=bondState(s),xp=Math.min(m.xp,200-b.daily.earned,650-b.xp);b.xp+=xp;b.daily.earned+=xp;b.daily.claimed.push(m.id);return {kind,xp};
+      const id=input.hero??'osia';fail(Object.hasOwn(BOND_CHARACTERS,id),'인연 캐릭터를 확인하세요.');
+      const m=bondInfo(s,now,id).missions.find(m=>m.id===input.mission);fail(m?.ready,'완료한 인연 임무와 오늘의 획득 한도를 확인하세요.');
+      const b=bondState(s,id),xp=Math.min(m.xp,BOND_DAILY_LIMIT-b.daily.earned,650-b.xp);b.xp+=xp;b.daily.earned+=xp;b.daily.claimed.push(m.id);return {kind,xp};
     }
     if(kind==='bond-read') {
-      const e=bondInfo(s,now).episodes.find(e=>e.id===input.episode);fail(e?.unlocked,'오시아 영입·인연 레벨·이전 이야기를 확인하세요.');
-      const b=bondState(s),fresh=!b.read.includes(e.id);if(fresh)b.read.push(e.id);return {kind,episode:e.id,fresh,reward:e.reward};
+      const id=input.hero??'osia';fail(Object.hasOwn(BOND_CHARACTERS,id),'인연 캐릭터를 확인하세요.');
+      const e=bondInfo(s,now,id).episodes.find(e=>e.id===input.episode);fail(e?.unlocked,'용병 육성 레벨·인연 레벨·이전 이야기를 확인하세요.');
+      const b=bondState(s,id),fresh=!b.read.includes(e.id);if(fresh)b.read.push(e.id);return {kind,episode:e.id,fresh,reward:e.reward};
     }
     if(kind==='codex-claim'){
       const id=input.hero;
@@ -1780,5 +1799,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_CHARACTERS,BOND_DAILY_LIMIT,SHARD_SSR,BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });
