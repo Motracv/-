@@ -1,6 +1,8 @@
 /* Shared, nonblocking skill closeups and live Spica status for every arena. */
 window.SchoolBattlePolish=(()=>{
  'use strict';
+ let skinFace=null;
+ function faceImage(){if(!skinFace&&typeof Image!=='undefined'){skinFace=new Image();skinFace.src='school/assets/horas-after-school/profile.webp?v=horas-illust1';}return skinFace;}
  const clamp=n=>Math.max(0,Math.min(1,n));
  function latest(events,now){
   let found=null,at=-Infinity;
@@ -29,7 +31,9 @@ window.SchoolBattlePolish=(()=>{
   if(!reduced){
    // Gently push in on the portrait only; the small panel stays anchored.
    const zoom=1+.08*(1-Math.pow(1-clamp(shot.age/.3),3));
-   window.SchoolArt.hero(c,shot.id,x+25*unit,y+50*unit,zoom*unit,{skin:appearance(shot),pose:2,casting:true,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
+   const image=shot.id==='horas'&&appearance(shot)==='horas_after_school'?faceImage():null;
+   if(image?.complete&&image.naturalWidth){c.save();c.beginPath();c.rect(x+4*unit,y+2*unit,43*unit,panelH-4*unit);c.clip();const size=56*unit*zoom;c.drawImage(image,x+25*unit-size/2,y+panelH/2-size/2,size,size);c.restore();}
+   else window.SchoolArt.hero(c,shot.id,x+25*unit,y+50*unit,zoom*unit,{skin:appearance(shot),pose:2,casting:true,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
   }
   const textX=x+(reduced?10:50)*unit,textY=y+(reduced?15:20)*unit,textW=panelW-(reduced?20:57)*unit;
   c.textAlign='left';c.fillStyle=color;c.font=`bold ${10*unit}px Galmuri, sans-serif`;c.fillText(def.name,textX,textY,textW);
@@ -48,5 +52,6 @@ window.SchoolBattlePolish=(()=>{
   c.save();c.font=`bold ${font}px Galmuri, sans-serif`;c.textAlign='center';
   const width=Math.min(w-16,c.measureText(text).width+20);c.fillStyle='#10374bf0';c.fillRect((w-width)/2,y,width,font+13);c.strokeStyle='#8fe3f1';c.lineWidth=1;c.strokeRect((w-width)/2,y,width,font+13);c.fillStyle='#d5fbff';c.fillText(text,w/2,y+font+3,width-10);c.restore();return true;
  }
+ faceImage();
  return Object.freeze({latest,focus,speedField});
 })();

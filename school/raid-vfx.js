@@ -13,13 +13,14 @@ window.SchoolRaidFX=(()=>{
  function chain(c,x,y,tx,ty,bend=0,alpha=1){c.save();c.globalAlpha*=alpha;const angle=Math.atan2(ty-y,tx-x);for(let i=0;i<22;i++){const p=i/21,xx=mix(x,tx,p),yy=mix(y,ty,p)+Math.sin(p*PI)*bend;c.strokeStyle=i%2?'#ceefff':'#59b0f3';c.lineWidth=i%2?2:3;c.beginPath();c.ellipse(xx,yy,6,3,angle+(i%2?PI/4:0),0,PI*2);c.stroke();}c.restore();}
  function burst(c,x,y,age,color,count=10,scale=1){const f=clamp(age),fade=1-f;c.save();c.globalAlpha*=fade;for(let i=0;i<count;i++){const a=i*2.4,r=(14+f*55)*scale,xx=x+Math.cos(a)*r,yy=y+Math.sin(a)*r*.6+f*f*15;star(c,xx,yy,(4-f*2)*scale,color,a);}c.lineWidth=2;ring(c,x,y,(12+f*55)*scale,color,.6);c.restore();}
  function draw(c,o){
-  const {w,h,now,dt,battle,focus,events,bg,atlas,bars,reduced,units}=o;
+  const {w,h,now,dt,battle,focus,events,bg,atlas,bars,reduced,units:sourceUnits}=o;
   const t=o.visualTime??(battle?battle.elapsed+Math.min(1000,now-o.received):0),live=o.live;
+  const units=sourceUnits.map(u=>window.SchoolCombatFeedback?.hyeokjinPresentation(u,focus,events,now,t,!live)||u);
   const floor=h*.88,size=Math.min(h*.74,360),scale=size*.36/49,bx=790,by=floor;
   const recent=events.filter(e=>now>=e.shown&&now-e.shown<(e.breath?4750:2500)),own=recent.filter(e=>e.team===focus),actors=new Map();
   for(const u of units)if(live&&u.breath&&!own.some(e=>e.id===u.id&&e.kind==='cast'&&e.breath))own.push({kind:'cast',id:u.id,team:focus,stage:4,breath:true,shown:now-(t-u.breath.began)});
   const breath=own.findLast(e=>e.kind==='cast'&&e.breath&&units.some(u=>u.id===e.id&&u.hp>0&&!(u.stunUntil>t))&&!own.some(x=>x.kind==='osia-breath-cancel'&&x.shown>=e.shown));
-  for(const e of own){const a=actors.get(e.id)||{};a[e.kind]=e;if(['hit','immune','cast'].includes(e.kind))a.outgoing=e;actors.set(e.id,a);}
+  for(const e of own){const a=actors.get(e.id)||{};a[e.kind]=e;if(['hit','immune'].includes(e.kind)&&!e.skill)a.outgoing=e;actors.set(e.id,a);}
   const impact=recent.findLast(e=>e.kind==='impact'&&now-e.shown<(e.pattern==='basic'?650:1250)),cast=battle?.boss.cast;
   const age=impact?clamp((now-impact.shown)/(impact.pattern==='basic'?650:1250)):0;
   const hurtEvent=own.findLast(e=>e.kind==='hurt'&&e.pattern===impact?.pattern&&e.t===impact?.t);
@@ -40,13 +41,13 @@ window.SchoolRaidFX=(()=>{
   units.forEach((u,i)=>{
    const p=positions[i],a=actors.get(u.id)||{},out=a.outgoing,outAge=out?(now-out.shown)/1000:9,castAge=a.cast?(now-a.cast.shown)/1000:9,hitAge=a.hurt?(now-a.hurt.shown)/1000:9;
    const breathAge=breath?.id===u.id?(now-breath.shown)/1000:undefined;
-   const motion=breathAge>=0&&window.SchoolOsiaBreathArt?window.SchoolOsiaBreathArt.motion(breathAge,reduced):u.id!=='horas'&&a.cast&&castAge<1.6?SchoolArt.poseForSkill(u.id,a.cast.stage||1,castAge,reduced):null;
+   const motion=breathAge>=0&&window.SchoolOsiaBreathArt?window.SchoolOsiaBreathArt.motion(breathAge,reduced):u.id!=='horas'&&a.cast&&castAge*1000<SchoolCombatFeedback.castMs(u.id)?SchoolArt.poseForSkill(u.id,a.cast.stage||1,castAge,reduced):null;
    const dx=reduced||['kazua','hyeokjin'].includes(u.id)?0:motion?.dx||Math.sin(clamp(outAge/.65)*PI)*8;
    const recoil=reduced?0:Math.sin(clamp(hitAge/.3)*PI)*8;
    const baseKazua=SchoolArt.kazuaFrame(u,t,battle.elapsed),kazuaFrame=window.SchoolCombatFeedback?.kazuaPresentation(u,focus,events,now,baseKazua)||baseKazua;
    if(a.heal&&now-a.heal.shown<950){const f=(now-a.heal.shown)/950;c.save();c.globalAlpha=1-f;glow(c,p.x,p.y-scale*20,scale*35,'#94ffb5',.8);c.lineWidth=2;ring(c,p.x,p.y,scale*(16+f*12),'#8fffc3');for(let n=0;n<3;n++){c.fillStyle='#bcffd6';c.fillRect(p.x+(n-1)*scale*10-2,p.y-f*scale*38-n*7,4,9);c.fillRect(p.x+(n-1)*scale*10-5,p.y-f*scale*38-n*7+3,10,3);}c.restore();}
    if(u.shield>0){c.save();c.globalAlpha=.4+(a.hurt?.absorbed&&hitAge<.4?.4:0);c.strokeStyle='#b3e7ff';c.lineWidth=2;c.beginPath();c.ellipse(p.x,p.y-scale*18,scale*14,scale*22,0,0,PI*2);c.stroke();c.restore();}
-   SchoolArt.hero(c,u.id,p.x+dx-recoil,p.y+(reduced?0:motion?.dy||0),scale,{skin:u.skin,exclusive:u.exclusive,osiaBreathAge:breathAge,osiaSpearAge:a['osia-drowning']?(now-a['osia-drowning'].shown)/1000:-1,kazuaActive:live,...kazuaFrame,...SchoolArt.hyeokjinFrame?.(u,t),...(a.dodge&&now-a.dodge.shown<350?{kazuaMode:'dodge',kazuaAge:(now-a.dodge.shown)/1000}:{}),attack:outAge<.65,dead:u.hp<=0,stunned:u.stunUntil>t,hit:hitAge<.2,time:now/1000,reduced,pose:motion?.pose,motion,casting:castAge<1.5,attackAge:out&&!out.skill&&outAge<1.1?outAge:undefined,basicAttackAt:out&&!out.skill?out.shown/1000:undefined,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0,horasCastAge:u.id==='horas'&&castAge<2.4?castAge:-1,taunting:u.id==='ryusion'&&SchoolRPG.ryusionGuard(units,t).taunting,passive:!!a.rescue&&now-a.rescue.shown<1200});
+   SchoolArt.hero(c,u.id,p.x+dx-recoil,p.y+(reduced?0:motion?.dy||0),scale,{skin:u.skin,exclusive:u.exclusive,osiaBreathAge:breathAge,osiaSpearAge:a['osia-drowning']?(now-a['osia-drowning'].shown)/1000:-1,kazuaActive:live,...kazuaFrame,...SchoolArt.hyeokjinFrame?.(u,t),...(a.dodge&&now-a.dodge.shown<350?{kazuaMode:'dodge',kazuaAge:(now-a.dodge.shown)/1000}:{}),attack:outAge*1000<SchoolCombatFeedback.basicMs(u.id),dead:u.hp<=0,stunned:u.stunUntil>t,hit:hitAge<.2,time:now/1000,reduced,pose:motion?.pose,motion,casting:castAge*1000<SchoolCombatFeedback.castMs(u.id),attackAge:out&&!out.skill&&outAge*1000<SchoolCombatFeedback.basicMs(u.id)?outAge:undefined,basicAttackAt:out&&!out.skill?out.shown/1000:undefined,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0,horasCastAge:u.id==='horas'&&castAge<2.45?castAge:-1,taunting:u.id==='ryusion'&&SchoolRPG.ryusionGuard(units,t).taunting,passive:!!a.rescue&&now-a.rescue.shown<1200});
    if(live&&u.id==='horas')SchoolArt.horasCoopEffects?.(c,{unit:u,events:own,now,time:t,source:p,targets:[{x:bossX,y:bossY,aimY:bossY-size*.48}],scale,reduced,economy:c.canvas.width<1000,viewport:{width:w,height:h}});
    if(live&&u.id==='hyeokjin')window.SchoolHyeokjinArt?.effects(c,{unit:u,time:t,source:{x:p.x+dx-recoil,y:p.y+(reduced?0:motion?.dy||0)},targets:[{x:bossX,y:bossY,aimY:bossY-size*.45}],scale,reduced,economy:c.canvas.width<1000,viewport:{width:w,height:h}});
    if(live&&u.id==='kazua'&&u.hp>0&&!(u.stunUntil>t)&&!(a.dodge&&now-a.dodge.shown<350))window.SchoolKazuaArt?.effects(c,{source:{x:p.x+dx-recoil,y:p.y+(reduced?0:motion?.dy||0)},targets:[{x:bossX,y:bossY,aimY:bossY-size*.45}],mode:kazuaFrame.kazuaMode||u.kazua?.mode||'idle',age:kazuaFrame.kazuaAge,time:now/1000,scale,reduced,economy:c.canvas.width<1000});

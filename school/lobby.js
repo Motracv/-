@@ -51,8 +51,9 @@ window.SchoolLobby = (() => {
       // Only the leading unlocked companion speaks at a time, keeping the lobby clear.
       const speaker=state.team.find(id=>game.BOND_CHARACTERS[id]&&state.bonds?.[id]?.read?.includes(4));
       for(const [id,slot] of slots){const quote=slot.querySelector('.bond-lobby-quote');
-        if(id===speaker&&!quote){const bubble=document.createElement('span');bubble.className='bond-lobby-quote';bubble.textContent=game.BOND_CHARACTERS[id].quote;slot.append(bubble);}
+        if(id===speaker&&!quote){const bubble=document.createElement('span');bubble.className='bond-lobby-quote';bubble.textContent=game.bondMeta(state,id).quote;slot.append(bubble);}
         else if(quote&&id!==speaker)quote.remove();
+        else if(quote&&quote.textContent!==game.bondMeta(state,id).quote)quote.textContent=game.bondMeta(state,id).quote;
       }
       const leader = state.team[0], appearance=game.profileInfo(state), identity=[leader,game.equippedSkin?.(state,leader),appearance.avatar,appearance.title].join('|');
       if (leader && identity !== captainId) {

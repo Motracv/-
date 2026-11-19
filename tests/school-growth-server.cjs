@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict'),G=require('../school/engine.js'),{fixture}=require('./account-fixture.cjs');
+(async()=>{
+ const t=await fixture(),who=(await t.login('growth-server-test')).data;
+ const call=(route,data={})=>t.call('/api/school/'+route,{catalogVersion:G.CATALOG_VERSION,...data},null,{'X-Account-Session':who.token});
+ assert.equal((await call('state')).status,200);
+ const row=()=>t.sqlite.prepare('SELECT * FROM school_saves WHERE account_id=?').get(who.profile.id);
+ const save=s=>t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(s),who.profile.id);
+ const initial=JSON.parse(row().payload);initial.units.taeo={level:100,xp:0,stars:5,shards:0};initial.gold=2000000;save(initial);
+ const rev=row().revision,input={revision:rev,requestId:'growth-train-atomic-1',action:{kind:'train',hero:'taeo',count:10,gold:0}};
+ const results=await Promise.all([call('action',input),call('action',input)]);for(const r of results)assert.equal(r.status,200);let state=JSON.parse(row().payload);assert.equal(state.units.taeo.level,110);assert.equal(state.gold,1425000);assert.equal(state.receipts.filter(r=>r.id===input.requestId).length,1);
+ assert.equal((await call('action',{...input,requestId:'growth-stale-revision'})).data.conflict,true);assert.equal(JSON.parse(row().payload).units.taeo.level,110);
+ const p=G.passInfo(state,state.at);assert.equal(p.level,1);const rg=row().revision,gold=state.gold,gems=state.gems;
+ const req={revision:rg,requestId:'pass-free-reward-0001',action:{kind:'pass-reward',level:1,gems:9999999,gold:99999999}};
+ const both=await Promise.all([call('action',req),call('action',{...req,requestId:'pass-free-reward-0002'})]);assert.equal(both.filter(r=>r.status===200&&!r.data.conflict).length,1);state=JSON.parse(row().payload);assert.equal(state.gold,gold+4500);assert.equal(state.gems,gems);assert.deepEqual(state.battlePass.rewards,[1]);
+ const winner=both.findIndex(r=>r.status===200&&!r.data.conflict),retry=await call('action',{...req,requestId:winner?'pass-free-reward-0002':req.requestId});assert(retry.data.repeated);
+ const levelRequest={revision:row().revision,requestId:'pass-locked-level-0050',action:{kind:'pass-reward',level:50}};assert.equal((await call('action',levelRequest)).status,400);
+ const q={revision:row().revision,requestId:'pass-login-quest-0001',action:{kind:'pass-quest',quest:'login',xp:999999}};assert.equal((await call('action',q)).status,200);state=JSON.parse(row().payload);assert.equal(state.battlePass.xp,40);assert.equal((await call('action',{...q,revision:row().revision,requestId:'pass-login-quest-0002'})).status,400);
+ assert.equal((await call('state')).status,200);assert(G.validate(JSON.parse(row().payload))); 
+ console.log('PASS real API: atomic training, simultaneous/stale requests, pass reward race/idempotency, locked reward, forged amounts, daily claim and reload');
+})().catch(e=>{console.error(e);process.exitCode=1;});

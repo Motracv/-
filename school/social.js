@@ -537,8 +537,8 @@
       units.flat().sort((a,b)=>positions.get(`${a.side}:${a.id}`).y-positions.get(`${b.side}:${b.id}`).y).forEach(unit=>{
         const position=positions.get(`${unit.side}:${unit.id}`),actAge=(clock-unit.actAt)/1000,hitAge=clock-unit.hitAt;
         const horasAge=(clock-unit.horasBasicAt)/1000,horasCastAge=unit.horasCast?(clock-unit.horasCastAt)/1000:1.5+(clock-unit.horasImpactAt)/1000;
-        const casting=unit.id==='horas'?(!!unit.horasCast||horasCastAge>=1.5&&horasCastAge<2.1)&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge<(unit.id==='spica'?1.6:1.15)&&unit.hp>0;
-        const attacking=(unit.id==='horas'?horasAge>=0&&horasAge<.9:actAge>=0&&actAge<(unit.id==='spica'?.85:.48))&&unit.hp>0, direction=unit.side?-1:1;
+        const casting=unit.id==='horas'?(!!unit.horasCast||horasCastAge>=1.5&&horasCastAge<2.45)&&unit.hp>0:['skill','heal','shield'].includes(unit.actKind)&&actAge>=0&&actAge*1000<(window.SchoolCombatFeedback?.castMs(unit.id)||({lava:1800,osia:1650,spica:1600})[unit.id]||1300)&&unit.hp>0;
+        const attacking=(unit.id==='horas'?horasAge>=0&&horasAge<1.18:actAge>=0&&actAge*1000<(window.SchoolCombatFeedback?.basicMs(unit.id)||({lava:1000,spica:850})[unit.id]||650))&&unit.hp>0, direction=unit.side?-1:1;
         const move=attacking&&!reduced?Math.sin(Math.min(1,actAge/(unit.id==='spica'?.85:.48))*Math.PI)*15*direction:0;
         const earthAge=(clock-(unit.earthCastAt??-10000))/1000;
         const breathAge=unit.id==='osia'&&Number.isFinite(unit.breathAt)&&clock-unit.breathAt<4750?(clock-unit.breathAt)/1000:undefined;

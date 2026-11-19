@@ -1059,9 +1059,10 @@ window.SchoolArt = (() => {
     c.drawImage(damageSurface,x-128,y-225,256,256);
   }
   function monsterBody(c, enemy, x, y, frame = {}) {
-    const zone = Math.max(0, Math.min(14, Number.isInteger(enemy.kind) ? enemy.kind : 0));
+    const rawZone=Number.isInteger(enemy.kind)?enemy.kind:0,zone=Math.max(0,Math.min(19,rawZone>=20?rawZone-20:rawZone));
+    if(rawZone>=20)enemy={...enemy,kind:zone};
     const variant = enemyVariant(enemy, frame.stage, frame.wave, frame.index);
-    const type = ENEMY_APPEARANCES[zone][variant], reduced=!!frame.reduced;
+    const type = ENEMY_APPEARANCES[Math.min(zone,14)][variant], reduced=!!frame.reduced;
     const dead=enemy.hp<=0, deathAge=Number.isFinite(frame.deathAge)?Math.max(0,frame.deathAge):dead?1:0;
     if(dead && deathAge>=.78)return;
     const t = reduced || frame.stunned ? 0 : frame.time || 0, attackAge=frame.attackAge ?? (frame.attack?0.12:1), hitAge=frame.hitAge ?? (frame.hit?0.06:1);
@@ -1070,7 +1071,7 @@ window.SchoolArt = (() => {
     const z=enemy.boss?2.45:1.55, floating=["clock","book","scroll","whistle","globe","crane","frostbell","umbrella","compass","kite","shrinebell","talisman","foxmask","mirror","restorer","constellation","inverted_scope","chart","pendulum","tuner"].includes(type);
     const idle=reduced||dead||frame.stunned?0:Math.sin(t*3.3+variant*1.8), leap=attack*(floating?4:3);
     const dx=-attack*11+recoil*5,dy=(floating?-3:0)+idle*(floating?2:.7)-leap+(dead&&!reduced?fall*13:0);
-    const accent=["#daedc4","#dfd3ba","#dcc8e8","#d8edb5","#efcf9a","#d7d7f4","#e0f6ee","#d5c7de","#c4ead7","#bfdce1","#e4efbc","#f0d6cc","#edb9ff","#9fddff","#f9cd89"][zone];
+    const accent=["#daedc4","#dfd3ba","#dcc8e8","#d8edb5","#efcf9a","#d7d7f4","#e0f6ee","#d5c7de","#c4ead7","#bfdce1","#e4efbc","#f0d6cc","#edb9ff","#9fddff","#f9cd89"][Math.min(zone,14)];
     c.save();c.translate(Math.round(x),Math.round(y));
     const opacity=dead?1-fall:reduced?1:spawn;
     c.globalAlpha*=Math.max(0,opacity);c.fillStyle="#2535442c";c.beginPath();c.ellipse(1,4,enemy.boss?36:22,enemy.boss?7:4,0,0,Math.PI*2);c.fill();
@@ -1078,7 +1079,8 @@ window.SchoolArt = (() => {
     c.translate(dx,dy-(reduced?0:(1-spawn)*9));
     if(!reduced)c.transform(1+(floating?0:idle*.025)-attack*.035,0,attack*.035-recoil*.035,1-(floating?0:idle*.018)-fall*.24,0,0);
     if(enemy.boss&&frame.activity){activityBoss(c,enemy,0,0,{...frame,time:t,hit:false});}
-    else if(enemy.boss&&zone>=12&&window.SchoolExpansionArt){c.scale(2.1,2.1);window.SchoolExpansionArt.monster(c,['portrait','orrery','bellwarden'][zone-12],{time:t,attack,swing:Math.sin(t*3)*2});}
+    else if(zone>=15&&window.SchoolAscensionArt){c.scale(enemy.boss?1.5:1.1,enemy.boss?1.5:1.1);window.SchoolAscensionArt.monster(c,zone,{time:t,attack,variant,boss:enemy.boss,reduced});}
+    else if(enemy.boss&&zone>=12&&zone<=14&&window.SchoolExpansionArt){c.scale(2.1,2.1);window.SchoolExpansionArt.monster(c,['portrait','orrery','bellwarden'][zone-12],{time:t,attack,swing:Math.sin(t*3)*2});}
     else if(enemy.boss){campaignBoss(c,enemy,0,0,{hit:false});}
     else{c.scale(z,z);schoolMonster(c,type,{time:t,attack,blink:Math.sin(t*.65+zone+variant)> .995,swing:Math.sin(t*4+variant)*2+attack*4,accent,boss:enemy.boss});}
     if(hitAge>=0&&hitAge<.23&&!reduced){c.strokeStyle="#fff0c9";c.lineWidth=1.1;c.beginPath();c.moveTo(-15,-33);c.lineTo(-7,-36);c.moveTo(10,-22);c.lineTo(17,-26);c.stroke();}
@@ -1229,8 +1231,9 @@ window.SchoolArt = (() => {
     rect(c,"#152d3520",0,263,480,17);
   }
   function background(c, stage, time, still = false) {
+    if(window.SchoolAscensionArt?.background(c,S.chapter(stage),480,280))return;
     if(window.SchoolExpansionArt?.background(c,S.chapter(stage),480,280))return;
-    const zone = S.chapter(stage), outdoor = zone === 3 || zone === 5;
+    const zone = S.visualChapter(stage), outdoor = zone === 3 || zone === 5;
     if (zone >= 6) { newBackground(c, zone, time, still); return; }
     const wall = ["#d9c6a1", "#c5c6ab", "#bdab92", "#8cab83", "#b6b6a1", "#626e8d"][zone];
     rect(c, wall, 0, 0, 480, 280);
@@ -1309,7 +1312,7 @@ window.SchoolArt = (() => {
     if (!still) for (let i = 0; i < 10; i++) { const x = (i * 59 + Math.sin(time * .15 + i) * 15 + 32) % 480, y = (i * 19 + time * 3) % 235; rect(c, "#fff1c745", x, y, 2, 2); }
   }
   function weather(c, battle, time) {
-    const zone = S.chapter(battle.stage), kind = battle.activity?.kind;
+    const zone = S.visualChapter(battle.stage), kind = battle.activity?.kind;
     if (kind) {
       for (let i = 0; i < 15; i++) { const x = (i * 71 + Math.sin(time * .4 + i) * 9 + 480) % 480, y = (i * 29 + time * 3) % 250; rect(c, kind === "weekly" ? "#d3b9e73d" : "#e9edba3d", x, y, 1, 1); }
     } else if (zone < 6) {
@@ -1324,7 +1327,7 @@ window.SchoolArt = (() => {
   }
   function scenery(c, battle, extendedParty, time, reduced) {
     const width = c.canvas.width, height = c.canvas.height;
-    const key = `${S.chapter(battle.stage)}:${battle.activity?.kind || "story"}:${battle.activity?.floor || 0}:${+extendedParty}:${fontRevision}:${window.SchoolExpansionArt?.revision||0}`;
+    const key = `${S.chapter(battle.stage)}:${battle.activity?.kind || "story"}:${battle.activity?.floor || 0}:${+extendedParty}:${fontRevision}:${window.SchoolExpansionArt?.revision||0}:${window.SchoolAscensionArt?.revision||0}`;
     let cached = backgrounds.get(c.canvas);
     if (!cached || cached.width !== width || cached.height !== height || cached.key !== key) {
       const layer = document.createElement("canvas"); layer.width = width; layer.height = height;
@@ -1333,6 +1336,7 @@ window.SchoolArt = (() => {
       if (extendedParty) { sc.translate(-36, -42); sc.scale(1.15, 1.15); }
       if (battle.activity) activityBackground(sc, battle.activity, 0, true, true);
       else background(sc, battle.stage, 0, true);
+      if(!battle.activity&&battle.stage>S.NORMAL_MAX_STAGE){sc.save();sc.setTransform(1,0,0,1,0,0);sc.fillStyle='#35183b45';sc.fillRect(0,0,width,height);sc.restore();}
       depthAtmosphere(sc,width,height);
       cached = {key, width, height, layer}; backgrounds.set(c.canvas, cached);
     }
@@ -1346,14 +1350,16 @@ window.SchoolArt = (() => {
   }
   function panoramicScenery(c, battle, extendedParty, time, reduced, view) {
     const width = c.canvas.width, height = c.canvas.height, zone = S.chapter(battle.stage);
-    const imageName = !battle.activity && ([0,1,2].includes(zone) ? 'classroom' : zone === 3 ? 'garden' : zone === 6 ? 'snow' : null);
+    const baseZone=S.visualChapter(battle.stage);
+    const imageName = !battle.activity && ([0,1,2].includes(baseZone) ? 'classroom' : baseZone === 3 ? 'garden' : baseZone === 6 ? 'snow' : null);
     const picture = imageName && battlefieldImages.get(imageName);
-    const key = `panorama:${zone}:${battle.activity?.kind || 'story'}:${battle.activity?.floor || 0}:${+extendedParty}:${fontRevision}:${battlefieldRevision}:${window.SchoolExpansionArt?.revision||0}`;
+    const key = `panorama:${zone}:${battle.activity?.kind || 'story'}:${battle.activity?.floor || 0}:${+extendedParty}:${fontRevision}:${battlefieldRevision}:${window.SchoolExpansionArt?.revision||0}:${window.SchoolAscensionArt?.revision||0}`;
     let cached = backgrounds.get(c.canvas);
     if (!cached || cached.width !== width || cached.height !== height || cached.key !== key) {
       const layer = document.createElement('canvas'); layer.width = width; layer.height = height;
       const sc = layer.getContext('2d', {alpha:false}); sc.imageSmoothingEnabled = false;
-      if(!battle.activity&&window.SchoolExpansionArt?.background(sc,zone,width,height)){}
+      if(!battle.activity&&window.SchoolAscensionArt?.background(sc,zone,width,height)){}
+      else if(!battle.activity&&window.SchoolExpansionArt?.background(sc,zone,width,height)){}
       else if (picture?.loaded) {
         const image = picture.image, ratio = Math.max(width / image.naturalWidth, height / image.naturalHeight);
         const sw = width / ratio, sh = height / ratio;
@@ -1367,6 +1373,7 @@ window.SchoolArt = (() => {
         if (battle.activity) activityBackground(sc, battle.activity, 0, true, true);
         else background(sc, battle.stage, 0, true);
       }
+      if(!battle.activity&&battle.stage>S.NORMAL_MAX_STAGE){sc.save();sc.setTransform(1,0,0,1,0,0);sc.fillStyle='#35183b45';sc.fillRect(0,0,width,height);sc.restore();}
       depthAtmosphere(sc,width,height);
       cached = {key, width, height, layer}; backgrounds.set(c.canvas, cached);
     }

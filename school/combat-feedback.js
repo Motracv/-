@@ -8,7 +8,7 @@
   // simultaneous server turns and spreads different turns over at most 650ms.
   function createSnapshotTimeline({limit=160,spreadMs=650,staleMs=2200}={}){
     let id=null,battle=null,seq=0,received=0,anchor=0,live=false,queue=[],painted=null;
-    const eventLife=e=>e.breath&&['cast','dragon','osia-breath-cancel'].includes(e.kind)?4750:staleMs;
+    const eventLife=e=>e.breath&&['cast','dragon','osia-breath-cancel'].includes(e.kind)?4750:e.id==='horas'&&e.kind==='cast'?2600:e.kind==='hyeokjin-mode'?Math.max(staleMs,Math.min(3500,e.duration||0)):staleMs;
     const clock=now=>battle?anchor+(live?Math.max(0,now-received):0):0;
     function clear(){id=null;battle=null;seq=0;received=anchor=0;live=false;queue=[];painted=null;}
     function suspend(){queue=[];painted=null;}
@@ -50,6 +50,17 @@
       return {...battle,boss:{...battle.boss,hp:Math.min(battle.boss.max,battle.boss.hp+bossPending)},teams:battle.teams.map((team,ti)=>({...team,units:team.units.map(u=>({...u,hp:team.withdrawn?u.hp:Math.max(0,Math.min(u.max,u.hp+(deltas.get(ti+':'+u.id)||0)))}))}))};
     }
     return {accept,events,view,clock,clear,suspend};
+  }
+  const basicMs=id=>({horas:1180,lava:1000,spica:850})[id]||650;
+  const castMs=id=>({horas:2450,lava:1800,osia:1650,spica:1600,ryusion:1400})[id]||1300;
+  function hyeokjinPresentation(unit,team,events,now,time,blocked=false){
+    if(unit?.id!=='hyeokjin')return unit;
+    if(blocked||unit.hp<=0||unit.stunUntil>time)return {...unit,hyeokjin:{...unit.hyeokjin,mode:'idle',modeUntil:time,cast:null}};
+    const e=events.findLast(e=>e.id==='hyeokjin'&&e.team===team&&e.shown<=now&&['hyeokjin-mode','hyeokjin-cancel'].includes(e.kind));
+    if(!e)return unit;
+    if(e.kind==='hyeokjin-cancel')return {...unit,hyeokjin:{...unit.hyeokjin,mode:'idle',modeUntil:time,cast:null}};
+    const age=now-e.shown,duration=Math.min(3500,e.duration||0);if(age>=duration)return unit;
+    const began=time-age;return {...unit,hyeokjin:{...unit.hyeokjin,mode:e.mode,began,modeUntil:began+duration,impactAt:began+(e.impactDelay||0),used:unit.hyeokjin?.used||e.awakened||e.mode==='transform',cast:null}};
   }
   function kazuaPresentation(unit,team,events,now,frame={}){
     if(unit?.id!=='kazua'||unit.hp<=0)return frame;
@@ -95,5 +106,5 @@
     if(healing>0&&r>0){c.globalAlpha*=clamp(healing);c.fillStyle='#e5fff5';c.fillRect(left+width*r-1,top-1,2,h+2);c.fillRect(left+width+5,top+1,2,6);c.fillRect(left+width+3,top+3,6,2);}
     c.restore();
   }
-  return Object.freeze({numbers,createHealthTracker,drawHealth,createSnapshotTimeline,kazuaPresentation});
+  return Object.freeze({basicMs,castMs,hyeokjinPresentation,numbers,createHealthTracker,drawHealth,createSnapshotTimeline,kazuaPresentation});
 });

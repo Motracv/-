@@ -6,7 +6,7 @@ window.SchoolWorldMap = (() => {
   const esc = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const clamp = (n,min,max) => Math.max(min,Math.min(max,n));
   function markerIcon(index) {
-    const c=COLORS[index],stroke='#172d35';
+    index=index>=20?index-20:index;const c=COLORS[index]||'#b9d6ef',stroke='#172d35';
     let shape='';
     const building=`<path fill="${stroke}" d="M9 23h46v34H9z"/><path fill="#a9b7af" d="M12 26h40v28H12z"/><path fill="#d8dbba" d="M16 30h7v7h-7zm13 0h7v7h-7zm13 0h6v7h-6z"/><path fill="#365b61" d="M27 42h10v12H27z"/>`;
     if(index===0)shape=building+'<path fill="#677d81" d="M7 23 32 7l25 16v4H7z"/><path fill="#d6c68b" d="M28 13h8v8h-8z"/>';
@@ -28,8 +28,10 @@ window.SchoolWorldMap = (() => {
     if (!container || !options?.state) throw Error('모험 지도를 표시할 기록이 필요합니다.');
     let state=options.state, blocked=options.blocked||false, destroyed=false, sending=false, signature='', lastError='', scrollFrame=0;
     let selectedStage=clamp(Number(state.stage)||1,1,G.MAX_STAGE), selectedChapter=Math.floor((selectedStage-1)/5);
-    const chapterCount=G.CHAPTERS.length;
-    container.innerHTML=`<section class="school-world-map" aria-label="학교 모험 지도"><div class="wm-toolbar"><p>학교 너머, 새로운 모험</p><div><button type="button" class="wm-jump" data-map-current>현재 지역</button><button type="button" class="wm-jump" data-map-next>다음 도전 <span aria-hidden="true">↗</span></button></div></div><div class="wm-layout"><div class="wm-map-wrap"><div class="wm-campus" aria-label="학교의 ${G.CHAPTERS.length}개 구역 · 좌우로 넘겨서 선택">${G.CHAPTERS.map((name,i)=>`<button type="button" class="wm-chapter" data-map-chapter="${i}" style="--map-accent:${COLORS[i]||COLORS[0]}" aria-label="${i+1}구역 ${esc(name)}" title="${esc(name)}"><span class="wm-region-fallback" aria-hidden="true">${markerIcon(i)}</span>${i>=12?`<span class="wm-region-image wm-expansion-atlas" style="background-position:center ${(i-12)*50}%" aria-hidden="true"></span>`:`<img class="wm-region-image" src="school/assets/adventure/region-${String(i+1).padStart(2,'0')}.webp?v=adventure1" alt="" loading="${Math.abs(i-selectedChapter)<3?'eager':'lazy'}" decoding="async" draggable="false">`}<span class="wm-region-shade" aria-hidden="true"></span><span class="wm-chapter-number" aria-hidden="true">${String(i+1).padStart(2,'0')}</span><span class="wm-current-tag" aria-hidden="true">현재</span><span class="wm-chapter-boss" title="보스 · ${esc(G.BOSSES?.[i]||'지역의 수호자')}"><span class="wm-boss-fallback" aria-hidden="true">${markerIcon(i)}</span><canvas class="wm-boss-art" width="160" height="144" aria-hidden="true"></canvas><span class="wm-boss-label" aria-hidden="true">BOSS</span></span><span class="wm-chapter-caption"><span class="wm-chapter-name">${esc(name)}</span><span class="wm-chapter-stars" aria-hidden="true">${'<i></i>'.repeat(5)}</span><span class="wm-chapter-progress"></span><span class="wm-chapter-state">${LOCK}<span>미개방</span></span></span></button>`).join('')}</div><div class="wm-map-legend"><span>← <span class="wm-swipe-copy">지역을 좌우로 넘겨보세요</span> →</span><span class="wm-total"></span></div></div><aside class="wm-detail" aria-label="선택한 지역"><div class="wm-selection-summary"><div class="wm-detail-heading"><small class="wm-region-number"></small><h3 class="wm-region-title"></h3></div><div class="wm-stage-info"><b class="wm-stage-title"></b><span class="wm-stage-state"></span></div><span class="wm-reward"></span></div><div class="wm-route-box"><div class="wm-route" role="group" aria-label="구역의 다섯 지역"></div><p class="wm-stage-note"></p><p class="wm-chapter-tip"></p></div><div class="wm-action-box"><div class="wm-map-actions"><button id="map-start" type="button" class="wm-start" data-map-start>도전 시작</button><button id="map-farm" type="button" class="wm-farm" data-map-farm>반복 사냥</button></div><p class="wm-mode-note">도전: 다음 지역으로 · 반복: 이 지역에서</p></div><p class="wm-block-reason" role="status" hidden></p></aside></div></section>`;
+    const chapterCount=G.CHAPTERS.length;let difficulty=selectedChapter>=20?'hard':'normal';
+    const chapterLabel=i=>i>=20?`하드 ${i-19}`:`${i+1}구역`;
+    function regionImage(i){if(i>=12&&i<=14)return `<span class="wm-region-image wm-expansion-atlas" style="background-position:center ${(i-12)*50}%" aria-hidden="true"></span>`;const src=i>=15&&i<=19?`school/assets/ascension/${['abyss','rose','crystal','council','rift'][i-15]}.webp?v=ascension1`:`school/assets/adventure/region-${String(i>=20?i-19:i+1).padStart(2,'0')}.webp?v=adventure1`;return `<img class="wm-region-image" src="${src}" alt="" loading="lazy" decoding="async" draggable="false">`;}
+    container.innerHTML=`<section class="school-world-map" aria-label="학교 모험 지도"><div class="wm-toolbar"><p>학교 너머, 새로운 모험</p><nav class="wm-difficulty" aria-label="모험 난이도"><button data-map-mode="normal">일반 · 20지역</button><button data-map-mode="hard">하드 · 5지역</button></nav><div><button type="button" class="wm-jump" data-map-current>현재 지역</button><button type="button" class="wm-jump" data-map-next>다음 도전 <span aria-hidden="true">↗</span></button></div></div><div class="wm-layout"><div class="wm-map-wrap"><div class="wm-campus" aria-label="학교의 ${G.CHAPTERS.length}개 구역 · 좌우로 넘겨서 선택">${G.CHAPTERS.map((name,i)=>`<button type="button" class="wm-chapter" data-map-chapter="${i}" style="--map-accent:${COLORS[i]||COLORS[0]}" aria-label="${i+1}구역 ${esc(name)}" title="${esc(name)}"><span class="wm-region-fallback" aria-hidden="true">${markerIcon(i)}</span>${regionImage(i)}<span class="wm-region-shade" aria-hidden="true"></span><span class="wm-chapter-number" aria-hidden="true">${i>=20?`H${i-19}`:String(i+1).padStart(2,'0')}</span><span class="wm-current-tag" aria-hidden="true">현재</span><span class="wm-chapter-boss" title="보스 · ${esc(G.BOSSES?.[i]||'지역의 수호자')}"><span class="wm-boss-fallback" aria-hidden="true">${markerIcon(i)}</span><canvas class="wm-boss-art" width="160" height="144" aria-hidden="true"></canvas><span class="wm-boss-label" aria-hidden="true">BOSS</span></span><span class="wm-chapter-caption"><span class="wm-chapter-name">${esc(name)}</span><span class="wm-chapter-stars" aria-hidden="true">${'<i></i>'.repeat(5)}</span><span class="wm-chapter-progress"></span><span class="wm-chapter-state">${LOCK}<span>미개방</span></span></span></button>`).join('')}</div><div class="wm-map-legend"><span>← <span class="wm-swipe-copy">지역을 좌우로 넘겨보세요</span> →</span><span class="wm-total"></span></div></div><aside class="wm-detail" aria-label="선택한 지역"><div class="wm-selection-summary"><div class="wm-detail-heading"><small class="wm-region-number"></small><h3 class="wm-region-title"></h3></div><div class="wm-stage-info"><b class="wm-stage-title"></b><span class="wm-stage-state"></span></div><span class="wm-reward"></span></div><div class="wm-route-box"><div class="wm-route" role="group" aria-label="구역의 다섯 지역"></div><p class="wm-stage-note"></p><p class="wm-chapter-tip"></p></div><div class="wm-action-box"><div class="wm-map-actions"><button id="map-start" type="button" class="wm-start" data-map-start>도전 시작</button><button id="map-farm" type="button" class="wm-farm" data-map-farm>반복 사냥</button></div><p class="wm-mode-note">도전: 다음 지역으로 · 반복: 이 지역에서</p></div><p class="wm-block-reason" role="status" hidden></p></aside></div></section>`;
     const q=selector=>container.querySelector(selector),track=q('.wm-campus');
     if(options.onRecommend){const button=document.createElement('button');button.type='button';button.className='wm-jump wm-recommend';button.dataset.mapRecommend='';button.textContent='파밍 추천';button.title='현재 편성의 안정적인 골드 획득 지역 계산';q('.wm-toolbar>div').prepend(button);}
     const labels=Array.from(container.querySelectorAll('[data-map-chapter]'));
@@ -57,19 +59,21 @@ window.SchoolWorldMap = (() => {
     function unlock() { return Math.min(G.MAX_STAGE, Math.max(0,Number(state.best)||0)+1); }
     function paint(force=false) {
       if (destroyed) return;
-      const why=reason(), key=[state.best,state.stage,state.mode,selectedChapter,selectedStage,why,sending,lastError].join('|');
+      const why=reason(), key=[state.best,state.stage,state.mode,difficulty,selectedChapter,selectedStage,why,sending,lastError].join('|');
       if(!force&&signature===key)return;signature=key;
       const best=clamp(Number(state.best)||0,0,G.MAX_STAGE),opened=unlock(),first=selectedChapter*5+1,last=Math.min(first+4,G.MAX_STAGE), locked=selectedStage>opened;
+      container.querySelectorAll('[data-map-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mapMode===difficulty)));
       labels.forEach((button,i)=>{
+        button.hidden=difficulty==='hard'?i<20:i>=20;
         const start=i*5+1,end=Math.min(start+4,G.MAX_STAGE),canOpen=start<=opened,cleared=best>=end,current=Math.floor(((Number(state.stage)||1)-1)/5)===i,count=clamp(best-start+1,0,end-start+1);
         button.classList.toggle('selected',i===selectedChapter);button.classList.toggle('locked',!canOpen);button.classList.toggle('cleared',cleared);button.classList.toggle('current',current);
         button.setAttribute('aria-pressed',String(i===selectedChapter));
-        button.setAttribute('aria-label',`${i+1}구역 ${G.CHAPTERS[i]} · 클리어 ${count}/5 · ${cleared?'돌파':canOpen?'도전 가능':'미개방'}${current?' · 현재 지역':''}`);
+        button.setAttribute('aria-label',`${chapterLabel(i)} ${G.CHAPTERS[i]} · 클리어 ${count}/5 · ${cleared?'돌파':canOpen?'도전 가능':'미개방'}${current?' · 현재 지역':''}`);
         button.querySelector('.wm-chapter-progress').textContent=`클리어 ${count} / 5`;
         button.querySelectorAll('.wm-chapter-stars i').forEach((star,n)=>star.classList.toggle('earned',n<count));
       });
       q('.wm-total').textContent=`전체 ${best} / ${G.MAX_STAGE}`;
-      q('.wm-region-number').textContent=`CHAPTER ${String(selectedChapter+1).padStart(2,'0')}`;
+      q('.wm-region-number').textContent=`${selectedChapter>=20?'HARD':'CHAPTER'} ${String(selectedChapter>=20?selectedChapter-19:selectedChapter+1).padStart(2,'0')}`;
       q('.wm-region-title').textContent=G.CHAPTERS[selectedChapter];
       const route=q('.wm-route'),routeKey=[selectedChapter,best,state.stage,selectedStage].join('|');
       if(route.dataset.key!==routeKey){
@@ -97,7 +101,7 @@ window.SchoolWorldMap = (() => {
       q('[data-map-next]').disabled=sending;q('[data-map-current]').disabled=sending;
       if(q('[data-map-recommend]'))q('[data-map-recommend]').disabled=!!why||sending;
     }
-    function chooseStage(n,center=false){lastError='';selectedStage=clamp(n,1,G.MAX_STAGE);selectedChapter=Math.floor((selectedStage-1)/5);paint();if(center)centerSelection();}
+    function chooseStage(n,center=false){lastError='';selectedStage=clamp(n,1,G.MAX_STAGE);selectedChapter=Math.floor((selectedStage-1)/5);difficulty=selectedChapter>=20?'hard':'normal';paint();if(center)centerSelection();}
     async function start(mode) {
       if(destroyed||sending||reason()||selectedStage>unlock())return;
       lastError='';sending=true;paint();
@@ -107,7 +111,8 @@ window.SchoolWorldMap = (() => {
     }
     function click(event){
       const button=event.target.closest('button');if(!button||!container.contains(button)||destroyed||button.disabled)return;
-      if(button.dataset.mapChapter!==undefined){lastError='';selectedChapter=clamp(Number(button.dataset.mapChapter),0,chapterCount-1);const first=selectedChapter*5+1,last=Math.min(first+4,G.MAX_STAGE);selectedStage=clamp(unlock(),first,last);paint();}
+      if(button.dataset.mapMode){difficulty=button.dataset.mapMode;chooseStage(difficulty==='hard'?Math.max(101,Math.min(125,unlock())):Math.min(100,unlock()),true);}
+      else if(button.dataset.mapChapter!==undefined){lastError='';selectedChapter=clamp(Number(button.dataset.mapChapter),0,chapterCount-1);const first=selectedChapter*5+1,last=Math.min(first+4,G.MAX_STAGE);selectedStage=clamp(unlock(),first,last);paint();}
       else if(button.dataset.mapStage!==undefined)chooseStage(Number(button.dataset.mapStage));
       else if(button.hasAttribute('data-map-current'))chooseStage(Number(state.stage)||1,true);
       else if(button.hasAttribute('data-map-next'))chooseStage(unlock(),true);

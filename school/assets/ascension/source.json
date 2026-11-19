@@ -1,0 +1,15 @@
+{
+  "revision": "ascension1",
+  "format": "webp",
+  "width": 1024,
+  "height": 512,
+  "quality": 86,
+  "generatedOriginalsPreserved": true,
+  "backgrounds": [
+    { "chapter": 16, "name": "침몰한 수족관", "file": "abyss.webp", "source": "/workspace/generated_images/exec-cb81a39c-8b82-46c1-93cc-7f018f31aa70.png", "panel": 0, "panels": 3 },
+    { "chapter": 17, "name": "붉은 온실", "file": "rose.webp", "source": "/workspace/generated_images/exec-cb81a39c-8b82-46c1-93cc-7f018f31aa70.png", "panel": 1, "panels": 3 },
+    { "chapter": 18, "name": "유리 강당", "file": "crystal.webp", "source": "/workspace/generated_images/exec-cb81a39c-8b82-46c1-93cc-7f018f31aa70.png", "panel": 2, "panels": 3 },
+    { "chapter": 19, "name": "잿빛 학생회실", "file": "council.webp", "source": "/workspace/generated_images/exec-50a65b76-dd07-42c5-af95-8cad0da3a8f1.png", "panel": 0, "panels": 2 },
+    { "chapter": 20, "name": "균열의 졸업식장", "file": "rift.webp", "source": "/workspace/generated_images/exec-50a65b76-dd07-42c5-af95-8cad0da3a8f1.png", "panel": 1, "panels": 2 }
+  ]
+}
