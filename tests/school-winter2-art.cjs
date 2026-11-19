@@ -37,6 +37,7 @@ const document={hidden:false,createElement:()=>new Canvas()},window={SchoolRPG:G
 const sandbox={window,document,SchoolRPG:G,Image,Event,console,Uint8ClampedArray,Promise,
  setTimeout:f=>0,clearTimeout(){}};
 const load=file=>vm.runInNewContext(fs.readFileSync(file,'utf8'),sandbox,{filename:file});
+load('school/combat-feedback.js');window.SchoolCombatFeedback=sandbox.SchoolCombatFeedback;
 load('school/ryusion.js');load('school/expansion-art.js');load('school/battle-polish.js');load('school/art.js');sandbox.SchoolArt=window.SchoolArt;load('school/raid-vfx.js');
 const A=window.SchoolArt,canvas=new Canvas(),c=canvas.getContext('2d');
 const snapshot=(id,frame)=>{c.records.length=0;A.hero(c,id,200,200,2,frame);assert.equal(c.stack.length,0);return JSON.stringify(c.records);};
@@ -48,7 +49,8 @@ console.log('PASS all hero idle transforms animate with anchored feet; reduced/d
 // Load the real atlas paths only after the fallback path has been exercised.
 for(const image of images.filter(i=>/spica|battlefields/.test(i.src)))image.load();
 assert(A.assetsReady('spica'));assert(A.assetsReady('spica-portrait'));
-const atlas=JSON.parse(fs.readFileSync('school/assets/spica/atlas.json')),anchors=atlas.poses;
+const packed=JSON.parse(fs.readFileSync('school/assets/roster-remake/atlas.json')).sheets.spica;
+const atlas={nominalBodyHeight:packed.bodyHeight},anchors=packed.frames.map(()=>({anchorX:packed.foot[0],anchorY:packed.foot[1]}));
 for(let pose=0;pose<anchors.length;pose++){
  c.records.length=0;A.hero(c,'spica',0,0,1,{pose,reduced:true});
  const draw=c.records.find(r=>r[0]==='drawImage');assert(draw);
@@ -68,7 +70,7 @@ for(const stage of [1,16,31,41,60,61,66,71,75]){
   const before=JSON.stringify(s),events=[{kind:'spica-skill',from:'spica',stage:1,time:10,targets:s.team,enemies:s.battle.enemies.map(e=>e.id)}];
   A.draw(c,s,10.4,events,false);const drawn=allocated,g=gradients;
   for(let i=0;i<20;i++)A.draw(c,s,10.4,events,false);
-  assert.equal(allocated,drawn,'Scenery/pose reuse');assert.equal(gradients,g,'No per-frame depth gradients');assert.equal(c.stack.length,0);assert.equal(JSON.stringify(s),before,'Rendering never mutates a saved game');
+  assert.equal(allocated,drawn,'Scenery/pose reuse');assert.equal(gradients,g+20,'Only the active skill notice creates its one fade gradient; scenery stays cached');assert.equal(c.stack.length,0);assert.equal(JSON.stringify(s),before,'Rendering never mutates a saved game');
  }
 }
 console.log('PASS real painted/procedural stages, standard/wide layouts, Spica cast geometry; no steady-state scenery allocations or state mutation');

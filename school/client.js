@@ -1496,7 +1496,7 @@
     window.addEventListener('pagehide', () => { if(entry?.entered&&token)sync(true); });
     window.addEventListener('pageshow', () => { if(entry?.entered)sync(true); });
     window.addEventListener('online', () => sync(true));
-    window.addEventListener('school-art-ready', () => { lobby?.invalidate(); renderKey = partyKey = ''; render(); if (modalKind === 'hero' && ['osia','lava','horas','ryusion','spica'].includes(selectedHero)) heroDetail(selectedHero); });
+    window.addEventListener('school-art-ready', () => { lobby?.invalidate(); renderKey = partyKey = ''; render(); if (modalKind === 'hero' && selectedHero) heroDetail(selectedHero); });
     window.addEventListener('storage', e => { if (e.key === SESSION && !e.newValue) { expireSession();note('다른 창에서 로그아웃했어요. 다시 로그인해 주세요.');renderButtons(); } });
   }
   async function boot() {

@@ -1,7 +1,12 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-theme1',
+  version:'school-roster1',
   entries:Object.freeze([
+    {version:'school-roster1',date:'2026.11.20',title:'용병 도트 리메이크 · 전투 동작 개선',items:[
+      'R·SR 전원과 이안·루미·오시아·라바·스피카·류시온의 인게임 도트를 리메이크했습니다. 기존 호라스 계열의 비율·윤곽·채색에 맞추고 캐릭터별 의상과 무기를 살렸습니다.',
+      '기존 공통 모델을 사용하던 용병 13명에게 준비·공격·스킬 동작과 무기별 간단한 참격·수호·화살·마법·치유 효과를 추가했습니다.',
+      '로비·용병단·도감·모험·예티·길드전·아레나에서 같은 모델을 사용합니다. 기존 전용 스킬 연출과 전투 성능은 유지되며, 기절·빙결·사망 중에는 공격 동작이 멈춥니다.'
+    ]},
     {version:'school-theme1',date:'2026.11.20',title:'라이트·다크 모드 가독성 개선',items:[
       '두 화면 모드에서 단장 정보, 설정, 용병 육성, 장비·조각 교환의 글자색과 배경 대비를 개선했습니다.',
       '전투 통계·인연·스킨창의 제목과 닫기 버튼에 다른 테마의 색상이 섞이던 문제를 수정했습니다.',

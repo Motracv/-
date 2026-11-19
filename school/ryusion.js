@@ -3,7 +3,7 @@ window.SchoolRyusion = (() => {
   'use strict';
   const atlas=new Image(),portrait=new Image(),poses=new Map();let atlasLoaded=false,portraitLoaded=false;
   const load=(image,path,done)=>new Promise(resolve=>{const timer=setTimeout(()=>resolve(false),7000);image.onload=()=>{done();clearTimeout(timer);resolve(true);window.dispatchEvent(new Event('school-art-ready'));};image.onerror=()=>{clearTimeout(timer);resolve(false);};image.src=path;});
-  const ready=Promise.all([load(atlas,'school/assets/ryusion/combat.png?v=ryusion1',()=>{atlasLoaded=true;poses.clear();}),load(portrait,'school/assets/ryusion/portrait.png?v=ryusion1',()=>{portraitLoaded=true;})]);
+  const ready=Promise.all([load(atlas,'school/assets/roster-remake/ryusion.webp?v=roster1',()=>{atlasLoaded=true;poses.clear();}),load(portrait,'school/assets/ryusion/portrait.png?v=ryusion1',()=>{portraitLoaded=true;})]);
   const clamp=n=>Math.max(0,Math.min(1,n)),ease=n=>{n=clamp(n);return n*n*(3-2*n);};
   function motion(stage,age,reduced=false){
     const a=Math.max(0,age);let pose,dx=0,dy=0;

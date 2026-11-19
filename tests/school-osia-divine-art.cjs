@@ -36,6 +36,7 @@ const document={hidden:false,createElement:()=>new Canvas()},window={SchoolRPG:G
 const sandbox={window,document,SchoolRPG:G,Image,Event,console,Uint8ClampedArray,Promise,
  setTimeout:f=>0,clearTimeout(){}};
 const load=file=>vm.runInNewContext(fs.readFileSync(file,'utf8'),sandbox,{filename:file});
+load('school/combat-feedback.js');window.SchoolCombatFeedback=sandbox.SchoolCombatFeedback;
 load('school/osia-breath-art.js');load('school/osia-weapon-art.js');load('school/battle-polish.js');load('school/art.js');sandbox.SchoolArt=window.SchoolArt;load('school/raid-vfx.js');
 const W=window.SchoolOsiaWeaponArt,A=window.SchoolArt,canvas=new Canvas(),c=canvas.getContext('2d');
 const ex={id:'osia_scepter'},owner={id:'osia',exclusive:ex};
@@ -128,7 +129,7 @@ console.log('PASS arena owner gating, mirrored sides, reduced motion, single are
 
 // Effects must leave the clean sprite visible when an attack ends or control
 // is lost, including a mirrored opponent with a previously selected pose.
-images.find(i=>i.src.includes('osia-sprites.png')).load();
+images.find(i=>i.src.includes('roster-remake/osia.webp')).load();
 for(let pose=0;pose<6;pose++)shot('osia',{pose,reduced:true});
 const palm={pose:1,reduced:true},cleanPalm=shot('osia',palm);
 assert.notEqual(cleanPalm,shot('osia',{...palm,ready:true}),'Preparing magic adds a hand effect');

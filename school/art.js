@@ -3,14 +3,14 @@ window.SchoolArt = (() => {
   const portraits = new Map(), frontPortraits = new Map(), osiaPoses = new Map(), lavaPoses = new Map(), lavaSources = new Map(), combatLabels = new Map(), S = SchoolRPG;
   let lavaPosePixels = 0, combatLabelPixels = 0;
   const healthTrackers = new WeakMap();
-  window.addEventListener('school-art-ready',()=>{for(const id of ['ryusion','spica','kazua','hyeokjin']){portraits.delete(id);frontPortraits.delete(id);}});
+  window.addEventListener('school-art-ready',()=>{portraits.clear();frontPortraits.clear();});
   const spicaImage=new Image(),spicaPortraitImage=new Image(),spicaPoses=new Map();
-  const SPICA_FRAMES=[[0,0,444,444,242.04,426],[444,0,443,444,238.99,426],[887,0,443,444,221.88,426],[1330,0,444,444,226.52,426],[0,444,444,443,244.97,427],[444,444,443,443,232.72,428],[887,444,443,443,215.91,428],[1330,444,444,443,228.34,428]];
+  const SPICA_FRAMES=Array.from({length:8},(_,i)=>[i%4*384,Math.floor(i/4)*384,384,384,192,356]);
   let spicaLoaded=false,spicaPortraitLoaded=false;
   const spicaReady=Promise.all([[spicaImage,'combat-horas.webp'],[spicaPortraitImage,'portrait.webp']].map(([image,file])=>new Promise(resolve=>{
     const timer=setTimeout(()=>resolve(false),5000);
     image.onload=()=>{if(image===spicaImage){spicaLoaded=true;spicaPoses.clear();}else spicaPortraitLoaded=true;clearTimeout(timer);resolve(true);window.dispatchEvent(new Event('school-art-ready'));};
-    image.onerror=()=>{clearTimeout(timer);resolve(false);};image.src=`school/assets/spica/${file}?v=${image===spicaImage?'spica2':'spica1'}`;
+    image.onerror=()=>{clearTimeout(timer);resolve(false);};image.src=image===spicaImage?'school/assets/roster-remake/spica.webp?v=roster1':`school/assets/spica/${file}?v=spica1`;
   })));
   const osiaImage = new Image(), osiaFrontImage = new Image(), lavaImage = new Image();
   const osiaFrontSources = new Map();
@@ -34,7 +34,7 @@ window.SchoolArt = (() => {
   let lavaFanLoaded = false;
   const lavaFanReady = new Promise(resolve => {
     const timer = setTimeout(() => resolve(false), 5000);
-    lavaFanImage.onload = () => { lavaFanLoaded = true; clearTimeout(timer); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
+    lavaFanImage.onload = () => { lavaFanLoaded = true; lavaPoses.clear(); lavaPosePixels=0; clearTimeout(timer); resolve(true); window.dispatchEvent(new Event("school-art-ready")); };
     lavaFanImage.onerror = () => { clearTimeout(timer); resolve(false); };
   });
   // Horas sources are optional at boot and independently recover after a slow
@@ -65,11 +65,11 @@ window.SchoolArt = (() => {
   horasImage.src = 'school/assets/horas/combat.webp?v=horas1';
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
-  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready,window.SchoolHyeokjinArt?.ready,window.SchoolOsiaWeaponArt?.ready,window.SchoolOsiaBreathArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
-  osiaImage.src = "school/assets/osia-sprites.png?v=osia-look4";
+  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready,window.SchoolHyeokjinArt?.ready,window.SchoolOsiaWeaponArt?.ready,window.SchoolOsiaBreathArt?.ready,window.SchoolRosterArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
+  osiaImage.src = "school/assets/roster-remake/osia.webp?v=roster1";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-look1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
-  lavaFanImage.src = "school/assets/lava-fan-basic.webp?v=lava-fan1";
+  lavaFanImage.src = "school/assets/roster-remake/lava.webp?v=roster1";
   function rect(c, color, x, y, w, h) { c.fillStyle = color; c.fillRect(Math.round(x), Math.round(y), w, h); }
   // Fine details use a half-pixel art grid. They are drawn directly into the
   // display-sized canvas, rather than enlarging a 480px raster afterwards.
@@ -177,8 +177,10 @@ window.SchoolArt = (() => {
       const transform=c.getTransform(),density=Math.max(Math.hypot(transform.a,transform.b),Math.hypot(transform.c,transform.d)),resolution=density>4?6:density>2?4:2;
       const key=pose+":"+resolution;let sprite=osiaPoses.get(key);
       if(!sprite){sprite=document.createElement("canvas");sprite.width=sprite.height=44*resolution;const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.drawImage(osiaImage,(pose%3)*tile,Math.floor(pose/3)*tile,tile,tile,0,0,sprite.width,sprite.height);osiaPoses.set(key,sprite);}
+      c.save();c.translate(-1,-2.1);c.scale(1.1,1.1);
       if(Number.isFinite(frame.osiaBreathAge)&&frame.osiaBreathAge>=0&&window.SchoolOsiaBreathArt&&!frame.dead&&!frame.stunned&&!frame.frozen)window.SchoolOsiaBreathArt.caster(c,sprite,frame.osiaBreathAge,frame.reduced);
       else{c.drawImage(sprite,-21,-40,44,44);osiaHandMagic(c,pose,frame);}
+      c.restore();
     } else {
       // Small, right-facing fallback when the optional art file cannot load.
       c.translate(0, -7);
@@ -291,17 +293,17 @@ window.SchoolArt = (() => {
     // rendered frame, but identical pixel poses do not submit 70+ draw calls.
     const step=fanAttack?lavaFanPose(basicAge):poseReduced?0:kind==="idle"?Math.floor(((frame.time||0)%(Math.PI*2/1.8))/(Math.PI*2/1.8)*steps):Math.min(steps,Math.max(0,Math.floor(rawAge/duration*steps)));
     const key=fanAttack?`${resolution}:fan:${step}`:`${resolution}:${kind}:${step}:${+!!frame.blink}:${+poseReduced}`;
-    const width=fanAttack?48:72,height=fanAttack?54:64,anchorX=fanAttack?24:32,anchorY=fanAttack?48:52;
+    const width=72,height=64,anchorX=32,anchorY=52;
     let sprite=lavaPoses.get(key);
     if(!sprite){
       sprite=document.createElement("canvas");sprite.width=width*resolution;sprite.height=height*resolution;
       const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.scale(resolution,resolution);sc.translate(anchorX,anchorY);
       const age=step/steps*duration,poseTime=kind==="idle"?step/steps*Math.PI*2/1.8:age;
-      if(fanAttack){
-        // The original neutral body's 290 source pixels map to 44 logical
-        // pixels. Align the planted shoe, not the changing fan/body bounds.
-        const unit=44/290;
-        sc.drawImage(lavaFanImage,(step%5)*288,Math.floor(step/5)*320,288,320,6.65-190*unit,3-308*unit,288*unit,320*unit);
+      if(lavaFanLoaded){
+        // All states share the approved model, including idle and healing.
+        // Keep the existing wind-up/release timing and continuous lean.
+        const unit=44/340,pose=frame.dead||frame.stunned||frame.frozen?0:fanAttack?step:kind==='idle'?0:poseReduced?5:[1,2,3,4,5,6,7,8,9][Math.min(8,Math.floor(step/steps*9))];
+        sc.drawImage(lavaFanImage,(pose%5)*384,Math.floor(pose/5)*384,384,384,-192*unit,-356*unit,384*unit,384*unit);
       }else lavaFigure(sc,poseTime,{...frame,motion:frame.motion?{...frame.motion,age}:undefined,attackAge:kind==="idle"?undefined:age},false);
       while(lavaPoses.size&&lavaPosePixels+sprite.width*sprite.height>3*1024*1024){const oldest=lavaPoses.keys().next().value,old=lavaPoses.get(oldest);lavaPosePixels-=old.width*old.height;lavaPoses.delete(oldest);}
       lavaPoses.set(key,sprite);lavaPosePixels+=sprite.width*sprite.height;
@@ -649,7 +651,7 @@ window.SchoolArt = (() => {
       let source=spicaPoses.get(key);if(!source){source=document.createElement('canvas');source.width=64*res;source.height=Math.round(source.width*cell[3]/cell[2]);const sc=source.getContext('2d');sc.imageSmoothingEnabled=false;sc.drawImage(spicaImage,cell[0],cell[1],cell[2],cell[3],0,0,source.width,source.height);spicaPoses.set(key,source);}
       // Poses were drawn with different hand extensions. Align measured feet,
       // not cell centers, so switching between haste and slow never teleports.
-      const unit=46/413;
+      const unit=46/340;
       c.drawImage(source,-cell[4]*unit,-cell[5]*unit,cell[2]*unit,cell[3]*unit);
     }else{
       // Right-facing, deliberately modest pixel fallback matching the supplied
@@ -675,6 +677,7 @@ window.SchoolArt = (() => {
     try{drawHero(c,id,x,y,scale,frame);}finally{if(breath)c.restore();}
   }
   function drawHero(c, id, x, y, scale = 2, frame = {}) {
+    if(window.SchoolRosterArt?.draw(c,id,x,y,scale,frame))return;
     // Animated actors must receive the live frame, never the generic idle sprite cache.
     if (id === "osia" || id === "lava" || id === "horas" || id === "ryusion" || id==='spica' || id==='kazua' || id==='hyeokjin') { heroShape(c, id, x, y, scale, frame); return; }
     const transform = c.getTransform(), density = Math.max(Math.hypot(transform.a, transform.b), Math.hypot(transform.c, transform.d)) * scale;
@@ -771,24 +774,19 @@ window.SchoolArt = (() => {
     if (h.weapon === "sword") { detail(c, "#fff9df", 11 + reach, -25, .5, 14); detail(c, "#b48c53", 10 + reach, -4, 3, .5); }
     c.restore();
   }
-  const rosterPortraits = new Map();
-  function rosterPortrait(id,skin) {
+  function rosterPortrait(id,skin) { return portrait(id,skin); }
+  function portrait(id,skin) {
     if(id==='horas'&&window.SchoolHorasSkinArt?.active(skin))return window.SchoolHorasSkinArt.portrait();
-    const source = portrait(id), cached = rosterPortraits.get(id);
-    if (cached?.source === source) return cached.url;
+    if(portraits.has(id))return portraits.get(id);
+    // One framed image shared by the codex, combat cards and formation UI.
+    // Measure the body and weapon together so no head or shield is clipped.
     const raw=document.createElement("canvas");raw.width=256;raw.height=320;
     const c=raw.getContext("2d");c.imageSmoothingEnabled=false;hero(c,id,128,285,3,{time:0,reduced:true});
     const pixels=c.getImageData(0,0,256,320).data;let left=256,right=-1,top=320,bottom=-1;
     for(let y=0;y<320;y++)for(let x=0;x<256;x++)if(pixels[(y*256+x)*4+3]>20){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
     const canvas=document.createElement("canvas");canvas.width=160;canvas.height=192;const out=canvas.getContext("2d");out.imageSmoothingEnabled=false;
     if(right>=left){const w=right-left+1,h=bottom-top+1,k=Math.min(140/w,172/h),dw=Math.round(w*k),dh=Math.round(h*k);out.drawImage(raw,left,top,w,h,Math.round((160-dw)/2),180-dh,dw,dh);}
-    const url=canvas.toDataURL();rosterPortraits.set(id,{source,url});return url;
-  }
-  function portrait(id,skin) {
-    if(id==='horas'&&window.SchoolHorasSkinArt?.active(skin))return window.SchoolHorasSkinArt.portrait();
-    if (!portraits.has(id)) { const canvas = document.createElement("canvas"); canvas.width = 160; canvas.height = 192;
-      const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; c.scale(2, 2); hero(c, id, id === "lava" ? (lavaLoaded ? 40 : 30) : 36, 86, 2); portraits.set(id, canvas.toDataURL()); }
-    return portraits.get(id);
+    const url=canvas.toDataURL();portraits.set(id,url);return url;
   }
   function towerBoss(c, theme, time, reduced) {
     const pulse=reduced?0:Math.sin(time*2)*2;
@@ -1883,7 +1881,7 @@ window.SchoolArt = (() => {
       if (event.kind === "hit") { actor(event.to).incoming = event; actor(event.from).outgoing = event; }
       if (event.kind === 'osia-drowning' && age < .7) actor('osia').spear = event;
       if (event.kind === 'heal'||event.kind === 'enemy-heal') actor(event.to).heal=event;
-      if (event.kind === "skill" && age < .8) actor(event.from).casting = true;
+      if (event.kind === "skill" && age < 1.1) {actor(event.from).casting = true;actor(event.from).skill=event;}
       if (event.kind === "skill-stage" && event.from === "osia" && age < (event.breath ? 4.75 : event.stage === 4 ? 1.8 : 1.1)) actor("osia").combo = event;
       if(event.kind==="ryusion-skill"&&age<1.4)actor("ryusion").combo=event;
       if(event.kind==="ryusion-impact"&&age<.7)actor(event.to).earthImpact=event;
@@ -1931,7 +1929,7 @@ window.SchoolArt = (() => {
       const scale = extendedParty ? 1.3 : 1.8, moveX = (motion ? motion.dx : ["lava","horas","kazua","hyeokjin"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
-        time:sceneTime, skin:item.skin, exclusive:item.exclusive, osiaBreathAge:combo?.breath?castAge:undefined, osiaSpearAge:visual.spear?time-visual.spear.time:-1, kazuaActive:battle.phase==='fight', ...(item.id==='kazua'?gunVisual.frame:{}),...hyeokjinFrame(item,battle.elapsed+horasInterpolation*1000),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
+        time:sceneTime, castAge:visual.skill?time-visual.skill.time:undefined, skin:item.skin, exclusive:item.exclusive, osiaBreathAge:combo?.breath?castAge:undefined, osiaSpearAge:visual.spear?time-visual.spear.time:-1, kazuaActive:battle.phase==='fight', ...(item.id==='kazua'?gunVisual.frame:{}),...hyeokjinFrame(item,battle.elapsed+horasInterpolation*1000),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
         horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
         horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasImpact ? 1.5+time-visual.horasImpact.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
@@ -2057,5 +2055,5 @@ window.SchoolArt = (() => {
     osiaCinematic(c, state, time, effects, reduced);
     }
   }
-  return { horasCoopEffects,hyeokjinFrame,kazuaFrame,kazuaCampaignVisual, combatNumber, hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='kazua'?!!window.SchoolKazuaArt?.assetsReady():id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { horasCoopEffects,hyeokjinFrame,kazuaFrame,kazuaCampaignVisual, combatNumber, hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => window.SchoolRosterArt?.has(id)?window.SchoolRosterArt.assetsReady(id):id==='kazua'?!!window.SchoolKazuaArt?.assetsReady():id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaFanLoaded||lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

@@ -1,14 +1,15 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-theme1';
+const RELEASE = 'school-roster1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
 const url = path => new URL(path, base).href;
 const shell = url('school.html');
 const required = [
+  ...['students-a','students-b','students-c','osia','ryusion','spica','lava'].map(p=>`school/assets/roster-remake/${p}.webp?v=roster1`),
   'school.html', 'school.webmanifest', 'school/assets/lobby/courtyard-winter.webp?v=winter-polish1',
-  ...['theme-readability.css','entry.js','piyu-guide.js','afk.js','piyu.css','ascension-art.js','battle-pass.js','tower-auto.js','growth.css','horas-skin-art.js','skins.js','skins.css','hyeokjin-art.js','hyeokjin.css','bond-stories.js','osia-breath-art.js','battle-polish.js','winter-polish.css','engine.js','weekend-event.js','weekend-event.css','osia-weapon-art.js','kazua-art.js','kazua.css','ryusion.js','combat-feedback.js','expansion-art.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css','guild.js','guild.css','raid.js','raid.css','raid-engine.js','raid-vfx.js','yeti-engine.js','rescue.js','yeti.js','yeti.css','winter2.css','refinement.css','dungeon-portal.js','dungeon-portal.css','insights.js','insights.css','formation.js','formation.css','coop.js','coop.css','notice.js','notice.css'].map(p => `school/${p}?v=${RELEASE}`),
+  ...['roster-art.js','theme-readability.css','entry.js','piyu-guide.js','afk.js','piyu.css','ascension-art.js','battle-pass.js','tower-auto.js','growth.css','horas-skin-art.js','skins.js','skins.css','hyeokjin-art.js','hyeokjin.css','bond-stories.js','osia-breath-art.js','battle-polish.js','winter-polish.css','engine.js','weekend-event.js','weekend-event.css','osia-weapon-art.js','kazua-art.js','kazua.css','ryusion.js','combat-feedback.js','expansion-art.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css','guild.js','guild.css','raid.js','raid.css','raid-engine.js','raid-vfx.js','yeti-engine.js','rescue.js','yeti.js','yeti.css','winter2.css','refinement.css','dungeon-portal.js','dungeon-portal.css','insights.js','insights.css','formation.js','formation.css','coop.js','coop.css','notice.js','notice.css'].map(p => `school/${p}?v=${RELEASE}`),
   ...['combat.webp','portrait.webp','pickup.webp'].map(p => `school/assets/kazua/${p}?v=kazua1`),
   'school/assets/horas-after-school/combat.webp?v=horas-skin1',
   ...['illustration','profile','cutin-illustration','bond-classroom','bond-rooftop','bond-skill'].map(p=>`school/assets/horas-after-school/${p}.webp?v=horas-illust1`),
@@ -23,8 +24,7 @@ const required = [
   ...['osia','ian','lumi','lava','ryusion','kazua','spica','horas','hyeokjin'].flatMap(id => ['illustration','profile'].map(kind => `school/assets/bonds/${id}-${kind}.webp?v=bond-art1`)),
   'school/assets/piyu/motions.png?v=piyu1','school/assets/piyu/illustration.png?v=piyu1',
   'assets/fonts/Galmuri11.woff2', 'assets/fonts/PretendardVariable.woff2',
-  'school/assets/osia-sprites.png?v=osia-look4', 'school/assets/lava.png?v=lava1',
-  'school/assets/lava-fan-basic.webp?v=lava-fan1', 'school/assets/osia-front.webp?v=osia-look1',
+  'school/assets/lava.png?v=lava1', 'school/assets/osia-front.webp?v=osia-look1',
   ...['courtyard', 'icon-recruit', 'icon-supplies', 'icon-codex', 'icon-arena', 'icon-dungeon', 'icon-adventure', 'icon-quests', 'icon-ranking', 'icon-winter', 'icon-help'].map(p => `school/assets/lobby/${p}.webp?v=lobby1`),
   ...Array.from({length:12}, (_, i) => `school/assets/adventure/region-${String(i + 1).padStart(2, '0')}.webp?v=adventure1`),
   ...['classroom','garden','snow'].map(p => `school/assets/battlefields/${p}.webp?v=battlefield1`),
@@ -34,9 +34,9 @@ const required = [
   ...['classroom','avatars','crests'].map(id => `school/assets/guild/${id}.png?v=guild1`),
   ...['gymnasium','balloon-poses'].map(id => `school/assets/raid/${id}.png?v=raid1`),
   ...['plant','bookshelf','trophy','rug-teal','rug-wine','rug-blue'].map(id => `school/assets/guild/decor/${id}.svg?v=guild2`),
-  'school/assets/ryusion/portrait.png?v=ryusion1', 'school/assets/ryusion/combat.png?v=ryusion1',
+  'school/assets/ryusion/portrait.png?v=ryusion1',
   ...['ryusion','osia','lava'].map(id => `school/assets/recruit/${id}.webp?v=pickup-pixel1`),
-  'school/assets/spica/portrait.webp?v=spica1', 'school/assets/spica/combat-horas.webp?v=spica2',
+  'school/assets/spica/portrait.webp?v=spica1',
   'school/assets/recruit/osia-lava.webp?v=osia-look1',
   'school/assets/profile/rank-first.webp?v=rank-profile1',
   'school/assets/profile/rank-first-2.webp?v=rank-profile2',
