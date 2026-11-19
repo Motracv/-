@@ -10,15 +10,15 @@
 <body><main>
 <div class="tag">ANIMATION CONCEPT</div>
 <h1>오시아 · 물 브레스</h1>
-<p>뒤로 물러나 숨을 모은 뒤, 물 브레스를 쏟아내는 궁극기 시안.</p>
-<video id="clip" controls playsinline muted loop preload="metadata" poster="poster.png" aria-label="오시아 물 브레스 애니메이션"><source src="video.mp4" type="video/mp4">아래의 GIF 보기 또는 영상 다운로드를 이용해 주세요.</video>
+<p>소환진 → 물기둥 속 신수 등장 → 후퇴·흡기 → 물 브레스.</p>
+<video id="clip" controls playsinline muted loop preload="metadata" poster="poster.png?v=summon2" aria-label="오시아 물 브레스 애니메이션"><source src="video.mp4?v=summon2" type="video/mp4">아래의 GIF 보기 또는 영상 다운로드를 이용해 주세요.</video>
 <div class="actions"><button id="play" type="button">▶ 영상 재생</button><button type="button" data-speed="1" aria-pressed="true">일반 속도</button><button type="button" data-speed="0.5" aria-pressed="false">0.5배속</button></div>
-<p id="status" aria-live="polite">재생 버튼을 눌러 주세요. 약 6.5초 영상이 반복됩니다.</p>
-<div class="fallback"><p class="note">영상 재생이 안 되면 GIF로 보거나 파일을 다운로드해 주세요.</p><div class="actions"><a href="preview.gif">움직이는 GIF 보기</a><a href="video.mp4" download="osia-water-breath.mp4">영상 다운로드</a></div></div>
+<p id="status" aria-live="polite">재생 버튼을 눌러 주세요. 약 8.9초 영상이 반복됩니다.</p>
+<div class="fallback"><p class="note">영상 재생이 안 되면 GIF로 보거나 파일을 다운로드해 주세요.</p><div class="actions"><a href="preview.gif?v=summon2">움직이는 GIF 보기</a><a href="video.mp4?v=summon2" download="osia-water-breath.mp4">영상 다운로드</a></div></div>
 </main>
 <script>
 const clip=document.querySelector('#clip'),play=document.querySelector('#play'),status=document.querySelector('#status');
-async function start(){try{await clip.play();status.textContent='재생 중 · 용의 후퇴 → 흡기 → 물 브레스 → 물보라';}catch{status.textContent='영상 안의 재생 버튼을 누르거나, 아래 GIF 보기를 이용해 주세요.';}}
+async function start(){try{await clip.play();status.textContent='재생 중 · 소환진 → 신수 등장 → 후퇴·흡기 → 물 브레스';}catch{status.textContent='영상 안의 재생 버튼을 누르거나, 아래 GIF 보기를 이용해 주세요.';}}
 play.addEventListener('click',()=>clip.paused?start():clip.pause());
 clip.addEventListener('play',()=>play.textContent='Ⅱ 일시정지');
 clip.addEventListener('pause',()=>{play.textContent='▶ 영상 재생';status.textContent='일시정지 · 다시 재생할 수 있어요.';});
