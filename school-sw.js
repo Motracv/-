@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-bonds2';
+const RELEASE = 'school-bond-art1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -16,6 +16,7 @@ const required = [
   'school/assets/osia/divine-dragon-motion.webp?v=osia-motion1',
   'school/assets/battlefields/chapters-13-15.webp?v=expansion1',
   'school/assets/lobby/shop-shards.webp', 'school/assets/bonds/osia-memory.webp',
+  ...['osia','ian','lumi','lava','ryusion','kazua','spica','horas'].flatMap(id => ['illustration','profile'].map(kind => `school/assets/bonds/${id}-${kind}.webp?v=bond-art1`)),
   'assets/fonts/Galmuri11.woff2', 'assets/fonts/PretendardVariable.woff2',
   'school/assets/osia-sprites.png?v=osia-look4', 'school/assets/lava.png?v=lava1',
   'school/assets/lava-fan-basic.webp?v=lava-fan1', 'school/assets/osia-front.webp?v=osia-look1',

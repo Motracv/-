@@ -1,7 +1,8 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-bonds2',
+  version:'school-bond-art1',
   entries:Object.freeze([
+    {version:'school-bond-art1',date:'2026.11.19',title:'인연 속 여덟 동료',items:['오시아·이안·루미·라바·류시온·카즈아·스피카·호라스의 인연 일러스트 8장과 전용 프로필 8장을 추가했습니다.','인연기록·용병육성·프로필 선택에서 새 그림을 확인할 수 있습니다. 인연 프로필은 각 캐릭터의 2화를 완료하면 사용할 수 있고, 이미 해금한 프로필에도 새 그림이 적용됩니다.']},
     {version:'school-bonds2',date:'2026.11.19',title:'동료들의 인연 기록',items:['보유한 류시온·카즈아의 조각을 실험실에서 선택할 수 있습니다.','SSR·UR 8명에게 각각 4화의 인연 이야기와 프로필·칭호·로비 대사를 추가했습니다.','캐릭터 Lv.10부터 인연을 쌓고 하루 최대 60을 얻습니다. 2·3·4화는 용병 Lv.30·50·70에 열립니다. 이미 읽은 이야기와 해금 보상은 유지됩니다.','용병육성 화면을 정리하고 인연기록 아이콘을 추가했습니다.']},
     {version:'school-osia-breath1',date:'2026.11.19',title:'오시아 · 용의 신수 브레스',items:[
       '전용 무기를 장착한 오시아의 마지막 스킬에 소환진·신수 현현·후퇴·흡기·물 브레스 연출을 적용했어요.',
