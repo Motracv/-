@@ -2,13 +2,13 @@ window.SchoolCommunity=(()=>{
  'use strict';
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  function create(ctx){
-  let epoch=0,scope='',timer=null,busy=false,loading=false,tab='chat',postId=null,next=null,pending=null,muted=new Set(),fingerprint='';
+  let epoch=0,writeSerial=0,scope='',timer=null,busy=false,loading=false,tab='chat',postId=null,next=null,pending=null,muted=new Set(),fingerprint='';
   const root=()=>document.getElementById('community-view'),own=()=>scope===ctx.scope()&&root()?.closest('dialog')?.open;
   const storageKey=()=>`school-community:${scope}`;
   const message=(text,error=false)=>{const n=root()?.querySelector('#community-message');if(n){n.textContent=text;n.dataset.error=String(error);}};
   const api=data=>ctx.request('/api/school/community',data);
   const remember=()=>{try{sessionStorage.setItem(storageKey(),JSON.stringify(pending));}catch{}};
-  function stop(){epoch++;clearTimeout(timer);timer=null;busy=loading=false;}
+  function stop(){epoch++;writeSerial++;clearTimeout(timer);timer=null;busy=loading=false;}
   function schedule(){clearTimeout(timer);if(own()&&tab==='chat')timer=setTimeout(()=>{if(!document.hidden)loadChat();else schedule();},2500);}
   function date(t){return new Date(t).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});}
   function item(r,post=false){return `<article class="community-item ${r.mine?'mine':''}" data-entry="${r.id}"><header><b>${esc(r.name)}${r.mine?' · 나':''}</b><time datetime="${new Date(r.createdAt).toISOString()}">${date(r.createdAt)}</time><details><summary aria-label="글 메뉴">⋯</summary>${r.mine?`<button data-community-delete="${r.id}">삭제</button>`:`<button data-community-report="${r.id}">부적절한 내용 신고</button><button data-community-mute="${esc(r.author)}">이 작성자 숨기기</button>`}</details></header>${post?`<button class="community-post-link" data-community-post="${r.id}"><strong>${esc(r.title)}</strong><span>${esc(r.body.slice(0,100))}</span></button>`:`<p>${esc(r.body)}</p>`}</article>`;}
@@ -24,7 +24,7 @@ window.SchoolCommunity=(()=>{
     else if(b.id==='community-retry')mutate(pending,true);
    };
   }
-  function draw(){shell();const c=root()?.querySelector('#community-content');if(!c)return;fingerprint='';
+  function draw(){epoch++;clearTimeout(timer);loading=false;shell();const c=root()?.querySelector('#community-content');if(!c)return;fingerprint='';
    if(tab==='chat'){c.innerHTML='<div class="community-feed" id="community-feed" aria-label="전체 대화방"></div><small class="community-caption">전체 단장이 보는 대화 · 최근 50개 · 연결 중 자동 갱신</small><form id="community-compose" class="community-chat-form"><label class="sr-only" for="community-body">대화 내용</label><input id="community-body" maxlength="200" required autocomplete="off" placeholder="단장들과 이야기를 나눠 보세요"><button class="primary">보내기</button></form>';bindCompose('chat');loadChat();}
    else if(postId)drawPost();else{c.innerHTML='<div class="community-board-tools"><p>함께 남기는 학교 소식</p><button id="community-write" class="primary">글 쓰기</button></div><div id="community-feed" class="community-feed"></div><button id="community-more" class="secondary" hidden>이전 글 더 보기</button>';c.querySelector('#community-write').onclick=composePost;c.querySelector('#community-more').onclick=()=>loadPosts(true);loadPosts();}
   }
@@ -35,12 +35,12 @@ window.SchoolCommunity=(()=>{
     c.querySelector('#community-comments').insertAdjacentHTML('beforeend',data.comments.filter(r=>!muted.has(r.author)).map(r=>item(r)).join(''));next=data.next;c.querySelector('#community-comments-more').hidden=!next;
    }catch(e){if(t===epoch&&own()){c.innerHTML='<button id="community-back" class="secondary">← 목록</button>';c.querySelector('button').onclick=()=>{postId=null;draw();};message(e.message,true);}}
   }
-  function composePost(){const c=root().querySelector('#community-content');c.innerHTML='<form id="community-compose" class="community-post-form"><label for="community-title">제목</label><input id="community-title" required maxlength="60" placeholder="제목을 적어 주세요"><label for="community-body">내용</label><textarea id="community-body" required maxlength="2000" placeholder="2000글자까지 작성할 수 있어요"></textarea><div><button type="button" id="community-cancel" class="secondary">취소</button><button class="primary">글 등록</button></div></form>';c.querySelector('#community-cancel').onclick=draw;bindCompose('post');c.querySelector('input').focus();}
+  function composePost(){epoch++;clearTimeout(timer);loading=false;const c=root().querySelector('#community-content');c.innerHTML='<form id="community-compose" class="community-post-form"><label for="community-title">제목</label><input id="community-title" required maxlength="60" placeholder="제목을 적어 주세요"><label for="community-body">내용</label><textarea id="community-body" required maxlength="2000" placeholder="2000글자까지 작성할 수 있어요"></textarea><div><button type="button" id="community-cancel" class="secondary">취소</button><button class="primary">글 등록</button></div></form>';c.querySelector('#community-cancel').onclick=draw;bindCompose('post');c.querySelector('input').focus();}
   function bindCompose(type){root().querySelector('#community-compose').onsubmit=e=>{e.preventDefault();const body=root().querySelector('#community-body').value;if(!body.trim())return;mutate({kind:'publish',type,body,title:root().querySelector('#community-title')?.value,parentId:type==='comment'?postId:undefined});};}
-  async function mutate(input,retry=false){if(!own()||busy)return;if(pending&&!retry){message('이전 작성 결과를 먼저 확인해 주세요.',true);return;}const t=epoch,writeScope=scope,payload=retry?pending:{...input,requestId:crypto.randomUUID()};if(!payload)return;pending=payload;remember();busy=true;root().querySelectorAll('form button').forEach(b=>b.disabled=true);message('저장 중…');
+  async function mutate(input,retry=false){if(!own()||busy)return;if(pending&&!retry){message('이전 작성 결과를 먼저 확인해 주세요.',true);return;}const t=epoch,writeScope=scope,write=++writeSerial,payload=retry?pending:{...input,requestId:crypto.randomUUID()};if(!payload)return;pending=payload;remember();busy=true;root().querySelectorAll('form button').forEach(b=>b.disabled=true);message('저장 중…');
    try{const data=await api(payload);if(t!==epoch||!own())return;pending=null;remember();root().querySelector('#community-retry')?.remove();if(payload.kind==='report'){message('신고를 접수했어요.');return;}root().querySelector('#community-body')?.form?.reset();if(payload.type==='post'){postId=data.entryId;drawPost();}else if(postId)drawPost();else if(tab==='posts')loadPosts();else{fingerprint='';busy=false;loadChat();}}
    catch(e){if(t!==epoch||!own())return;if(e.status&&e.status<500){pending=null;remember();}else if(!root().querySelector('#community-retry'))root().insertAdjacentHTML('beforeend','<button id="community-retry" class="secondary">같은 요청 다시 확인</button>');message(e.message,true);}
-   finally{if(own()&&scope===writeScope){busy=false;root().querySelectorAll('form button').forEach(b=>b.disabled=false);schedule();}}
+   finally{if(write===writeSerial&&own()&&scope===writeScope){busy=false;root().querySelectorAll('form button').forEach(b=>b.disabled=false);schedule();}}
   }
   function open(){stop();if(!ctx.isCloud()){ctx.openAccount();return;}scope=ctx.scope();tab='chat';postId=null;pending=null;muted.clear();try{pending=JSON.parse(sessionStorage.getItem(storageKey())||'null');muted=new Set(JSON.parse(localStorage.getItem(storageKey()+':muted')||'[]'));}catch{}ctx.openModal('학교 게시판','<section id="community-view"></section>','community');draw();}
   return {open,stop};

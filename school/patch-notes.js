@@ -1,8 +1,8 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-overhaul1',
+  version:'school-overhaul2',
   entries:Object.freeze([
-    {version:'school-overhaul1',date:'2026.11.20',title:'교정과 전투 화면 대규모 개편',items:[
+    {version:'school-overhaul2',date:'2026.11.20',title:'교정과 전투 화면 대규모 개편',items:[
       '로비 용병을 확대하고 더 선명한 그림을 사용합니다. 용병 관리 메뉴는 왼쪽, 던전·모험은 오른쪽으로 정리했으며 보급은 왼쪽 위에서 이용합니다. 받을 보상이 있는 메뉴에는 빨간 느낌표가 표시됩니다.',
       '학교 건물을 누르면 길드 교실로 들어갑니다. 단장 Lv.10부터 길드 생성·가입이 가능하며, 기존 가입자는 레벨에 관계없이 계속 이용합니다.',
       '교정 게시판에 전체 대화방과 글·댓글을 추가했습니다. 내 글 삭제, 작성자 숨기기, 신고를 지원합니다.',
