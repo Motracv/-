@@ -1,7 +1,10 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-osia-look2',
+  version:'school-osia-look3',
   entries:Object.freeze([
+    {version:'school-osia-look3',date:'2026.11.19',title:'오시아 · 카툰 도트 스타일',items:[
+      '오시아 도트를 약 4.5등신 비율과 선명한 윤곽선의 카툰 스타일로 다듬었어요. 기존 의상과 대기·마법 모으기·손 뻗기 자세를 유지했어요.'
+    ]},
     {version:'school-osia-look2',date:'2026.11.19',title:'오시아 · 도트 인체 비율 조정',items:[
       '오시아의 머리 크기와 몸통·팔다리 비율을 다듬어 호라스처럼 성숙하고 자연스러운 실루엣으로 변경했어요. 기존 의상과 파란 단발, 각 자세의 발 위치는 유지했어요.'
     ]},

@@ -66,7 +66,7 @@ window.SchoolArt = (() => {
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
   const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready,window.SchoolOsiaWeaponArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
-  osiaImage.src = "school/assets/osia-sprites.png?v=osia-look2";
+  osiaImage.src = "school/assets/osia-sprites.png?v=osia-look3";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-look1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
   lavaFanImage.src = "school/assets/lava-fan-basic.webp?v=lava-fan1";
