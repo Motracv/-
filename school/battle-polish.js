@@ -18,14 +18,15 @@ window.SchoolBattlePolish=(()=>{
   const def=window.SchoolRPG.BY_ID[shot.id],color=({water:'#7eeaff',blossom:'#ffb6e8',ice:'#b1edff',earth:'#e5c676',wind:'#9fe5bd'})[def.element]||'#f0bc86';
   c.save();c.beginPath();c.rect(0,0,w,h);c.clip();
   const fade=clamp(shot.age/.075)*clamp((.72-shot.age)/.16);c.globalAlpha*=fade;
-  // A compact left-side notice keeps the battlefield and targets visible.
-  const unit=Math.min(w/480,h/280,1.6),x=8*unit,y=h*.16;
-  const panelW=156*unit,panelH=(reduced?42:56)*unit;
+  // A compact bottom-left notice keeps the battlefield and targets visible.
+  const unit=Math.min(w/480,h/280,1.6),x=8*unit;
+  const panelW=156*unit,panelH=(reduced?42:56)*unit,y=h-panelH-8*unit;
   c.fillStyle='#101b2de8';c.fillRect(x,y,panelW,panelH);
   c.fillStyle=color;c.fillRect(x,y,2*unit,panelH);
   if(!reduced){
-   // Fixed size: no full-screen dimming, camera push-in or oversized portrait.
-   window.SchoolArt.hero(c,shot.id,x+25*unit,y+50*unit,1*unit,{pose:2,casting:true,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
+   // Gently push in on the portrait only; the small panel stays anchored.
+   const zoom=1+.08*(1-Math.pow(1-clamp(shot.age/.3),3));
+   window.SchoolArt.hero(c,shot.id,x+25*unit,y+50*unit,zoom*unit,{pose:2,casting:true,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
   }
   const textX=x+(reduced?10:50)*unit,textY=y+(reduced?15:20)*unit,textW=panelW-(reduced?20:57)*unit;
   c.textAlign='left';c.fillStyle=color;c.font=`bold ${10*unit}px Galmuri, sans-serif`;c.fillText(def.name,textX,textY,textW);
