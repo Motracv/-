@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-osia-look3';
+const RELEASE = 'school-osia-look4';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -16,7 +16,7 @@ const required = [
   'school/assets/battlefields/chapters-13-15.webp?v=expansion1',
   'school/assets/lobby/shop-shards.webp', 'school/assets/bonds/osia-memory.webp',
   'assets/fonts/Galmuri11.woff2', 'assets/fonts/PretendardVariable.woff2',
-  'school/assets/osia-sprites.png?v=osia-look3', 'school/assets/lava.png?v=lava1',
+  'school/assets/osia-sprites.png?v=osia-look4', 'school/assets/lava.png?v=lava1',
   'school/assets/lava-fan-basic.webp?v=lava-fan1', 'school/assets/osia-front.webp?v=osia-look1',
   ...['courtyard', 'icon-recruit', 'icon-supplies', 'icon-codex', 'icon-arena', 'icon-dungeon', 'icon-adventure', 'icon-quests', 'icon-ranking', 'icon-winter', 'icon-help'].map(p => `school/assets/lobby/${p}.webp?v=lobby1`),
   ...Array.from({length:12}, (_, i) => `school/assets/adventure/region-${String(i + 1).padStart(2, '0')}.webp?v=adventure1`),

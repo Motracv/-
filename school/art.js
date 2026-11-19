@@ -66,7 +66,7 @@ window.SchoolArt = (() => {
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
   const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready,window.SchoolOsiaWeaponArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
-  osiaImage.src = "school/assets/osia-sprites.png?v=osia-look3";
+  osiaImage.src = "school/assets/osia-sprites.png?v=osia-look4";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-look1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
   lavaFanImage.src = "school/assets/lava-fan-basic.webp?v=lava-fan1";
@@ -137,6 +137,30 @@ window.SchoolArt = (() => {
     else { dy = -Math.sin(clamp01(age / 1.2) * Math.PI) * 18; dx = Math.sin(clamp01(age / 1.6) * Math.PI) * 11; lean = age < .5 ? .035 : -.09 * spring; stretch = 1.025; pose = age < .55 ? 1 : 2; }
     return {dx,dy,lean,stretch,cloth,pose,stage,age,reduced};
   }
+  // Hand magic is transient and separate from the atlas. It shares the actor's
+  // transform (including mirroring) and never covers the face or survives stun.
+  function osiaHandMagic(c, pose, frame) {
+    if(frame.dead||frame.frozen||frame.stunned)return;
+    const casting=!!frame.casting,age=casting?frame.motion?.age:frame.attackAge;
+    const basic=Number.isFinite(age)&&age>=0&&age<.32&&!casting;
+    if(!casting&&!basic&&!frame.attack&&!frame.ready)return;
+    if(pose!==1&&pose!==2)return;
+    const t=Number.isFinite(age)?Math.max(0,age):0;
+    const fade=pose===1?1:casting?1-clamp01((t-.4)/.35):1-clamp01(t/.32);
+    if(fade<=0)return;
+    const x=pose===1?4.7:14.5,y=pose===1?-25.2:-27;
+    const turn=frame.reduced?0:t*8,r=pose===1?1.8+clamp01(t/.35)*.6:1.9;
+    c.save();c.globalAlpha*=fade*.85;
+    // A short water ribbon wraps the palm, then the projectile carries it away.
+    c.strokeStyle='#5ccfe7';c.lineWidth=.65;c.beginPath();
+    c.ellipse(x,y,r+1.1,r*.55,-.25,turn,turn+Math.PI*1.35);c.stroke();
+    waterOrb(c,x,y,r);
+    if(!frame.reduced){
+      const a=turn+Math.PI;
+      detail(c,'#c5faff',x+Math.cos(a)*(r+1.4),y+Math.sin(a)*(r*.7),.65,.65);
+    }
+    c.restore();
+  }
   function osia(c, x, y, scale, frame) {
     window.SchoolOsiaWeaponArt?.spear(c,x,y,scale,frame);
     c.save(); c.translate(Math.round(x), Math.round(y)); c.scale(scale * (frame.flip ? -1 : 1), scale);
@@ -144,7 +168,8 @@ window.SchoolArt = (() => {
     rect(c, "#26333b35", -8, 1 + (frame.shadowY || 0), 17, 2);
     if (frame.motion) c.transform(1, 0, frame.motion.lean, frame.motion.stretch, 0, 0);
     if (osiaLoaded) {
-      const tile = osiaImage.naturalWidth / 3, pose = frame.pose ?? (frame.osiaSpearAge>=0&&frame.osiaSpearAge<.3?1:frame.attack || frame.casting ? 2 : frame.ready ? 1 : 0);
+      const basic=Number.isFinite(frame.attackAge)&&frame.attackAge>=0;
+      const tile = osiaImage.naturalWidth / 3, pose = frame.pose ?? (frame.osiaSpearAge>=0&&frame.osiaSpearAge<.3?1:frame.casting?2:basic?(frame.attackAge<.32?2:frame.attackAge<.6?5:frame.ready?1:0):frame.attack?2:frame.ready?1:0);
       // Six square cells (3 columns × 2 rows); first row is idle/gather/release.
       // All poses share foot anchors; portrait art is separate from combat.
       // Downsample each atlas cell once at the required display density; do
@@ -153,12 +178,14 @@ window.SchoolArt = (() => {
       const key=pose+":"+resolution;let sprite=osiaPoses.get(key);
       if(!sprite){sprite=document.createElement("canvas");sprite.width=sprite.height=44*resolution;const sc=sprite.getContext("2d");sc.imageSmoothingEnabled=false;sc.drawImage(osiaImage,(pose%3)*tile,Math.floor(pose/3)*tile,tile,tile,0,0,sprite.width,sprite.height);osiaPoses.set(key,sprite);}
       c.drawImage(sprite,-21,-40,44,44);
+      osiaHandMagic(c,pose,frame);
     } else {
       // Small, right-facing fallback when the optional art file cannot load.
       c.translate(0, -7);
       rect(c, "#293b5d", -8, -33, 15, 16); rect(c, "#6e91cd", -7, -32, 14, 13);
       rect(c, "#f3cda7", 1, -28, 7, 9); rect(c, "#f3cda7", 7, -25, 3, 3); rect(c, "#263851", 6, -27, 2, 3);
       rect(c, "#97b5e5", -5, -31, 12, 3); rect(c, "#5578ae", -8, -27, 5, 12); rect(c, "#e7a66f", -6, -35, 6, 5); rect(c, "#ffd499", -4, -37, 3, 6);
+      rect(c, "#f5df7f", -5, -22, 3, 6); rect(c, "#f5df7f", 7, -22, 2, 5);
       rect(c, "#252c3c", -4, -18, 11, 11); rect(c, "#f9f2e9", -3, -17, 10, 9); rect(c, "#56ad8c", 4, -16, 2, 4);
       rect(c, "#f3cda7", 7, -15, frame.attack ? 10 : 3, 4); rect(c, "#343543", -6, -9, 15, 8); rect(c, "#f4efea", -6, -5, 15, 1); rect(c, "#f4efea", -6, -3, 15, 1);
       rect(c, "#f8f3f1", -4, -1, 4, 5); rect(c, "#f8f3f1", 3, -1, 4, 5); rect(c, "#785039", -4, 3, 5, 7); rect(c, "#785039", 3, 3, 5, 7); rect(c, "#a5754c", -3, 3, 3, 5); rect(c, "#a5754c", 4, 3, 3, 5);
@@ -1339,15 +1366,34 @@ window.SchoolArt = (() => {
     dragon = null; window.SchoolOsiaWeaponArt?.reset();
   }
   function waterOrb(c, x, y, radius) {
-    const r = Math.round(radius);
-    rect(c,"#17649e",x-r,y-r+4,r*2,r*2-8); rect(c,"#17649e",x-r+4,y-r,r*2-8,r*2);
-    rect(c,"#259fd0",x-r+3,y-r+5,r*2-6,r*2-10); rect(c,"#63deee",x-r+6,y-r+3,r*2-12,r);
-    rect(c,"#d4ffff",x-r+7,y-r+6,Math.max(3,r/2),4); rect(c,"#a1f2f6",x+r-6,y,3,Math.max(3,r-6));
+    if(!Number.isFinite(radius)||radius<=0)return;
+    // Scale all facets with the orb: fixed-width blocks inverted at small sizes.
+    const r=radius;
+    c.save();c.translate(x,y);c.scale(r,r);
+    const facet=(color,s,dy)=>{
+      c.fillStyle=color;c.beginPath();c.moveTo(-s*.42,dy-s);
+      c.lineTo(s*.42,dy-s);c.lineTo(s,dy-s*.42);c.lineTo(s,dy+s*.42);
+      c.lineTo(s*.42,dy+s);c.lineTo(-s*.42,dy+s);c.lineTo(-s,dy+s*.42);
+      c.lineTo(-s,dy-s*.42);c.closePath();c.fill();
+    };
+    facet('#17679e',1,0);facet('#37b7db',.84,-.03);facet('#89eef5',.54,-.22);
+    c.fillStyle='#e9ffff';c.fillRect(-.4,-.62,.4,.2);c.fillRect(-.54,-.46,.18,.24);
+    c.fillStyle='#a9f6ff';c.fillRect(.47,.12,.17,.28);
+    c.restore();
   }
   function waterBurst(c, p, age, reduced, size = 1, economy = false) {
-    const spread = reduced ? 15 * size : (10 + age * 50) * size;
-    c.save(); c.globalAlpha *= Math.max(0, 1 - age / .65);
-    for(let i=0,n=economy?4:10;i<n;i++){const a=i*Math.PI*2/n;rect(c,i%2?"#bffbff":"#47cbe8",p.x+Math.cos(a)*spread,p.y-34+Math.sin(a)*spread*.7,4*size,6*size);}
+    if(age<0||age>=.65)return;
+    const progress=age/.65,spread=(reduced?15:7+progress*31)*size;
+    c.save(); c.globalAlpha *= (1-progress)*(1-progress);
+    c.strokeStyle='#a1f4fa';c.lineWidth=1.5*size;c.beginPath();
+    c.ellipse(p.x,p.y-34,spread,spread*.65,0,0,Math.PI*2);c.stroke();
+    for(let i=0,n=reduced?4:economy?6:9;i<n;i++){
+      const a=i*Math.PI*2/n,dx=Math.cos(a),dy=Math.sin(a),r=spread*(i%2?.85:1.15);
+      const x=p.x+dx*r,y=p.y-34+dy*r*.7+(reduced?0:progress*progress*12*size),length=(4-progress*2)*size,width=1.5*size;
+      c.fillStyle=i%2?'#cffaff':'#49c8e6';c.beginPath();c.moveTo(x+dx*length,y+dy*length);
+      c.lineTo(x-dy*width,y+dx*width);c.lineTo(x-dx*length*.6,y-dy*length*.6);
+      c.lineTo(x+dy*width,y-dx*width);c.closePath();c.fill();
+    }
     c.restore();
   }
   function waterDragon(c, source, targets, age, reduced, economy = false) {

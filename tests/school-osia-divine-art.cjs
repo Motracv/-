@@ -110,3 +110,26 @@ function arenaCase(rightWeapon,reduced){
 }
 arenaCase(false,false);arenaCase(true,true);
 console.log('PASS arena owner gating, mirrored sides, reduced motion, single area-cast dragon, spear frame and replay completion');
+
+// Effects must leave the clean sprite visible when an attack ends or control
+// is lost, including a mirrored opponent with a previously selected pose.
+images.find(i=>i.src.includes('osia-sprites.png')).load();
+for(let pose=0;pose<6;pose++)shot('osia',{pose,reduced:true});
+const palm={pose:1,reduced:true},cleanPalm=shot('osia',palm);
+assert.notEqual(cleanPalm,shot('osia',{...palm,ready:true}),'Preparing magic adds a hand effect');
+for(const state of ['frozen','stunned']){
+ assert.equal(shot('osia',{...palm,[state]:true}),shot('osia',{...palm,[state]:true,ready:true,casting:true,attack:true,attackAge:.12}),state+' hides stale hand magic');
+}
+const cleanIdle=shot('osia',{reduced:true});
+assert.equal(cleanIdle,shot('osia',{reduced:true,attackAge:2}),'Expired basic attack has no lingering effect');
+assert.equal(cleanIdle,shot('osia',{reduced:true,attack:true,attackAge:.7}),'Long raid attack flags cannot restart the release pose after recovery');
+assert.equal(cleanIdle,shot('osia',{reduced:true,attackAge:null}),'Absent attack age stays idle');
+assert.notEqual(shot('osia',{attackAge:.1}),shot('osia',{attackAge:.5}),'Release settles into a clean recovery pose');
+const warmHands={allocated,gradients};
+for(const flip of [false,true])for(const reduced of [false,true])for(let i=0;i<50;i++){
+ const frame={flip,reduced,pose:1,casting:true,motion:{age:i/100,lean:0,stretch:1}};
+ const before=JSON.stringify(frame),alpha=c.globalAlpha,transform=c.getTransform();
+ shot('osia',frame);assert.equal(JSON.stringify(frame),before);assert.equal(c.globalAlpha,alpha);assert.deepEqual(c.getTransform(),transform);
+}
+assert.deepEqual({allocated,gradients},warmHands,'Hand magic does not allocate textures or gradients each frame');
+console.log('PASS clean Osia hand effects, expiry, recovery, blocked actors, mirror/reduced mode and bounded allocation');

@@ -1,7 +1,11 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-osia-look3',
+  version:'school-osia-look4',
   entries:Object.freeze([
+    {version:'school-osia-look4',date:'2026.11.19',title:'오시아 · 표정과 물빛 연출',items:[
+      '원본 디자인의 눈매와 미소를 살리고, 파란 단발 안쪽의 노란 머리카락을 추가했어요. 4~5등신 카툰 도트 비율은 유지합니다.',
+      '그림에 붙어 있던 물방울을 분리해 손 주변의 물빛이 시전 동작에 맞춰 움직이고 사라지도록 다듬었어요. 물구슬과 명중 물보라도 정리했어요.'
+    ]},
     {version:'school-osia-look3',date:'2026.11.19',title:'오시아 · 카툰 도트 스타일',items:[
       '오시아 도트를 약 4.5등신 비율과 선명한 윤곽선의 카툰 스타일로 다듬었어요. 기존 의상과 대기·마법 모으기·손 뻗기 자세를 유지했어요.'
     ]},
