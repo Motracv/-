@@ -14,7 +14,7 @@ const breathStart={kind:'osia-breath',from:'osia',stage:4,breath:true,t:1000};
 assert.equal(P.latest([breathStart],1250).id,'osia');
 assert.equal(P.latest([breathStart,{kind:'skill',from:'osia',stage:4,breath:true,t:3000}],3250),null,'Each breath damage tick must not replay the ultimate closeup');
 const records=[],stack=[];
-const c=new Proxy({globalAlpha:1,save(){stack.push(this.globalAlpha);},restore(){assert(stack.length);this.globalAlpha=stack.pop();},measureText(t){return{width:t.length*6};}}, {get(t,k){return k in t?t[k]:(...args)=>{args.forEach(a=>{if(typeof a==='number')assert(Number.isFinite(a));});records.push([k,...args]);};}});
+const c=new Proxy({globalAlpha:1,createLinearGradient(){return{addColorStop(){}};},save(){stack.push(this.globalAlpha);},restore(){assert(stack.length);this.globalAlpha=stack.pop();},measureText(t){return{width:t.length*6};}}, {get(t,k){return k in t?t[k]:(...args)=>{args.forEach(a=>{if(typeof a==='number')assert(Number.isFinite(a));});records.push([k,...args]);};}});
 const before=JSON.stringify(events);
 assert(P.focus(c,events,1250,480,280));assert.equal(heroes.length,1);assert.equal(heroes[0][0],'kazua');assert.equal(stack.length,0);assert.equal(c.globalAlpha,1);assert.equal(JSON.stringify(events),before);
 records.length=0;assert(P.focus(c,events,1250,480,280,true));assert.equal(heroes.length,1,'Reduced motion keeps the name without enlarging the sprite');assert(records.some(r=>r[0]==='fillText'&&r[1].includes('카즈아')));

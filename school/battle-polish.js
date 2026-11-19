@@ -21,7 +21,10 @@ window.SchoolBattlePolish=(()=>{
   // A compact bottom-left notice keeps the battlefield and targets visible.
   const unit=Math.min(w/480,h/280,1.6),x=8*unit;
   const panelW=156*unit,panelH=(reduced?42:56)*unit,y=h-panelH-8*unit;
-  c.fillStyle='#101b2de8';c.fillRect(x,y,panelW,panelH);
+  const backdrop=c.createLinearGradient(x,y,x+panelW,y);
+  backdrop.addColorStop(0,'#101b2de8');backdrop.addColorStop(.28,'#101b2dcc');
+  backdrop.addColorStop(.65,'#101b2d70');backdrop.addColorStop(1,'#101b2d00');
+  c.fillStyle=backdrop;c.fillRect(x,y,panelW,panelH);
   c.fillStyle=color;c.fillRect(x,y,2*unit,panelH);
   if(!reduced){
    // Gently push in on the portrait only; the small panel stays anchored.
