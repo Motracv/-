@@ -59,5 +59,6 @@ function mount({reduced=false,fail=false,delayed=false}={}){
   const p3=P.recruit({results:[{id:'kazua'}],key:'cancelled-account'});await flush();P.cancel();assert.equal((await p3).cancelled,true);assert.equal(prod.raf.size,0);
   const bad=mount({fail:true});const p4=bad.ctx.SchoolPresentation.recruit({results:[{id:'harin'}],key:'failure'});await flush();assert.equal((await p4).fallback,true);assert.equal(bad.ctx.SchoolPresentation.busy,false);
   const html=fs.readFileSync(path.join(base,'school.html'),'utf8');for(const file of ['data.js','cinema.js','scene.js','scene.css'])assert(html.includes('school/recruit/'+file));
+  assert(fs.readFileSync(path.join(base,'school/recruit/scene.css'),'utf8').includes('.recruit-stage img,.recruit-stage canvas{image-rendering:auto}'),'Painted art overrides the global pixel-art rendering rule');
   console.log('PASS real Presentation integration: stable highest result, one-time receipt display, greeting after FX, lazy winner-only assets, hidden/resume, resize, reduced motion, skip/cancel, broken/slow assets, cleanup, no reward mutation/network');
 })().catch(e=>{console.error(e);process.exitCode=1;});

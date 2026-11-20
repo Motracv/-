@@ -21,3 +21,5 @@ dialog.school-presentation[data-cinematic="awakening"]::backdrop{background:#050
 @media(max-height:500px) and (min-aspect-ratio:1/1){.recruit-copy{top:14%}.recruit-rarity{font-size:38px}.recruit-name{font-size:34px;margin:2px 0 6px}.recruit-subtitle{font-size:14px;margin-top:4px}.recruit-element{font-size:12px;padding:4px 8px}.recruit-eyebrow{font-size:12px}.recruit-rule,.recruit-english{display:none}.recruit-dialogue{padding:8px 16px;bottom:40px}.recruit-line{font-size:15px}.recruit-speaker{font-size:14px;margin-bottom:2px}.recruit-sigil-name{font-size:32px}.recruit-skip{top:10px;right:12px}.recruit-continue{padding-bottom:10px}}
 
 dialog.school-presentation[data-cinematic="awakening"]{animation:recruit-enter .55s ease-out both}@keyframes recruit-enter{from{opacity:0}to{opacity:1}}@media(prefers-reduced-motion:reduce){dialog.school-presentation[data-cinematic="awakening"]{animation:none}}
+
+.recruit-stage img,.recruit-stage canvas{image-rendering:auto}

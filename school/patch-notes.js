@@ -2,7 +2,7 @@
 window.SchoolPatchNotes = Object.freeze({
   version:'school-fit1',
   entries:Object.freeze([
-    {version:'school-recruit-live1',date:'2026.11.20',title:'눈을 뜨면, 새로운 인연',items:[
+    {version:'school-recruit-live2',date:'2026.11.20',title:'눈을 뜨면, 새로운 인연',items:[
       '모집에 새 교실 연출을 적용했어요. 단장을 깨우는 동료의 기척, 빛나는 문양과 차원 통로를 지나 가장 높은 등급의 동료가 먼저 인사해요.',
       'R부터 UR까지 20명의 등장 일러스트와 네 가지 자세를 준비했어요. 캐릭터의 표시 키를 맞추고 동작 사이를 부드럽게 연결했어요.',
       '등장 효과가 잦아든 뒤 인사 대사가 나와요. 화면을 누르면 전체 모집 결과를 확인할 수 있고, 언제든 결과 바로 보기를 선택할 수 있어요.'
