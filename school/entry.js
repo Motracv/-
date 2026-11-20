@@ -3,6 +3,19 @@ window.SchoolEntry = (()=>{
   function create(ctx){
     const $=id=>document.getElementById(id);let entered=false,generation=0,authBusy=false;
     const root=$('school-entry');
+    // Both layers must be decoded before replacing the original artwork.
+    // A missing layer leaves the complete, static poster visible.
+    const art=$('entry-art');
+    if(art){
+      const decoded=image=>new Promise((resolve,reject)=>{
+        if(!image){reject(Error('Missing title layer'));return;}
+        const ready=()=>{if(!image.naturalWidth){reject(Error('Empty title layer'));return;}if(image.decode)image.decode().then(resolve,reject);else resolve();};
+        if(image.complete)ready();else{image.addEventListener('load',ready,{once:true});image.addEventListener('error',reject,{once:true});}
+      });
+      Promise.all([decoded($('entry-art-background')),decoded($('entry-art-characters'))]).then(()=>{art.dataset.ready='true';}).catch(()=>{art.dataset.ready='false';});
+      const visibility=()=>{art.dataset.paused=String(document.hidden);};
+      document.addEventListener('visibilitychange',visibility);visibility();
+    }
     function message(value){$('entry-message').textContent=value;}
     function serverStatus(value){if($('entry-server-status'))$('entry-server-status').textContent=value;}
     if($('entry-server-check'))$('entry-server-check').onclick=async()=>{

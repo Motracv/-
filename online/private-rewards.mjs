@@ -2,9 +2,11 @@
 // code to the public catalog, saved state, receipt results, or application logs.
 export const PRIVATE_RANK_RECEIPT = 'RANK_RECLAIMER_2';
 export const PRIVATE_NTR_RECEIPT = 'RANK_NTR_1';
+export const PRIVATE_AZURE_RECEIPT = 'RANK_AZURE_FIRST_1';
 const rankRewards = Object.freeze({
   [PRIVATE_RANK_RECEIPT]: {hashKey:'PRIVATE_RANK_REWARD_HASH', avatar:'rank-first-2', avatarName:'랭킹 1등 탈환 기념', title:'rank-reclaimer', titleName:'랭킹1등 탈환자'},
-  [PRIVATE_NTR_RECEIPT]: {hashKey:'PRIVATE_RANK_NTR_REWARD_HASH', avatar:'rank-ntr', avatarName:'랭킹 1등 기념 · T1', title:'rank-ntr', titleName:'1등 NTR'}
+  [PRIVATE_NTR_RECEIPT]: {hashKey:'PRIVATE_RANK_NTR_REWARD_HASH', avatar:'rank-ntr', avatarName:'랭킹 1등 기념 · T1', title:'rank-ntr', titleName:'1등 NTR'},
+  [PRIVATE_AZURE_RECEIPT]: {hashKey:'PRIVATE_AZURE_CROWN_HASH', gems:3000, title:'rank-azure-first', titleName:'창해의 첫 번째 왕관'}
 });
 export async function findPrivateRankReward(env,input) {
   for (const [receipt,reward] of Object.entries(rankRewards)) {
@@ -42,10 +44,10 @@ export async function awardPrivateRankReward(db, game, state, receipt = PRIVATE_
   const reward=privateRankResult(receipt);
   const claimed = await db.prepare('SELECT 1 AS claimed FROM school_private_reward_claims WHERE receipt_id=?').bind(receipt).first();
   if (claimed || (state.redeemedCodes || []).includes(receipt)) reject();
-  if (!Number.isSafeInteger(state.gems + 1000)) throw Object.assign(new Error('보유 보석을 확인해 주세요.'), {status:400});
+  if (!Number.isSafeInteger(state.gems + reward.gems)) throw Object.assign(new Error('보유 보석을 확인해 주세요.'), {status:400});
   state.redeemedCodes = [...(state.redeemedCodes || []), receipt];
-  state.gems += 1000;
-  state.profile = {...game.profileInfo(state), avatar:reward.avatar, title:reward.title};
+  state.gems += reward.gems;
+  state.profile = {...game.profileInfo(state), ...(reward.avatar ? {avatar:reward.avatar} : {}), title:reward.title};
   return reward;
 }
 

@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 46;
+  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 47;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -1059,7 +1059,7 @@
       }
     }
   }
-  const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||Object.values(BOND_CHARACTERS).some(m=>m.title===title&&s.bonds?.[m.id]?.read?.includes(3))||title==='rank-reclaimer'&&!!s.redeemedCodes?.includes('RANK_RECLAIMER_2')||title==='rank-ntr'&&!!s.redeemedCodes?.includes('RANK_NTR_1');
+  const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||Object.values(BOND_CHARACTERS).some(m=>m.title===title&&s.bonds?.[m.id]?.read?.includes(3))||title==='rank-reclaimer'&&!!s.redeemedCodes?.includes('RANK_RECLAIMER_2')||title==='rank-ntr'&&!!s.redeemedCodes?.includes('RANK_NTR_1')||title==='rank-azure-first'&&!!s.redeemedCodes?.includes('RANK_AZURE_FIRST_1');
 
   const SHARD_SSR = Object.freeze([...STANDARD_SSR,'ryusion','kazua']);
   const SHARD_LIMIT=1000000000;

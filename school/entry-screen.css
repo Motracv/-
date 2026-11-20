@@ -1,6 +1,18 @@
-/* Title artwork remains the existing illustration until the new concept is approved. */
-.school-entry{background-image:url('assets/lobby/courtyard-winter.webp?v=winter-polish1');background-position:center;color:#f3f7ff}
-.school-entry .entry-sky{position:fixed;background:linear-gradient(180deg,#08172b8a,transparent 40%,#08172bba 80%,#08172be8),linear-gradient(90deg,#07172b5c,transparent 70%);pointer-events:none}
+/* One stationary rooftop plate and a separately composited character layer. */
+.school-entry{background:#142940;color:#f3f7ff}
+.entry-art{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+.entry-art img{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;object-position:50% 42%;image-rendering:auto}
+.entry-art-background,.entry-art-foreground{visibility:hidden}
+.entry-art-foreground{position:absolute;inset:0;transform-origin:50% 85%}
+.entry-art[data-ready=true] .entry-art-background,.entry-art[data-ready=true] .entry-art-foreground{visibility:visible}
+.entry-art[data-ready=true] .entry-art-poster{visibility:hidden}
+.entry-art[data-ready=true] .entry-art-foreground{animation:entry-character-breathe 7.6s ease-in-out infinite}
+.entry-art[data-paused=true] .entry-art-foreground{animation-play-state:paused}
+.school-entry[hidden] .entry-art-foreground{animation:none}
+@keyframes entry-character-breathe{0%,100%{transform:translateY(0) rotate(-.035deg) scale(1.001)}50%{transform:translateY(-.12vh) rotate(.035deg) scale(1.003)}}
+:root[data-motion=reduced] .entry-art-foreground{animation:none!important;transform:none!important}
+@media(prefers-reduced-motion:reduce){.entry-art[data-ready=true] .entry-art-foreground{animation:none;transform:none}}
+.school-entry .entry-sky{position:fixed;background:linear-gradient(180deg,#08172b48,transparent 30%,transparent 65%,#08172bba),linear-gradient(90deg,#07172b28,transparent 55%);pointer-events:none}
 .school-entry .entry-layout{max-width:none;min-height:100dvh;padding:clamp(18px,3vw,48px);padding-bottom:max(18px,env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(20px,1fr) auto auto;gap:16px;isolation:isolate}
 .entry-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;grid-row:1;z-index:1}
 .school-entry .entry-brand{padding:0;margin:0;align-self:auto;grid-column:auto;max-width:70%}
@@ -10,7 +22,6 @@
 .school-entry .entry-brand p{margin:0;font-size:clamp(12px,1.2vw,16px);line-height:1.5;color:#e0ebf7}
 .entry-tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .entry-tools button,.entry-tools #entry-audio-settings{display:block;margin:0;min-height:44px;padding:9px 14px;border:1px solid #bed7ee55;background:#112940be;color:#eff6ff;border-radius:7px;font:600 13px var(--body);box-shadow:0 3px 10px #07101b30}
-.school-entry .entry-piyu{position:absolute;z-index:-1;left:10%;bottom:12%;width:clamp(220px,30vw,540px);height:66dvh;max-height:760px;margin:0;object-fit:contain;object-position:bottom;image-rendering:auto;filter:drop-shadow(0 16px 24px #0b182c66)}
 .school-entry .entry-login{grid-column:1;grid-row:3;justify-self:center;width:min(420px,100%);padding:16px 24px 10px;border:1px solid #b9d3ef55;border-radius:12px;background:linear-gradient(145deg,#152d46ed,#14233bed);box-shadow:0 16px 50px #050f2266;backdrop-filter:blur(10px)}
 .entry-server{margin:0 0 10px;border:1px solid #a6c5df40;border-radius:6px;background:#0c21367a;text-align:left}
 .entry-server summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:7px 12px;cursor:pointer;font-size:12px;color:#b7cede}
@@ -33,13 +44,13 @@
 @media(max-width:600px) and (orientation:portrait){
  .school-entry .entry-layout{padding:18px max(14px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom));gap:10px;grid-template-rows:auto minmax(130px,1fr) auto auto}
  .entry-header{gap:8px}.entry-tools{gap:4px;max-width:100px}.entry-tools button,.entry-tools #entry-audio-settings{width:100%;font-size:11px;padding:6px 7px;min-height:40px}
- .school-entry .entry-brand{max-width:65%}.school-entry .entry-piyu{left:50%;transform:translateX(-50%);bottom:280px;width:250px;height:42dvh;max-height:400px}
+ .school-entry .entry-brand{max-width:65%}
  .school-entry .entry-login{padding:12px 16px 6px;max-width:380px}.entry-footer{justify-content:center;flex-wrap:wrap;font-size:10px;gap:4px}.entry-footer span:last-child{display:none}
 }
 @media(max-height:600px) and (orientation:landscape){
  .school-entry .entry-layout{padding:14px max(20px,env(safe-area-inset-right));grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:1fr minmax(280px,40%);gap:8px 24px}
  .entry-header{grid-column:1;grid-row:1;flex-wrap:wrap;gap:12px}.school-entry .entry-brand{max-width:none}.school-entry .entry-brand h1{font-size:34px}.entry-tools{justify-content:flex-start}
- .school-entry .entry-login{grid-column:2;grid-row:1 / span 2;align-self:center;width:100%;max-width:370px;padding:10px 14px 5px}.school-entry .entry-piyu{left:6%;bottom:35px;width:32vw;height:60dvh;max-height:300px}
+ .school-entry .entry-login{grid-column:2;grid-row:1 / span 2;align-self:center;width:100%;max-width:370px;padding:10px 14px 5px}
  .entry-footer{grid-column:1 / -1;grid-row:3}.school-entry .entry-start{min-height:54px;font-size:19px}.entry-server{margin-bottom:4px}.school-entry .entry-message{margin-top:7px}
 }
-@media(max-height:360px) and (orientation:landscape){.school-entry .entry-layout{padding-top:8px;padding-bottom:8px}.entry-footer{display:none}.school-entry .entry-piyu{bottom:0}.entry-header{gap:8px}.school-entry .entry-login{align-self:start}}
+@media(max-height:360px) and (orientation:landscape){.school-entry .entry-layout{padding-top:8px;padding-bottom:8px}.entry-footer{display:none}.entry-header{gap:8px}.school-entry .entry-login{align-self:start}}
