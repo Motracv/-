@@ -1,7 +1,8 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-winter53',
+  version:'school-winter54',
   entries:Object.freeze([
+    {version:'school-winter54',date:'2026.11.21',title:'토벌 화면 맞춤 · 옆으로 보는 전투 기록',items:['예티·산타 전투창을 화면 높이에 맞춰 전체 화면 스크롤을 없앴습니다.','전투 기록을 오른쪽 패널로 분리했습니다. 기록을 열어도 전투가 가려지지 않으며, 긴 목록은 패널 안에서만 스크롤됩니다.','산타 상자·룰렛도 옆 패널에서 이용할 수 있습니다. 화면 비율이 달라져도 캐릭터가 늘어나거나 잘리지 않도록 전투 화면의 비율을 유지합니다.']},
     {version:'school-winter53',date:'2026.11.21',title:'겨울 토벌 자동 재도전 · 전투 기록',items:[
       '예티·산타 승리 후 5초 자동 재도전을 개선했습니다. 스크롤이나 클릭 없이 이어지며, 일시적인 연결 오류나 처리 대기 후에도 다시 시도합니다. 자동 재도전 체크는 직접 변경할 때만 바뀌며 계정·기기별로 유지됩니다.',
       '산타 토벌 화면에서 상자를 열고 룰렛권을 구입하거나 룰렛을 돌리는 동안에도 전투와 다음 토벌이 계속됩니다. 전투와 상자·룰렛을 함께 볼 수 있도록 배치했습니다.',

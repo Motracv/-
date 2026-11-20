@@ -88,7 +88,7 @@ window.SchoolYeti=(()=>{
    const canvas=document.getElementById('yeti-canvas'),rect=canvas?.getBoundingClientRect();if(!rect||rect.width<1||rect.height<1)return;
    const width=Math.min(1440,Math.round(rect.width*Math.min(devicePixelRatio||1,1.5))),height=Math.round(width*rect.height/rect.width);
    if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
-   const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;c.setTransform(width/1000,0,0,height/560,0,0);c.imageSmoothingEnabled=false;
+   const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;c.setTransform(1,0,0,1,0,0);c.fillStyle='#102335';c.fillRect(0,0,width,height);const fitScale=Math.min(width/1000,height/560);c.setTransform(fitScale,0,0,fitScale,(width-1000*fitScale)/2,(height-560*fitScale)/2);c.imageSmoothingEnabled=false;
    c.fillStyle='#142a45';c.fillRect(0,0,1000,560);if(bg.complete&&bg.naturalWidth)c.drawImage(bg,0,0,1000,560);
    events=timeline?.events(now)||events.filter(e=>now-e.shown<(e.breath?4750:2200));
    const visual=timeline?.view(now),b=visual||data?.room?.battle,live=data?.room?.status==='fighting',time=b?(visual?timeline.clock(now):b.elapsed+(live?Math.max(0,now-received):0)):0,reduced=ctx.reduced?.(),gunners=[],berserkers=[];
