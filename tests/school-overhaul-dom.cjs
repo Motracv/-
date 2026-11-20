@@ -6,7 +6,7 @@ const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
 (async()=>{
  const seen=new Set();for(const n of document.querySelectorAll('[id]')){assert(!seen.has(n.id),'Duplicate DOM id '+n.id);seen.add(n.id);}
  for(const n of document.querySelectorAll('script[src],link[rel=stylesheet]')){const p=(n.src||n.href).split('?')[0];if(!p.startsWith('https:'))assert(fs.existsSync(p),'Missing file '+p);}
- assert.equal(document.querySelectorAll('.lobby-nav #guild-button').length,0);assert.equal(document.querySelectorAll('.lobby-nav [data-lobby-action=supplies]').length,0);assert(document.querySelector('.lobby-shortcuts [data-lobby-action=supplies]'));
+ assert.equal(document.querySelectorAll('.lobby-nav #guild-button').length,0);assert.equal(document.querySelectorAll('.lobby-nav [data-lobby-action=supplies]').length,0);assert.equal(document.querySelectorAll('.lobby-shortcuts [data-lobby-action=supplies]').length,0);assert(document.querySelector('.lobby-shortcuts [data-lobby-action=quests]'));
  const timers=new Map(),session=new Map(),local=new Map();let serial=0,scope='one',calls=[],failPublish=false,postDeferred=null;
  window.SchoolRPG=G;window.SchoolArt={portrait:()=>'/sprite.png',displayPortrait:()=>'/sprite-large.png'};
  const context={window,document,crypto,console,ResizeObserver:class{observe(){}},setTimeout:(f,ms)=>{timers.set(++serial,{f,ms});return serial;},clearTimeout:id=>timers.delete(id),sessionStorage:{getItem:k=>session.get(k),setItem:(k,v)=>session.set(k,v)},localStorage:{getItem:k=>local.get(k),setItem:(k,v)=>local.set(k,v),removeItem:k=>local.delete(k)}};

@@ -78,7 +78,6 @@ window.SchoolLobby = (() => {
       show('lobby-recruit-dot', false);
       show('lobby-codex-dot',Object.keys(state.units).some(id=>!state.codexClaimed?.includes(id)));
       const pass=game.passInfo?.(state,now);show('lobby-pass-dot',!!(pass?.rewards?.some(r=>r.ready)||pass?.quests?.some(q=>q.ready)));
-      show('lobby-supply-dot', !!state.offline.seconds || state.daily < game.day(now) || questReady);
     }
     function invalidate() { ready = false; captainId = ''; }
     return {render, invalidate};
