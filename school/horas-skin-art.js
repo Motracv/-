@@ -156,7 +156,7 @@ window.SchoolHorasSkinArt = (() => {
     const cast=p.mode==='cast',t=finite(frame.time),merge=cast?ease((p.age-.22)/.63):0;
     const stacks=frame.dead?0:cast&&p.age<1?5:clamp(Math.floor(finite(frame.horasStacks)),0,5);
     c.save();c.translate(x,y);c.scale(scale*(frame.flip?-1:1),scale);c.imageSmoothingEnabled=false;
-    c.fillStyle='#060e273a';c.fillRect(-9,1+finite(frame.shadowY),20,2);
+    if(!frame.groundShadow){c.fillStyle='#060e273a';c.fillRect(-9,1+finite(frame.shadowY),20,2);}
     if(frame.dead){c.globalAlpha*=.4;c.rotate(-Math.PI/2);}
     if(!isBlocked&&stacks>0&&(!cast||p.age<1)){
       const points=ORBS.slice(0,stacks).map(([ox,oy],i)=>[mix(ox,11,merge),mix(oy,-27,merge)+(reduced||cast?0:Math.sin(t*2+i)*.65)]);

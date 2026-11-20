@@ -6,7 +6,10 @@ window.SchoolCampus=(()=>{
   for(const child of children){if(child.matches('.hero-skills')){index=1;child.open=true;}else if(child.matches('.stage-title,.slot-buttons,.remove-hero-action,#formation-status'))index=2;panes[index].append(child);}
   const nav=document.createElement('nav');nav.className='hero-pane-tabs';nav.setAttribute('aria-label','용병 관리');['육성','스킬','편성'].forEach((label,i)=>{if(!panes[i].children.length)return;const b=document.createElement('button');b.type='button';b.textContent=label;b.setAttribute('aria-pressed',String(i===0));b.onclick=()=>{panes.forEach((p,j)=>p.hidden=j!==i);[...nav.children].forEach(n=>n.setAttribute('aria-pressed',String(n===b)));};nav.append(b);});growth.append(nav,...panes);
  }
+ function screenScale(width,height){return width>=2400&&height>=1200?Math.min(2,width/1920,height/1080):1;}
+ function fitScreen(){const scale=screenScale(window.innerWidth,window.innerHeight);document.documentElement.style.setProperty('--game-ui-scale',String(scale));document.documentElement.dataset.largeScreen=String(scale>1);}
  function create(ctx){
+  fitScreen();window.addEventListener('resize',fitScreen);
   const panel=document.getElementById('lobby-panel'),hotspots=document.getElementById('campus-hotspots'),school=document.getElementById('guild-button'),board=document.getElementById('community-button');let accessKey='',accessEpoch=0;
   for(const b of document.querySelectorAll('.lobby-nav button')){const name=b.querySelector('.lobby-menu-label')?.textContent;if(name){b.title=name;if(!b.hasAttribute('aria-label'))b.setAttribute('aria-label',name);}}
   function layout(){if(!panel||!hotspots)return;const w=panel.clientWidth,h=panel.clientHeight;if(!w||!h)return;const scale=Math.max(w/1821,h/864),ox=(w-1821*scale)/2,oy=(h-864*scale)/2;
@@ -24,5 +27,5 @@ window.SchoolCampus=(()=>{
   document.addEventListener('wheel',e=>{if((e.ctrlKey||e.metaKey)&&e.target.closest?.('.board-viewport')&&!e.target.closest('input,textarea,[contenteditable=true]'))e.preventDefault();},{passive:false});
   return {render,layout};
  }
- return {create,enhanceHero};
+ return {create,enhanceHero,screenScale};
 })();

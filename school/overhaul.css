@@ -169,3 +169,20 @@ html[data-motion=reduced] :is(.party-card,.skill-water,.skill-status-art i){anim
 }
 
 html[data-theme=dark] #community-message[data-error=true]{color:#ffabb4}
+
+/* Keep the full portrait inside its allocated box; never flex-shrink the image. */
+#modal .hero-detail-header .detail-portrait{object-fit:contain;object-position:center;flex-shrink:0;max-width:100%;height:180px;max-height:none}
+#modal .hero-detail-header .bond-detail-portrait{object-fit:contain;background:var(--overhaul-card)}
+#tab-roster .formation-slot-main{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto auto auto;align-content:stretch;justify-items:center}
+#tab-roster .formation-slot-main .formation-figure{grid-area:1 / 1;width:100%;height:100%;min-height:0;max-height:none;align-self:stretch;overflow:visible}
+#tab-roster .formation-slot-main .formation-figure img{height:100%;width:100%;max-height:none;object-fit:contain;object-position:center;display:block}
+#tab-roster .formation-slot-main>strong,#tab-roster .formation-slot-main>small,#tab-roster .formation-slot-main>.formation-stars{grid-column:1;align-self:center}
+/* A 4K TV gets the same logical 1920×1080 layout at twice the physical size.
+   The board and top-layer dialogs share a scale, without changing browser zoom. */
+html[data-large-screen=true] .board-viewport{zoom:var(--game-ui-scale);width:calc(100% / var(--game-ui-scale));height:calc(100dvh / var(--game-ui-scale));overflow:hidden}
+html[data-large-screen=true] .board-viewport>.app{height:100%;min-height:0;max-height:none;width:100%;min-width:0}
+html[data-large-screen=true] dialog{zoom:var(--game-ui-scale);max-width:calc(100vw / var(--game-ui-scale) - 24px);max-height:calc(100dvh / var(--game-ui-scale) - 24px)}
+html[data-large-screen=true] #toast{zoom:var(--game-ui-scale)}
+html[data-large-screen=true] .formation-hero-modal .hero-management{height:min(650px,calc(100dvh / var(--game-ui-scale) - 140px))}
+.lobby-unit::after{content:'';position:absolute;bottom:1%;left:50%;width:65%;height:5%;transform:translateX(-50%);background:radial-gradient(ellipse,#07132388 0%,#091b3744 45%,transparent 72%);pointer-events:none;z-index:-1}
+@media(max-width:650px){#modal .hero-detail-header .detail-portrait{width:64px;height:76px;min-width:64px}}
