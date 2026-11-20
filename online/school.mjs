@@ -7,7 +7,7 @@ import { createRaids } from './raids.mjs';
 import { createYeti, collectYetiRewards } from './yeti.mjs';
 import { createCoop } from './coop.mjs';
 import { guildActivity, guildProjectClaim } from './guild-progress.mjs';
-import { matchesPrivateApology, awardPrivateApology, matchesPrivateHorasSkin, awardPrivateHorasSkin, findPrivateRankReward, privateRankRetry, awardPrivateRankReward, commitPrivateRankReward } from './private-rewards.mjs';
+import { matchesPrivateTwinGift, awardPrivateTwinGift, matchesPrivateApology, awardPrivateApology, matchesPrivateHorasSkin, awardPrivateHorasSkin, findPrivateRankReward, privateRankRetry, awardPrivateRankReward, commitPrivateRankReward } from './private-rewards.mjs';
 
 export function createSchool() {
   const game = globalThis.SchoolRPG;
@@ -89,6 +89,7 @@ export function createSchool() {
       }
       const legacyCodesActive = Date.now() < Date.parse('2026-11-20T10:38:23Z');
       const privateRank = legacyCodesActive && action && data.action.kind === 'redeem' && await findPrivateRankReward(env, data.action.code);
+      const privateTwin=action&&data.action.kind==='redeem'&&await matchesPrivateTwinGift(env,data.action.code);
       const privateApology=action&&data.action.kind==='redeem'&&await matchesPrivateApology(env,data.action.code);
       const privateSkin = legacyCodesActive && action && data.action.kind === 'redeem' && await matchesPrivateHorasSkin(env,data.action.code);
       let acceptedRevision = data.revision;
@@ -145,7 +146,7 @@ export function createSchool() {
           continue;
         }
         let result = null;
-        const privateReward = privateRank ? await awardPrivateRankReward(env.DB, game, state, privateRank) : privateSkin ? awardPrivateHorasSkin(game,state) : privateApology ? awardPrivateApology(state) : null;
+        const privateReward = privateRank ? await awardPrivateRankReward(env.DB, game, state, privateRank) : privateSkin ? awardPrivateHorasSkin(game,state) : privateApology ? awardPrivateApology(state) : privateTwin ? awardPrivateTwinGift(state) : null;
         const renaming = action && data.action.kind === 'rename';
         if (renaming) {
           const normalized = game.normalizeCommanderName(data.action.name);

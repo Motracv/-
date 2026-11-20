@@ -1,0 +1,28 @@
+Twin guild boss presentation preview
+
+Open index.html over HTTP. It loads only the isolated sprite atlas and renderer;
+it never writes saves, creates encounters, spends currency or pays rewards.
+
+Deliverables:
+- ../../school/assets/twins/atlas.png: RGBA 1536x1024, eight source poses.
+- frames.json: source rectangles, local foot anchors, cooperative hit times.
+- ../../school/twins-art.js: reusable presentation renderer.
+
+Integration:
+  const frames = await SchoolTwinsArt.load(atlasUrl);
+  const pose = SchoolTwinsArt.sample(elapsedSeconds, 'cross', reducedMotion);
+  SchoolTwinsArt.draw(ctx, frames, pose, {reduced: reducedMotion});
+The renderer uses a 1280x720 logical stage. Transform the context to the viewport
+before drawing. Sampling is deterministic and does not change battle state.
+Cross and slam share one contact timestamp for both attackers. Relay uses two
+ordered contact timestamps. Server attack events should supply elapsed time;
+never turn render calls into damage callbacks.
+
+The source rectangles overlap where weapons extend, so load() extracts each
+connected alpha silhouette once. Do not blindly crop the regular 4x2 cells.
+Pixel sizes are preserved across poses, rather than stretching every pose to the
+same bounding height. Ground shadows are independent of body lift and rotation.
+
+Art preview only: rotating weekend boss scheduling, raid stats, magic immunity
+and damage balance are not changed by this preview. Those belong to the live
+raid simulation integration after the design is approved.

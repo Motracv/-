@@ -83,3 +83,7 @@ export function awardPrivateHorasSkin(game,state){
 // Per-account compensation; only a digest exists on the server.
 export async function matchesPrivateApology(env,input){return matchesPrivateRankReward({PRIVATE_RANK_REWARD_HASH:env.PRIVATE_APOLOGY_HASH},input);}
 export function awardPrivateApology(state){const code='PRIVATE_APOLOGY_20261120';if((state.redeemedCodes||[]).includes(code))throw Object.assign(Error('이미 받은 보상입니다.'),{status:400});if(!Number.isSafeInteger(state.gems+1600))throw Object.assign(Error('보석 수량을 확인하세요.'),{status:400});state.gems+=1600;state.redeemedCodes=[...(state.redeemedCodes||[]),code];return{kind:'redeem',code,gems:1600,gold:0,expiresAt:null};}
+
+// Private per-account thank-you reward. Plaintext is never shipped to clients.
+export async function matchesPrivateTwinGift(env,input){return matchesPrivateRankReward({PRIVATE_RANK_REWARD_HASH:env.PRIVATE_TWIN_GIFT_HASH},input);}
+export function awardPrivateTwinGift(state){const code='PRIVATE_TWIN_GIFT_20261120';if((state.redeemedCodes||[]).includes(code))throw Object.assign(Error('이미 받은 보상입니다.'),{status:400});if(!Number.isSafeInteger(state.gems+20000))throw Object.assign(Error('보석 수량을 확인하세요.'),{status:400});state.gems+=20000;state.redeemedCodes=[...(state.redeemedCodes||[]),code];return{kind:'redeem',code,gems:20000,gold:0,expiresAt:null};}

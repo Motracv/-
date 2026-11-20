@@ -1,0 +1,130 @@
+{
+  "image": "../../school/assets/twins/atlas.png",
+  "width": 1536,
+  "height": 1024,
+  "frames": [
+    {
+      "rect": [
+        63,
+        97,
+        226,
+        358
+      ],
+      "foot": [
+        112,
+        356
+      ]
+    },
+    {
+      "rect": [
+        378,
+        166,
+        261,
+        286
+      ],
+      "foot": [
+        130,
+        283
+      ]
+    },
+    {
+      "rect": [
+        709,
+        176,
+        450,
+        275
+      ],
+      "foot": [
+        154,
+        272
+      ]
+    },
+    {
+      "rect": [
+        1149,
+        206,
+        347,
+        246
+      ],
+      "foot": [
+        127,
+        243
+      ]
+    },
+    {
+      "rect": [
+        52,
+        601,
+        223,
+        358
+      ],
+      "foot": [
+        125,
+        355
+      ]
+    },
+    {
+      "rect": [
+        378,
+        603,
+        261,
+        356
+      ],
+      "foot": [
+        130,
+        353
+      ]
+    },
+    {
+      "rect": [
+        703,
+        684,
+        450,
+        275
+      ],
+      "foot": [
+        150,
+        272
+      ]
+    },
+    {
+      "rect": [
+        1138,
+        698,
+        363,
+        261
+      ],
+      "foot": [
+        131,
+        258
+      ]
+    }
+  ],
+  "combos": {
+    "cross": {
+      "name": "교차 협공",
+      "duration": 5.4,
+      "hits": [
+        1.58,
+        1.58
+      ]
+    },
+    "relay": {
+      "name": "추격 연계",
+      "duration": 5.6,
+      "hits": [
+        1.15,
+        1.82
+      ]
+    },
+    "slam": {
+      "name": "협공 · 내려찍기",
+      "duration": 6,
+      "hits": [
+        2.05,
+        2.05
+      ]
+    }
+  },
+  "note": "Use SchoolTwinsArt.load to isolate connected silhouettes inside overlapping rectangles. Coordinates are in source pixels; foot is the local ground anchor."
+}
