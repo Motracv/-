@@ -52,7 +52,7 @@ window.SchoolRaidFX=(()=>{
    const motion=breathAge>=0&&window.SchoolOsiaBreathArt?window.SchoolOsiaBreathArt.motion(breathAge,reduced):u.id!=='horas'&&a.cast&&castAge*1000<SchoolCombatFeedback.castMs(u.id)?SchoolArt.poseForSkill(u.id,a.cast.stage||1,castAge,reduced):null;
    const dx=reduced||['kazua','hyeokjin'].includes(u.id)?0:motion?.dx||Math.sin(clamp(outAge/.65)*PI)*8;
    const recoil=reduced?0:Math.sin(clamp(hitAge/.3)*PI)*8;
-   const baseKazua=SchoolArt.kazuaFrame(u,t,battle.elapsed),kazuaFrame=window.SchoolCombatFeedback?.kazuaPresentation(u,focus,events,now,baseKazua)||baseKazua;
+   const baseKazua=SchoolArt.kazuaFrame(u,t,battle?.elapsed||0),kazuaFrame=window.SchoolCombatFeedback?.kazuaPresentation(u,focus,events,now,baseKazua)||baseKazua;
    if(a.heal&&now-a.heal.shown<950){const f=(now-a.heal.shown)/950;c.save();c.globalAlpha=1-f;glow(c,p.x,p.y-scale*20,scale*35,'#94ffb5',.8);c.lineWidth=2;ring(c,p.x,p.y,scale*(16+f*12),'#8fffc3');for(let n=0;n<3;n++){c.fillStyle='#bcffd6';c.fillRect(p.x+(n-1)*scale*10-2,p.y-f*scale*38-n*7,4,9);c.fillRect(p.x+(n-1)*scale*10-5,p.y-f*scale*38-n*7+3,10,3);}c.restore();}
    if(u.shield>0){c.save();c.globalAlpha=.4+(a.hurt?.absorbed&&hitAge<.4?.4:0);c.strokeStyle='#b3e7ff';c.lineWidth=2;c.beginPath();c.ellipse(p.x,p.y-scale*18,scale*14,scale*22,0,0,PI*2);c.stroke();c.restore();}
    window.SchoolYahoArt?.status(c,u,p.x,p.y,t,scale,u.id==='lava'&&units.some(a=>a.id==='yaho'&&a.hp>0)&&a.cast?castAge:-1);
