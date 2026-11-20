@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "generated": {
+    "harin": {
+      "file": "harin-motion.webp",
+      "source": "exec-204932a3-f1ef-44d8-8438-3e90ae9ebb4f.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 682956,
+      "poses": 4
+    },
+    "geonu": {
+      "file": "geonu-motion.webp",
+      "source": "exec-a1ef2161-6d61-472b-bec7-e8cd1fad7855.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 688700,
+      "poses": 4
+    },
+    "seoyun": {
+      "file": "seoyun-motion.webp",
+      "source": "exec-e3a2b1dc-7d68-4304-8640-54c6f812309e.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 612668,
+      "poses": 4
+    },
+    "taeo": {
+      "file": "taeo-motion.webp",
+      "source": "exec-e05e1ae4-75e2-4700-99fc-197d1d0b7ad9.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 684168,
+      "poses": 4
+    },
+    "yuna": {
+      "file": "yuna-motion.webp",
+      "source": "exec-c67fbfb8-8c03-466c-ab30-1e810ca1a6c2.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 752028,
+      "poses": 4
+    },
+    "minjae": {
+      "file": "minjae-motion.webp",
+      "source": "exec-b9aca854-8f91-4d3c-9ac9-83e4209e43fd.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 571972,
+      "poses": 4
+    },
+    "sua": {
+      "file": "sua-motion.webp",
+      "source": "exec-831577fa-5189-489a-baeb-48eaf9d4dcb5.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 537772,
+      "poses": 4
+    },
+    "jiho": {
+      "file": "jiho-motion.webp",
+      "source": "exec-2981a178-1502-4fea-a2be-31075482f62f.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 640002,
+      "poses": 4
+    },
+    "siu": {
+      "file": "siu-motion.webp",
+      "source": "exec-87972a35-9644-4c7a-a4fb-da003532dc72.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 847792,
+      "poses": 4
+    },
+    "doyoon": {
+      "file": "doyoon-motion.webp",
+      "source": "exec-0e39f89a-edc3-4cb8-9f11-7df7a56f5a20.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 713038,
+      "poses": 4
+    },
+    "ian": {
+      "file": "ian-motion.webp",
+      "source": "exec-1a866ecc-6aef-40b7-8ff7-231194498e65.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 674560,
+      "poses": 4
+    },
+    "lumi": {
+      "file": "lumi-motion.webp",
+      "source": "exec-0d85e3cc-c5f4-4ef3-a742-46cb21a84248.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 863410,
+      "poses": 4
+    },
+    "lava": {
+      "file": "lava-motion.webp",
+      "source": "exec-3757bcd9-8e7c-4fe9-ab46-df3ee044cf55.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 888006,
+      "poses": 4
+    },
+    "spica": {
+      "file": "spica-motion.webp",
+      "source": "exec-92adb52b-2003-4430-9d96-111141784b9d.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 828966,
+      "poses": 4
+    },
+    "ryusion": {
+      "file": "ryusion-motion.webp",
+      "source": "exec-656f16b8-91be-4a4b-94b2-6befd8208c6f.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 988522,
+      "poses": 4
+    },
+    "kazua": {
+      "file": "kazua-motion.webp",
+      "source": "exec-9adb19d5-0fdd-4a7f-9730-3a430245e1bb.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 580470,
+      "poses": 4
+    },
+    "hyeokjin": {
+      "file": "hyeokjin-motion.webp",
+      "source": "exec-4c44338a-db88-422b-b890-b4b9601c437a.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 646116,
+      "poses": 4
+    }
+  },
+  "reusedFrom": "previews/recruit-awakening/assets, awakening2"
+}

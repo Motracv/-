@@ -7,7 +7,7 @@ import { createRaids } from './raids.mjs';
 import { createYeti, collectYetiRewards } from './yeti.mjs';
 import { createCoop } from './coop.mjs';
 import { guildActivity, guildProjectClaim } from './guild-progress.mjs';
-import { matchesPrivateHorasSkin, awardPrivateHorasSkin, matchesPrivateRankReward, privateRankRetry, awardPrivateRankReward, commitPrivateRankReward } from './private-rewards.mjs';
+import { matchesPrivateHorasSkin, awardPrivateHorasSkin, findPrivateRankReward, privateRankRetry, awardPrivateRankReward, commitPrivateRankReward } from './private-rewards.mjs';
 
 export function createSchool() {
   const game = globalThis.SchoolRPG;
@@ -87,7 +87,7 @@ export function createSchool() {
         requireSchool(typeof data.requestId === "string" && /^[A-Za-z0-9_-]{16,80}$/.test(data.requestId), "행동 요청을 확인하세요.");
         requireSchool(data.action && typeof data.action === "object" && !Array.isArray(data.action), "잘못된 행동입니다.");
       }
-      const privateRank = action && data.action.kind === 'redeem' && await matchesPrivateRankReward(env, data.action.code);
+      const privateRank = action && data.action.kind === 'redeem' && await findPrivateRankReward(env, data.action.code);
       const privateSkin = action && data.action.kind === 'redeem' && await matchesPrivateHorasSkin(env,data.action.code);
       let acceptedRevision = data.revision;
       // Login/state sync also delivers old unclaimed victory rewards.
@@ -143,7 +143,7 @@ export function createSchool() {
           continue;
         }
         let result = null;
-        const privateReward = privateRank ? await awardPrivateRankReward(env.DB, game, state) : privateSkin ? awardPrivateHorasSkin(game,state) : null;
+        const privateReward = privateRank ? await awardPrivateRankReward(env.DB, game, state, privateRank) : privateSkin ? awardPrivateHorasSkin(game,state) : null;
         const renaming = action && data.action.kind === 'rename';
         if (renaming) {
           const normalized = game.normalizeCommanderName(data.action.name);
@@ -188,7 +188,7 @@ export function createSchool() {
           .bind(payload, now, signed.id, row.revision);
         let written;
         if(privateRank){
-          written=await commitPrivateRankReward(env.DB,{accountId:signed.id,revision:row.revision,payload,requestId:data.requestId,now});
+          written=await commitPrivateRankReward(env.DB,{accountId:signed.id,revision:row.revision,payload,requestId:data.requestId,now,receipt:privateRank});
         }else if(yetiClaim){
           const results=await env.DB.batch([
            env.DB.prepare('UPDATE school_saves SET payload=?,revision=revision+1,updated_at=? WHERE account_id=? AND revision=? AND EXISTS(SELECT 1 FROM school_yeti_rewards WHERE account_id=? AND room_id=? AND claimed=0)').bind(payload,now,signed.id,row.revision,signed.id,yetiReward.room_id),

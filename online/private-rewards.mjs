@@ -1,6 +1,17 @@
 // Only a digest is configured in the worker environment. Never add the input
 // code to the public catalog, saved state, receipt results, or application logs.
 export const PRIVATE_RANK_RECEIPT = 'RANK_RECLAIMER_2';
+export const PRIVATE_NTR_RECEIPT = 'RANK_NTR_1';
+const rankRewards = Object.freeze({
+  [PRIVATE_RANK_RECEIPT]: {hashKey:'PRIVATE_RANK_REWARD_HASH', avatar:'rank-first-2', avatarName:'랭킹 1등 탈환 기념', title:'rank-reclaimer', titleName:'랭킹1등 탈환자'},
+  [PRIVATE_NTR_RECEIPT]: {hashKey:'PRIVATE_RANK_NTR_REWARD_HASH', avatar:'rank-ntr', avatarName:'랭킹 1등 기념 · T1', title:'rank-ntr', titleName:'1등 NTR'}
+});
+export async function findPrivateRankReward(env,input) {
+  for (const [receipt,reward] of Object.entries(rankRewards)) {
+    if (await matchesPrivateRankReward({PRIVATE_RANK_REWARD_HASH:env[reward.hashKey]},input)) return receipt;
+  }
+  return null;
+}
 const INVALID_CODE = '사용할 수 없는 코드입니다.';
 const reject = () => { throw Object.assign(new Error(INVALID_CODE), {status:400}); };
 
@@ -15,40 +26,42 @@ export async function matchesPrivateRankReward(env, input) {
   return difference === 0;
 }
 
-export function privateRankResult() {
-  return {kind:'redeem', code:PRIVATE_RANK_RECEIPT, gold:0, gems:1000, expiresAt:null,
-    avatar:'rank-first-2', avatarName:'랭킹 1등 탈환 기념', title:'rank-reclaimer', titleName:'랭킹1등 탈환자'};
+export function privateRankResult(receipt = PRIVATE_RANK_RECEIPT) {
+  const reward=rankRewards[receipt]; if(!reward) reject();
+  const {hashKey,...cosmetics}=reward;
+  return {kind:'redeem', code:receipt, gold:0, gems:1000, expiresAt:null,...cosmetics};
 }
 
 export async function privateRankRetry(db, accountId, requestId) {
-  const row = await db.prepare('SELECT 1 AS claimed FROM school_private_reward_claims WHERE receipt_id=? AND account_id=? AND request_id=?')
-    .bind(PRIVATE_RANK_RECEIPT, accountId, requestId).first();
-  return row ? privateRankResult() : null;
+  const row = await db.prepare('SELECT receipt_id FROM school_private_reward_claims WHERE account_id=? AND request_id=?')
+    .bind(accountId, requestId).first();
+  return row && rankRewards[row.receipt_id] ? privateRankResult(row.receipt_id) : null;
 }
 
-export async function awardPrivateRankReward(db, game, state) {
-  const claimed = await db.prepare('SELECT 1 AS claimed FROM school_private_reward_claims WHERE receipt_id=?').bind(PRIVATE_RANK_RECEIPT).first();
-  if (claimed || (state.redeemedCodes || []).includes(PRIVATE_RANK_RECEIPT)) reject();
+export async function awardPrivateRankReward(db, game, state, receipt = PRIVATE_RANK_RECEIPT) {
+  const reward=privateRankResult(receipt);
+  const claimed = await db.prepare('SELECT 1 AS claimed FROM school_private_reward_claims WHERE receipt_id=?').bind(receipt).first();
+  if (claimed || (state.redeemedCodes || []).includes(receipt)) reject();
   if (!Number.isSafeInteger(state.gems + 1000)) throw Object.assign(new Error('보유 보석을 확인해 주세요.'), {status:400});
-  state.redeemedCodes = [...(state.redeemedCodes || []), PRIVATE_RANK_RECEIPT];
+  state.redeemedCodes = [...(state.redeemedCodes || []), receipt];
   state.gems += 1000;
-  state.profile = {...game.profileInfo(state), avatar:'rank-first-2', title:'rank-reclaimer'};
-  return privateRankResult();
+  state.profile = {...game.profileInfo(state), avatar:reward.avatar, title:reward.title};
+  return reward;
 }
 
-export async function commitPrivateRankReward(db, {accountId, revision, payload, requestId, now}) {
+export async function commitPrivateRankReward(db, {accountId, revision, payload, requestId, now, receipt = PRIVATE_RANK_RECEIPT}) {
   // The global receipt and account save commit in one transaction. A failed
   // save CAS cannot consume the code, and competing accounts cannot both win.
   const results = await db.batch([
     db.prepare(`UPDATE school_saves SET payload=?,revision=revision+1,updated_at=?
       WHERE account_id=? AND revision=? AND NOT EXISTS(SELECT 1 FROM school_private_reward_claims WHERE receipt_id=?)`)
-      .bind(payload, now, accountId, revision, PRIVATE_RANK_RECEIPT),
+      .bind(payload, now, accountId, revision, receipt),
     db.prepare(`INSERT INTO school_private_reward_claims(receipt_id,account_id,request_id,created_at)
       SELECT ?,account_id,?,? FROM school_saves WHERE account_id=? AND revision=?
       AND json_extract(payload,'$.receipts[#-1].id')=?
       AND json_extract(payload,'$.receipts[#-1].result.code')=?
       AND NOT EXISTS(SELECT 1 FROM school_private_reward_claims WHERE receipt_id=?)`)
-      .bind(PRIVATE_RANK_RECEIPT, requestId, now, accountId, revision + 1, requestId, PRIVATE_RANK_RECEIPT, PRIVATE_RANK_RECEIPT),
+      .bind(receipt, requestId, now, accountId, revision + 1, requestId, receipt, receipt),
   ]);
   return results[0];
 }

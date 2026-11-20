@@ -1,6 +1,6 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-lobby-clean1';
+const RELEASE = 'school-recruit-live1';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
@@ -9,6 +9,8 @@ const shell = url('school.html');
 const required = [
   ...['students-a','students-b','students-c','osia','ryusion','spica','lava'].map(p=>`school/assets/roster-remake/${p}.webp?v=roster1`),
   ...['school-a','school-b','bosses','company-emblem'].map(p=>`school/assets/enemy-remake/${p}.webp?v=overhaul1`),
+  ...['data.js','cinema.js','scene.js','scene.css'].map(p=>`school/recruit/${p}?v=${RELEASE}`),
+  'school/assets/profile/rank-ntr.webp?v=rank-ntr1',
   'school.html', 'school.webmanifest', 'school/assets/lobby/courtyard-winter.webp?v=winter-polish1',
   ...['enemy-manifest.js','enemy-art.js','skill-cards.js','campus.js','community.js','overhaul.css','roster-art.js','theme-readability.css','entry.js','piyu-guide.js','afk.js','piyu.css','ascension-art.js','battle-pass.js','tower-auto.js','growth.css','horas-skin-art.js','skins.js','skins.css','hyeokjin-art.js','hyeokjin.css','bond-stories.js','osia-breath-art.js','battle-polish.js','winter-polish.css','engine.js','weekend-event.js','weekend-event.css','osia-weapon-art.js','kazua-art.js','kazua.css','ryusion.js','combat-feedback.js','expansion-art.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css','guild.js','guild.css','raid.js','raid.css','raid-engine.js','raid-vfx.js','yeti-engine.js','rescue.js','yeti.js','yeti.css','winter2.css','refinement.css','dungeon-portal.js','dungeon-portal.css','insights.js','insights.css','formation.js','formation.css','coop.js','coop.css','notice.js','notice.css'].map(p => `school/${p}?v=${RELEASE}`),
   ...['combat.webp','portrait.webp','pickup.webp'].map(p => `school/assets/kazua/${p}?v=kazua1`),
@@ -54,7 +56,7 @@ self.addEventListener('install', event => {
     const html = await (await cache.match(shell)).text();
     const engine = await (await cache.match(url(`school/engine.js?v=${RELEASE}`))).text();
     // A CDN rollout must not activate an old HTML with a new offline engine.
-    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*44\b/.test(engine)) {
+    if (!html.includes(`school/client.js?v=${RELEASE}`) || !/CATALOG_VERSION\s*=\s*45\b/.test(engine)) {
       await caches.delete(CACHE); throw Error('School release is not ready');
     }
   })());

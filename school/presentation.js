@@ -104,6 +104,7 @@
   function finish(job, result = {}) {
     if (job.finished) return;
     job.finished = true;
+    job.recruitScene?.destroy();
     if (job.portraitFrame) cancelAnimationFrame(job.portraitFrame);
     for (const animation of [...job.animations]) animation.cancel();
     job.animations.clear();
@@ -338,6 +339,15 @@
     const ranking = { UR: 4, SSR: 3, SR: 2, R: 1 };
     const lead = results.reduce((best, entry) => (ranking[info(entry.id).rarity] || 1) > (ranking[info(best.id).rarity] || 1) ? entry : best, results[0]);
     const hero = info(lead.id), grade = ['UR', 'SSR', 'SR'].includes(hero.rarity) ? hero.rarity : 'R';
+    if (root.SchoolRecruitScene?.available(lead.id)) {
+      const d=ensureDialog(); d.dataset.kind='recruit'; d.dataset.grade=grade; d.dataset.cinematic='awakening';
+      const cues={approach:'pull',tap1:'tap',tap2:'tap',sigil:'blossom-charge',dive:'fusion',reveal:grade};
+      job.recruitScene=root.SchoolRecruitScene.create(d,{hero,reduced:reduced(),play:key=>play(cues[key]||'reward',4,job.id),stopSound:()=>stopVoices(job.id)});
+      d.showModal();
+      const result=await job.recruitScene.done;
+      if(alive(job))finish(job,{skipped:!!result.skipped,cancelled:!!result.cancelled,fallback:!!result.fallback});
+      return;
+    }
     if (grade === 'UR' && lead.id === 'hyeokjin') { await hyeokjinRecruitSequence(job); return; }
     if (grade === 'UR' && lead.id === 'horas') { await horasRecruitSequence(job); return; }
     const ui = shell(job, grade === 'UR' ? '벚꽃이 이끈 운명' : grade === 'SSR' ? '눈부신 운명의 만남' : grade === 'SR' ? '특별한 동료의 등장' : '새로운 만남', `${grade} · ${hero.name}`, grade);

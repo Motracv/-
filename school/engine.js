@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 44;
+  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 45;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -25,7 +25,7 @@
     return (end-start+overlap*(e.multiplier-1))/1000;
   }
   const PROFILE_AVATARS = Object.freeze(['knight','witch','scholar','bear','cat','bird']);
-  const PROFILE_REWARDS = Object.freeze([Object.freeze({id:'horas-after-school',name:'방과 후의 성좌 · 호라스',receipt:'HORAS_AFTER_SCHOOL_SKIN',private:true,image:'school/assets/horas-after-school/profile.webp?v=horas-illust1'}),Object.freeze({id:'rank-first',name:'랭킹 1등 기념',code:'랭킹1등축하드립니다',receipt:'RANKING_FIRST_CONGRATS',image:'school/assets/profile/rank-first.webp?v=rank-profile1'}),Object.freeze({id:'rank-first-2',name:'랭킹1위 프로필2',receipt:'RANK_RECLAIMER_2',private:true,image:'school/assets/profile/rank-first-2.webp?v=rank-profile2'})]);
+  const PROFILE_REWARDS = Object.freeze([Object.freeze({id:'rank-ntr',name:'랭킹 1등 기념 · T1',receipt:'RANK_NTR_1',private:true,image:'school/assets/profile/rank-ntr.webp?v=rank-ntr1'}),Object.freeze({id:'horas-after-school',name:'방과 후의 성좌 · 호라스',receipt:'HORAS_AFTER_SCHOOL_SKIN',private:true,image:'school/assets/horas-after-school/profile.webp?v=horas-illust1'}),Object.freeze({id:'rank-first',name:'랭킹 1등 기념',code:'랭킹1등축하드립니다',receipt:'RANKING_FIRST_CONGRATS',image:'school/assets/profile/rank-first.webp?v=rank-profile1'}),Object.freeze({id:'rank-first-2',name:'랭킹1위 프로필2',receipt:'RANK_RECLAIMER_2',private:true,image:'school/assets/profile/rank-first-2.webp?v=rank-profile2'})]);
   const ownsProfileAvatar = (s, id) => Object.values(BOND_CHARACTERS).some(m=>m.avatar===id&&s.bonds?.[m.id]?.read?.includes(2)) || id === 'leader' || PROFILE_AVATARS.includes(id) || PROFILE_REWARDS.some(p => p.id === id && Array.isArray(s.redeemedCodes) && s.redeemedCodes.includes(p.receipt));
   function normalizeCouponCode(value) {
     const code = String(value ?? '').normalize('NFC').trim().toUpperCase();
@@ -1057,7 +1057,7 @@
       }
     }
   }
-  const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||Object.values(BOND_CHARACTERS).some(m=>m.title===title&&s.bonds?.[m.id]?.read?.includes(3))||title==='rank-reclaimer'&&!!s.redeemedCodes?.includes('RANK_RECLAIMER_2');
+  const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||Object.values(BOND_CHARACTERS).some(m=>m.title===title&&s.bonds?.[m.id]?.read?.includes(3))||title==='rank-reclaimer'&&!!s.redeemedCodes?.includes('RANK_RECLAIMER_2')||title==='rank-ntr'&&!!s.redeemedCodes?.includes('RANK_NTR_1');
 
   const SHARD_SSR = Object.freeze([...STANDARD_SSR,'ryusion','kazua']);
   const SHARD_LIMIT=1000000000;
