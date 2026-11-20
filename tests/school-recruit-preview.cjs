@@ -6,6 +6,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { parseHTML } = require(process.env.SCHOOL_DOM_MODULE || 'linkedom');
 const M = require('../previews/recruit-awakening/model.js');
+const C = require('../previews/recruit-awakening/cinema.js');
+const framesData = require('../previews/recruit-awakening/frames.js');
 const dir = path.resolve(__dirname, '../previews/recruit-awakening');
 const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
 const source = fs.readFileSync(path.join(dir, 'preview.js'), 'utf8');
@@ -17,7 +19,7 @@ function mount({ reduced = false, fail = '' } = {}) {
   const frames = new Map();
   const media = { matches: reduced, addEventListener() {} };
   Object.defineProperty(document, 'hidden', { value: false, writable: true });
-  window.RecruitPreviewModel = M; window.matchMedia = () => media;
+  window.RecruitPreviewModel = M; window.RecruitCinema = C; window.RecruitFrames = framesData; window.matchMedia = () => media;
   window.HTMLElement.prototype.focus = function () {};
   class Image {
     naturalWidth = 1024;
@@ -63,7 +65,7 @@ function mount({ reduced = false, fail = '' } = {}) {
   }
   assert(h.$('start').disabled); h.$('start').click(); assert.equal(h.frames.size, 0);
   await flush(); assert.equal(h.$('stage').getAttribute('aria-busy'), 'false'); assert(!h.$('start').disabled);
-  assert(!h.$('visitor-rig').hasAttribute('hidden'), 'The SVG arm rig is visible for Horas');
+  assert.equal(h.$('stage').dataset.element, 'blossom');
   assert(h.$('fullscreen').hidden, 'Unsupported fullscreen stays hidden');
   assert.equal(h.document.querySelectorAll('.petal').length, 22);
   h.$('start').click(); assert.equal(h.frames.size, 1); h.advance(40);
@@ -75,7 +77,7 @@ function mount({ reduced = false, fail = '' } = {}) {
   assert.equal(h.frames.size, 0); h.step(60000);
   h.document.hidden = false; h.document.dispatchEvent(new h.window.Event('visibilitychange')); h.step();
   assert.equal(h.$('progress').style.width, progress);
-  h.advance(85); assert.equal(h.$('stage').dataset.phase, 'hold'); assert.equal(h.frames.size, 0);
+  h.advance(125); assert.equal(h.$('stage').dataset.phase, 'hold'); assert.equal(h.frames.size, 0);
   assert(!h.$('continue').hidden); assert(h.$('results').hidden); assert(h.$('line').textContent.includes('좋은 꿈'));
   h.$('continue').click(); h.$('continue').click();
   assert.equal(h.document.querySelectorAll('.result-card').length, 10, 'Repeated clicks cannot duplicate results');
@@ -86,14 +88,14 @@ function mount({ reduced = false, fail = '' } = {}) {
   h.document.querySelector('.rarity-controls button[data-rarity=SSR]').click();
   h.document.querySelector('.rarity-controls button[data-rarity=SR]').click(); await flush();
   assert.equal(h.$('hero-name').textContent, '나리', 'A stale asset response cannot overwrite the latest selection');
-  assert(h.$('visitor-rig').hasAttribute('hidden'), 'Other characters do not inherit the Horas arm rig');
+  assert.equal(h.$('stage').dataset.element, 'healing');
   assert.equal(h.$('stage').dataset.rarity, 'SR'); assert.equal(h.$('home').style.opacity, '1');
-  h.$('start').click(); h.advance(120); assert.equal(h.$('stage').dataset.phase, 'hold');
+  h.$('start').click(); h.advance(170); assert.equal(h.$('stage').dataset.phase, 'hold');
   assert.equal(h.$('speaker').textContent, '나리'); h.$('continue').click();
   assert.equal(h.document.querySelector('.result-card.best .card-name').textContent, '나리');
   assert.equal(h.document.querySelectorAll('.petal').length, 22, 'Replays reuse a bounded particle pool');
 
-  const bad = mount({ fail: 'horas-greeting' }); await flush();
+  const bad = mount({ fail: 'horas-motion-greet' }); await flush();
   assert(!bad.$('retry').hidden); assert(bad.$('start').disabled); assert.equal(bad.frames.size, 0);
   bad.fail(''); bad.$('retry').click(); await flush(); assert(!bad.$('start').disabled); assert(bad.$('loading').hidden);
   const low = mount({ reduced: true }); await flush(); low.$('start').click(); low.advance(25);
@@ -101,7 +103,21 @@ function mount({ reduced = false, fail = '' } = {}) {
   assert.equal(low.$('stage').dataset.reduced, 'true'); assert.equal(low.frames.size, 0);
   assert(!/\b(?:fetch|XMLHttpRequest|localStorage|sessionStorage|SchoolRPG)\b/.test(source), 'The preview cannot call real draws or alter saves');
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'assets/manifest.json')));
-  assert.equal(manifest.length, 6);
+  assert.equal(manifest.length, 12);
   for (const asset of manifest) { assert(asset.width >= 1000); assert(asset.height >= 900); assert.equal(fs.statSync(path.join(dir, 'assets', asset.file)).size, asset.bytes); }
+  for (const [time, phase] of [[9.4,'sigil'],[11.2,'dive'],[12.5,'impact'],[14.2,'reveal']]) assert.equal(M.phaseAt(time), phase);
+  for (const [id, frameList] of Object.entries(framesData)) {
+    assert.equal(frameList.length, 4, id + ' has four new full-body poses');
+    for (const [i, frame] of frameList.entries()) {
+      assert(fs.existsSync(path.join(dir, frame.file)));
+      const p = C.actorPlacement(frame, 900, 1400, i);
+      assert(Math.abs(p.height - 1400 * (i === 1 ? .89 : .94)) < .01, id + ' keeps the shared body height');
+      assert(Math.abs(p.y + p.height - 1400 * .98) < .01, id + ' keeps the shared foot anchor');
+      assert(p.x >= 0 && p.x + p.width <= 900);
+    }
+  }
+  const capped = C.fitResolution(3840,2160,2);
+  assert(capped.width * capped.height < 2210000, '4K/HiDPI effects have a bounded pixel budget');
+  assert.equal(C.particleLimit,160);
   console.log('PASS: highest-rarity selection, ordered results, pause/resume, hidden tabs, replay/skip, rapid tier changes, missing-asset recovery, reduced motion, bounded particles, preview isolation and original-resolution assets.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

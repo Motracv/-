@@ -7,9 +7,9 @@
   const RANK = Object.freeze({ R: 0, SR: 1, SSR: 2, UR: 3 });
   const ART = '../../school/assets/';
   const HEROES = Object.freeze({
-    horas: { id: 'horas', name: '호라스', rarity: 'UR', title: '벚꽃의 의식', greeting: '좋은 꿈 꿨어요, 단장님? 이제 저와 함께 가요.', reveal: 'assets/horas-greeting.webp', wake: 'assets/horas-wake.webp', profile: ART + 'bonds/horas-profile.webp' },
-    osia: { id: 'osia', name: '오시아', rarity: 'SSR', title: '물의 용왕', greeting: '드디어 일어났네! 기다리고 있었어, 단장.', reveal: 'assets/osia-greeting.webp', wake: 'assets/osia-greeting.webp', profile: ART + 'bonds/osia-profile.webp' },
-    nari: { id: 'nari', name: '나리', rarity: 'SR', title: '작은 치유곡', greeting: '잘 주무셨어요? 오늘도 제가 곁에 있을게요.', reveal: 'assets/nari-greeting.webp', wake: 'assets/nari-greeting.webp', sheet: 'students-a', row: 1 },
+    horas: { id: 'horas', name: '호라스', rarity: 'UR', title: '벚꽃의 의식', greeting: '좋은 꿈 꿨어요, 단장님? 이제 저와 함께 가요.', profile: ART + 'bonds/horas-profile.webp' },
+    osia: { id: 'osia', name: '오시아', rarity: 'SSR', title: '물의 용왕', greeting: '드디어 일어났네! 기다리고 있었어, 단장.', profile: ART + 'bonds/osia-profile.webp' },
+    nari: { id: 'nari', name: '나리', rarity: 'SR', title: '작은 치유곡', greeting: '잘 주무셨어요? 오늘도 제가 곁에 있을게요.', sheet: 'students-a', row: 1 },
     geonu: { id: 'geonu', name: '건우', rarity: 'SR', sheet: 'students-a', row: 0 },
     harin: { id: 'harin', name: '하린', rarity: 'SR', sheet: 'students-a', row: 2 },
     taeo: { id: 'taeo', name: '태오', rarity: 'R', sheet: 'students-b', row: 0 },
@@ -22,7 +22,15 @@
     SSR: ['minjae', 'sua', 'taeo', 'osia', 'harin', 'yuna', 'geonu', 'nari', 'minjae', 'taeo'],
     SR: ['minjae', 'nari', 'taeo', 'geonu', 'sua', 'yuna', 'harin', 'nari', 'minjae', 'taeo']
   });
-  const MARKS = Object.freeze({ sleep: 1, approach: 3.7, wake: 5.9, opening: 8.2, reveal: 9.5, hold: 11.2 });
+  const MARKS = Object.freeze({ sleep: 1, approach: 3.3, wake: 5, opening: 7.6, sigil: 8.7, dive: 10.5, impact: 12.4, reveal: 13, hold: 16 });
+  const ELEMENTS = Object.freeze({ horas: 'blossom', osia: 'water', nari: 'healing' });
+  const ease = n => { n = Math.max(0, Math.min(1, n)); return n * n * (3 - 2 * n); };
+  function poseAt(time) {
+    if (time < 5) return ease((time - 4.1) / .9) * .72;
+    if (time < 7.6) return .72 + .28 * Math.pow(Math.sin((time - 5) / 2.6 * Math.PI * 2), 2);
+    if (time < 8.7) return 1 + ease((time - 7.6) / 1.1);
+    return 2 + ease((time - 13) / .45);
+  }
   function highest(results) {
     if (!Array.isArray(results) || !results.length) throw new Error('모집 결과가 없어요.');
     let best = null;
@@ -41,6 +49,9 @@
   function phaseAt(time) {
     if (time >= MARKS.hold) return 'hold';
     if (time >= MARKS.reveal) return 'reveal';
+    if (time >= MARKS.impact) return 'impact';
+    if (time >= MARKS.dive) return 'dive';
+    if (time >= MARKS.sigil) return 'sigil';
     if (time >= MARKS.opening) return 'opening';
     if (time >= MARKS.wake) return 'wake';
     if (time >= MARKS.approach) return 'approach';
@@ -68,5 +79,5 @@
       get running() { return running; }
     };
   }
-  return Object.freeze({ HEROES, SCENARIOS, RANK, MARKS, highest, scenario, phaseAt, createClock });
+  return Object.freeze({ HEROES, SCENARIOS, RANK, MARKS, ELEMENTS, poseAt, highest, scenario, phaseAt, createClock });
 });

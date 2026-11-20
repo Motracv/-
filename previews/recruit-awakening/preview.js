@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  const M = window.RecruitPreviewModel;
+  const M = window.RecruitPreviewModel, C = window.RecruitCinema, frames = window.RecruitFrames;
   const $ = id => document.getElementById(id);
   const stage = $('stage'), clock = M.createClock();
   const ease = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
@@ -10,7 +10,38 @@
   let reduced = motionQuery.matches, selected = 'UR', results = [], best = null;
   let ready = false, busy = false, mode = 'home', paused = false, raf = 0, revision = 0, previousPhase = '';
   let audioEnabled = false, audio = null, voices = new Set(), sounded = new Set();
-  const loaded = new Map();
+  const loaded = new Map(), decoded = Object.create(null);
+  const surfaces = ['visitor-art', 'reveal-art', 'fx-back', 'fx-front'].map(id => {
+    const canvas = $(id); let context = null;
+    try { context = canvas.getContext('2d'); } catch {}
+    return { canvas, context };
+  });
+  function resizeCanvases() {
+    const box = stage.getBoundingClientRect(), width = box.width || 1280, height = box.height || 720;
+    for (const { canvas } of surfaces) {
+      const rect = canvas.getBoundingClientRect();
+      const actor = canvas.id === 'visitor-art' || canvas.id === 'reveal-art';
+      const size = C.fitResolution(rect.width || width * (actor ? .5 : 1), rect.height || height * (actor ? .91 : 1), window.devicePixelRatio || 1, actor ? 1600000 : 2200000);
+      if (canvas.width !== size.width) canvas.width = size.width;
+      if (canvas.height !== size.height) canvas.height = size.height;
+    }
+    if (ready && mode !== 'home' && mode !== 'results') draw(clock.time, true);
+  }
+  function drawCanvases(time) {
+    if (!best) return;
+    const element = M.ELEMENTS[best.id];
+    for (const { canvas, context } of surfaces) {
+      if (!context) continue;
+      if (canvas.id === 'visitor-art' || canvas.id === 'reveal-art') {
+        const visible = canvas.id === 'visitor-art' ? time >= 3.3 && time < 10.5 : time >= 12.4;
+        if (visible) C.actor(context, decoded, frames[best.id], canvas.width, canvas.height, M.poseAt(time), time, reduced);
+        else context.clearRect(0, 0, canvas.width, canvas.height);
+      } else C.effects(context, canvas.width, canvas.height, time, element, best.rarity, canvas.id === 'fx-front', reduced);
+    }
+  }
+  function clearCanvases() {
+    for (const { canvas, context } of surfaces) context?.clearRect(0, 0, canvas.width, canvas.height);
+  }
   stage.dataset.reduced = String(reduced);
 
   // All particles are pooled once. A long hold never creates new DOM elements.
@@ -33,7 +64,7 @@
       function finish(error) {
         if (settled) return; settled = true; clearTimeout(timeout);
         image.onload = image.onerror = null;
-        error ? reject(error) : resolve(image);
+        if (error) reject(error); else { decoded[url] = image; resolve(image); }
       }
       image.onload = async () => {
         if (!image.naturalWidth) return finish(new Error('일러스트를 읽지 못했어요.'));
@@ -78,7 +109,9 @@
     if (sounded.has(key)) return; sounded.add(key);
     if (key === 'tap1' || key === 'tap2') tone(210, 0, .14, .06, 'triangle');
     if (key === 'approach') { tone(523.25, 0, 1.2, .018); tone(783.99, .2, 1.2, .014); }
-    if (key === 'reveal') [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, i * .11, 1.6, .035));
+    if (key === 'sigil') [261.63, 392, 523.25].forEach((f, i) => tone(f, i * .14, 1.4, .03));
+    if (key === 'dive') [220, 330, 440, 660, 880, 1320].forEach((f, i) => tone(f, i * .16, .8, .025));
+    if (key === 'reveal') { tone(65.4, 0, .9, .1, 'triangle'); [523.25, 659.25, 783.99, 1046.5, 1568].forEach((f, i) => tone(f, i * .08, 1.8, .035)); }
     if (key === 'results') [659.25, 783.99, 1046.5].forEach((f, i) => tone(f, i * .07, .55, .024));
   }
   function stop() {
@@ -105,10 +138,10 @@
     $('scene').style.transform = ''; $('scene').style.opacity = '';
     $('commander').style.transform = ''; $('commander').style.opacity = '';
     $('visitor').style.transform = ''; $('reveal-art-wrap').style.transform = '';
-    for (const id of ['visitor', 'visitor-aura', 'hint-badge', 'tap-rings', 'reveal', 'blackout', 'flash', 'petals']) opacity($(id), 0);
+    for (const id of ['visitor', 'visitor-aura', 'hint-badge', 'tap-rings', 'reveal', 'blackout', 'flash', 'petals', 'sigil-title']) opacity($(id), 0);
     for (const id of ['eyelid-top', 'eyelid-bottom']) $(id).style.transform = 'scaleY(0)';
     showDialogue('', '', false); $('progress').style.width = '0%'; previousPhase = '';
-    stage.dataset.phase = 'home'; stage.classList.remove('portrait-reveal');
+    stage.dataset.phase = 'home'; stage.classList.remove('portrait-reveal'); clearCanvases();
     document.querySelectorAll('[data-seek]').forEach((button, i) => button.classList.toggle('active', i === 0));
   }
   async function prepare(rarity) {
@@ -121,14 +154,19 @@
     $('start-label').textContent = '일러스트 준비 중';
     document.querySelectorAll('.rarity-controls button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.rarity === rarity)));
     updateControls();
-    const art = new Set(['assets/classroom.webp', 'assets/commander.webp', best.wake, best.reveal]);
+    const art = new Set(['assets/classroom.webp', 'assets/commander.webp', ...frames[best.id].map(frame => frame.file)]);
     for (const hero of results) art.add(hero.profile || `../../school/assets/roster-remake/${hero.sheet}.webp`);
     try {
       await Promise.all([...art].map(loadImage));
       if (ticket !== revision) return;
-      $('visitor-art').src = best.wake; $('reveal-art').src = best.reveal;
-      $('visitor-art').hidden = best.id === 'horas'; $('visitor-rig').toggleAttribute('hidden', best.id !== 'horas');
-      $('reveal-art').alt = `${best.name}가 웃으며 단장을 반기는 모습`;
+      $('reveal-art').setAttribute('aria-label', `${best.name}가 웃으며 단장을 반기는 모습`);
+      const theme = C.THEMES[M.ELEMENTS[best.id]];
+      stage.dataset.element = M.ELEMENTS[best.id];
+      stage.style.setProperty('--element-color', theme.color);
+      $('element-tag').textContent = theme.label + ' · ' + theme.english;
+      $('sigil-name').textContent = theme.english;
+      $('sigil-caption').textContent = theme.label + '의 인연이 깨어납니다';
+      resizeCanvases();
       $('hero-rarity').textContent = $('hint-rarity').textContent = best.rarity;
       $('hero-name').textContent = best.name; $('hero-title').textContent = best.title;
       ready = true; busy = false; $('loading').hidden = true; stage.setAttribute('aria-busy', 'false');
@@ -145,55 +183,61 @@
   }
 
   function draw(time, silent = false) {
-    const phase = M.phaseAt(time), transition = ramp(time, M.MARKS.reveal, 1.1);
+    const phase = M.phaseAt(time), transition = ramp(time, 12.6, 1.2);
     stage.dataset.phase = phase;
-    const approach = ramp(time, 3.7, 1.7), waking = time >= 5.9 && time < 8.2;
-    const tap = Math.max(0, 1 - Math.abs(time - 6.45) / .32) + Math.max(0, 1 - Math.abs(time - 7.35) / .32);
+    const approach = ramp(time, 3.3, 1.6), dive = ramp(time, 10.5, 1.9), settle = ramp(time, 13, 1.5);
+    const tap = Math.max(0, 1 - Math.abs(time - 5.65) / .3) + Math.max(0, 1 - Math.abs(time - 6.95) / .3);
     const breathing = reduced ? 0 : Math.sin(time * 1.9);
+    const impact = reduced ? 0 : ramp(time, 12.4, .09) * (1 - ramp(time, 12.55, .7));
     $('home').hidden = time > .75;
     opacity($('home'), 1 - ramp(time, .15, .55));
-    opacity($('commander'), ramp(time, .75, .25) * (1 - transition));
-    // The desk stays grounded; the minute scale change is anchored at its base.
-    $('commander').style.transform = `translateY(${reduced ? 0 : -tap * 2}px) scaleY(${1 + breathing * .0015})`;
-    $('scene').style.transform = reduced ? 'none' : `scale(${1 + ramp(time, 1, 7) * .035 + ramp(time, 8.2, 1.3) * .07}) translateY(${ramp(time, 8.2, 1.3) * 1.3}%)`;
-    opacity($('visitor'), approach * (1 - transition));
-    $('visitor').style.transform = reduced ? 'none' : `translateX(${(1 - approach) * 15}%) translateY(${tap * 5 + breathing * .6}px) rotate(${-tap * 1.3}deg)`;
-    // A separately clipped forearm rotates around the shoulder: the fingers
-    // lower twice while the body and dress keep their own breathing motion.
-    $('visitor-arm').setAttribute('transform', `rotate(${reduced ? 0 : -tap * 2.7 + (waking ? Math.sin(time * 4) * .2 : 0)} 390 455)`);
-    opacity($('visitor-aura'), approach * (.65 + Math.sin(time * 2) * .12) * (1 - transition));
-    opacity($('hint-badge'), ramp(time, 4.4, .6) * (1 - ramp(time, 8, .5)));
-    opacity($('tap-rings'), tap * .7 * (reduced ? 0 : 1));
+    opacity($('commander'), ramp(time, .75, .25) * (1 - ramp(time, 8.2, .8)));
+    $('commander').style.transform = `translateY(${-tap * 2}px) scaleY(${1 + breathing * .0015})`;
+    const sceneScale = 1 + ramp(time, 1, 6) * .04 + ramp(time, 7.6, 1.4) * .11 + dive * .65;
+    $('scene').style.transform = reduced ? 'none' : `scale(${sceneScale}) translateY(${dive * 5}%)`;
+    opacity($('scene'), 1 - dive * (1 - settle));
+    opacity($('visitor'), approach * (1 - ramp(time, 8.4, 1.3)));
+    $('visitor').style.transform = reduced ? 'none' : `translateX(${(1 - approach) * 16}%) translateY(${tap * 3 + breathing * .4}px)`;
+    opacity($('visitor-aura'), approach * (.65 + Math.sin(time * 2) * .12) * (1 - ramp(time, 8.6, 1)));
+    opacity($('hint-badge'), ramp(time, 4, .5) * (1 - ramp(time, 7.5, .6)));
+    opacity($('tap-rings'), tap * .65 * (reduced ? 0 : 1));
     $('tap-rings').style.transform = `scale(${1.6 - tap * .6})`;
     const black = time < .75 ? ramp(time, 0, .75) : 1 - ramp(time, 1, 1.6);
     opacity($('blackout'), black);
     let blink = 0;
-    if (time >= 8.2 && time < 9.5) blink = time < 8.7 ? ramp(time, 8.2, .5) : 1 - ramp(time, 8.7, .8);
+    if (time >= 7.6 && time < 8.7) blink = time < 8 ? ramp(time, 7.6, .4) : 1 - ramp(time, 8, .7);
     for (const id of ['eyelid-top', 'eyelid-bottom']) $(id).style.transform = `scaleY(${reduced ? 0 : blink})`;
     opacity($('reveal'), transition);
-    $('reveal').setAttribute('aria-hidden', String(time < M.MARKS.reveal));
-    $('reveal-art-wrap').style.transform = reduced ? 'none' : `translateY(${(1 - transition) * 5}%) scale(${1.035 - transition * .035}) rotate(${(1 - transition) * -1.5}deg)`;
+    $('reveal').setAttribute('aria-hidden', String(time < 12.6));
+    const portraitPush = 1.5 - .5 * ramp(time, 13.1, 1.5);
+    $('reveal-art-wrap').style.transform = reduced ? 'none' : `translate(${Math.sin(time * 62) * impact * .22}%,${(1 - transition) * 5 + Math.cos(time * 53) * impact * .14}%) scale(${portraitPush})`;
     opacity($('petals'), transition);
-    const flash = time < 9.5 ? ramp(time, 9.2, .3) : 1 - ramp(time, 9.5, .65);
-    opacity($('flash'), reduced ? 0 : flash * .88);
-    if (time >= 10.15) {
-      const count = reduced ? best.greeting.length : Math.floor((time - 10.15) * 32);
+    opacity($('sigil-title'), ramp(time, 8.8, .6) * (1 - ramp(time, 10.5, .6)));
+    $('sigil-title').style.transform = `translate(-50%,-50%) scale(${1 + dive * .4})`;
+    // One smooth bloom, not a repeating full-screen strobe.
+    const flash = time < 12.4 ? ramp(time, 12.2, .2) : 1 - ramp(time, 12.4, .6);
+    opacity($('flash'), reduced ? 0 : flash * .85);
+    drawCanvases(time);
+    if (time >= 14) {
+      const count = reduced ? best.greeting.length : Math.floor((time - 14) * 30);
       showDialogue(best.name, best.greeting.slice(0, count), true);
-    } else if (time >= 5.95 && time < 8.2) showDialogue('???', time < 6.9 ? '단장님…' : '단장님, 일어날 시간이에요.', true);
+    } else if (time >= 5.1 && time < 7.6) showDialogue('???', time < 6.2 ? '단장님…' : '단장님, 일어날 시간이에요.', true);
     else showDialogue('', '', false);
     $('progress').style.width = Math.min(100, time / M.MARKS.hold * 100) + '%';
     if (phase !== previousPhase) {
       previousPhase = phase;
-      const label = { blackout: '천천히 눈을 감으면…', sleep: '조용한 교실. 잠든 단장.', approach: '곁으로 다가오는 낯선 기척.', wake: '누군가 단장을 깨웁니다.', opening: '천천히 고개를 들면…', reveal: '새로운 동료와의 첫 만남.', hold: '캐릭터를 감상한 뒤 화면을 눌러 전체 결과를 확인하세요.' };
+      const label = { blackout: '천천히 눈을 감으면…', sleep: '조용한 교실. 잠든 단장.', approach: '곁으로 다가오는 낯선 기척.', wake: '누군가 단장을 깨웁니다.', opening: '천천히 고개를 들면…', sigil: '동료의 문양이 빛나기 시작합니다.', dive: '차원의 빛 속으로 빨려 들어갑니다.', impact: '새로운 인연이 눈앞에 펼쳐집니다.', reveal: '새로운 동료와의 첫 만남.', hold: '캐릭터를 감상한 뒤 화면을 눌러 전체 결과를 확인하세요.' };
       $('status').textContent = label[phase];
-      const index = time < 1 ? 0 : time < 3.7 ? 1 : time < 5.9 ? 2 : time < 9.5 ? 3 : 4;
+      const index = time < 1 ? 0 : time < 3.3 ? 1 : time < 5 ? 2 : time < 8.7 ? 3 : time < 10.5 ? 4 : time < 12.4 ? 5 : time < 13 ? 6 : 7;
       document.querySelectorAll('[data-seek]').forEach((button, i) => button.classList.toggle('active', i === index));
     }
     if (!silent) {
-      if (time >= 3.7 && time < 5) cue('approach');
-      if (time >= 6.35 && time < 6.8) cue('tap1');
-      if (time >= 7.25 && time < 7.7) cue('tap2');
-      if (time >= 9.5) cue('reveal');
+      if (time >= 3.3 && time < 5) cue('approach');
+      if (time >= 5.55 && time < 6) cue('tap1');
+      if (time >= 6.85 && time < 7.3) cue('tap2');
+      if (time >= 8.7 && time < 10.5) cue('sigil');
+      if (time >= 10.5 && time < 12.4) cue('dive');
+      if (time >= 12.4) cue('reveal');
     }
   }
   function hold() {
@@ -213,7 +257,7 @@
     stop(); mode = 'playing'; paused = false; sounded.clear(); previousPhase = '';
     resetVisuals(); $('home').hidden = from > .75; $('results').hidden = true;
     $('skip').hidden = false; $('continue').hidden = true;
-    clock.start(); clock.seek(reduced ? Math.max(from, 9.5) : from);
+    clock.start(); clock.seek(reduced ? M.MARKS.hold : from);
     audioReady(); draw(clock.time, true); updateControls();
     // Move focus away from controls that are about to fade beneath the scene.
     $('skip').focus({ preventScroll: true });
@@ -242,7 +286,7 @@
   }
   function showResults() {
     if (!ready || busy || (mode !== 'playing' && mode !== 'hold')) return;
-    stop(); mode = 'results'; paused = false; stage.dataset.phase = 'results';
+    stop(); clearCanvases(); mode = 'results'; paused = false; stage.dataset.phase = 'results'; opacity($('sigil-title'), 0);
     $('home').hidden = true; $('continue').hidden = true; $('skip').hidden = true; $('dialogue').hidden = true;
     for (const id of ['blackout', 'flash']) opacity($(id), 0);
     for (const id of ['eyelid-top', 'eyelid-bottom']) $(id).style.transform = 'scaleY(0)';
@@ -297,5 +341,8 @@
   window.addEventListener('pageshow', event => {
     if (event.persisted && mode === 'playing') { paused = true; updateControls(); $('status').textContent = '계속 재생을 눌러 이어서 볼 수 있어요.'; }
   });
+  if (window.ResizeObserver) new window.ResizeObserver(resizeCanvases).observe(stage);
+  else window.addEventListener('resize', resizeCanvases);
+  resizeCanvases();
   prepare('UR');
 })();

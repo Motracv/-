@@ -24,3 +24,24 @@ main{padding:20px 24px 12px}.stage{--accent:#ffc1e5;--accent-rgb:255,161,211;--a
 .stage[data-phase=results] .scene *{animation-play-state:paused}
 .stage[data-phase=hold]:not([data-reduced=true]) .reveal-art-wrap img{animation:greeting-breathe 4s ease-in-out infinite;transform-origin:50% 80%}
 @keyframes greeting-breathe{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(.18deg)}}
+
+/* Cinema 02: one physical actor frame for all rarities, with full-body art. */
+.stage .visitor,.stage[data-rarity] .visitor{left:40%;width:44%;height:91%;bottom:0;transform-origin:50% 98%;filter:brightness(0) drop-shadow(0 0 10px rgba(var(--accent-rgb),.75))}
+.visitor canvas,.reveal-art-wrap canvas{display:block;width:100%;height:100%;max-width:none}
+.stage .reveal-art-wrap,.stage[data-rarity] .reveal-art-wrap{width:52%;height:96%;right:5%;top:0;transform-origin:50% 12%}
+.stage[data-phase=hold]:not([data-reduced=true]) .reveal-art-wrap canvas{animation:greeting-breathe 4s ease-in-out infinite;transform-origin:50% 98%}
+.reveal{z-index:2}.reveal-light{background:linear-gradient(90deg,#eafaffed,#ecf6fcd1 25%,#d9ecf553 58%,transparent),radial-gradient(ellipse at 74% 55%,rgba(var(--accent-rgb),.16),transparent 70%)}
+.cinema-fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;max-width:none}.cinema-fx.back{z-index:1}.cinema-fx.front{z-index:5}
+.constellation{opacity:.35}.hero-title{left:8%;top:20%}.hero-rarity{margin-bottom:12px}.hero-title h1{margin-bottom:14px}.element-tag{font-size:clamp(11px,1.1cqw,20px);font-weight:700;letter-spacing:.13em;margin:0 0 23px;padding:8px 14px;border:1px solid #6f97b844;border-radius:30px;background:#f4fbff91;color:#38566f}
+.sigil-title{position:absolute;z-index:7;left:54%;top:81%;width:80%;text-align:center;transform:translate(-50%,-50%);opacity:0;pointer-events:none;color:#fff;text-shadow:0 0 22px var(--element-color),0 1px 5px #0009;display:flex;flex-direction:column;align-items:center;gap:10px}.sigil-title small{font-size:clamp(11px,1cqw,18px);letter-spacing:.32em;color:#d1e4f3}.sigil-title strong{font-size:clamp(28px,3.8cqw,68px);font-weight:450;letter-spacing:.35em;margin-left:.35em}.sigil-title>span{font-size:clamp(12px,1.2cqw,22px);color:var(--element-color);letter-spacing:.12em}
+.stage[data-phase=sigil] .scene-shade,.stage[data-phase=dive] .scene-shade,.stage[data-phase=impact] .scene-shade{opacity:0}
+.timeline>button{font-size:12px;white-space:nowrap;padding-inline:0}.stage[data-element=water] .petal{border-radius:50%;background:transparent;border:1px solid #a5efff;box-shadow:0 0 4px #62d6ff88}.stage[data-element=healing] .petal{border-radius:1px;clip-path:polygon(35% 0,65% 0,65% 35%,100% 35%,100% 65%,65% 65%,65% 100%,35% 100%,35% 65%,0 65%,0 35%,35% 35%);height:clamp(6px,1cqw,18px)}
+@media(max-width:600px) and (orientation:portrait){
+  .scene{width:164%;left:-37%;transform-origin:59% 45%}
+  .stage .visitor,.stage[data-rarity] .visitor{left:43%;height:80%;width:39%;bottom:6%}
+  .stage .reveal-art-wrap,.stage[data-rarity] .reveal-art-wrap{width:86%;height:81%;right:-8%;top:0}
+  .hero-title{left:6%;top:auto;bottom:27%;z-index:3}.hero-title h1{margin:6px 0 8px;font-size:35px}.element-tag{font-size:10px;padding:5px 8px;margin-bottom:0;background:#eefbffe6;letter-spacing:.04em}.hero-rarity{font-size:29px;margin-bottom:5px}.encounter-label{margin-bottom:5px}
+  .sigil-title{top:75%;left:54%;gap:9px}.sigil-title strong{font-size:26px;letter-spacing:.19em}.sigil-title small{font-size:10px}.sigil-title>span{font-size:12px}
+  .timeline{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));row-gap:2px}.timeline>button{font-size:11px;min-height:25px}.preview-controls{margin-top:10px}
+}
+@media(max-height:600px) and (orientation:landscape){.hero-title{top:14%}.hero-rarity{margin-bottom:5px}.hero-title h1{margin:7px 0 8px}.element-tag{padding:4px 9px;margin-bottom:10px;font-size:10px}.title-rule,.title-english{display:none}.timeline>button{font-size:10px}.sigil-title strong{font-size:26px}}

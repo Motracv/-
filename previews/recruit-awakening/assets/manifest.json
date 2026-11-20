@@ -52,5 +52,65 @@
     "bytes": 1005232,
     "source": "exec-92d73475-3225-4c38-bbfc-d4147d0e390e.png",
     "encoding": "lossless WebP, original dimensions"
+  },
+  {
+    "file": "horas-motion-wake.webp",
+    "width": 1024,
+    "height": 1536,
+    "alpha": true,
+    "bytes": 1427488,
+    "source": "exec-bac0acdf-7a4d-4026-9ea9-9e5a3374b313.png",
+    "encoding": "lossless WebP, original dimensions",
+    "poses": 2
+  },
+  {
+    "file": "horas-motion-greet.webp",
+    "width": 1448,
+    "height": 1086,
+    "alpha": true,
+    "bytes": 1203346,
+    "source": "exec-e2b3c0de-2d9b-4bec-bdf9-549e8534e145.png",
+    "encoding": "lossless WebP, original dimensions",
+    "poses": 2
+  },
+  {
+    "file": "osia-motion-wake.webp",
+    "width": 1122,
+    "height": 1402,
+    "alpha": true,
+    "bytes": 849156,
+    "source": "exec-e6aa831f-7248-4d0a-ade0-a8e1e67bea4a.png",
+    "encoding": "lossless WebP, original dimensions",
+    "poses": 2
+  },
+  {
+    "file": "osia-motion-greet.webp",
+    "width": 1024,
+    "height": 1536,
+    "alpha": true,
+    "bytes": 1346046,
+    "source": "exec-39508c4d-749f-4cc2-adef-13f18ba9bf40.png",
+    "encoding": "lossless WebP, original dimensions",
+    "poses": 2
+  },
+  {
+    "file": "nari-motion-wake.webp",
+    "width": 1024,
+    "height": 1536,
+    "alpha": true,
+    "bytes": 1261338,
+    "source": "exec-7b6c2135-8f1d-48ea-a6a7-cab5f481e514.png",
+    "encoding": "lossless WebP, original dimensions",
+    "poses": 2
+  },
+  {
+    "file": "nari-motion-greet.webp",
+    "width": 1024,
+    "height": 1536,
+    "alpha": true,
+    "bytes": 1383946,
+    "source": "exec-80cb18ed-9a8e-4620-b5c8-d8aa219f2908.png",
+    "encoding": "lossless WebP, original dimensions",
+    "poses": 2
   }
 ]

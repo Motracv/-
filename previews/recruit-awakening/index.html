@@ -7,9 +7,11 @@
   <meta name="description" content="학교 용병단 모집 연출 시안. 잠든 단장을 깨우는 새로운 동료와의 첫 만남을 직접 재생해 보세요.">
   <title>교실에서의 첫 만남 · 모집 연출 시안</title>
   <link rel="preload" as="image" href="assets/classroom.webp">
-  <link rel="stylesheet" href="preview.css?v=awakening1">
-  <script defer src="model.js?v=awakening1"></script>
-  <script defer src="preview.js?v=awakening1"></script>
+  <link rel="stylesheet" href="preview.css?v=awakening2">
+  <script defer src="frames.js?v=awakening2"></script>
+  <script defer src="cinema.js?v=awakening2"></script>
+  <script defer src="model.js?v=awakening2"></script>
+  <script defer src="preview.js?v=awakening2"></script>
 </head>
 <body>
   <header class="page-header">
@@ -32,15 +34,7 @@
         <div id="ambient" class="ambient"></div>
         <div id="visitor-aura" class="visitor-aura"></div>
         <div id="visitor" class="visitor">
-          <img id="visitor-art" src="assets/horas-wake.webp" alt="">
-          <svg id="visitor-rig" class="visitor-rig" viewBox="0 0 1024 1536" aria-hidden="true" hidden>
-            <defs>
-              <clipPath id="wake-arm-clip"><path d="M0 490H220L289 446 365 410 400 448 410 555 382 650 361 760 250 820 155 795 112 674H0Z"/></clipPath>
-              <clipPath id="wake-body-clip"><path clip-rule="evenodd" d="M0 0H1024V1536H0Z M0 490H220L289 446 365 410 400 448 410 555 382 650 361 760 250 820 155 795 112 674H0Z"/></clipPath>
-            </defs>
-            <image href="assets/horas-wake.webp" width="1024" height="1536" clip-path="url(#wake-body-clip)"/>
-            <g id="visitor-arm"><image href="assets/horas-wake.webp" width="1024" height="1536" clip-path="url(#wake-arm-clip)"/></g>
-          </svg>
+          <canvas id="visitor-art" width="800" height="1200"></canvas>
         </div>
         <div id="commander" class="commander"><img src="assets/commander.webp" alt=""><span class="sleep-z z-one">z</span><span class="sleep-z z-two">z</span><span class="sleep-z z-three">Z</span></div>
         <div id="tap-rings" class="tap-rings"><i></i><i></i></div>
@@ -48,12 +42,15 @@
       </div>
 
       <div class="scene-shade" aria-hidden="true"></div>
+      <canvas id="fx-back" class="cinema-fx back" aria-hidden="true"></canvas>
       <div id="reveal" class="reveal" aria-hidden="true">
         <div class="reveal-light"></div>
         <div class="constellation"><i></i><i></i><i></i></div>
-        <div id="reveal-art-wrap" class="reveal-art-wrap"><img id="reveal-art" src="assets/horas-greeting.webp" alt=""></div>
-        <div class="hero-title"><span class="encounter-label">새로운 인연</span><span id="hero-rarity" class="hero-rarity">UR</span><span id="hero-title">벚꽃의 의식</span><h1 id="hero-name">호라스</h1><span class="title-rule"></span><span class="title-english">OUR STORY BEGINS HERE</span></div>
+        <div id="reveal-art-wrap" class="reveal-art-wrap"><canvas id="reveal-art" width="900" height="1400" role="img" aria-label="호라스가 웃으며 반기는 모습"></canvas></div>
+        <div class="hero-title"><span class="encounter-label">새로운 인연</span><span id="hero-rarity" class="hero-rarity">UR</span><span id="hero-title">벚꽃의 의식</span><h1 id="hero-name">호라스</h1><span id="element-tag" class="element-tag">벚꽃 · BLOSSOM</span><span class="title-rule"></span><span class="title-english">OUR STORY BEGINS HERE</span></div>
       </div>
+      <canvas id="fx-front" class="cinema-fx front" aria-hidden="true"></canvas>
+      <div id="sigil-title" class="sigil-title" aria-hidden="true"><small>차원을 넘어, 당신에게</small><strong id="sigil-name">BLOSSOM</strong><span id="sigil-caption">벚꽃의 인연이 깨어납니다</span></div>
       <div id="petals" class="petals" aria-hidden="true"></div>
 
       <div id="home" class="home">
@@ -61,7 +58,7 @@
         <h1>눈을 뜨면,<br><em>새로운 인연.</em></h1>
         <p>나른한 오후의 교실.<br>누군가, 당신의 이름을 부릅니다.</p>
         <button id="start" class="primary" disabled><span id="start-label">일러스트 준비 중</span><span class="button-star" aria-hidden="true">✧</span></button>
-        <span class="demo-note">10회 모집 시연 · 보석 소모 없음</span>
+        <span class="demo-note">10회 모집 시연 · 보석 소모 없음 · 연출 개편 02</span>
       </div>
 
       <div id="dialogue" class="dialogue" hidden><span id="speaker">???</span><p id="line">단장님…</p></div>
@@ -83,7 +80,7 @@
 
     <footer class="preview-controls">
       <div class="control-top"><div class="rarity-controls" role="group" aria-label="시연 최고 등급 선택"><span>만날 동료</span><button data-rarity="SR" aria-pressed="false">SR <small>나리</small></button><button data-rarity="SSR" aria-pressed="false">SSR <small>오시아</small></button><button data-rarity="UR" aria-pressed="true">UR <small>호라스</small></button></div><div class="playback-controls"><button id="pause" disabled>일시정지</button><button id="restart" disabled>처음부터</button></div></div>
-      <div class="timeline" aria-label="연출 장면 선택"><button data-seek="0" class="active">암전</button><button data-seek="1.6">잠든 단장</button><button data-seek="4.5">낯선 기척</button><button data-seek="6.3">깨우기</button><button data-seek="10.6">첫 만남</button><div class="timeline-progress"><i id="progress"></i></div></div>
+      <div class="timeline" aria-label="연출 장면 선택"><button data-seek="0" class="active">암전</button><button data-seek="1.6">잠든 단장</button><button data-seek="4.2">낯선 기척</button><button data-seek="5.6">깨우기</button><button data-seek="9.4">속성 문양</button><button data-seek="11.2">차원 진입</button><button data-seek="12.4">등장</button><button data-seek="14.2">첫 만남</button><div class="timeline-progress"><i id="progress"></i></div></div>
       <p id="status" class="status" role="status" aria-live="polite">일러스트를 준비하고 있어요.</p>
     </footer>
   </main>
