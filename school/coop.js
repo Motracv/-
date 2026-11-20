@@ -4,7 +4,7 @@ window.SchoolCoop=(()=>{
  function create(ctx){
   let epoch=0,scope='',timer=0,polling=false,pending=false,stopped=false,incoming=[],node=null,markup='',picker=null,clientId=crypto.randomUUID();
   const seen=new Set(),removed=new Set();
-  const title=mode=>mode==='yeti'?'예티 협동 토벌':'길드 보스 · 벌룬';
+  const title=mode=>mode==='yeti'?'예티 협동 토벌':'길드 보스 · 협동 도전';
   function schedule(delay=2500){clearTimeout(timer);if(!stopped)timer=setTimeout(poll,delay);}
   function hide(){if(node){try{node.hidePopover?.();}catch{}node.remove();node=null;}markup='';}
   function reset(){closePicker();epoch++;clientId=crypto.randomUUID();scope=ctx.scope();incoming=[];pending=false;polling=false;seen.clear();removed.clear();hide();schedule(0);}
