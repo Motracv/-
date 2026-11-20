@@ -45,7 +45,7 @@
   const Presentation = window.SchoolPresentation;
   Presentation?.configure({soundVolume:()=>sfxVolume,soundEnabled:()=>sound&&!muted&&sfxVolume>0&&!!entry?.entered&&!afk?.active&&!piyuGuide?.storyOpen, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
-  let social, guild, raid, yeti, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
+  let social, guild, raid, yeti, santa, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
   let community = null, campus = null;
   let insights = null, dungeonPortal = null, lobby = null, lobbyNews = null, worldMap = null, qol = null, equipmentUI = null;
@@ -100,10 +100,10 @@
     if (busy || pending) return toast('진행 중인 저장을 먼저 확인해 주세요.');
     busy=true;coop?.depart();
     try { if(token)await request('/api/account/logout',{},'account'); } catch {}
-    afk?.close();piyuGuide?.close();stopTraining();Presentation?.cancel();coop?.reset();raid?.destroy();yeti?.destroy();social?.destroy();guild?.destroy();
+    afk?.close();piyuGuide?.close();stopTraining();Presentation?.cancel();coop?.reset();raid?.destroy();yeti?.destroy();santa?.destroy();social?.destroy();guild?.destroy();
     clearLogin();profile=null;hasCloudState=false;cloudBalance=null;cloudClock=null;sessionFingerprint=null;connected=false;clearPending();
     storage.remove(CLOUD_CACHE,true);storage.set(MODE,'cloud');mode='cloud';state=freshGuest();effects=[];closeModal();busy=false;
-    social=createSocial();guild=createGuild();raid=createRaid();yeti=createYeti();entry?.show();entry?.google();renderButtons();
+    social=createSocial();guild=createGuild();raid=createRaid();yeti=createYeti();santa=createSanta();entry?.show();entry?.google();renderButtons();
   }
   async function acceptLogin(result){
     if(busy||pending)throw Error('진행 중인 저장을 먼저 확인해 주세요.');
@@ -112,15 +112,16 @@
     if(!storage.set(SESSION,JSON.stringify({token})))throw Error('계정 세션을 저장할 수 없습니다. 브라우저 저장 설정을 확인해 주세요.');
     return useCloud();
   }
+  function createSanta(){return window.SchoolSanta?.create({getState:()=>state,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,isBlocked:()=>busy||!!pending||!connected||verifiedToken!==token,dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
   function createYeti(){return window.SchoolYeti?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,refreshRewards:()=>{lastSync=0;return sync();},dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
   function createRaid(){return window.SchoolRaid?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
   function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
-  function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token&&!profile?.isTest,dispatch:act,openModal,toast,refresh:()=>sync(true),openYeti:()=>yeti?.open(),openHero:heroDetail,openAccount:accountModal,openCaptain:captainModal}); }
+  function createSocial() { return window.SchoolSocial?.create({request,getState:()=>state,serverNow,isBlocked:()=>busy || !!pending || (mode === 'guest' ? !hasGuestState : !connected || verifiedToken !== token),getProfile:()=>profile,isCloud:()=>mode==='cloud' && connected && verifiedToken===token&&!profile?.isTest,dispatch:act,openModal,toast,refresh:()=>sync(true),openYeti:()=>yeti?.open(),openSanta:()=>santa?.open(),openHero:heroDetail,openAccount:accountModal,openCaptain:captainModal}); }
   function damageModal() { insights?.report('current'); }
   // Browsing a dialog does not pause combat. Only another full battle scene
   // needs the campaign canvas to sleep; hidden tabs still stop painting.
   function battleVisible() {
-    return !!entry?.entered && !afk?.active && tab === 'adventure' && !($('modal').open && ['raid','yeti','social-arena'].includes(modalKind));
+    return !!entry?.entered && !afk?.active && tab === 'adventure' && !($('modal').open && ['raid','yeti','santa','social-arena'].includes(modalKind));
   }
   function syncBattleOverlay() {
     const side = $('modal').open && tab === 'adventure' && ['damage','settings','diagnostics','help','dungeon-help'].includes(modalKind);
@@ -872,7 +873,7 @@
     guild?.refreshControls?.();social?.refresh();queueMicrotask(restoreResult);
     battlePassUI?.refresh();skinsUI?.refresh();formationUI?.controls();coop?.refresh();notice?.refresh();
     renderCounter();
-    setHidden($('operation-status'), !operation || !busy || operation === 'counter');
+    setHidden($('operation-status'), !operation || !busy || operation === 'counter' || operation === 'santa-tick');
     setText($('operation-message'), ({recruit:'동료 모집 중',awaken:'각성 저장 중',train:'훈련 저장 중',activity:'던전 입장 중',rename:'이름 저장 중',redeem:'보상 확인 중',quest:'임무 보상 저장 중','quest-all':'임무 보상 모으는 중','gear-equip':'장비 착용 저장 중','gear-unequip':'장비 해제 저장 중','gear-awaken':'장비 각성 저장 중'})[operation] || '저장 확인 중');
     setAttr($('app'), 'aria-busy', String(busy));
     if (!state) return; const blocked = busy || !!pending || (mode === 'guest' && !hasGuestState) || (mode === 'cloud' && !connected);
@@ -1191,6 +1192,7 @@
     formationUI?.cancel();$('modal').classList.toggle('formation-hero-modal',['hero','codex-hero'].includes(kind));
     qol?.close();equipmentUI?.close();$('modal').classList.remove('qol-modal','equipment-modal');
     worldMap?.destroy(); worldMap = null;
+    if(kind!=='santa')santa?.destroy(); $('modal').classList.toggle('santa-modal',kind==='santa');
     if(kind!=='yeti')yeti?.destroy(); $('modal').classList.toggle('yeti-modal',kind==='yeti');$('modal').classList.toggle('winter-modal',kind==='social-winter');
     if(kind!=='raid')raid?.destroy(); $('modal').classList.toggle('raid-modal',kind==='raid'); $('modal').classList.toggle('world-map-modal', kind === 'map'); $('modal').classList.toggle('guild-modal',kind==='guild'); $('modal').classList.toggle('captain-modal',kind==='captain');
     $('modal').classList.toggle('shards-modal',kind==='shards');
@@ -1199,12 +1201,12 @@
     if (!$('modal').open) $('modal').showModal(); setAttr($('app'), 'data-modal-open', 'true'); syncBattleOverlay(); $('modal').scrollTop = 0; renderCounter();
     if (kind !== 'dungeon-result') maybeShowActivityResult();
   }
-  async function requestModalClose(){if(coop?.closePicker())return;if(modalKind==='skin'){heroDetail('horas');return;}if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
+  async function requestModalClose(){if(coop?.closePicker())return;if(modalKind==='skin'){heroDetail('horas');return;}if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;if(modalKind==='santa'&&!await santa?.leave())return;closeModal(true);}
   function closeModal(dismissResult = false) {
     if(!document.hidden)acknowledgeResult();
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
     community?.stop();skinsUI?.destroy();qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
-    raid?.destroy(); yeti?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); setAttr($('app'), 'data-modal-open', 'false'); modalKind = ''; syncBattleOverlay(); loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
+    raid?.destroy(); yeti?.destroy(); santa?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); setAttr($('app'), 'data-modal-open', 'false'); modalKind = ''; syncBattleOverlay(); loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
   }
   function codexModal(){
     const owned=Object.keys(state.units).length,claimed=new Set(state.codexClaimed||[]);
@@ -1318,7 +1320,7 @@
     };
   }
   function bind() {
-    music=window.SchoolMusic?.create({track:()=>entry?.entered?'lobby':'title',preferences:()=>({music:musicEnabled,musicVolume,muted}),active:()=>!afk?.active&&!resultPresentationBusy()&&!['raid','yeti','social-arena'].includes(modalKind)&&(!entry?.entered||tab!=='adventure')});
+    music=window.SchoolMusic?.create({track:()=>entry?.entered?'lobby':'title',preferences:()=>({music:musicEnabled,musicVolume,muted}),active:()=>!afk?.active&&!resultPresentationBusy()&&!['raid','yeti','santa','social-arena'].includes(modalKind)&&(!entry?.entered||tab!=='adventure')});
     if($('entry-audio-settings'))$('entry-audio-settings').onclick=settingsModal;
     if($('entry-news'))$('entry-news').onclick=()=>qol?.patchNotes();
     document.addEventListener('input',event=>{
@@ -1348,7 +1350,7 @@
     afk=window.SchoolAFK?.create({getState:()=>state,scope:accountScope,reduced:()=>reduced,toast,
       balance:()=>mode==='cloud'&&cloudBalance?cloudBalance:state,
       connected:()=>mode==='guest'?!guestSaveFailed:connected&&verifiedToken===token,
-      canOpen:()=>!blocked()&&!piyuGuide?.active&&!resultPresentationBusy()&&!['raid','yeti','social-arena'].includes(modalKind),
+      canOpen:()=>!blocked()&&!piyuGuide?.active&&!resultPresentationBusy()&&!['raid','yeti','santa','social-arena'].includes(modalKind),
       prepare:()=>{closeModal();setTab('adventure');},onClose:()=>{renderKey=partyKey='';render();}
     });
     $('afk-button').onclick=()=>afk?.open();
@@ -1378,9 +1380,9 @@
       qol.refreshCountdowns();
     }
     equipmentUI = window.SchoolEquipment?.create({getState:()=>state,accountScope,modalKind:()=>modalKind,isBlocked:()=>busy||!!pending||activityAwaitingConfirmation()||(mode==='guest'?!hasGuestState:!connected||verifiedToken!==token),dispatch:act,openModal,closeModal,openHero:heroDetail,toast,play});
-    social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti();
+    social = createSocial(); guild=createGuild(); raid=createRaid(); yeti=createYeti();santa=createSanta();
     notice=window.SchoolNotice?.create({now:serverNow,reduced:()=>reduced});
-    coop=window.SchoolCoop?.create({request,isLobby:(kind,id)=>kind==='yeti'?yeti?.canInvite(id):raid?.canInvite(id),scope:accountScope,now:serverNow,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,blocked:()=>busy||!!pending||resultPresentationBusy(),inEncounter:()=>['yeti','raid'].includes(modalKind)||activityActive(),openEncounter:kind=>kind==='yeti'?yeti.open():raid.open(),toast,play});
+    coop=window.SchoolCoop?.create({request,isLobby:(kind,id)=>kind==='yeti'?yeti?.canInvite(id):raid?.canInvite(id),scope:accountScope,now:serverNow,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,blocked:()=>busy||!!pending||resultPresentationBusy(),inEncounter:()=>['yeti','raid','santa'].includes(modalKind)||activityActive(),openEncounter:kind=>kind==='yeti'?yeti.open():raid.open(),toast,play});
     if ($('guild-button')) $('guild-button').onclick=()=>guild?.open();
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();

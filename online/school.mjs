@@ -1,3 +1,4 @@
+import '../school/santa-engine.js';
 import "../school/engine.js";
 import { createSocial, ensureSchoolName, nameKey } from './social.mjs';
 

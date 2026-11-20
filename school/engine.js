@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 51;
+  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 52;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -804,8 +804,10 @@
   function newActivities(now) {
     return { daily: { period: day(now), used: 0 }, weekly: { period: week(now), used: 0 }, towerBest: 0, run: null, lastResult: null };
   }
+  const KEY_RESET_AT=Date.parse('2026-11-21T00:00:00+09:00');
   function refreshActivities(s, now) {
     s.activities ??= newActivities(now);
+    if(now>=KEY_RESET_AT&&!s.activities.santaKeyReset){s.activities.weekly={period:week(now),used:0};s.activities.santaKeyReset=true;}
     for (const kind of ["daily", "weekly"]) {
       const period = kind === "daily" ? day(now) : week(now);
       if (period > s.activities[kind].period) s.activities[kind] = { period, used: 0 };
@@ -817,7 +819,7 @@
     const at = Number.isFinite(now) && now >= 0 ? now : s.at, saved = s.activities || newActivities(at), result = {};
     for (const kind of ["daily", "weekly"]) {
       const def = DUNGEONS[kind], current = kind === "daily" ? day(at) : week(at);
-      const period = Math.max(current, saved[kind].period), used = period === saved[kind].period ? saved[kind].used : 0;
+      const period = Math.max(current, saved[kind].period), used = kind==='weekly'&&at>=KEY_RESET_AT&&!saved.santaKeyReset?0:period === saved[kind].period ? saved[kind].used : 0;
       result[kind] = { id: kind, name: def.name, keys: def.cap - used, cap: def.cap, period,
         resetAt: (kind === "daily" ? period + 1 : (period + 1) * 7 - 3) * 86400000 - 9 * 3600000,
         tiers: def.unlocks.map((best, i) => ({ tier: i + 1, unlocked: s.best >= best, requiredBest: best, unlockBest: best, stage: def.stages[i], reward: activityReward(kind, i + 1, at) })) };
@@ -830,6 +832,7 @@
   function validActivities(a) {
     if (a === undefined) return true;
     if (!a || typeof a !== "object" || Array.isArray(a)) return false;
+    if(a.santaKeyReset!==undefined&&typeof a.santaKeyReset!=="boolean")return false;
     for (const kind of ["daily", "weekly"]) if (!a[kind] || !Number.isSafeInteger(a[kind].period) || !Number.isInteger(a[kind].used) || a[kind].used < 0 || a[kind].used > DUNGEONS[kind].cap) return false;
     if (!Number.isInteger(a.towerBest) || a.towerBest < 0 || a.towerBest > MAX_TOWER_FLOOR) return false;
     function validRun(r) {
@@ -1101,7 +1104,7 @@
       Number.isFinite(s.gold) && s.gold >= 0 && Number.isFinite(s.gems) && s.gems >= 0 &&
       (s.commanderName === undefined || typeof s.commanderName === "string" && normalizeCommanderName(s.commanderName) === s.commanderName) &&
       (s.nameChanges === undefined || Number.isSafeInteger(s.nameChanges) && s.nameChanges >= 0) &&
-      (s.nameChangeTickets === undefined || Number.isSafeInteger(s.nameChangeTickets) && s.nameChangeTickets >= 0) && validWinter(s.winter) &&
+      (s.nameChangeTickets === undefined || Number.isSafeInteger(s.nameChangeTickets) && s.nameChangeTickets >= 0) && validWinter(s.winter) && (s.santa===undefined||!!globalThis.SchoolSantaRules?.valid(s.santa)) &&
       (s.speed === undefined || s.speed === 1 || s.speed === 1.5) &&
       (s.simCredit === undefined || Number.isFinite(s.simCredit) && s.simCredit >= 0 && s.simCredit < STEP_MS) &&
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
@@ -1717,6 +1720,7 @@
   function actionCore(s, input, now, rng) {
     fail(input && typeof input === "object" && !Array.isArray(input), "잘못된 행동입니다.");
     const kind = input.kind;
+    if(typeof kind==='string'&&kind.startsWith('santa-'))return globalThis.SchoolSantaRules.action(globalThis.SchoolRPG,s,input,now,rng);
     if(kind === 'onboarding') {
       fail(Number.isInteger(input.step) && input.step >= 0 && input.step <= 8, '안내 단계를 확인해 주세요.');
       if(input.step>=5)fail(!s.nameNeedsClaim && s.commanderName!=='새내기 단장', '단장 이름을 먼저 등록해 주세요.');
