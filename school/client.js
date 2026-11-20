@@ -112,7 +112,7 @@
     if(!storage.set(SESSION,JSON.stringify({token})))throw Error('계정 세션을 저장할 수 없습니다. 브라우저 저장 설정을 확인해 주세요.');
     return useCloud();
   }
-  function createSanta(){return window.SchoolSanta?.create({getState:()=>state,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,isBlocked:()=>busy||!!pending||!connected||verifiedToken!==token,dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
+  function createSanta(){return window.SchoolSanta?.create({scope:accountScope,getState:()=>state,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,isBlocked:()=>busy||!!pending||!connected||verifiedToken!==token,dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
   function createYeti(){return window.SchoolYeti?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,isBlocked:()=>!!pending||mode!=='cloud'||verifiedToken!==token,refreshRewards:()=>{lastSync=0;return sync();},dispatch:act,openModal,openWinter:()=>social.openWinter(),openAccount:accountModal,reduced:()=>reduced,play});}
   function createRaid(){return window.SchoolRaid?.create({openInvites:(mode,roomId)=>coop?.openPicker(mode,roomId),request,getState:()=>state,scope:accountScope,isBlocked:()=>busy||!!pending,dispatch:act,openModal,openGuild:()=>guild.open(),fullscreen:attemptLandscape,reduced:()=>reduced,play});}
   function createGuild(){return window.SchoolGuild?.create({openRaid:()=>raid.open(),request,getState:()=>state,scope:accountScope,serverNow,isBlocked:()=>busy||!!pending,isCloud:()=>mode==='cloud'&&connected&&verifiedToken===token&&!profile?.isTest,dispatch:act,openModal,openAccount:accountModal,openCaptain:captainModal});}
@@ -544,6 +544,9 @@
   async function presentResult(result){try{await showResult(result);}catch{if(['recruit','weapon-recruit'].includes(result?.kind)){fallbackResult(result);visibleRecruitReceipt=resultQueue().find(x=>x.id===completedActionKey)?.id;}else toast('처리가 완료됐어요. 최신 보유 내역을 확인해 주세요.');}}
   async function showResult(result) {
     if (!result) return;
+    // The encounter owns its loot feedback. Polling must not emit a reward
+    // toast/sound every second while someone leaves auto farming running.
+    if (result.kind?.startsWith('santa-')) return;
     if (result.kind === 'onboarding') {render();return;}
     if (result.kind === 'recruit') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.recruit({results:result.results,key:`${accountScope()}:recruit:${completedActionKey}`}); if(!shown?.cancelled&&!document.hidden){reveal(result.results);visibleRecruitReceipt=completedActionKey;} }
     else if (result.kind === 'weapon-recruit') { operation=''; renderButtons();revealWeapons(result.results);visibleRecruitReceipt=completedActionKey; }

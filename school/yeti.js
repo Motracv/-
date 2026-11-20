@@ -7,25 +7,37 @@ window.SchoolYeti=(()=>{
  function create(ctx){
   let data=null,busy=false,polling=false,epoch=0,timer=0,raf=0,pending=null,received=0,lastFrame=0,seen=0,events=[],signature='',lastSound=0,lastCards=0,rewardKey='';
   const rescueInput=window.SchoolRescue.create(send),health=window.SchoolCombatFeedback?.createHealthTracker(),timeline=window.SchoolCombatFeedback?.createSnapshotTimeline?.({limit:100});
-  let pollBegan=0,autoRoom='',autoDue=0,autoTimer=0,autoStopped=false;
-  function cancelAuto(){clearTimeout(autoTimer);autoTimer=0;autoDue=0;autoStopped=true;}
-  function autoTick(){clearTimeout(autoTimer);if(!own()||autoStopped||data?.room?.id!==autoRoom||data?.room?.status!=='finished')return;const left=Math.max(0,Math.ceil((autoDue-Date.now())/1000)),node=document.getElementById('yeti-auto-count');if(node)node.textContent=left+'초 후 자동 재도전';if(left===0&&!document.hidden&&!busy&&!ctx.isBlocked()&&!pending){cancelAuto();send('rematch');return;}autoTimer=setTimeout(autoTick,200);}
+  let pollBegan=0,autoRoom='',autoDue=0,autoTimer=0,autoEnabled=true,autoRetryAt=0,wake=null,leaving=false;
+  const reports=window.SchoolEncounterTools?.createReport({kind:'yeti',scope:ctx.scope,host:()=>document.getElementById('yeti-report')});
+  function clearAuto(){clearTimeout(autoTimer);autoTimer=0;autoDue=0;}
+  function setAuto(value){autoEnabled=!!value;if(autoEnabled)leaving=false;window.SchoolEncounterTools?.writeAuto('yeti',ctx.scope(),autoEnabled);clearAuto();if(autoEnabled&&data?.room?.status==='finished'&&data.room.battle?.outcome==='defeated'){autoRoom=data.room.id;autoDue=Date.now()+5000;autoTick();}wake?.update(autoEnabled);render();}
+  function cancelAuto(){setAuto(false);}
+  async function autoTick(){clearTimeout(autoTimer);autoTimer=0;
+   if(!own()||leaving||!autoEnabled||data?.room?.id!==autoRoom||data?.room?.status!=='finished')return;
+   const left=Math.max(0,Math.ceil((autoDue-Date.now())/1000));autoLabel();
+   try{if(left===0&&!document.hidden&&!busy&&!ctx.isBlocked()&&Date.now()>=autoRetryAt){
+     autoRetryAt=Date.now()+2500;await send(pending?null:'rematch',{},!!pending);
+   }}finally{if(own()&&!leaving&&autoEnabled&&data?.room?.id===autoRoom&&data.room.status==='finished')autoTimer=setTimeout(autoTick,200);}
+  }
+  function autoLabel(){const n=document.getElementById('yeti-auto-count'),check=document.getElementById('yeti-auto');if(check)check.checked=autoEnabled;if(n)n.textContent=!autoEnabled?'자동 재도전 꺼짐':autoDue?(Date.now()<autoDue?Math.ceil((autoDue-Date.now())/1000)+'초 후 자동 재도전':document.hidden?'화면 복귀 후 자동 재도전':busy||pending||ctx.isBlocked()||Date.now()<autoRetryAt?'연결·동료 확인 후 자동 재도전':'곧 자동 재도전'):'승리하면 5초 뒤 자동 재도전';}
   const own=()=>!!document.getElementById('yeti-view')?.closest('dialog')?.open;
   const key=()=>`school-yeti-request:${ctx.scope()}`;
   const message=(text,error=false)=>{const n=document.getElementById('yeti-message');if(n){n.textContent=text;n.dataset.error=String(error);}};
   function remember(body){pending=body;try{body?sessionStorage.setItem(key(),JSON.stringify(body)):sessionStorage.removeItem(key());}catch{}}
-  function stop(){cancelAuto();rescueInput.destroy();timeline?.clear();epoch++;clearTimeout(timer);cancelAnimationFrame(raf);polling=false;busy=false;}
-  function schedule(){clearTimeout(timer);const period=data?.room?.status==='fighting'?800:2000;timer=setTimeout(()=>{if(!own())return;if(document.hidden){timeline?.suspend();schedule();}else load();},document.hidden||data?.room?.status!=='fighting'?period:Math.max(180,period-(performance.now()-pollBegan)));}
+  function stop(){clearAuto();autoRoom='';wake?.destroy();wake=null;rescueInput.destroy();timeline?.clear();epoch++;clearTimeout(timer);cancelAnimationFrame(raf);polling=false;busy=false;}
+  function schedule(){clearTimeout(timer);const period=data?.room?.status==='fighting'?800:2000;timer=setTimeout(()=>{if(!own())return;wake?.update(autoEnabled);autoLabel();if(document.hidden){timeline?.suspend();schedule();}else return load();},document.hidden||data?.room?.status!=='fighting'?period:Math.max(180,period-(performance.now()-pollBegan)));}
   function accept(next){
    if(data?.room?.id!==next.room?.id){seen=0;events=[];health?.clear();}
    data=next;received=performance.now();const b=data.room?.battle;
    if(b){events=timeline?.accept(b,data.room.id,received,{active:data.room.status==='fighting',hidden:document.hidden})||[];seen=b.seq;}else timeline?.clear();
    const nextKey=(next.rewards||[]).filter(r=>r.claimed).map(r=>r.roomId).sort().join('|');
    if(nextKey&&nextKey!==rewardKey){rewardKey=nextKey;ctx.refreshRewards?.();}
+   if(b)reports?.update(b,next.room.id,next.room.members);
+   if(next.room?.status!=='finished')clearAuto();
    render();
-   if(next.room?.status==='finished'&&next.room.battle?.outcome==='defeated'&&next.room.members.length===2&&autoRoom!==next.room.id){autoRoom=next.room.id;autoStopped=false;autoDue=Date.now()+5000;autoTick();}
+   if(next.room?.status==='finished'&&next.room.battle?.outcome==='defeated'&&next.room.members.length===2&&autoRoom!==next.room.id){autoRoom=next.room.id;if(autoEnabled&&!leaving){autoDue=Date.now()+5000;autoTick();}}
   }
-  async function load(){if(!own()||busy||polling||!ctx.isCloud())return;const ticket=epoch;polling=true;pollBegan=performance.now();
+  async function load(){if(!own())return;if(busy||polling||!ctx.isCloud()){schedule();return;}if(pending&&Date.now()>=autoRetryAt&&!ctx.isBlocked()){autoRetryAt=Date.now()+2500;await send(null,{},true);return;}const ticket=epoch;polling=true;pollBegan=performance.now();
    try{const next=await ctx.request('/api/school/yeti',{kind:'state',roomId:data?.room?.id});if(ticket===epoch&&own()){accept(next);message('');}}
    catch(e){if(ticket===epoch)message(e.message+' · 다시 연결 중',true);}
    finally{if(ticket===epoch){polling=false;schedule();}}
@@ -36,10 +48,10 @@ window.SchoolYeti=(()=>{
    const body=retry?pending:{kind,requestId:crypto.randomUUID(),roomId:data?.room?.id,...extra};if(!body)return false;
    const ticket=++epoch,storageKey=key();clearTimeout(timer);remember(body);busy=true;pollBegan=performance.now();controls();message(kind==='thaw'?'동료를 구하고 있어요…':'서버 확인 중…');
    try{const next=await ctx.request('/api/school/yeti',body);try{sessionStorage.removeItem(storageKey);}catch{}if(ticket===epoch&&own()){remember(null);accept(next);message('');return true;}return false;}
-   catch(e){if(ticket===epoch){if(e.status&&e.status<500)remember(null);message(e.message,true);}return false;}
+   catch(e){if(ticket===epoch){if(e.status&&e.status<500)remember(null);autoRetryAt=Date.now()+2500;message(e.message,true);}return false;}
    finally{if(ticket===epoch){busy=false;polling=false;signature='';render();schedule();}}
   }
-  function controls(){document.querySelectorAll('#yeti-view button,#yeti-view input').forEach(n=>n.disabled=busy||ctx.isBlocked()||n.dataset.unavailable==='true');}
+  function controls(){document.querySelectorAll('#yeti-actions button,#yeti-actions input,#yeti-lobby-toolbar button').forEach(n=>n.disabled=busy||ctx.isBlocked()||n.dataset.unavailable==='true');}
   function render(){if(!own()||!data)return;
    const room=data.room,b=room?.battle,status=room?.status||'empty',me=room?.members.find(m=>m.isMe),myTeam=b?.teams.find(t=>t.isMe),other=b?.teams.find(t=>!t.isMe);
    const frozen=other?.frozen,canRescue=status==='fighting'&&frozen&&!myTeam?.frozen&&!(myTeam?.rescueLockUntil>b.elapsed)&&myTeam?.units.some(u=>u.hp>0)&&other.units.some(u=>u.hp>0);
@@ -49,7 +61,7 @@ window.SchoolYeti=(()=>{
     const host=me?.host;
     document.getElementById('yeti-members').innerHTML=(room?.members||[]).map(m=>`<div class="yeti-member">${window.SchoolGuild.avatar(m,m.hero)}<span><b>${esc(m.name)}${m.isMe?' · 나':''}</b><small>${m.host?'방장 · ':''}${m.online?'접속 중':'연결 대기'} · ${m.ready?'준비 완료':'준비 중'}</small></span></div>`).join('');
     let actions='';
-    if(status==='finished'&&b?.outcome==='defeated'&&room.members.length===2)actions='<button class="primary" data-yeti="rematch">즉시 재도전</button><span id="yeti-auto-count" role="status">5초 후 자동 재도전</span><button id="yeti-auto-stop" class="secondary">자동 재도전 취소</button>';
+    if(status==='finished'&&b?.outcome==='defeated'&&room.members.length===2)actions='<button class="primary" data-yeti="rematch">즉시 재도전</button><button id="yeti-auto-stop" class="secondary">자동 재도전 취소</button>';
     else if(!room||status==='finished')actions='<button class="primary" data-yeti="create">2인 전투방 만들기</button><form id="yeti-join"><label for="yeti-code">초대 코드</label><input id="yeti-code" maxlength="8" placeholder="8자리 코드" autocomplete="off" autocapitalize="characters"><button class="secondary" type="submit">참가</button></form>';
     else if(status==='lobby')actions=`<div class="yeti-invite"><span>친구에게 전달할 코드 <b>${esc(room.code)}</b></span><button id="yeti-copy" class="secondary">코드 복사</button></div><button class="${me?.ready?'secondary':'primary'}" data-yeti="ready">${me?.ready?'준비 취소':'준비 완료'}</button>${host?`<button class="primary" data-yeti="start" data-unavailable="${room.members.length!==2||!room.members.every(m=>m.ready&&m.online)}">함께 도전</button>`:''}`;
     else actions=`<p class="yeti-rescue-hint">${myTeam?.rescueLockUntil>b.elapsed?'구출 실패 · 내 용병단 15초 정지':myTeam?.frozen?'동료가 얼음을 깨는 중':canRescue?'7초 안에 입력을 완료해 동료를 구하세요':'동료가 얼면 화면에 구출 도전이 나타나요'}</p>`;
@@ -60,7 +72,7 @@ window.SchoolYeti=(()=>{
     const toolbar=document.getElementById('yeti-lobby-toolbar');toolbar.hidden=status!=='lobby';
     const invite=document.getElementById('yeti-invite-friends');invite.dataset.unavailable=String(status!=='lobby'||room?.members.length>=2);invite.onclick=()=>ctx.openInvites?.('yeti',room.id);
     document.getElementById('yeti-party-count').textContent=`함께할 단장 ${room?.members.length||0} / 2`;
-    document.querySelectorAll('[data-yeti]').forEach(n=>n.onclick=()=>{cancelAuto();send(n.dataset.yeti);});
+    document.querySelectorAll('[data-yeti]').forEach(n=>n.onclick=()=>send(n.dataset.yeti));
     document.getElementById('yeti-join')?.addEventListener('submit',e=>{e.preventDefault();send('join',{code:document.getElementById('yeti-code').value.trim().toUpperCase()});});
     const copy=document.getElementById('yeti-copy');if(copy)copy.onclick=async()=>{try{await navigator.clipboard.writeText(room.code);message('초대 코드를 복사했어요.');}catch{message(`초대 코드: ${room.code}`);}};
 
@@ -69,7 +81,7 @@ window.SchoolYeti=(()=>{
     document.getElementById('yeti-back').onclick=async()=>{if(await leave()){stop();ctx.openWinter();}};
 
    }
-   if(autoRoom===room?.id&&autoStopped){const countdown=document.getElementById('yeti-auto-count');if(countdown)countdown.textContent='자동 재도전 취소됨';}
+   autoLabel();wake?.update(autoEnabled);
    controls();rescueInput.update(data);
   }
   function draw(now){if(!own())return;raf=requestAnimationFrame(draw);if(document.hidden){timeline?.suspend();lastFrame=0;return;}if(now-lastFrame<16)return;lastFrame=now;
@@ -145,11 +157,11 @@ window.SchoolYeti=(()=>{
    document.getElementById('yeti-clock').textContent=live?`${Math.max(0,Math.ceil(((b?.yetiRules?.duration||(b?150000:data?.rules?.duration||Y.DURATION))-time)/1000))}초`:'어려움 · 권장 Lv.70 이상';
    if(now-lastSound>150){const sound=events.findLast(e=>!e.sounded&&e.shown<=now&&now-e.shown<300&&['impact','thaw','hit'].includes(e.kind));if(sound){ctx.play?.(sound.kind==='thaw'?'reward':sound.kind==='impact'?'critical':'hit');lastSound=now;}for(const e of events)if(e.shown<=now)e.sounded=true;}
   }
-  function open(){stop();assets();data=null;signature='';events=[];seen=0;try{pending=JSON.parse(sessionStorage.getItem(key())||'null');}catch{pending=null;}
+  function open(){stop();leaving=false;autoEnabled=window.SchoolEncounterTools?.readAuto('yeti',ctx.scope())??true;autoRetryAt=0;wake=window.SchoolEncounterTools?.keepAwake();assets();data=null;signature='';events=[];seen=0;try{pending=JSON.parse(sessionStorage.getItem(key())||'null');}catch{pending=null;}
    if(!ctx.isCloud()){ctx.openModal('예티 협동 토벌','<div class="yeti-login"><h3>친구와 함께 만년설 예티에 도전!</h3><p>Google 계정으로 로그인하면 2인 전투방을 만들 수 있어요.</p><button id="yeti-login" class="primary">계정 연결</button></div>','yeti');document.getElementById('yeti-login').onclick=ctx.openAccount;return;}
-   ctx.openModal('겨울 협동전 · 만년설 예티',`<section id="yeti-view"><div id="yeti-lobby-toolbar" hidden><strong id="yeti-party-count"></strong><button id="yeti-invite-friends" class="primary">＋ 친구·길드원 초대</button></div><div class="yeti-arena"><canvas id="yeti-canvas" aria-label="두 용병단과 예티의 실시간 협동 전투"></canvas><span id="yeti-clock"></span><span id="yeti-warning"></span><div id="yeti-result" hidden></div></div><div id="yeti-skill-cards" class="coop-skill-cards" aria-label="내 용병 스킬 상태"></div><div id="yeti-members"></div><div id="yeti-actions"></div><div id="yeti-rewards"></div><p id="yeti-message" role="status">전투방을 확인 중이에요…</p><details class="yeti-rules"><summary>구출 방법과 보상</summary><p>2명 모두 준비하면 방장이 시작해요. 권장 Lv.70 이상, 탱커와 힐러를 포함한 6인 편성을 추천해요. 새 도전은 210초이며 횟수 제한은 없어요. 예티는 물리·마법 공격 모두 유효해요.</p><p>한쪽 용병단이 얼면 다른 단장이 ‘얼음땡’을 눌러 구해 주세요. 자기 얼음은 풀 수 없어요. 방치하면 동상 피해를 받아요.</p><p>처치하면 각자 눈송이 20~50개와 룰렛용 눈사람 1개를 받아요. 실패하거나 중간에 나가면 보상이 없어요. 나가기는 두 사람의 도전을 종료해요. 접속이 끊겼다면 같은 계정으로 돌아와 이어할 수 있어요.</p></details></section>`,'yeti');raf=requestAnimationFrame(draw);load();
+   ctx.openModal('겨울 협동전 · 만년설 예티',`<section id="yeti-view"><div class="winter-auto-toolbar"><label><input id="yeti-auto" type="checkbox" checked> 자동 재도전</label><span id="yeti-auto-count" role="status"></span><button id="yeti-record-button" data-encounter-record class="secondary">전투 기록</button></div><section id="yeti-report" class="encounter-report" hidden></section><div id="yeti-actions"></div><p id="yeti-message" role="status">전투방을 확인 중이에요…</p><div id="yeti-lobby-toolbar" hidden><strong id="yeti-party-count"></strong><button id="yeti-invite-friends" class="primary">＋ 친구·길드원 초대</button></div><div class="yeti-arena"><canvas id="yeti-canvas" aria-label="두 용병단과 예티의 실시간 협동 전투"></canvas><span id="yeti-clock"></span><span id="yeti-warning"></span><div id="yeti-result" hidden></div></div><div id="yeti-skill-cards" class="coop-skill-cards" aria-label="내 용병 스킬 상태"></div><div id="yeti-members"></div><div id="yeti-rewards"></div><details class="yeti-rules"><summary>구출 방법과 보상</summary><p>2명 모두 준비하면 방장이 시작해요. 권장 Lv.70 이상, 탱커와 힐러를 포함한 6인 편성을 추천해요. 새 도전은 210초이며 횟수 제한은 없어요. 예티는 물리·마법 공격 모두 유효해요.</p><p>한쪽 용병단이 얼면 다른 단장이 ‘얼음땡’을 눌러 구해 주세요. 자기 얼음은 풀 수 없어요. 방치하면 동상 피해를 받아요.</p><p>처치하면 각자 눈송이 20~50개와 룰렛용 눈사람 1개를 받아요. 실패하거나 중간에 나가면 보상이 없어요. 나가기는 두 사람의 도전을 종료해요. 접속이 끊겼다면 같은 계정으로 돌아와 이어할 수 있어요.</p></details></section>`,'yeti');document.getElementById('yeti-auto').onchange=e=>setAuto(e.target.checked);document.getElementById('yeti-record-button').onclick=()=>reports?.toggle();raf=requestAnimationFrame(draw);load();
   }
-  async function leave(){cancelAuto();if(!own())return true;if(busy)return false;if(pending){await send(null,{},true);if(pending)return false;}return data?.room?!!await send('leave'):true;}
+  async function leave(){if(!own())return true;if(busy||ctx.isBlocked())return false;leaving=true;clearAuto();wake?.update(false);if(pending){await send(null,{},true);if(pending)return false;}return data?.room?!!await send('leave'):true;}
   return {open,leave,destroy:stop,canInvite:id=>own()&&data?.room?.id===id&&data.room.status==='lobby'&&data.room.members.length<2};
  }
  return {create};

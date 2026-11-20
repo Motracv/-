@@ -8,6 +8,10 @@ vm.createContext(c);vm.runInContext(code,c);
  mode='reject';await c.act({kind:'recruit'});assert(c.connected);assert.equal(reveals,2);assert.equal(sends,2);c.acknowledgeResult();modal.open=false;
  mode='normal';const sync=c.sync();assert.equal(c.busy,false,'background read never blocks controls');const action=c.act({kind:'recruit'});await Promise.resolve();assert.equal(sends,2,'purchase waits for current server revision');readRelease();await sync;await action;assert.equal(sends,3);assert.equal(c.busy,false);assert(c.connected);
  c.busy=true;assert((await c.act({kind:'winter-exchange'})).error);
+ // Background boss polls and loot already handled by the encounter must not
+ // repeatedly announce an unrelated zero-gold reward during auto farming.
+ c.toast=()=>{throw Error('Unexpected generic reward toast');};c.play=()=>{throw Error('Unexpected generic reward sound');};
+ await c.showResult({kind:'santa-tick'});await c.showResult({kind:'santa-spin'});
  // Reconnection must always release controls, including a failed login.
  const loginCode=src.slice(src.indexOf('  async function useCloud()'),src.indexOf('  function accountModal()'));
  const login={busy:false,token:'t',lastSync:0,mode:'cloud',connected:true,pending:null,Date,performance,renderButtons(){},saveStatus(){},toast(){},note(){},$:()=>null,request:async()=>{throw Error('offline');},entry:{refresh(){}}};vm.createContext(login);vm.runInContext(loginCode,login);assert.equal(await login.useCloud(),false);assert.equal(login.busy,false);

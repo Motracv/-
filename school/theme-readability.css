@@ -19,7 +19,7 @@ html[data-theme=dark]{
   --rarity-r-text:#b9dfff;--rarity-sr-text:#e3baff;--rarity-ssr-text:#ffdc92;
   --rarity-ur-text:#9dedff;--rarity-ex-text:#ffc0ed;
 }
-#modal:is(.insights-modal,.skin-modal,.battle-side,.raid-modal,.yeti-modal,.world-map-modal),
+#modal:is(.insights-modal,.skin-modal,.battle-side,.raid-modal,.yeti-modal,.santa-modal,.world-map-modal),
 .app[data-tab=roster] .content-panel,#modal .hero-profile,
 #coop-picker-dialog,#coop-inbox,.coop-picker{
   color-scheme:dark;

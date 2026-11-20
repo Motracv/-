@@ -12,7 +12,7 @@ const pollYeti=async()=>{const [id,t]=[...timers].find(([,t])=>t.ms===2000);time
 (async()=>{
  yeti.open();await flush();assert(document.getElementById('yeti-lobby-toolbar').hidden,'empty-room render must not throw');
  room={id:'yeti-room',status:'lobby',code:'ABCDEFGH',members:[{isMe:true,host:true,name:'단장',online:true,ready:false}]};await pollYeti();
- const toolbar=document.getElementById('yeti-lobby-toolbar');assert(!toolbar.hidden);assert.equal(document.getElementById('yeti-view').children[0],toolbar,'invitation entry precedes tall battlefield');assert(yeti.canInvite(room.id));
+ const toolbar=document.getElementById('yeti-lobby-toolbar'),sections=Array.from(document.getElementById('yeti-view').children);assert(!toolbar.hidden);assert(sections.indexOf(toolbar)<sections.indexOf(document.getElementById('yeti-canvas').parentNode),'invitation entry precedes tall battlefield');assert(yeti.canInvite(room.id));
  document.getElementById('yeti-invite-friends').onclick();await flush();assert.equal(opened,1);const picker=document.getElementById('coop-picker-dialog');assert(picker.open);assert.equal(picker.parentNode,document.body);assert(modal.open);
  coop.closePicker();assert(modal.open);assert(yeti.canInvite(room.id),'closing invitation window keeps encounter membership');
  room={...room,members:[...room.members,{isMe:false,host:false,name:'친구',online:true,ready:false}]};await pollYeti();assert(!yeti.canInvite(room.id));assert.equal(document.getElementById('yeti-invite-friends').dataset.unavailable,'true');

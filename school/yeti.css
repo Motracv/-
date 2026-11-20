@@ -85,3 +85,15 @@
  #modal.yeti-modal #yeti-result{padding:10px}#modal.yeti-modal #yeti-result strong{font-size:21px}#modal.yeti-modal #yeti-result span{font-size:12px}
  #modal.yeti-modal #yeti-view[data-phase=fighting] #yeti-actions{padding:5px 8px}#modal.yeti-modal #yeti-view[data-phase=fighting] .yeti-rescue-hint{margin:0;font-size:11px}
 }
+
+/* Auto retry and records are available above the arena without scrolling. */
+#modal.yeti-modal{max-width:1600px;font-size:16px}
+#modal.yeti-modal .modal-top h2{font-size:22px}
+#modal.yeti-modal .winter-auto-toolbar{top:50px}
+#modal.yeti-modal #yeti-actions{margin:0;padding:10px 12px}
+#modal.yeti-modal #yeti-actions button{font-size:16px;min-height:48px}
+#modal.yeti-modal #yeti-message,#modal.yeti-modal #yeti-clock,#modal.yeti-modal #yeti-warning,#modal.yeti-modal .yeti-rules,#modal.yeti-modal .yeti-reward{font-size:15px}
+#modal.yeti-modal #yeti-view>.yeti-arena{flex:none}
+#modal.yeti-modal .yeti-member b{font-size:16px}#modal.yeti-modal .yeti-member small{font-size:13px}
+@media(max-width:650px){#modal.yeti-modal .modal-top h2{font-size:18px}#modal.yeti-modal #yeti-actions button{font-size:15px}#modal.yeti-modal #yeti-warning{font-size:13px;max-width:96%;white-space:normal;text-align:center}#modal.yeti-modal .winter-auto-toolbar{top:46px}}
+@media(max-height:500px) and (orientation:landscape){#modal.yeti-modal .winter-auto-toolbar{position:static}#modal.yeti-modal .modal-top h2{font-size:16px}#modal.yeti-modal #yeti-actions button{font-size:14px;min-height:44px}}
