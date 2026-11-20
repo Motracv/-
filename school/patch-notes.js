@@ -1,7 +1,8 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-twins51c',
+  version:'school-twins51d',
   entries:Object.freeze([
+    {version:'school-twins51d',date:'2026.11.20',title:'길드 보스 화면 오류 수정',items:['홍·록 길드 보스전에서 배경과 캐릭터가 표시되지 않던 오류를 수정했습니다.','전투 화면이 준비되기 전에는 시작을 막아 빈 화면에서 도전 횟수를 쓰지 않도록 했습니다. 길드 대기실에서 준비 완료 후 혼자 또는 함께 시작할 수 있습니다.']},
     {version:'school-twins51c',date:'2026.11.20',title:'쌍둥이 길드 보스 · 홍과 록',items:['길드 보스에 홍·록 쌍둥이가 등장합니다. 공유 HP를 가진 물리 공략 보스로, 마법 피해에는 면역입니다.','교차 협공·시간차 추격·합동 내려치기에 대시 잔상과 타격 불꽃을 적용했습니다.','매주 토요일 00시(한국 시간) 벌룬과 쌍둥이가 교대합니다. 이번 교대 구간은 쌍둥이이며, 다음 교대는 11월 28일입니다. 진행 중인 전투의 기록과 미수령 보상은 유지됩니다.']},
     {version:'school-codes50',date:'2026.11.20',title:'이전 보상 코드 사용 종료',items:['이전 공개 보상 코드의 사용이 종료되었습니다. 이미 받은 보상과 닉네임 변경권은 그대로 유지됩니다.','현재 공개 코드: 야호업데이트(보석 1,600개), 게임을즐겨주신여러분께감사합니다(보석 1,600개·눈송이 100개). 각각 계정당 1회 사용할 수 있습니다.']},
     {version:'school-stability49',date:'2026.11.20',title:'더 편하게, 다시 도전 · 야호 연출 개선',items:[

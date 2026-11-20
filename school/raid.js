@@ -2,23 +2,23 @@
 window.SchoolRaid=(()=>{
  'use strict';const R=window.SchoolRaidRules,esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),fmt=n=>Math.round(n||0).toLocaleString('ko-KR');
  const bg=new Image(),atlas=new Image();bg.src='school/assets/raid/gymnasium.png?v=raid1';atlas.src='school/assets/raid/balloon-poses.png?v=raid1';
- function create(ctx){let data=null,busy=false,polling=false,timer=0,raf=0,epoch=0,focus=0,seen=0,received=0,events=[],pending=null,lastFrame=0,renderKey='',bars=new Map(),lastSound=0,lastCards=0;
+ function create(ctx){let data=null,busy=false,polling=false,timer=0,raf=0,epoch=0,focus=0,seen=0,received=0,events=[],pending=null,lastFrame=0,renderKey='',bars=new Map(),lastSound=0,lastCards=0,frameReady=false,lastRenderError=0;
   const timeline=window.SchoolCombatFeedback?.createSnapshotTimeline?.(),health=window.SchoolCombatFeedback?.createHealthTracker();let pollBegan=0;
   const info=()=>data?.boss||R.bossInfo(data?.room?.battle?.boss.id||R.rotation(Date.now()).bossId);
   const own=()=>!!document.querySelector('#raid-view')?.closest('dialog')?.open;
   const key=()=>`school-raid-request:${ctx.scope()}`;
   const remember=p=>{pending=p;try{p?sessionStorage.setItem(key(),JSON.stringify(p)):sessionStorage.removeItem(key());}catch{}};
   const message=(s,error=false)=>{const n=document.getElementById('raid-message');if(n){n.textContent=s;n.dataset.error=String(error);}};
-  function stop(){timeline?.clear();health?.clear();epoch++;clearTimeout(timer);cancelAnimationFrame(raf);busy=false;polling=false;}
+  function stop(){frameReady=false;timeline?.clear();health?.clear();epoch++;clearTimeout(timer);cancelAnimationFrame(raf);busy=false;polling=false;}
   function schedule(){clearTimeout(timer);const period=data?.room?.status==='fighting'?1000:2500;timer=setTimeout(()=>{if(!own())return;if(!document.hidden)load();else{timeline?.suspend();schedule();}},document.hidden||data?.room?.status!=='fighting'?period:Math.max(180,period-(performance.now()-pollBegan)));}
   function accept(next){const old=data?.room?.id,phase=data?.room?.status;if(phase!==next.room?.status){document.getElementById('modal').scrollTop=0;document.getElementById('modal-content').scrollTop=0;}if(old!==next.room?.id){seen=0;events=[];focus=0;bars.clear();health?.clear();}data=next;if(info().id==='twins')window.SchoolRaidTwinsArt?.load();received=performance.now();const battle=data.room?.battle;if(battle){focus=Math.min(focus,Math.max(0,battle.teams.length-1));if(!old||old!==data.room.id)focus=Math.max(0,battle.teams.findIndex(t=>data.room.members.find(m=>m.account===t.account)?.isMe));events=timeline?.accept(battle,data.room.id,received,{active:data.room.status==='fighting',hidden:document.hidden})||[];seen=battle.seq;}else timeline?.clear();render();}
   async function load(){if(!own()||busy||polling)return;const ticket=epoch;polling=true;pollBegan=performance.now();try{const next=await ctx.request('/api/school/raid',{kind:'state'});if(ticket===epoch&&own()){accept(next);message('');}}catch(e){if(ticket===epoch)message(e.message+' · 자동으로 다시 연결합니다.',true);}finally{if(ticket===epoch){polling=false;controls();schedule();}}}
-  async function send(kind,retry=false){if(!own()||busy||ctx.isBlocked())return;if(pending&&!retry){message('이전 요청의 결과를 먼저 확인해 주세요.',true);return false;}const ticket=++epoch;clearTimeout(timer);const body=retry?pending:{kind,roomId:data?.room?.id,requestId:crypto.randomUUID()};if(!body)return;remember(body);const storageKey=key();busy=true;pollBegan=performance.now();controls();message('서버 확인 중…');
+  async function send(kind,retry=false){if(!own()||busy||ctx.isBlocked())return;if(kind==='start'&&!frameReady){message('전투 화면을 불러오는 중이에요. 화면이 준비되면 시작할 수 있어요.',true);return false;}if(pending&&!retry){message('이전 요청의 결과를 먼저 확인해 주세요.',true);return false;}const ticket=++epoch;clearTimeout(timer);const body=retry?pending:{kind,roomId:data?.room?.id,requestId:crypto.randomUUID()};if(!body)return;remember(body);const storageKey=key();busy=true;pollBegan=performance.now();controls();message('서버 확인 중…');
    try{const next=await ctx.request('/api/school/raid',body);try{sessionStorage.removeItem(storageKey);}catch{}if(ticket===epoch&&own()){remember(null);accept(next);message('');return true;}return false;}
    catch(e){if(ticket===epoch){if(e.status&&e.status<500)remember(null);message(e.message,true);}return false;}
    finally{if(ticket===epoch){busy=false;polling=false;renderKey='';render();schedule();}}
   }
-  function controls(){document.querySelectorAll('#raid-view button').forEach(b=>b.disabled=busy||ctx.isBlocked()||b.dataset.unavailable==='true');}
+  function controls(){document.querySelectorAll('#raid-view button').forEach(b=>b.disabled=busy||ctx.isBlocked()||b.dataset.unavailable==='true'||(b.dataset.raidSend==='start'&&!frameReady));}
   function html(id,value){const n=document.getElementById(id);if(n._raidHTML!==value){n.innerHTML=value;n._raidHTML=value;}}
   function render(){if(!own()||!data)return;const room=data.room,b=room?.battle,me=room?.members.find(m=>m.isMe),host=me&&room.host===me.account;
    document.getElementById('raid-boss-name').textContent=info().name+' · 공유 HP';
@@ -35,7 +35,7 @@ window.SchoolRaid=(()=>{
     else actions='<span class="raid-live-dot">● 협동 전투 진행 중</span>'+(me?'<button class="secondary" data-raid-send="leave">편성 철수 · 나가기</button>':'');
     html('raid-actions',`${actions}${pending?'<button id="raid-retry" class="secondary">요청 결과 확인</button>':''}<button id="raid-fullscreen" class="secondary" aria-label="전체 화면 · 상태바 숨기기">⛶</button><button id="raid-info" class="secondary" aria-label="패턴과 규칙">ⓘ</button><button id="raid-lineup-toggle" class="secondary">편성</button><button id="raid-back" class="secondary">교실</button>`);
     html('raid-rewards',data.rewards.map(r=>`<button class="raid-reward" data-raid-claim="${esc(r.roomId)}">전투 보상 · ◆ ${r.gems} / 골드 ${fmt(r.gold)} 받기</button>`).join(''));
-    const summary=document.getElementById('raid-summary');summary.hidden=status!=='finished';summary.innerHTML=status==='finished'?`<b>${b?.outcome==='defeated'?'벌룬 토벌 성공!':b?.outcome==='down'?'부대 전멸 · 도전 종료':'시간 종료 · 도전 완료'}</b><span>이번 협동 피해 ${fmt(b?.damage)} · 남은 HP는 다음 도전으로 이어집니다</span>`:'';
+    const summary=document.getElementById('raid-summary');summary.hidden=status!=='finished';summary.innerHTML=status==='finished'?`<b>${b?.outcome==='defeated'?info().name+' 토벌 성공!':b?.outcome==='down'?'부대 전멸 · 도전 종료':'시간 종료 · 도전 완료'}</b><span>이번 협동 피해 ${fmt(b?.damage)} · 남은 HP는 다음 도전으로 이어집니다</span>`:'';
     html('raid-lineup',status==='lobby'&&me?me.heroes.map(h=>`<span class="${(info().id==='twins'?!h.magic:h.magic)?'magic':'physical'}"><img src="${window.SchoolArt.portrait(h.id,h.skin)}" alt=""><b>${esc(window.SchoolRPG.BY_ID[h.id].name)}</b><small>${info().id==='twins'?(h.magic?'마법 무효':'물리'):(h.magic?'마법':'물리 무효')}</small></span>`).join(''):'');
     const invite=document.getElementById('raid-invite-members');if(invite)invite.onclick=()=>ctx.openInvites?.('raid',room.id);
 
@@ -46,7 +46,8 @@ window.SchoolRaid=(()=>{
    html('raid-ranks','<b>이번 보스 · 길드 누적 피해</b>'+data.ranks.map((r,i)=>`<p>${i+1}. <span class="ranking-person">${window.SchoolGuild.avatar(r,r.hero)}${esc(r.name||'단장')}</span> · ${fmt(r.damage)}</p>`).join(''));
    if(b)document.querySelectorAll('[data-raid-focus] small').forEach((n,i)=>n.textContent=fmt(b.teams[i]?.damage)+' 피해');controls();
   }
-  function draw(now){
+  function draw(now){try{drawFrame(now);}catch(error){frameReady=false;controls();message('전투 화면을 다시 불러오는 중이에요. 화면 복구 전에는 새 전투를 시작하지 않습니다.',true);const canvas=document.getElementById('raid-canvas');if(canvas)canvas.width=canvas.width;if(!lastRenderError||now-lastRenderError>5000){console.error('Guild raid rendering failed',error);lastRenderError=now;}}}
+  function drawFrame(now){
    if(!own())return;raf=requestAnimationFrame(draw);if(document.hidden){timeline?.suspend();lastFrame=0;return;}if(now-lastFrame<16)return;
    const dt=Math.min(50,now-lastFrame||16);lastFrame=now;
    const canvas=document.getElementById('raid-canvas'),rect=canvas.getBoundingClientRect();if(rect.width<1||rect.height<1)return;
@@ -58,12 +59,13 @@ window.SchoolRaid=(()=>{
    const visual=timeline?.view(now),battle=visual||data?.room?.battle,live=data?.room?.status==='fighting',t=battle?(visual?timeline.clock(now):battle.elapsed+(live?Math.max(0,now-received):0)):0;
    const units=battle?.teams[focus]?.units||ctx.getState().team.map(id=>({id,hp:1,max:1,shield:0}));
    if(now-lastCards>125){lastCards=now;window.SchoolSkillCards?.coop(document.getElementById('raid-skill-cards'),units,{elapsed:t,phase:live?'fight':'waiting',events,now,team:focus});}
-   const info=window.SchoolRaidFX.draw(c,{w:1000,h:ch/cw*1000,now,dt,roomKey:data?.room?.id,bossId:info().id,battle,focus,events,bg,atlas,bars,reduced:ctx.reduced?.()||false,units,received,visualTime:t,live,hp:battle?.boss.hp??data?.hp});
+   const frameInfo=window.SchoolRaidFX.draw(c,{w:1000,h:ch/cw*1000,now,dt,roomKey:data?.room?.id,bossId:info().id,battle,focus,events,bg,atlas,bars,reduced:ctx.reduced?.()||false,units,received,visualTime:t,live,hp:battle?.boss.hp??data?.hp});
+   if(!frameReady){frameReady=true;controls();message('');}
    const hp=battle?.boss.hp??data?.hp??R.HP;health?.begin(data?.room?.id,now/1000);const bossHealth=health?.sample('boss',hp,R.HP,now/1000,ctx.reduced?.())||{ratio:hp/R.HP};
    const hpText=fmt(hp)+' / 50,000,000';if(document.getElementById('raid-hp').textContent!==hpText)document.getElementById('raid-hp').textContent=hpText;document.getElementById('raid-health').value=bossHealth.ratio*R.HP;
    const fresh=events.filter(e=>!e.sounded&&e.shown<=now&&now-e.shown<400);for(const e of fresh)e.sounded=true;
    if(now-lastSound>130){const boss=fresh.find(e=>e.kind==='impact'),hit=fresh.findLast(e=>e.team===focus&&['hit','cast'].includes(e.kind));if(boss||hit){ctx.play?.(boss?'critical':hit.id==='osia'&&hit.kind==='cast'?'water':hit.id==='horas'&&hit.skill?'blossom':hit.crit?'critical':'hit',hit?.stage||1);lastSound=now;}}
-   canvas.dataset.effects=String(info.effects);canvas.dataset.hurtEffects=String(info.hits);canvas.dataset.draws=String((Number(canvas.dataset.draws)||0)+1);
+   canvas.dataset.effects=String(frameInfo.effects);canvas.dataset.hurtEffects=String(frameInfo.hits);canvas.dataset.draws=String((Number(canvas.dataset.draws)||0)+1);
    const cast=battle?.boss.cast,pattern=info().patterns.find(p=>p.id===cast?.id),label=document.getElementById('raid-warning');
    const warning=live?(pattern?`${pattern.name} · 준비!`:battle.boss.guardUntil>t?'기체 응축 · 마법 피해 40% 감소':info().rule):info().rule;
    if(label.textContent!==warning)label.textContent=warning;label.dataset.warning=String(!!pattern);
