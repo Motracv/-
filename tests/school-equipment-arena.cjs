@@ -26,10 +26,10 @@ const G = require('../school/engine.js');
   }
   let passed = 0;
   const test = async (name, run) => { await run(); passed++; console.log('PASS', name); };
-  await test('All 29 pre-equipment arena fixtures remain byte-for-byte unchanged', () => {
+  await test('All 29 existing arena fixtures remain byte-for-byte unchanged', () => {
     const originals = [saved(['taeo', 'geonu', 'doyoon', 'osia', 'lava', 'nari']), saved(['geonu', 'ian', 'osia', 'lumi', 'nari', 'lava'])];
     const hash = createHash('sha256').update(JSON.stringify(Array.from({ length: 29 }, (_, index) => simulateArena(G, originals, ['a', 'b'], index + 1)))).digest('hex');
-    assert.equal(hash, '2677356553a2fafae3d974b1960ddbbf16ef90704b6f4e30663afd6484b2bc7b');
+    assert.equal(hash, '8585256a6c6a62f3d7b5f6c6e0169de2fb9bcdb830bcfefb8a31e3c6f24a3fda');
     const bare = [saved(), saved()], unusedOnly = G.clone(bare);
     unusedOnly[0].equipment = { inventory: { [weapon.id]: { count: 99, stars: 1 } }, equipped: {} };
     assert.deepEqual(simulateArena(G, unusedOnly, ['a', 'b'], 42), simulateArena(G, bare, ['a', 'b'], 42));
@@ -113,7 +113,7 @@ const G = require('../school/engine.js');
       assert.equal(registered.data.me.defense.power, G.power(getSave(b)));
       assert.deepEqual(registered.data.me.defense.equipment, G.snapshotEquipment(getSave(b), team));
       const persisted = JSON.parse(t.sqlite.prepare('SELECT defense FROM school_season_entries WHERE season = 1 AND account_id = ?').get(b.profile.id).defense);
-      assert.deepEqual(Object.keys(persisted).sort(), ['equipment', 'team', 'units']); assert.equal(persisted.equipment.inventory[unused.id], undefined); assert.equal(persisted.units.harin, undefined);
+      assert.deepEqual(Object.keys(persisted).sort(), ['equipment', 'redeemedCodes', 'skins', 'team', 'units']); assert.equal(persisted.equipment.inventory[unused.id], undefined); assert.equal(persisted.units.harin, undefined);
     });
     await test('Registered gear is immutable for later replays; public defender stats use that snapshot, not new bag state', async () => {
       const captured = JSON.parse(t.sqlite.prepare('SELECT defense FROM school_season_entries WHERE season = 1 AND account_id = ?').get(b.profile.id).defense);

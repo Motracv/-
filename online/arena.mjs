@@ -32,8 +32,8 @@ export function simulateArena(game, saves, names, seed) {
   const alive = side => sides[side].filter(u=>u.hp>0);
   const weakest = side => alive(side).sort((a,b)=>a.hp/a.max-b.hp/b.max)[0];
   const emit = (kind,side,from,targetSide,target,amount,extra={}) => events.push({t,kind,side,from,toSide:targetSide,target:target.id,amount,hp:target.hp,shield:target.shield,...extra});
-  function shield(side,from,target,raw,skill) { const amount=Math.max(0,Math.min(Math.round(raw*(from==='lava'?1+(sides[side].find(u=>u.id===from)?.exclusive?.strength||0):1)),Math.floor(target.max*.6)-target.shield));target.shield+=amount;emit('shield',side,from,side,target,amount,{skill}); }
-  function heal(side,from,target,raw,skill) { const caster=sides[side].find(u=>u.id===from),bonus=from==='lava'?caster?.exclusive?.strength||0:0,healing=Math.round(raw*synergy[side].healMultiplier*.75*(1+bonus)),amount=Math.min(target.max-target.hp,healing);target.hp+=amount;meter(side,from).healing+=amount;emit('heal',side,from,side,target,amount,{skill});if(bonus&&skill==='바람의 상처'&&healing>amount)shield(side,from,target,Math.min(caster.atk*.4,(healing-amount)*.15)/(1+bonus),'풍령의 가호'); }
+  function shield(side,from,target,raw,skill) { const amount=Math.max(0,Math.min(Math.round(raw*game.yahoMasterMultiplier(from,sides[side])*(from==='lava'?1+(sides[side].find(u=>u.id===from)?.exclusive?.strength||0):1)),Math.floor(target.max*.6)-target.shield));target.shield+=amount;emit('shield',side,from,side,target,amount,{skill}); }
+  function heal(side,from,target,raw,skill) { const caster=sides[side].find(u=>u.id===from),bonus=from==='lava'?caster?.exclusive?.strength||0:0,healing=Math.round(raw*synergy[side].healMultiplier*.75*(1+bonus)*game.yahoMasterMultiplier(from,sides[side])),amount=Math.min(target.max-target.hp,healing);target.hp+=amount;meter(side,from).healing+=amount;emit('heal',side,from,side,target,amount,{skill});if(bonus&&skill==='바람의 상처'&&healing>amount)shield(side,from,target,Math.min(caster.atk*.4,(healing-amount)*.15)/(1+bonus),'풍령의 가호'); }
   function addHorasStack(side,amount,source,target) {
     const hero=alive(side).find(u=>u.id==='horas'), progress=horas[side];
     if(!hero||!progress)return 0;
@@ -50,7 +50,7 @@ export function simulateArena(game, saves, names, seed) {
     const enemySide=1-side, crit=detail.directHp?false:typeof detail.critical==='boolean'?detail.critical:random()<.12;
     const power=detail.snapshot||detail.directHp?raw:raw*(.9+random()*.2)*(crit?1.5:1);
     const stunBonus=from==='horas'&&target.stunUntil>t;
-    let value=Math.max(1,Math.round(power*(stunBonus?H.stunMultiplier:1)*(detail.directHp?1:1-target.defense)*synergy[enemySide].incomingMultiplier*(guard(enemySide).hero?1-R.teamReduction:1)*(guard(enemySide).taunting&&target.id==='ryusion'?1-defense(guard(enemySide).hero).tauntReduction:1)));
+    let value=Math.max(1,Math.round(power*(detail.ultimate||detail.directHp?1:game.yahoDamageMultiplier(sides[side].find(u=>u.id===from),t)*game.yahoMasterMultiplier(from,sides[side]))*game.yahoProtectionMultiplier(target,t)*(stunBonus?H.stunMultiplier:1)*(detail.directHp?1:1-target.defense)*synergy[enemySide].incomingMultiplier*(guard(enemySide).hero?1-R.teamReduction:1)*(guard(enemySide).taunting&&target.id==='ryusion'?1-defense(guard(enemySide).hero).tauntReduction:1)));
     if(target.id==='hyeokjin'&&t<game.hyeokjinRefresh(target,sides[enemySide],t,hyeokEmit(enemySide,target)).lastUntil)value=0;
     const absorbed=detail.directHp?0:Math.min(target.shield,value);target.shield-=absorbed;value-=absorbed;game.absorbEarthShield?.(target,absorbed);
     value=game.hyeokjinGuard(target,sides[enemySide],t,value,hyeokEmit(enemySide,target));
@@ -140,7 +140,7 @@ export function simulateArena(game, saves, names, seed) {
     if(!tick)shield(side,unit.id,unit,unit.atk*(unit.exclusive.dragonShield||.2),'신수의 왕권');
   }
   function act(side,unit) {
-    if((unit.id==='kazua'||unit.id==='hyeokjin')||unit.hp<=0||unit.stunUntil>t||!alive(1-side).length)return;
+    if((unit.id==='kazua'||unit.id==='hyeokjin')||unit.hp<=0||unit.stunUntil>t||unit.yahoCastUntil>t||!alive(1-side).length)return;
     const attack=unit.atk*synergy[side].damageMultiplier*(buffUntil[side]>t?1.3:1)*(t>=45000?1+(t-45000)/15000:1);
     if(unit.id==='horas'){horasAct(side,unit,attack*horasDamageMultiplier*(1+(unit.exclusive?.strength||0)));return;}
     const def=game.BY_ID[unit.id];
@@ -159,11 +159,13 @@ export function simulateArena(game, saves, names, seed) {
       for(const target of alive(1-side)){target.slowUntil=Math.max(target.slowUntil||0,t+p.slowMs);hit(side,unit.id,target,attack*p.skillMultiplier,def.skill);}
       emit('spica-wind',side,unit.id,side,unit,0,{skill:def.skill,hasteUntil:t+p.hasteMs,slowUntil:t+p.slowMs});return;
     }
+    if(skill&&unit.id==='yaho'){game.yahoCast(unit,sides[side],t,(a,n,name)=>heal(side,unit.id,a,n,name),(kind,extra)=>emit(kind,side,unit.id,side,unit,0,extra));return;}
     if(skill&&unit.id==='lava'){
       if(unit.stage===1)for(const target of alive(side)){heal(side,unit.id,target,unit.atk*1.6,'바람의 부채');shield(side,unit.id,target,unit.atk*.9,'바람의 부채');}
       else heal(side,unit.id,weakest(side),unit.atk*4.5,'바람의 상처');
       unit.stage=unit.stage===1?2:1;return;
     }
+    if(!skill&&unit.id==='yaho')game.yahoBasic(unit,sides[side],(a,n,name)=>heal(side,unit.id,a,n,name));
     if(skill&&unit.role==='치유'){for(const target of alive(side))heal(side,unit.id,target,unit.atk*2.2,def.skill);return;}
     if(skill&&unit.role==='수호')shield(side,unit.id,unit,unit.max/3*.25,def.skill);
     if(skill&&unit.role==='지원'){buffUntil[side]=t+3000;emit('shield',side,unit.id,side,unit,0,{skill:def.skill});}
@@ -187,6 +189,7 @@ export function simulateArena(game, saves, names, seed) {
   const initial=random()<.5?0:1;
   for(t=500;t<=90000&&alive(0).length&&alive(1).length;t+=500){
     const first=(Math.floor(t/1000)+initial)%2;
+    for(const side of[first,1-first]){const u=sides[side].find(a=>a.id==='yaho');if(u&&alive(1-side).length)game.yahoStep(u,sides[side],t,500,(a,n,name)=>heal(side,u.id,a,n,name),(kind,extra)=>emit(kind,side,u.id,side,u,0,extra),u.stunUntil>t);}
     ryusionStep(first);ryusionStep(1-first);
     horasStep(first);horasStep(1-first);
     breathStep(first);breathStep(1-first);

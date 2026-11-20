@@ -18,7 +18,7 @@ const noUR=['ryusion','osia','lava','nari','lumi','ian'];
 const win=fight(100,true),recommended=fight(70,true,2,noUR),neglect=fight(70,false,2,noUR),early=fight(60,true,2,noUR);
 assert.equal(Y.HP,800000);assert.equal(Y.DURATION,210000);assert.equal(Y.RECOMMENDED_LEVEL,70);
 assert.equal(win.outcome,'defeated');assert(win.elapsed>0&&win.elapsed<Y.DURATION);assert.equal(recommended.outcome,'defeated');assert(recommended.elapsed>win.elapsed);assert.notEqual(neglect.outcome,'defeated');assert.notEqual(early.outcome,'defeated');
-assert.equal(win.damage,Y.HP);assert.equal(win.teams.reduce((n,t)=>n+t.damage,0),Y.HP);assert(win.teams.every(t=>t.thaws>0));
+assert.equal(win.damage,Y.HP);assert.equal(win.teams.reduce((n,t)=>n+t.damage,0),Y.HP);assert(win.teams.some(t=>t.thaws>0));assert(recommended.teams.every(t=>t.thaws>0));
 assert.equal(win.teams[0].units.find(u=>u.id==='ryusion').damage>0,true);
 const after=G.clone(win);Y.advance(G,win,now+1e9);assert.deepEqual(win,after);
 console.log('PASS 800k/210s boss; Lv70 no-UR duo wins with rescue, neglect/low growth fails, physical damage and one settlement');

@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 47;
+  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 48;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -50,6 +50,30 @@
     { stage: 2, name: "바람의 상처", healMultiplier: 4.5 },
   ];
   const lavaSkill = s => LAVA_SKILLS[(s.units.lava?.nextSkill || 1) - 1];
+  const YAHO_RULES = Object.freeze({cooldown:6,ultimateMs:18000,basicHeal:.9,basicHealth:.02,roarHeal:3.2,roarHealth:.04,damageBonus:.35,roarMs:8000,protection:.28,protectionMs:6000,grace:.42,graceMs:8000,graceHeal:1.6,ultimateHeal:4,ultimateHealth:.08,masterBonus:.4});
+  function yahoInit(u){return u.yaho||=( {summoned:false,activeMs:0,next:1} );}
+  function validYaho(u){const q=u.yaho;return (q===undefined||u.id==='yaho'&&q&&typeof q.summoned==='boolean'&&Number.isFinite(q.activeMs)&&q.activeMs>=0&&q.activeMs<=YAHO_RULES.ultimateMs&&[1,2].includes(q.next))&&['yahoRoarUntil','yahoGuardUntil','yahoCastUntil'].every(k=>u[k]===undefined||Number.isFinite(u[k])&&u[k]>=0)&&(u.yahoGrace===undefined||typeof u.yahoGrace==='boolean');}
+  const yahoMasterMultiplier=(id,allies)=>id==='lava'&&allies.some(u=>u.id==='yaho'&&u.hp>0)&&allies.some(u=>u.id==='lava'&&u.hp>0)?1+YAHO_RULES.masterBonus:1;
+  const yahoDamageMultiplier=(u,time)=>u&&time<(u.yahoRoarUntil||0)?1+YAHO_RULES.damageBonus:1;
+  const yahoProtectionMultiplier=(u,time)=>time<(u.yahoGuardUntil||0)?1-(u.yahoGrace?YAHO_RULES.grace:YAHO_RULES.protection):1;
+  function yahoBasic(u,allies,heal){if(u.hp<=0)return;const target=allies.filter(a=>a.hp>0).reduce((best,a)=>!best||a.hp/a.max<best.hp/best.max?a:best,null);if(target)heal(target,u.atk*YAHO_RULES.basicHeal+target.max*YAHO_RULES.basicHealth,'내가 건내준 힘');}
+  function yahoCast(u,allies,time,heal,emit,summon=false){
+    if(u.hp<=0)return false;const q=yahoInit(u),r=YAHO_RULES,live=allies.filter(a=>a.hp>0);
+    if(summon&&q.summoned)return false;
+    if(summon){q.summoned=true;q.activeMs=r.ultimateMs;u.energy=0;u.yahoCastUntil=time+1200;}
+    const stage=summon?3:q.next,name=summon?'거스리는 자':stage===1?'포효':q.summoned?'산군의 가호':'산군의 보호';
+    emit('yaho-skill',{stage,name,skill:name,guardian:q.summoned,element:'fire',targets:live.map(a=>a.id)});
+    for(const a of live){
+      if(stage===1){heal(a,u.atk*r.roarHeal+a.max*r.roarHealth,name);a.yahoRoarUntil=time+r.roarMs;}
+      else{a.yahoGrace=q.summoned;a.yahoGuardUntil=time+(q.summoned?r.graceMs:r.protectionMs);if(summon)heal(a,u.atk*r.ultimateHeal+a.max*r.ultimateHealth,name);else if(q.summoned)heal(a,u.atk*r.graceHeal,name);}
+    }
+    if(!summon)q.next=stage===1?2:1;return true;
+  }
+  function yahoStep(u,allies,time,dt,heal,emit,blocked=false){
+    if(u.hp<=0||blocked)return false;const q=yahoInit(u);if(q.summoned)return false;
+    q.activeMs=Math.min(YAHO_RULES.ultimateMs,q.activeMs+dt);
+    return q.activeMs>=YAHO_RULES.ultimateMs&&yahoCast(u,allies,time,heal,emit,true);
+  }
   const SPICA_RULES = Object.freeze({haste:.15,hasteMs:6000,slow:.15,slowMs:5000,bossSlowScale:.5,cooldown:9,skillMultiplier:1.1});
   function basicAttackRate(unit,time,isBoss=false) { return 1 + ((time < (unit.hasteUntil||0) ? SPICA_RULES.haste : 0) - (time < (unit.slowUntil||0) ? SPICA_RULES.slow*(isBoss?SPICA_RULES.bossSlowScale:1) : 0)); }
   const RYUSION_RULES = Object.freeze({ tauntEvery:5000, tauntMs:2000, tauntReduction:.6, teamReduction:.08, shieldRatio:.08, shieldMs:6000, stunMs:2000, impactDelay:500 });
@@ -77,6 +101,7 @@
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
   const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi", "lava"]);
   const BANNERS = Object.freeze({
+    yaho: Object.freeze({id:"yaho",name:"야호 픽업 모집",featured:"yaho",limited:false,expiresAt:null}),
     hyeokjin: Object.freeze({id:"hyeokjin",name:"서혁진 UR 픽업뽑기",featured:"hyeokjin",rarity:"UR",limited:false,expiresAt:null}),
     kazua: Object.freeze({ id:"kazua", name:"카즈아 픽업뽑기", featured:"kazua", limited:false, expiresAt:null }),
     standard: Object.freeze({ id:"standard", name:"상시뽑기", featured:null, limited:false, expiresAt:null }),
@@ -221,6 +246,7 @@
     { id: "lumi", name: "루미", club: "오컬트부", role: "마법", rarity: "SSR", hp: 128, atk: 25, atkGrowth: 3.7, skill: "달빛 소환", cooldown: 4, color: "#c89ed4", hair: "#b9b2db", outfit: "#5c527d", weapon: "staff", desc: "적 전체에게 공격력 170%의 달빛. 빠른 광역 공격." },
     { id: "osia", name: "오시아", latin: "Osia", club: "물의 용왕", species: "물고기", element: "water", role: "마법", rarity: "SSR", hp: 136, atk: 20, skill: "용왕의 해일", skillMultiplier: 2.2, cooldown: 5, passive: "용왕의 권능", passiveDesc: "물폭탄 평타로 싸우며 스킬을 충전합니다. 충전할 때마다 대형 물탄 → 소용돌이 → 물기둥 → 거대 수룡 순서로 하나씩 사용하고 반복합니다. 마지막 수룡은 명중한 적을 1.5초 기절시킵니다.", color: "#59bdd7", hair: "#6587bb", outfit: "#f6f3eb", weapon: "water", desc: "5초 충전마다 다음 단계 스킬 하나로 적 전체에게 공격력 220%의 물 피해. 스킬 사이에는 물폭탄 평타를 사용합니다." },
     { id: "lava", name: "라바", latin: "Lava", gender: "남성", species: "인간", club: "바람의 무당", element: "wind", role: "치유", rarity: "SSR", hp: 142, atk: 15, cooldown: 5, skill: "바람의 부채 · 바람의 상처", passive: "신내림", passiveDesc: "본인의 평타가 10회 명중하면 체력 비율이 가장 낮은 생존 아군에게 공격력 200% + 대상 최대 체력 8%의 방어막을 줍니다. 방어막은 최대 체력 60%까지 쌓입니다.", passive2: "긴급생존", passive2Desc: "라바가 살아 있으면 웨이브당 한 번, 아군의 치명적인 피해를 HP 1로 버티게 하고 2초 동안 쓰러지지 않게 합니다. 보호 중에도 회복할 수 있습니다.", color: "#81c4ab", hair: "#91d7f1", outfit: "#9caa65", skirt: "#b9564d", weapon: "wind", desc: "5초 충전마다 교대로 사용합니다. 바람의 부채: 아군 전체 공격력 160% 회복 + 공격력 90% 방어막. 바람의 상처: 체력 비율이 가장 낮은 생존 아군 한 명을 공격력 450%만큼 회복." },
+    { id:"yaho", name:"야호", latin:"Yaho", gender:"여성", species:"영물 · 호랑이 수인", club:"라바의 두 번째 제자", element:"fire", role:"치유", rarity:"SSR", hp:160, hpGrowth:12, atk:19, atkGrowth:3.2, cooldown:YAHO_RULES.cooldown, skill:"포효 · 산군의 보호", passive:"내가 건내준 힘", passiveDesc:"평타마다 체력 비율이 가장 낮은 생존 아군을 공격력 90% + 대상 최대 HP 2%만큼 회복합니다.", passive2:"스승님", passive2Desc:"야호와 라바가 함께 살아 있으면 라바의 바람이 태풍으로 강화되어 피해·회복·보호막이 40% 증가합니다.", ultimate:"거스리는 자", ultimateDesc:"활동 시간 18초에 산군 호랑이를 한 번 소환합니다. 전체 회복(공격력 400% + 최대 HP 8%)과 8초간 피해 감소 42%. 산군의 보호가 산군의 가호로 바뀌어 회복 160%와 8초간 피해 감소 42%를 부여합니다. 모험에서는 같은 스테이지의 다음 웨이브에도 소환 상태가 유지됩니다.", color:"#ffb968", hair:"#ffd978", outfit:"#ec837c", weapon:"tiger-fan", desc:"어릴 적 라바에게 거두어진, 도술을 부리는 어린 호랑이 영물. 6초마다 포효와 산군의 보호를 번갈아 사용합니다. 포효: 아군 전체 공격력 320% + 대상 최대 HP 4% 회복, 8초간 주는 피해 35% 증가. 산군의 보호: 6초간 받는 피해 28% 감소. 보호 효과는 중첩되지 않습니다." },
     { id:"spica", name:"스피카", latin:"Spica", gender:"여성", species:"설녀", club:"겨울의 손님", element:"ice", role:"지원", rarity:"SSR", eventOnly:true, hp:148, atk:13, cooldown:SPICA_RULES.cooldown, skill:"설녀의 겨울", color:"#a8d9f0", hair:"#7796cf", outfit:"#c1d4e5", weapon:"ice", desc:"9초마다 적 전체에 공격력 110%의 마법 피해. 아군 전체의 기본 공격 속도 15% 증가(6초), 적의 기본 공격 속도 15% 감소(5초). 보스에게는 7.5% 감소하며 같은 효과는 중첩되지 않습니다. 스킬 충전 속도는 바뀌지 않습니다." },
     { id:"ryusion", name:"류시온", latin:"Ryusion", gender:"여성", species:"인간", club:"대지의 수호자", element:"earth", role:"수호", rarity:"SSR", hp:245, hpGrowth:18, atk:10, atkGrowth:2.4, cooldown:8, skill:"돌격 앞으로 · 방어막 추가", passive:"내가 대신 맞아줄게", passiveDesc:"전투 5초부터 5초마다 2초 동안 모든 적 공격을 대신 받습니다. 광역 공격은 각 아군에게 향한 타격을 전부 받습니다. 도발 중 본인이 받는 피해는 추가로 60% 감소합니다. 쓰러지면 도발은 끝납니다.", passive2:"피해감소", passive2Desc:"생존 중 자신을 포함한 아군 전체가 받는 피해 8% 감소. 다른 피해 감소와 곱해서 적용됩니다.", color:"#daa456", hair:"#674b40", outfit:"#28272b", weapon:"earth-shield", desc:"8초 충전마다 교대로 사용합니다. 돌격 앞으로: 전방 적 한 명에게 공격력 100% 피해·밀쳐내기·2초 기절. 방어막 추가: 생존 아군 각각에게 류시온 최대 HP 8%의 보호막을 6초간 부여. 같은 보호막은 중첩되지 않습니다." },
   ];
@@ -930,6 +956,7 @@
     // Existing in-progress battles keep their saved stats. New late-game waves
     // accommodate six units, while the first ten areas retain their old curve.
     const scale = campaignScale(s.stage);
+    const previousYaho = carry && s.battle?.phase === 'victory' && s.battle.stage === s.stage && !s.battle.boss ? s.battle.heroes.find(h=>h.id==='yaho')?.yaho : null;
     const previousHoras = carry && s.battle?.phase === "victory" && s.battle.heroes.some(h => h.id === "horas" && h.hp > 0) ? s.battle.horas : null;
     const previousOsia = carry && s.battle?.phase === "victory" && s.battle.heroes.find(h => h.id === "osia" && h.hp > 0);
     s.battle = { id: s.seq + 1, stage: s.stage, wave: s.wave, boss, phase: "fight", wait: 0, tick: 0, elapsed: 0, buff: 0, lavaRescueUsed: false, damage: {}, synergies: partySynergies(s),
@@ -940,6 +967,7 @@
         return chapterMechanic(boss && s.stage > 30 ? bossAbility(e, .65 + (s.stage - 30) / 30 * .35) : monsterAbility(e, s.stage),s.stage);
       }),
     };
+    if(previousYaho){const yaho=s.battle.heroes.find(h=>h.id==='yaho');if(yaho)yaho.yaho={...previousYaho};}
     if (s.team.includes("horas")) s.battle.horas = newHoras(previousHoras?.stacks || 0);
     event(s, "wave", { stage: s.stage, wave: s.wave, boss });
   }
@@ -999,7 +1027,7 @@
       profile: {avatar:'leader',title:'',beta:false}, gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, nameChangeTickets: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
       onboarding: {version:1,step:0},
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
-      banners: { hyeokjin:{pity:0,guaranteed:false}, standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
+      banners: { yaho:{pity:0,guaranteed:false}, hyeokjin:{pity:0,guaranteed:false}, standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], codexClaimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
@@ -1090,7 +1118,7 @@
       (s.battle.cinematic === undefined || s.battle.cinematic && s.battle.cinematic.from === "osia" && [STEP_MS, OSIA_CINEMATIC_MS].includes(s.battle.cinematic.duration) && Number.isFinite(s.battle.cinematic.remaining) && s.battle.cinematic.remaining > 0 && s.battle.cinematic.remaining <= s.battle.cinematic.duration && Number.isInteger(s.battle.cinematic.resumeIndex) && s.battle.cinematic.resumeIndex >= 1 && s.battle.cinematic.resumeIndex <= s.battle.heroes.length) &&
       validQuestState(s.quests) && validPass(s.battlePass) &&
       (!s.battle.osiaCast?.breath||s.battle.osiaCast.stage===4&&Number.isInteger(s.battle.osiaCast.tick)&&s.battle.osiaCast.tick>=0&&s.battle.osiaCast.tick<=OSIA_BREATH_RULES.ticks) &&
-      validHoras(s.battle) && s.battle.heroes.every(h=>validKazua(h.kazua)&&validHyeokjin(h.hyeokjin)&&validOsiaWeapon(h.osiaWeapon)) &&
+      validHoras(s.battle) && s.battle.heroes.every(h=>validKazua(h.kazua)&&validHyeokjin(h.hyeokjin)&&validOsiaWeapon(h.osiaWeapon)&&validYaho(h)) &&
       validActivities(s.activities) &&
       (s.battle.activity === undefined || s.activities?.run && s.battle.runId === s.activities.run.id && s.battle.activity.kind === s.activities.run.kind) &&
       (!s.activities?.run || s.battle.activity && (s.activities.run.settled ? s.activities.lastResult?.runId === s.activities.run.id && ["victory", "defeat"].includes(s.battle.phase) : s.battle.phase === "fight")) &&
@@ -1189,6 +1217,7 @@
   }
   function hurt(s, from, target, raw, side, skill = false, detail = {}) {
     let earthGuard;
+    if(side==='enemy'&&!detail.fixed&&!detail.directHp){const allies=s.battle.heroes;raw*=yahoDamageMultiplier(allies.find(h=>h.id===from),s.battle.elapsed)*yahoMasterMultiplier(from,allies);}
     if(side==='hero'){
       earthGuard=ryusionGuard(s.battle.heroes,s.battle.elapsed);
       if(earthGuard.taunting&&target.id!==earthGuard.hero.id){detail={...detail,redirectedFrom:target.id};target=earthGuard.hero;}
@@ -1203,7 +1232,7 @@
     if (stunBonus) detail = { ...detail, stunBonus: true };
     if (side === "hero") {
       const b = s.battle;
-      amount = Math.max(1, Math.round(amount * (1 - target.defense) * (earthGuard.hero ? 1-RYUSION_RULES.teamReduction : 1) * (earthGuard.taunting&&target===earthGuard.hero ? 1-ryusionDefense(earthGuard.hero).tauntReduction : 1)));
+      amount = Math.max(1, Math.round(amount * (1 - target.defense) * yahoProtectionMultiplier(target,b.elapsed) * (earthGuard.hero ? 1-RYUSION_RULES.teamReduction : 1) * (earthGuard.taunting&&target===earthGuard.hero ? 1-ryusionDefense(earthGuard.hero).tauntReduction : 1)));
       if(target.id==='hyeokjin'&&b.elapsed<hyeokjinRefresh(target,b.heroes,b.elapsed,(kind,extra)=>event(s,kind,{from:target.id,...extra})).lastUntil)amount=0;
       const shield = Math.min(target.shield, amount); target.shield -= shield; amount -= shield;
       const earthAbsorbed=Math.min(shield,target.earthShield||0);meter(s,'ryusion','absorbed',earthAbsorbed);
@@ -1245,12 +1274,12 @@
     return b.heroes.filter(h => h.hp > 0).reduce((lowest, hero) => !lowest || hero.hp / hero.max < lowest.hp / lowest.max ? hero : lowest, null);
   }
   function lavaGuard(s, hero, target, raw, passive) {
-    const amount = Math.max(0, Math.min(Math.round(raw * (1+(hero.exclusive?.strength||0))), Math.round(target.max * .6) - target.shield));
+    const amount = Math.max(0, Math.min(Math.round(raw * (1+(hero.exclusive?.strength||0)) * yahoMasterMultiplier(hero.id,s.battle.heroes)), Math.round(target.max * .6) - target.shield));
     target.shield += amount;target.shieldSources||={};target.shieldSources[hero.id]=(target.shieldSources[hero.id]||0)+amount;
     if (amount) event(s, "guard", { from: hero.id, to: target.id, amount, shield: target.shield, passive, element: "wind" });
   }
   function lavaHeal(s, hero, target, raw, stage) {
-    const healing=Math.round(raw * (hero.healMultiplier || 1) * (1+(hero.exclusive?.strength||0)));
+    const healing=Math.round(raw * (hero.healMultiplier || 1) * (1+(hero.exclusive?.strength||0)) * yahoMasterMultiplier(hero.id,s.battle.heroes));
     const amount = Math.min(target.max - target.hp, healing); target.hp += amount;
     if(stage===2&&hero.exclusive&&healing>amount)lavaGuard(s,hero,target,Math.min(hero.atk*.4,(healing-amount)*.15)/(1+hero.exclusive.strength),"weapon-overheal");
     meter(s, hero.id, "healing", amount);
@@ -1366,10 +1395,12 @@
     unit.nextBasicAt=(unit.nextBasicAt>=time-STEP_MS?unit.nextBasicAt:time)+base/basicAttackRate(unit,time,isBoss);
     return true;
   }
+  function yahoHeal(s,hero,target,raw,name){const before=target.hp,amount=Math.max(0,Math.min(target.max-target.hp,Math.round(raw*(hero.healMultiplier||1))));target.hp+=amount;meter(s,hero.id,'healing',amount);if(amount)event(s,'heal',{from:hero.id,to:target.id,amount,hpBefore:before,hpAfter:target.hp,name,element:'fire'});}
   function heroBasic(s,hero,enemies) {
     const b=s.battle,target=enemies[0];if(!target)return;
     const critical=random(s)<(hero.critChance??CRITICAL.chance);
     const dealt=hurt(s,hero.id,target,hero.atk*osiaBasicMultiplier(hero)*(hero.damageMultiplier||1)*(b.buff?1.3:1)*(.9+random(s)*.2)*(critical?hero.critMultiplier||CRITICAL.multiplier:1),'enemy',false,{critical});
+    if(hero.id==='yaho')yahoBasic(hero,b.heroes,(a,n,name)=>yahoHeal(s,hero,a,n,name));
     if(hero.id==='lava'&&dealt>0){const unit=s.units.lava;unit.basicHits=(unit.basicHits||0)+1;if(unit.basicHits>=10){unit.basicHits=0;const friend=lowestAlive(b);if(friend)lavaGuard(s,hero,friend,hero.atk*2+friend.max*.08,'ten-hits');}}
   }
   function enemyBasic(s,enemy) {
@@ -1384,7 +1415,7 @@
   }
   function spicaHalfTurn(s) {
     const b=s.battle;
-    for(const hero of b.heroes){if(hero.hp<=0||hero.id==='kazua'||hero.id==='hyeokjin'||b.elapsed<(hero.stunUntil||0))continue;const enemies=b.enemies.filter(e=>e.hp>0);if(!enemies.length)break;
+    for(const hero of b.heroes){if(hero.hp<=0||hero.id==='kazua'||hero.id==='hyeokjin'||b.elapsed<(hero.stunUntil||0)||b.elapsed<(hero.yahoCastUntil||0))continue;const enemies=b.enemies.filter(e=>e.hp>0);if(!enemies.length)break;
       if(hero.id==='horas'){horasTurn(s,hero,enemies);continue;}
       if(hero.id==='osia'&&b.osiaCast)continue;
       if(basicDue(hero,b.elapsed))heroBasic(s,hero,enemies);
@@ -1417,6 +1448,8 @@
     }
     b.elapsed += STEP_MS;
     if (b.activity && b.heroes.every(h => h.hp <= 0)) { settleActivity(s, false, "defeat"); return; }
+    const yaho=b.heroes.find(h=>h.id==='yaho');
+    if(yaho)yahoStep(yaho,b.heroes,b.elapsed,STEP_MS,(a,n,name)=>yahoHeal(s,yaho,a,n,name),(kind,extra)=>event(s,kind,{from:'yaho',...extra}),b.elapsed<(yaho.stunUntil||0));
     ryusionStep(s);
     const osiaImpact = osiaStep(s);
     const osia=b.heroes.find(h=>h.id==='osia');
@@ -1457,7 +1490,7 @@
   function combatTurn(s, startIndex, osiaImpact) {
     const b = s.battle,rhythm=spicaRhythm(b);
     for (let index = startIndex; index < b.heroes.length; index++) {
-      const hero = b.heroes[index]; if (hero.hp <= 0 || hero.id==='kazua'||hero.id==='hyeokjin'||b.elapsed<(hero.stunUntil||0)) continue;
+      const hero = b.heroes[index]; if (hero.hp <= 0 || hero.id==='kazua'||hero.id==='hyeokjin'||b.elapsed<(hero.stunUntil||0)||b.elapsed<(hero.yahoCastUntil||0)) continue;
       const enemies = b.enemies.filter(e => e.hp > 0); if (!enemies.length) break;
       const def = BY_ID[hero.id];
       if (hero.id === "horas") { horasTurn(s, hero, enemies); continue; }
@@ -1465,7 +1498,8 @@
       if (hero.id === "osia" && (b.osiaCast || osiaImpact)) continue;
       const skill = hero.energy >= def.cooldown;
       if(rhythm){const ready=basicDue(hero,b.elapsed);if(!skill&&!ready)continue;if(skill&&!ready)hero.nextBasicAt+=1000/basicAttackRate(hero,b.elapsed);}
-      if (skill) { hero.energy = 0; event(s, "skill", { from: hero.id, name: hero.id === "osia" ? osiaSkillName(hero,osiaSkill(s).stage) : hero.id === "lava" ? lavaSkill(s).name : hero.id === "ryusion" ? ryusionSkill(s).name : def.skill, role: def.role, ...(def.element ? { element: def.element } : {}) }); }
+      if (skill) { hero.energy = 0; event(s, "skill", { from: hero.id, name: hero.id === "yaho" ? (yahoInit(hero).next===1?"포효":hero.yaho.summoned?"산군의 가호":"산군의 보호") : hero.id === "osia" ? osiaSkillName(hero,osiaSkill(s).stage) : hero.id === "lava" ? lavaSkill(s).name : hero.id === "ryusion" ? ryusionSkill(s).name : def.skill, role: def.role, ...(def.element ? { element: def.element } : {}) }); }
+      if(skill&&hero.id==='yaho'){yahoCast(hero,b.heroes,b.elapsed,(a,n,name)=>yahoHeal(s,hero,a,n,name),(kind,extra)=>event(s,kind,{from:'yaho',...extra}));continue;}
       if(skill&&hero.id==='spica'){spicaSkill(s,hero,enemies);continue;}
       if(skill&&hero.id==='ryusion'){
         const step=ryusionSkill(s);s.units.ryusion.nextSkill=step.stage===1?2:1;
@@ -1491,13 +1525,14 @@
       if (skill && hero.id === "lava") {
         const step = lavaSkill(s), targets = step.stage === 1 ? b.heroes.filter(h => h.hp > 0) : [lowestAlive(b)];
         s.units.lava.nextSkill = step.stage === 1 ? 2 : 1;
-        event(s, "lava-skill", { from: hero.id, stage: step.stage, name: step.name, element: "wind", targets: targets.map(h => h.id) });
+        event(s, "lava-skill", { from: hero.id, stage: step.stage, name: yahoMasterMultiplier(hero.id,b.heroes)>1?step.name.replace("바람","태풍"):step.name, typhoon:yahoMasterMultiplier(hero.id,b.heroes)>1, element: "wind", targets: targets.map(h => h.id) });
         for (const friend of targets) {
           lavaHeal(s, hero, friend, hero.atk * step.healMultiplier, step.stage);
           if (step.shieldMultiplier) lavaGuard(s, hero, friend, hero.atk * step.shieldMultiplier, "fan");
         }
         continue;
       }
+      if(!skill&&hero.id==='yaho')yahoBasic(hero,b.heroes,(a,n,name)=>yahoHeal(s,hero,a,n,name));
       let target = enemies[0], multiplier = skill ? 3 : 1;
       if (skill && def.role === "치유") {
         for (const friend of b.heroes.filter(h => h.hp > 0)) {
@@ -2002,5 +2037,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { passInfo,PASS_QUESTS,PASS_MAX_LEVEL,passReward,bondMeta,visualChapter,levelCap,trainingQuote,NORMAL_MAX_STAGE,SKINS,ownsSkin,equippedSkin,snapshotSkins,isURBanner,HYEOKJIN_RULES,HYEOKJIN_MOVES,hyeokjinInit,hyeokjinAwake,hyeokjinRefresh,hyeokjinGuard,hyeokjinRecord,hyeokjinStep,validHyeokjin, OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_CHARACTERS,BOND_DAILY_LIMIT,SHARD_SSR,BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { YAHO_RULES,yahoInit,validYaho,yahoMasterMultiplier,yahoDamageMultiplier,yahoProtectionMultiplier,yahoBasic,yahoCast,yahoStep,passInfo,PASS_QUESTS,PASS_MAX_LEVEL,passReward,bondMeta,visualChapter,levelCap,trainingQuote,NORMAL_MAX_STAGE,SKINS,ownsSkin,equippedSkin,snapshotSkins,isURBanner,HYEOKJIN_RULES,HYEOKJIN_MOVES,hyeokjinInit,hyeokjinAwake,hyeokjinRefresh,hyeokjinGuard,hyeokjinRecord,hyeokjinStep,validHyeokjin, OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_CHARACTERS,BOND_DAILY_LIMIT,SHARD_SSR,BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

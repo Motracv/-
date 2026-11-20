@@ -9,8 +9,8 @@ window.SchoolBattlePolish=(()=>{
   for(const e of events||[]){
    const id=e.from||e.id;if(!window.SchoolRPG.BY_ID[id])continue;
    const t=e.shown??e.t??e.time*1000,age=(now-t)/1000;if(!Number.isFinite(age)||age<0||age>=.72)continue;
-   const special=id==='horas'&&e.kind==='cast'||['osia-breath','horas-cast','spica-skill','spica-wind','ryusion-skill','lava-skill'].includes(e.kind)||e.kind==='kazua-mode'&&e.mode==='red'||e.kind==='hyeokjin-mode'&&e.mode!=='basic';
-   const skill=['skill-stage','cast','skill','heal','shield'].includes(e.kind)&&(!e.breath||['skill-stage','cast'].includes(e.kind))&&!['kazua','horas','hyeokjin'].includes(id)&&(id!=='osia'||e.stage===4)&&(!['heal','shield'].includes(e.kind)||!!e.skill);
+   const special=id==='horas'&&e.kind==='cast'||['osia-breath','horas-cast','spica-skill','spica-wind','ryusion-skill','lava-skill','yaho-skill'].includes(e.kind)||e.kind==='kazua-mode'&&e.mode==='red'||e.kind==='hyeokjin-mode'&&e.mode!=='basic';
+   const skill=['skill-stage','cast','skill','heal','shield'].includes(e.kind)&&(!e.breath||['skill-stage','cast'].includes(e.kind))&&!['kazua','horas','hyeokjin','yaho'].includes(id)&&(id!=='osia'||e.stage===4)&&(!['heal','shield'].includes(e.kind)||!!e.skill);
    if((special||skill)&&t>=at){found={id,age,team:e.team,side:e.side,stage:e.stage||1,name:e.name||e.skill||window.SchoolRPG.BY_ID[id].skill};at=t;}
   }
   return found;
@@ -48,7 +48,7 @@ window.SchoolBattlePolish=(()=>{
    const zoom=1+.08*(1-Math.pow(1-clamp(shot.age/.3),3));
    const image=shot.id==='horas'&&appearance(shot)==='horas_after_school'?faceImage():null;
    if(image?.complete&&image.naturalWidth){c.save();c.beginPath();c.rect(x+4*unit,y+2*unit,43*unit,panelH-4*unit);c.clip();const size=56*unit*zoom;c.drawImage(image,x+25*unit-size/2,y+panelH/2-size/2,size,size);c.restore();}
-   else window.SchoolArt.hero(c,shot.id,x+25*unit,y+50*unit,zoom*unit,{skin:appearance(shot),pose:2,casting:true,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
+   else window.SchoolArt.hero(c,shot.id,x+25*unit,y+50*unit,zoom*unit,{skin:appearance(shot),pose:2,casting:true,yahoStage:shot.stage,castAge:shot.age,time:shot.age,attackAge:undefined,horasCastAge:shot.id==='horas'?.4:-1,kazuaActive:true,kazuaMode:shot.id==='kazua'?'red':undefined,kazuaAge:shot.age,motion:{lean:0,stretch:1,age:shot.age,pose:2}});
   }
   const textX=x+(reduced?10:50)*unit,textY=y+(reduced?15:20)*unit,textW=panelW-(reduced?20:57)*unit;
   c.textAlign='left';c.fillStyle=color;c.font=`bold ${10*unit}px Galmuri, sans-serif`;c.fillText(def.name,textX,textY,textW);

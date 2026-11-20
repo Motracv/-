@@ -9,6 +9,7 @@
   const ease = n => { n = clamp(n); return n * n * (3 - 2 * n); };
   const ramp = (t, a, d) => ease((t - a) / d);
   const THEMES = Object.freeze({
+    fire:{color:'#ffc178',second:'#fff0b3',rgb:'255,171,100',label:'화염',english:'SACRED FLAME'},
     wind: {color:'#8fffd5',second:'#f5f1b5',rgb:'143,255,213',label:'바람',english:'WIND'},
     ice: {color:'#b2e4ff',second:'#d4c8ff',rgb:'178,228,255',label:'얼음',english:'FROST'},
     earth: {color:'#ffd281',second:'#b8ffcc',rgb:'255,210,129',label:'대지',english:'EARTH'},
@@ -66,6 +67,10 @@
         const y = radius * (.15 + i * .2); c.beginPath(); c.moveTo(-radius * .3, y);
         c.bezierCurveTo(-radius * .05, y + radius * .2, radius * .1, y - radius * .12, radius * .35, y); c.stroke();
       }
+    } else if (element === 'fire') {
+      c.beginPath();c.moveTo(0,-radius);c.bezierCurveTo(radius*.08,-radius*.25,radius*.7,-radius*.1,radius*.62,radius*.45);c.bezierCurveTo(radius*.5,radius*1.12,-radius*.62,radius*1.12,-radius*.66,radius*.4);c.bezierCurveTo(-radius*.7,-radius*.1,-radius*.35,-radius*.2,-radius*.33,-radius*.65);c.quadraticCurveTo(-radius*.12,-radius*.35,0,-radius);c.stroke();
+      c.beginPath();c.ellipse(0,radius*.52,radius*.18,radius*.15,0,0,TAU);c.stroke();
+      for(const [x,y] of [[-.27,.32],[-.1,.19],[.12,.19],[.29,.32]]){c.beginPath();c.ellipse(x*radius,y*radius,radius*.07,radius*.09,0,0,TAU);c.stroke();}
     } else if (element === 'wind') {
       for(let i=0;i<3;i++){c.save();c.rotate(i*TAU/3);c.beginPath();c.moveTo(-radius*.8,radius*.4);c.bezierCurveTo(radius*.9,radius*.5,radius,-radius*.6,radius*.2,-radius*.65);c.bezierCurveTo(-radius*.4,-radius*.7,-radius*.3,0,radius*.15,-radius*.1);c.stroke();c.restore();}
     } else if (element === 'ice') {

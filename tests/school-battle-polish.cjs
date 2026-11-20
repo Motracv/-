@@ -4,7 +4,7 @@ const window={SchoolRPG:G,SchoolArt:{hero(...args){heroes.push(args.slice(1));}}
 vm.runInNewContext(fs.readFileSync('school/battle-polish.js','utf8'),{window});
 const P=window.SchoolBattlePolish;
 for(const events of [[],[{kind:'attack',from:'osia',time:1}],[{kind:'kazua-mode',from:'kazua',mode:'reload',time:1}],[{kind:'skill-stage',from:'osia',stage:1,time:1}],[{kind:'skill',from:'monster',time:1}]])assert.equal(P.latest(events,1250),null);
-for(const event of [{kind:'horas-cast',from:'horas',time:1},{kind:'kazua-mode',from:'kazua',mode:'red',shown:1000},{kind:'skill',from:'osia',stage:4,t:1000},{kind:'spica-wind',id:'spica',shown:1000},{kind:'shield',from:'geonu',skill:'철벽 수호',t:1000}]){
+for(const event of [{kind:'yaho-skill',from:'yaho',stage:3,name:'거스리는 자',time:1},{kind:'horas-cast',from:'horas',time:1},{kind:'kazua-mode',from:'kazua',mode:'red',shown:1000},{kind:'skill',from:'osia',stage:4,t:1000},{kind:'spica-wind',id:'spica',shown:1000},{kind:'shield',from:'geonu',skill:'철벽 수호',t:1000}]){
  assert.equal(P.latest([event],1250).id,event.from||event.id);
  assert.equal(P.latest([event],999),null);assert.equal(P.latest([event],1720),null);
 }

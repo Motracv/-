@@ -120,7 +120,7 @@ test('Osia is a permanent SSR, can be drawn by natural roll or pity, and duplica
   G.action(s,{kind:'awaken',hero:'osia'});assert.equal(s.units.osia.stars,1);assert.equal(s.units.osia.shards,10);
   setPity(s,79);const valuesAtPity=[.99,.1];const forced=G.action(s,{kind:'recruit',count:1},1000,()=>valuesAtPity.shift());assert.equal(forced.results[0].id,'osia');assert.equal(forced.results[0].pity,true);assert.equal(s.pity,0);
   G.action(s,{kind:'team',team:['taeo','osia','sua']});G.action(s,{kind:'train',hero:'osia'});assert.equal(s.units.osia.level,2);assert.ok(G.validate(G.clone(s)));
-  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,7);assert.equal(G.RECRUIT_RATES.SSR,.01);
+  assert.equal(G.HEROES.filter(h=>h.rarity==='SSR').length,8);assert.equal(G.RECRUIT_RATES.SSR,.01);
 });
 test('Legacy pity migrates once into standard; Kazua and Ryusion guarantees stay independent',()=>{
  const s=G.create(UPDATE_TIME);delete s.banners;s.pity=59;const old=G.clone(s);G.advance(s,s.at);

@@ -13,7 +13,7 @@ const G=require('../school/engine.js');
   const fire=(target,type,props={})=>{const e=new window.Event(type,{bubbles:true,cancelable:true});Object.assign(e,props);target.dispatchEvent(e);};
   const tick=()=>{assert.equal(timers.size,1);const[id,timer]=[...timers][0];timers.delete(id);timer.f();};
   const original=JSON.stringify(state);
-  assert.equal(document.querySelectorAll('.lobby-news-card').length,6);assert.equal(current().dataset.promo,'horas');assert.equal(timers.size,1);
+  assert.equal(document.querySelectorAll('.lobby-news-card').length,7);assert.equal(current().dataset.promo,'yaho');assert.equal(timers.size,1);current().click();assert.deepEqual(opens,['yaho']);opens.length=0;tick();assert.equal(current().dataset.promo,'horas');
   for(let i=0;i<8;i++)news.refresh();assert.equal(timers.size,1,'Repeated game renders do not reset or multiply rotation timers');tick();assert.equal(current().dataset.promo,'hyeokjin');
   current().click();assert.deepEqual(opens,['hyeokjin']);assert.equal(JSON.stringify(state),original);
   fire(document.getElementById('lobby-news'),'pointerenter',{pointerType:'mouse'});assert.equal(timers.size,0);
@@ -27,7 +27,7 @@ const G=require('../school/engine.js');
   fire(frame,'pointerup',{clientX:80,clientY:44,pointerId:1});assert.equal(current().dataset.promo,'double');current().click();assert.equal(opens.length,1,'Swiping must not open a promotion');
   fire(frame,'pointerdown',{clientX:140,clientY:40,pointerId:2,button:0});fire(frame,'pointerup',{clientX:140,clientY:40,pointerId:2});current().click();assert.equal(opens.at(-1),'double');
   visible=false;news.refresh();assert.equal(timers.size,0);visible=true;news.refresh();assert.equal(timers.size,1);
-  reduced=true;news.refresh();assert.equal(timers.size,0);document.querySelectorAll('.lobby-news-page')[4].click();assert.equal(current().dataset.promo,'pass');assert.equal(timers.size,0);
+  reduced=true;news.refresh();assert.equal(timers.size,0);document.querySelectorAll('.lobby-news-page')[5].click();assert.equal(current().dataset.promo,'pass');assert.equal(timers.size,0);
   console.log('PASS swipe/click separation, hidden-screen suspension, and manual controls with reduced motion');
 
   reduced=false;now=Date.parse('2026-12-04T08:00:00Z');state.redeemedCodes.push('NEWNAME');news.refresh();

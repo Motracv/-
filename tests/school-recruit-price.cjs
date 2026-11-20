@@ -7,7 +7,7 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
   const test=async(name,run)=>{await run();passed++;console.log('PASS',name);};
   await test('Banner-specific SSR100/1000 and UR160/1600 costs reject insufficient funds atomically',()=>{
     assert(G.CATALOG_VERSION>=31,'Banner pricing catalog or newer');assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
-    for(const banner of ['horas','standard','kazua','ryusion']){
+    for(const banner of ['yaho','horas','standard','kazua','ryusion']){
       const cost=G.recruitCost(banner,10),singleCost=G.recruitCost(banner,1);
       assert(G.bannerAvailable(banner,NOW));
       const s=G.create(NOW);s.gems=cost-1;const before=G.clone(s);let rolls=0;
@@ -26,7 +26,7 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
   const row=who=>t.sqlite.prepare('SELECT * FROM school_saves WHERE account_id=?').get(who.profile.id);
   const patch=(who,gems)=>{const state=JSON.parse(row(who).payload);state.gems=gems;t.sqlite.prepare('UPDATE school_saves SET payload=? WHERE account_id=?').run(JSON.stringify(state),who.profile.id);};
   try{
-    for(const banner of ['horas','standard','kazua','ryusion']){
+    for(const banner of ['yaho','horas','standard','kazua','ryusion']){
       const cost=G.recruitCost(banner,10),singleCost=G.recruitCost(banner,1);
       const who=(await t.login(`recruit-price-${banner}`)).data;
       assert.equal((await call(who,'state')).status,200);

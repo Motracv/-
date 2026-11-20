@@ -65,7 +65,7 @@ window.SchoolArt = (() => {
   horasImage.src = 'school/assets/horas/combat.webp?v=horas1';
   horasPortraitImage.src = 'school/assets/horas/portrait.webp?v=horas1';
   horasCutinImage.src = 'school/assets/horas/cutin.webp?v=horas1';
-  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready,window.SchoolHyeokjinArt?.ready,window.SchoolOsiaWeaponArt?.ready,window.SchoolOsiaBreathArt?.ready,window.SchoolRosterArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
+  const ready = Promise.all([osiaReady, lavaReady, lavaFanReady, osiaFrontReady, horasFxReady, window.SchoolRyusion?.ready,spicaReady,window.SchoolKazuaArt?.ready,window.SchoolHyeokjinArt?.ready,window.SchoolOsiaWeaponArt?.ready,window.SchoolOsiaBreathArt?.ready,window.SchoolRosterArt?.ready,window.SchoolYahoArt?.ready]).then(async ([osia, lava]) => { if(horasCutinLoaded)await warmHorasSource('face'); return osia && lava; });
   osiaImage.src = "school/assets/roster-remake/osia.webp?v=roster1";
   osiaFrontImage.src = "school/assets/osia-front.webp?v=osia-look1";
   lavaImage.src = "school/assets/lava.png?v=lava1";
@@ -693,6 +693,7 @@ window.SchoolArt = (() => {
     try{drawHero(c,id,x,y,scale,frame);}finally{if(breath)c.restore();}
   }
   function drawHero(c, id, x, y, scale = 2, frame = {}) {
+    if(window.SchoolYahoArt?.draw(c,id,x,y,scale,frame))return;
     if(window.SchoolRosterArt?.draw(c,id,x,y,scale,frame))return;
     // Animated actors must receive the live frame, never the generic idle sprite cache.
     if (id === "osia" || id === "lava" || id === "horas" || id === "ryusion" || id==='spica' || id==='kazua' || id==='hyeokjin') { heroShape(c, id, x, y, scale, frame); return; }
@@ -1903,6 +1904,7 @@ window.SchoolArt = (() => {
       if (event.kind === "skill-stage" && event.from === "osia" && age < (event.breath ? 4.75 : event.stage === 4 ? 1.8 : 1.1)) actor("osia").combo = event;
       if(event.kind==="ryusion-skill"&&age<1.4)actor("ryusion").combo=event;
       if(event.kind==="ryusion-impact"&&age<.7)actor(event.to).earthImpact=event;
+      if(event.kind==='yaho-skill'&&age<1.8){actor("yaho").yaho=event;actor("yaho").skill=event;actor("yaho").casting=true;}
       if (event.kind === "lava-skill" && age < 1.8) actor("lava").combo = event;
       if(event.kind==='spica-skill'&&age<1.6)actor('spica').combo=event;
       if (event.kind === "horas-basic" && age < 1.18) actor("horas").basic = event;
@@ -1928,6 +1930,7 @@ window.SchoolArt = (() => {
     battle.heroes.forEach((h, i) => { positions[h.id] = place(partyPositions[i] || {x:66 + (i % 3) * 68,y:137}); });
     battle.enemies.forEach((e, i) => { positions[e.id] = place(battle.boss ? { x: 375, y: 210 } : enemyPlaces[i]); });
     if(breathEvent&&window.SchoolOsiaWeaponArt){const targets=breathEvent.targets.map(id=>positions[id]).filter(Boolean);if(targets.length)window.SchoolOsiaWeaponArt.dragon(c,{source:positions.osia,target:targets.reduce((a,b)=>b.x>a.x?b:a),age:time-breathEvent.time,reduced,economy,breath:true,layer:'back'});}
+    window.SchoolYahoArt?.field(c,battle,positions,effects,time,reduced);
     const visualPositions = {...positions};
     const items = battle.heroes.map(h => ({ ...h, side: "hero" })).concat(battle.enemies.map(e => ({ ...e, side: "enemy" }))).sort((a, b) => positions[a.id].y - positions[b.id].y);
     for (const item of items) {
@@ -1947,7 +1950,7 @@ window.SchoolArt = (() => {
       const scale = extendedParty ? (p.y<195?1.18:1.32) : 1.6, moveX = (motion ? motion.dx : ["lava","horas","kazua","hyeokjin"].includes(item.id) ? 0 : nudge) + (item.side === "hero" ? -recoil : 0), moveY = motion ? motion.dy : bounce;
       visualPositions[item.id] = {x:p.x + moveX,y:p.y + moveY};
       if (item.side === "hero") hero(c, item.id, p.x + moveX, p.y + moveY, scale, { groundX:p.x,groundY:p.y,hit, dead: item.hp <= 0, attack: attacking, pose: motion?.pose, motion, shadowY:-moveY / scale, ready: item.energy >= S.BY_ID[item.id].cooldown - 1, casting: !!combo || visual.casting, blink: Math.sin(time * .7 + p.x) > .99,
-        time:sceneTime, castAge:visual.skill?time-visual.skill.time:undefined, skin:item.skin, exclusive:item.exclusive, osiaBreathAge:combo?.breath?castAge:undefined, osiaSpearAge:visual.spear?time-visual.spear.time:-1, kazuaActive:battle.phase==='fight', ...(item.id==='kazua'?gunVisual.frame:{}),...hyeokjinFrame(item,battle.elapsed+horasInterpolation*1000),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
+        time:sceneTime, castAge:visual.skill?time-visual.skill.time:undefined, skin:item.skin, yahoStage:visual.yaho?.stage,yahoSummoned:item.yaho?.summoned, exclusive:item.exclusive, osiaBreathAge:combo?.breath?castAge:undefined, osiaSpearAge:visual.spear?time-visual.spear.time:-1, kazuaActive:battle.phase==='fight', ...(item.id==='kazua'?gunVisual.frame:{}),...hyeokjinFrame(item,battle.elapsed+horasInterpolation*1000),...(dodge?{kazuaMode:'dodge',kazuaAge:time-dodge.time}:{}), reduced,stunned, taunting:item.id==='ryusion'&&S.ryusionGuard(battle.heroes,battle.elapsed).taunting, passive:!!visual.passive,
         horasBasicPose:visual.basic?.pose || battle.horas?.basicPose || 1, horasStacks:battle.horas?.stacks || 0,
         horasCastAge:item.id !== "horas" ? -1 : battle.horasCast ? Math.max(0,(battle.elapsed-battle.horasCast.began)/1000+horasInterpolation) : visual.horasImpact ? 1.5+time-visual.horasImpact.time : -1,
         basicAttackAt:visual.outgoing && !visual.outgoing.skill ? visual.outgoing.time : undefined,
@@ -2066,5 +2069,5 @@ window.SchoolArt = (() => {
     osiaCinematic(c, state, time, effects, reduced);
     }
   }
-  return { groundShadow, displayPortrait:(id,skin)=>portrait(id,skin,2), horasCoopEffects,hyeokjinFrame,kazuaFrame,kazuaCampaignVisual, combatNumber, hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => window.SchoolRosterArt?.has(id)?window.SchoolRosterArt.assetsReady(id):id==='kazua'?!!window.SchoolKazuaArt?.assetsReady():id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaFanLoaded||lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
+  return { groundShadow, displayPortrait:(id,skin)=>portrait(id,skin,2), horasCoopEffects,hyeokjinFrame,kazuaFrame,kazuaCampaignVisual, combatNumber, hitSprite, hero, portrait, rosterPortrait, frontPortrait, recruitPortrait, monster, enemyVariant, enemyAppearances:ENEMY_APPEARANCES, draw, resetRenderCache, ready, horasReady, horasVisualEffects, horasCutin, horasPose, spicaSkillEffect, spicaFieldUntil, spicaBlizzard, battlefieldsReady, poseForSkill:castingMotion, assetsReady: (id = 'osia') => id==='yaho'?!!window.SchoolYahoArt?.assetsReady():window.SchoolRosterArt?.has(id)?window.SchoolRosterArt.assetsReady(id):id==='kazua'?!!window.SchoolKazuaArt?.assetsReady():id==='spica'?spicaLoaded:id==='spica-portrait'?spicaPortraitLoaded:id === 'ryusion' ? !!window.SchoolRyusion?.assetsReady() : id === 'horas' ? horasLoaded : id === 'horas-portrait' ? horasPortraitLoaded : id === 'horas-cutin' ? horasCutinLoaded : id === 'lava' ? lavaFanLoaded||lavaLoaded : id === 'lava-fan' ? lavaFanLoaded : id === 'osia-front' ? osiaFrontLoaded : id.startsWith('battlefield-') ? !!battlefieldImages.get(id.slice(12))?.loaded : osiaLoaded };
 })();

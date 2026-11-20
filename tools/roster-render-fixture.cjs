@@ -16,7 +16,7 @@ module.exports=async function fixture(){
   }
   const window={SchoolRPG:G,addEventListener(n,f){(listeners[n]||=[]).push(f)},dispatchEvent(e){for(const f of listeners[e.type]||[])f(e)},requestIdleCallback:f=>queueMicrotask(f)};
   const box={window,document:{createElement:()=>canvas(),fonts:{ready:Promise.resolve(),addEventListener(){}}},SchoolRPG:G,Image:LocalImage,Event,Promise,setTimeout,clearTimeout,performance,console};
-  for(const name of ['combat-feedback','expansion-art','ascension-art','ryusion','horas-skin-art','kazua-art','hyeokjin-art','osia-weapon-art','osia-breath-art','roster-art','enemy-manifest','enemy-art','art','battle-polish']){
+  for(const name of ['combat-feedback','expansion-art','ascension-art','ryusion','horas-skin-art','kazua-art','hyeokjin-art','osia-weapon-art','osia-breath-art','roster-art','yaho-art','enemy-manifest','enemy-art','art','battle-polish']){
     vm.runInNewContext(fs.readFileSync(path.join(root,'school',name+'.js'),'utf8'),box,{filename:name+'.js'});Object.assign(box,window);
     if(box.SchoolCombatFeedback)window.SchoolCombatFeedback=box.SchoolCombatFeedback;
   }
