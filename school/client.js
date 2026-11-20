@@ -29,7 +29,7 @@
   let confirmedActivityScope = '', confirmedActivityResult = null, dismissedActivityResult = null, selectedTiers = { daily:1, weekly:1 }, selectedTowerFloor = null, selectedDungeon = 'daily';
   let recruitCategory = 'heroes';
   let selectedBanner = Object.hasOwn(G.BANNERS,G.canonicalBanner(storage.get('school-pickup'))) ? G.canonicalBanner(storage.get('school-pickup')) : 'hyeokjin';
-  let standardGuarantee=storage.get('school-standard-guarantee')==='lava'?'lava':'osia';
+  let standardGuarantee=['lava','ryusion'].includes(storage.get('school-standard-guarantee'))?storage.get('school-standard-guarantee'):'osia';
   let preferences; try { preferences = JSON.parse(storage.get('school-settings') || '{}'); } catch { preferences = {}; }
   preferences ||= {};
   let sound = typeof preferences.sound === 'boolean' ? preferences.sound : storage.get('school-sound') === 'on', renderKey = '', dungeonRenderKey = '', partyKey = '', lastSave = 0, lastSync = 0;
@@ -254,7 +254,7 @@
     const viewport = $('board-viewport');
     viewport.scrollTo({left:where === 'party' ? viewport.scrollWidth - viewport.clientWidth : 0, behavior:reduced?'auto':'smooth'});
   }
-  const yieldForPaint = () => document.hidden ? Promise.resolve() : new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  const yieldForPaint = () => document.hidden ? Promise.resolve() : new Promise(resolve => {const t=setTimeout(resolve,120);requestAnimationFrame(()=>{clearTimeout(t);resolve();});});
   function refreshSound() { $('sound-button').classList.toggle('muted', !sound); $('sound-button').setAttribute('aria-label', `효과음 ${sound ? '끄기' : '켜기'}`); $('sound-button').setAttribute('aria-pressed', String(sound)); }
   function freshGuest() { return G.create(Date.now(), crypto.getRandomValues(new Uint32Array(1))[0]); }
   function saveStatus(status, message) {
@@ -476,15 +476,17 @@
       applyCloud(body); clearPending();
       throw Object.assign(Error('다른 기기 진행을 불러왔어요. 보유 재화와 결과를 확인한 뒤 다시 눌러주세요.'), {confirmedConflict:true});
     }
-    clearPending(); applyCloud(body); completedActionKey = actionKey; return body.result;
+    rememberResult(body.result,actionKey);clearPending();completedActionKey=actionKey;try{applyCloud(body);}catch{renderKey=partyKey='';toast('결과가 저장됐어요. 화면을 다시 표시합니다.');}return body.result;
   }
+  let syncWait=null,finishSync=null;
   async function sync(manual = false) {
+    if(syncWait)return syncWait;
     if (mode !== 'cloud' || busy || (!manual && document.hidden)) return;
     if (!profile || verifiedToken !== token) return useCloud();
     const checkingCoupon = pending?.action.kind === 'redeem';
-    busy = true; renderButtons(); saveStatus('saving', '계정 저장 중');
+    const ownsBusy=!!pending;if(ownsBusy)busy=true;syncWait=new Promise(resolve=>{finishSync=resolve;});renderButtons();saveStatus('saving','계정 저장 중');
     try {
-      if (pending) { const result = await sendPending(); if(entry?.entered)await showResult(result); }
+      if (pending) { const result = await sendPending(); if(entry?.entered)await presentResult(result); }
       else applyCloud(await request('/api/school/state'));
       lastSync = Date.now();
     } catch (error) {
@@ -496,14 +498,15 @@
       if (checkingCoupon) couponMessage(pending ? '보상 저장을 확인 중입니다. 연결되면 같은 요청을 이어 확인합니다.' : error.message, pending ? 'pending' : 'error');
       note(error.status === 426 ? error.message : error.status === 401 ? '로그인이 만료되었습니다. 계정 메뉴에서 다시 연결하세요.' : '계정 저장 연결을 기다리고 있어요. 재화 사용은 연결 후 계속됩니다.', error.status === 426 ? 'reload' : true);
       if (manual) toast(error.message);
-    } finally { busy = false; renderButtons(); }
+    } finally { if(ownsBusy)busy=false;const done=finishSync;syncWait=finishSync=null;done?.();renderButtons(); }
   }
   async function act(input) {
     if(!entry?.entered||mode!=='cloud'||!token||verifiedToken!==token)return {error:'Google 계정으로 로그인해 주세요.'};
-    if (busy || pending) { toast('이전 요청을 확인하고 있어요. 잠시 기다려주세요.'); return; }
-    if (mode === 'cloud' && (!connected || verifiedToken !== token)) { sync(true); return; }
+    if (busy || pending) { toast('이전 요청을 확인하고 있어요. 잠시 기다려주세요.'); return {error:'이전 요청을 확인 중이에요. 잠시 뒤 다시 눌러주세요.'}; }
+    if (mode === 'cloud' && (!connected || verifiedToken !== token)) { sync(true); return {error:'계정 연결을 확인 중이에요. 잠시 뒤 다시 눌러주세요.'}; }
     busy = true; operation = input.kind; completedActionKey = crypto.randomUUID(); renderButtons(); saveStatus('saving', mode === 'cloud' ? '계정 저장 중' : '기기 저장 중');
     try {
+      if(syncWait)await syncWait;
       await yieldForPaint();
       let result;
       if (mode === 'cloud') {
@@ -511,11 +514,11 @@
         if (!storage.set(PENDING, JSON.stringify(pending), true)) { pending = null; throw Error('이 브라우저는 안전한 요청 저장을 지원하지 않습니다. 일반 브라우저에서 다시 시도하세요.'); }
         result = await sendPending(); lastSync = Date.now();
       } else throw Error('Google 계정으로 로그인해 주세요.');
-      await showResult(result);
+      await presentResult(result);
       piyuGuide?.onAction(input,result);
       return result;
     } catch (error) {
-      if (error.confirmedConflict) { if (input.kind === 'redeem') couponMessage(error.message, 'error'); toast(error.message); return; }
+      if (error.confirmedConflict) { if (input.kind === 'redeem') couponMessage(error.message, 'error'); toast(error.message); return {error:error.message}; }
       // A rejected name/validation is definitive. Only transport/server errors
       // retain the same request for recovery; revision conflicts arrive above.
       if (error.status && error.status < 500 && error.status !== 426) clearPending();
@@ -530,11 +533,19 @@
       toast(error.message);return {error:error.message};
     } finally { busy = false; operation = ''; renderButtons(); }
   }
+  let visibleRecruitReceipt=null;
+  const resultStorageKey=()=>`school-unseen-results:${accountScope()}`;
+  function resultQueue(){try{const q=JSON.parse(storage.get(resultStorageKey())||'[]');return Array.isArray(q)?q.filter(x=>x&&typeof x.id==='string'&&['recruit','weapon-recruit'].includes(x.result?.kind)&&Array.isArray(x.result.results)):[];}catch{return [];}}
+  function rememberResult(result,id){if(!['recruit','weapon-recruit'].includes(result?.kind))return;const q=resultQueue();if(!q.some(x=>x.id===id))storage.set(resultStorageKey(),JSON.stringify([...q,{id,result}].slice(-20)));}
+  function acknowledgeResult(){if(!visibleRecruitReceipt)return;storage.set(resultStorageKey(),JSON.stringify(resultQueue().filter(x=>x.id!==visibleRecruitReceipt)));visibleRecruitReceipt=null;}
+  function restoreResult(){if(busy||document.hidden||!entry?.entered||$('modal')?.open)return;const first=resultQueue()[0];if(!first)return;try{first.result.kind==='recruit'?reveal(first.result.results):revealWeapons(first.result.results);visibleRecruitReceipt=first.id;}catch{fallbackResult(first.result);visibleRecruitReceipt=first.id;}}
+  function fallbackResult(result){openModal('저장된 모집 결과',`<p>동료와 보상은 계정에 지급되었어요.</p><ul>${result.results.map(r=>`<li>${esc(G.BY_ID[r.id]?.name||G.GEAR_BY_ID[r.item]?.name||'획득')} · ${r.fresh?'신규 획득':`조각 ${r.shards||0}개`}</li>`).join('')}</ul>`,'reveal');}
+  async function presentResult(result){try{await showResult(result);}catch{if(['recruit','weapon-recruit'].includes(result?.kind)){fallbackResult(result);visibleRecruitReceipt=resultQueue().find(x=>x.id===completedActionKey)?.id;}else toast('처리가 완료됐어요. 최신 보유 내역을 확인해 주세요.');}}
   async function showResult(result) {
     if (!result) return;
     if (result.kind === 'onboarding') {render();return;}
-    if (result.kind === 'recruit') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.recruit({results:result.results,key:`${accountScope()}:recruit:${completedActionKey}`}); if (!shown?.cancelled) reveal(result.results); }
-    else if (result.kind === 'weapon-recruit') { operation=''; renderButtons(); revealWeapons(result.results); }
+    if (result.kind === 'recruit') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.recruit({results:result.results,key:`${accountScope()}:recruit:${completedActionKey}`}); if(!shown?.cancelled&&!document.hidden){reveal(result.results);visibleRecruitReceipt=completedActionKey;} }
+    else if (result.kind === 'weapon-recruit') { operation=''; renderButtons();revealWeapons(result.results);visibleRecruitReceipt=completedActionKey; }
     else if (result.kind === 'redeem') {
       const message = result.nameChangeTickets ? `닉네임 변경권 ${result.nameChangeTickets}장을 받았어요! 왼쪽 위 내 단장 프로필에서 사용할 수 있어요.` : result.skin ? `${result.skinName} 스킨과 전용 프로필을 받았어요! 호라스 육성 → 스킨에서 선택하세요.` : result.avatar ? `${result.avatarName} 프로필${result.titleName ? ` · 칭호 ${result.titleName}` : ''}${result.gems ? ` · 보석 +${fmt(result.gems)}` : ''} 수령 완료! 프로필에서 선택할 수 있어요.` : result.titleName ? `칭호 「${result.titleName}」 · 보석 +${fmt(result.gems)} 수령 완료! 프로필에서 선택할 수 있어요.` : `${result.code} · 보석 +${fmt(result.gems)} · 코인 +${fmt(result.gold)}${result.snowflakes?` · 눈송이 +${fmt(result.snowflakes)}`:""} 수령 완료!`;
       $('coupon-code').value = ''; couponMessage(message, 'success'); toast(message); play('reward');
@@ -687,12 +698,13 @@
     panel.classList.add('pickup-screen');
     panel.innerHTML = `<div class="pickup-screen-top"><button class="pickup-return" data-tab="lobby" aria-label="안뜰로 돌아가기">‹ <span>모집</span></button><div class="pickup-categories" role="group" aria-label="뽑기 종류"><button type="button" data-recruit-category="heroes" aria-pressed="true">캐릭터</button><button type="button" data-recruit-category="weapons" aria-pressed="false">무기</button></div><div class="pickup-grid" role="group" aria-label="픽업 모집 선택">${['yaho','hyeokjin','kazua','standard','ryusion','horas','osia','lava'].map(id=>`<button type="button" class="pickup-select" data-banner="${id}" aria-pressed="${selectedBanner === id}"><span class="rarity ${(G.BY_ID[id]?.rarity||'SSR')}">${G.BY_ID[id]?.rarity||'SSR'}</span><span data-banner-name>${id==='standard'?'상시뽑기':G.BY_ID[id].name}</span><small>${id === 'yaho' ? '신규' : id === 'horas' ? '한정' : '상시'}</small></button>`).join('')}</div><button class="pickup-history" id="history-button" aria-label="최근 모집 기록" title="최근 모집 기록">${icon('book')}</button></div>
       <div class="pickup-stage"><div class="pickup-copy"><span class="pickup-kicker" id="pickup-kicker">최초의 UR</span><h2>픽업뽑기</h2><div class="pickup-hero-title"><span id="pickup-grade">UR</span><strong id="pickup-name">호라스</strong></div><p id="pickup-tagline">별빛을 엮는 벚꽃의식</p><p id="pickup-element">벚꽃 · 원거리</p><div class="pickup-skill-list" id="pickup-skill-list"></div><p class="recruit-count" id="recruit-count"></p></div>
-      <div class="pickup-illustrations">${['yaho','hyeokjin','kazua','standard','ryusion','horas'].map(id=>`<button type="button" class="pickup-preview" id="feature-${id}-button" data-preview="${id}" aria-label="${id==='standard'?'상시뽑기':G.BY_ID[id].name} 캐릭터 미리보기"><img id="feature-${id}" alt="${id==='standard'?'상시뽑기':G.BY_ID[id].name}" decoding="async" src="${id === 'yaho' ? 'school/assets/yaho/illustration.webp?v=yaho1' : id === 'hyeokjin' ? 'school/assets/hyeokjin/pickup.webp?v=hyeokjin1' : id === 'kazua' ? 'school/assets/kazua/pickup.webp?v=kazua1' : id === 'horas' ? 'school/assets/horas/pickup.webp?v=horas1' : id==='standard'?'school/assets/recruit/osia-lava.webp?v=osia-look1':`school/assets/recruit/${id}.webp?v=pickup-pixel1`}"><span>캐릭터 미리보기 ↗</span></button>`).join('')}</div><button type="button" class="weapon-spotlight" id="weapon-preview" hidden><span class="weapon-orbit" aria-hidden="true"></span><img id="weapon-pickup-art" alt=""><span>전용 패시브 · 상세 보기 ↗</span></button></div>
-      <div class="pickup-screen-bottom"><div class="pickup-progress"><div class="banner-summary"><b id="banner-status" role="status"></b><span id="banner-deadline"></span></div><div id="standard-guarantee" class="standard-guarantee" hidden><span>이전 픽업 확정 보상</span><button type="button" data-standard-guarantee="osia">오시아</button><button type="button" data-standard-guarantee="lava">라바</button></div><div class="pity-line"><span><b id="pity-grade">UR</b> 확정까지 <b id="pity-left">80</b>회</span><span id="pity-count">0 / 80</span></div><div class="pity-track"><i id="pity-bar"></i></div><div class="pity-chance"><span id="pity-phase"></span><b id="next-ssr-chance"></b></div></div><div class="pickup-actions"><button type="button" class="pickup-rates" id="rates-button">확률 안내 ↗</button><div class="recruit-buttons"><button class="secondary" id="recruit-one"><b>1회 모집</b><span>${icon('gem')}<span id="recruit-price-one">${fmt(G.RECRUIT_COST[1])}</span></span></button><button class="primary" id="recruit-ten"><span class="button-ribbon">SR 이상 1명 확정</span><b>10회 모집</b><span>${icon('gem')}<span id="recruit-price-ten">${fmt(G.RECRUIT_COST[10])}</span></span></button></div></div></div>`;
+      <div class="pickup-illustrations">${['yaho','hyeokjin','kazua','standard','horas'].map(id=>`<button type="button" class="pickup-preview" id="feature-${id}-button" data-preview="${id}" aria-label="${id==='standard'?'상시뽑기':G.BY_ID[id].name} 캐릭터 미리보기"><img id="feature-${id}" alt="${id==='standard'?'상시뽑기':G.BY_ID[id].name}" decoding="async" src="${id === 'yaho' ? 'school/assets/yaho/illustration.webp?v=yaho1' : id === 'hyeokjin' ? 'school/assets/hyeokjin/pickup.webp?v=hyeokjin1' : id === 'kazua' ? 'school/assets/kazua/pickup.webp?v=kazua1' : id === 'horas' ? 'school/assets/horas/pickup.webp?v=horas1' : id==='standard'?'school/assets/recruit/osia-lava.webp?v=osia-look1':`school/assets/recruit/${id}.webp?v=pickup-pixel1`}"><span>캐릭터 미리보기 ↗</span></button>`).join('')}</div><button type="button" class="weapon-spotlight" id="weapon-preview" hidden><span class="weapon-orbit" aria-hidden="true"></span><img id="weapon-pickup-art" alt=""><span>전용 패시브 · 상세 보기 ↗</span></button></div>
+      <div class="pickup-screen-bottom"><div class="pickup-progress"><div class="banner-summary"><b id="banner-status" role="status"></b><span id="banner-deadline"></span></div><div id="standard-guarantee" class="standard-guarantee" hidden><span>이전 픽업 확정 보상</span><button type="button" data-standard-guarantee="osia">오시아</button><button type="button" data-standard-guarantee="lava">라바</button><button type="button" data-standard-guarantee="ryusion">류시온</button></div><div class="pity-line"><span><b id="pity-grade">UR</b> 확정까지 <b id="pity-left">80</b>회</span><span id="pity-count">0 / 80</span></div><div class="pity-track"><i id="pity-bar"></i></div><div class="pity-chance"><span id="pity-phase"></span><b id="next-ssr-chance"></b></div></div><div class="pickup-actions"><button type="button" class="pickup-rates" id="rates-button">확률 안내 ↗</button><div class="recruit-buttons"><button class="secondary" id="recruit-one"><b>1회 모집</b><span>${icon('gem')}<span id="recruit-price-one">${fmt(G.RECRUIT_COST[1])}</span></span></button><button class="primary" id="recruit-ten"><span class="button-ribbon">SR 이상 1명 확정</span><b>10회 모집</b><span>${icon('gem')}<span id="recruit-price-ten">${fmt(G.RECRUIT_COST[10])}</span></span></button></div></div></div>`;
   }
   function currentRecruitCost(count){return recruitCategory==='weapons'?G.WEAPON_COST[count]:G.recruitCost(selectedBanner,count);}
   function renderRecruitment() {
     const weapons=recruitCategory==='weapons';
+    if(!(weapons?G.weaponAvailable(selectedBanner,serverNow()):G.bannerAvailable(selectedBanner,serverNow())))selectedBanner=weapons?'osia':'standard';
     if(weapons&&!G.WEAPON_BANNERS[selectedBanner])selectedBanner='osia';
     if(!weapons)selectedBanner=G.canonicalBanner(selectedBanner);
     if(!weapons&&!G.BANNERS[selectedBanner])selectedBanner='hyeokjin';
@@ -700,7 +712,7 @@
     setAttr($('tab-recruit'),'data-art-banner',!weapons&&['ryusion','standard'].includes(selectedBanner)?'pixel':'');
     document.querySelectorAll('[data-recruit-category]').forEach(button=>{if(button.tagName==='BUTTON')setAttr(button,'aria-pressed',String(button.dataset.recruitCategory===recruitCategory));});
     setText('recruit-price-one',fmt(currentRecruitCost(1)));setText('recruit-price-ten',fmt(currentRecruitCost(10)));
-    document.querySelectorAll('[data-banner]').forEach(button=>{const id=button.dataset.banner,b=weapons?G.WEAPON_BANNERS[id]:G.BANNERS[id];setHidden(button,!b);if(!b)return;const grade=weapons?G.GEAR_BY_ID[b.item].rarity:G.BY_ID[id]?.rarity||'SSR';button.querySelector('.rarity').textContent=grade;button.querySelector('.rarity').className='rarity '+grade;button.querySelector('small').textContent=b.limited?'한정':weapons||id==='standard'?'상시':'픽업';});
+    document.querySelectorAll('[data-banner]').forEach(button=>{const id=button.dataset.banner,b=weapons?G.WEAPON_BANNERS[id]:G.BANNERS[id];setHidden(button,!b||!(weapons?G.weaponAvailable(id,serverNow()):G.bannerAvailable(id,serverNow())));if(!b)return;const grade=weapons?G.GEAR_BY_ID[b.item].rarity:G.BY_ID[id]?.rarity||'SSR';button.querySelector('.rarity').textContent=grade;button.querySelector('.rarity').className='rarity '+grade;button.querySelector('small').textContent=b.limited?'한정':weapons||id==='standard'?'상시':'픽업';});
     $('recruit-ten').querySelector('.button-ribbon').textContent=weapons?'SR 이상 무기 1개 확정':'SR 이상 1명 확정';
     setHidden($('weapon-preview'),!weapons);setHidden($('standard-guarantee'),true);
     $('tab-recruit').querySelector('.pickup-copy h2').textContent=weapons?'전용 무기':selectedBanner==='standard'?'상시뽑기':selectedBanner==='horas'?'한정 픽업':'픽업뽑기';
@@ -712,21 +724,21 @@
       yaho:['작은 포효, 커다란 약속','야호','야호가 지켜 줄게! 어흥!','화염 · 호랑이 영물 · 치유 서포터',['♡ 평타마다 회복','✦ 포효 · 피해 강화','♧ 산군 소환 · 보호 강화']],
       hyeokjin:['어둠 속에서도, 끝까지 지킨다','서혁진','내가 지켜온 모든 것','어둠 · 이계의 인간 · 초근거리 물리',['✦ 8초 불사 각성','◆ 피 보는 자 · 흡혈','✧ 전투당 1회 누적 피해 해방']],
       kazua:['너도 나도, 끝까지 간다','카즈아','마지막 한 명이 되어도 멈추지 않는 탄막','물리 · 원거리 · 초고속 연사',['✦ 끝없는 총알','↗ 붉은 유도탄','◆ 최후의 생존자']],
-      standard:['언제나 함께할 동료들','오시아 · 라바','물의 용왕과 바람의 무당','상시 SSR 4명 · 균등 확률',['오시아 · 물결','라바 · 치유','이안 · 루미']],
+      standard:['언제나 함께할 동료들','오시아 · 라바 · 류시온','물과 바람, 대지의 동료들','상시 SSR 5명 · 균등 확률',['오시아 · 물결','라바 · 치유','이안 · 루미']],
       ryusion:['동료를 지키는 대지의 방패','류시온','내 뒤에 있어. 내가 지켜줄게.','대지 · 인간 · 수비',['◈ 모든 공격 도발','◆ 돌격 · 2초 기절','⬡ 아군 전체 보호막']],
       horas:['최초의 UR','호라스','별빛을 엮는 벚꽃의식','벚꽃 · 원거리',['✧ 별빛 축적','❀ 벚꽃의식','✦ 기절 대상 ×1.5']]
     }[selectedBanner];
     setText('pickup-kicker',copy[0]);setText('pickup-grade',grade);setText('pickup-name',copy[1]);setText('pickup-tagline',copy[2]);setText('pickup-element',copy[3]);
     $('pickup-skill-list').innerHTML=copy[4].map(label=>`<span>${label}</span>`).join('');
-    setText('recruit-count',standard?`오시아·라바 기존 누적 합산 완료${progress.reserve?` · 다음 천장으로 ${progress.reserve}회 추가 이월`:''}`:selectedBanner==='kazua'?'3초 연사 · 2초 장전 · 회피 10%':selectedBanner==='hyeokjin'?'HP 35% 이하 각성 · 최후의 동료를 지키는 대검':ur?'구슬 5개가 모이면 벚꽃의식 발동':'캐릭터를 눌러 스킬과 상세 정보 확인');
+    setText('recruit-count',standard?`오시아·라바·류시온 기존 누적 합산 완료${progress.reserve?` · 다음 천장으로 ${progress.reserve}회 추가 이월`:''}`:selectedBanner==='kazua'?'3초 연사 · 2초 장전 · 회피 10%':selectedBanner==='hyeokjin'?'HP 35% 이하 각성 · 최후의 동료를 지키는 대검':ur?'구슬 5개가 모이면 벚꽃의식 발동':'캐릭터를 눌러 스킬과 상세 정보 확인');
     setText('pity-grade',grade);setText('pity-left',80-progress.pity);setText('pity-count',`${progress.pity} / 80`);setWidth($('pity-bar'),`${progress.pity/80*100}%`);
     setText('next-ssr-chance',`다음 ${grade} ${Number((odds[grade]*100).toFixed(2))}%`);setText('pity-phase',progress.pity>=59?'확률 상승 적용 중':'60회째부터 매회 +1%p');
-    setText('banner-status',standard?(progress.guaranteed?`이전 확정 ${progress.guarantees}회 남음 · 다음 SSR은 ${G.BY_ID[standardGuarantee].name}`:'SSR 등장 시 상시 4명 각각 25%'):ur?`80회 이내 ${name} 확정 · SSR도 누적 유지`:progress.guaranteed?`다음 SSR은 ${name} 확정`:`SSR 등장 시 ${name} 50% · 픽뚫 후 다음 SSR 확정`);
+    setText('banner-status',standard?(progress.guaranteed?`이전 확정 ${progress.guarantees}회 남음 · 다음 SSR은 ${G.BY_ID[standardGuarantee].name}`:'SSR 등장 시 상시 5명 각각 20%'):ur?`80회 이내 ${name} 확정 · SSR도 누적 유지`:progress.guaranteed?`다음 SSR은 ${name} 확정`:`SSR 등장 시 ${name} 50% · 픽뚫 후 다음 SSR 확정`);
     setHidden($('standard-guarantee'),!standard||!progress.guaranteed);
     document.querySelectorAll('[data-standard-guarantee]').forEach(b=>setAttr(b,'aria-pressed',String(b.dataset.standardGuarantee===standardGuarantee)));
     setAttr($('banner-deadline'),'data-qol-countdown',selectedBanner);
     setText('banner-deadline',banner.limited?window.SchoolQoL.countdown(banner.expiresAt,serverNow(),false).text:standard?'종료일 없음':'종료일 없는 픽업');
-    setAttr($('banner-deadline'),'title',banner.limited?'2026년 12월 2일 23:59까지 · 한국 시간':'종료일 없음');
+    setAttr($('banner-deadline'),'title',banner.limited?'2026년 11월 22일 23:59까지 · 한국 시간':'종료일 없음');
     document.querySelectorAll('[data-banner]').forEach(button=>setAttr(button,'aria-pressed',String(button.dataset.banner===selectedBanner)));
     document.querySelectorAll('[data-preview]').forEach(button=>setHidden(button,button.dataset.preview!==selectedBanner));
   }
@@ -740,7 +752,7 @@
     setText('pity-grade','전무');setText('pity-left',80-progress.pity);setText('pity-count',`${progress.pity} / 80`);setWidth($('pity-bar'),`${progress.pity/80*100}%`);
     setText('next-ssr-chance',`다음 전무 ${Number((odds.EX*100).toFixed(2))}%`);setText('pity-phase',progress.pity>=59?'확률 상승 적용 중':'60회째부터 매회 +1%p');
     setText('banner-status',b.limited?'80회 이내 선택 전무 확정 · 한정 누적 이월':'상시 무기 천장 공유 · 선택 전무 확정');
-    setAttr($('banner-deadline'),'data-qol-countdown','weapon-'+selectedBanner);setText('banner-deadline',window.SchoolQoL.countdown(b.expiresAt,serverNow(),!b.limited).text);setAttr($('banner-deadline'),'title',b.limited?'2026년 12월 2일 23:59까지 · 한국 시간':'상시 전무 · 선택을 바꿔도 누적 유지');
+    setAttr($('banner-deadline'),'data-qol-countdown','weapon-'+selectedBanner);setText('banner-deadline',window.SchoolQoL.countdown(b.expiresAt,serverNow(),!b.limited).text);setAttr($('banner-deadline'),'title',b.limited?'2026년 11월 22일 23:59까지 · 한국 시간':'상시 전무 · 선택을 바꿔도 누적 유지');
     document.querySelectorAll('[data-banner]').forEach(button=>setAttr(button,'aria-pressed',String(button.dataset.banner===selectedBanner)));
     document.querySelectorAll('[data-preview]').forEach(button=>setHidden(button,true));
   }
@@ -754,7 +766,7 @@
   }
   function weaponRatesModal(){
     const b=G.WEAPON_BANNERS[selectedBanner],progress=G.weaponBannerState(state,selectedBanner),odds=G.weaponRates(progress.pity),item=G.GEAR_BY_ID[b.item];
-    openModal('무기 뽑기 확률',`<div class="modal-copy"><p><strong>${item.name} · 픽뚫 없음</strong><br>1회 100보석 / 10회 1,000보석</p><table class="probability-table"><thead><tr><th>결과</th><th>다음 1회 확률</th></tr></thead><tbody>${[['EX',item.name],['SR','균열의 지휘봉'],['R','별빛 분필']].map(([r,name])=>`<tr><td>${r==='EX'?item.rarity:r} · ${name}</td><td>${Number((odds[r]*100).toFixed(2))}%</td></tr>`).join('')}</tbody></table><p>기본 전무 1% · SR 26% · R 73%. 전무 미획득 60회째부터 2%, 이후 매회 1%p 상승하여 80회에 선택한 전무가 확정됩니다. 전무 획득 시에만 누적이 초기화됩니다.</p><p>10회 결과에 SR 이상이 없으면 마지막 R을 SR로 올립니다. 전무 천장을 먼저 적용하며, 일반 무기가 나와도 전무 누적은 유지됩니다.</p><p>오시아·라바·류시온 상시 전무는 누적을 공유합니다. 한정 전무는 별도 누적이며 다음 한정 전무에도 이월됩니다. 캐릭터 뽑기와는 누적이 별도입니다.</p><p>${b.limited?'호라스 전무 종료: 2026년 12월 2일 23:59 · 한국 시간':'종료일이 없는 상시 무기입니다.'}<br>캐릭터가 없어도 무기를 얻고 보관할 수 있어요. 전무는 던전 보상이나 캐릭터 뽑기에서 나오지 않습니다.</p></div>`,'weapon-rates');
+    openModal('무기 뽑기 확률',`<div class="modal-copy"><p><strong>${item.name} · 픽뚫 없음</strong><br>1회 100보석 / 10회 1,000보석</p><table class="probability-table"><thead><tr><th>결과</th><th>다음 1회 확률</th></tr></thead><tbody>${[['EX',item.name],['SR','균열의 지휘봉'],['R','별빛 분필']].map(([r,name])=>`<tr><td>${r==='EX'?item.rarity:r} · ${name}</td><td>${Number((odds[r]*100).toFixed(2))}%</td></tr>`).join('')}</tbody></table><p>기본 전무 1% · SR 26% · R 73%. 전무 미획득 60회째부터 2%, 이후 매회 1%p 상승하여 80회에 선택한 전무가 확정됩니다. 전무 획득 시에만 누적이 초기화됩니다.</p><p>10회 결과에 SR 이상이 없으면 마지막 R을 SR로 올립니다. 전무 천장을 먼저 적용하며, 일반 무기가 나와도 전무 누적은 유지됩니다.</p><p>오시아·라바·류시온 상시 전무는 누적을 공유합니다. 한정 전무는 별도 누적이며 다음 한정 전무에도 이월됩니다. 캐릭터 뽑기와는 누적이 별도입니다.</p><p>${b.limited?'호라스 전무 종료: 2026년 11월 22일 23:59 · 한국 시간':'종료일이 없는 상시 무기입니다.'}<br>캐릭터가 없어도 무기를 얻고 보관할 수 있어요. 전무는 던전 보상이나 캐릭터 뽑기에서 나오지 않습니다.</p></div>`,'weapon-rates');
   }
   function revealWeapons(results,history=false){
     const featured=results.find(r=>G.GEAR_BY_ID[r.item]?.owner),item=featured&&G.GEAR_BY_ID[featured.item];
@@ -857,6 +869,7 @@
     });
   }
   function renderButtons() {
+    guild?.refreshControls?.();social?.refresh();queueMicrotask(restoreResult);
     battlePassUI?.refresh();skinsUI?.refresh();formationUI?.controls();coop?.refresh();notice?.refresh();
     renderCounter();
     setHidden($('operation-status'), !operation || !busy || operation === 'counter');
@@ -1188,6 +1201,7 @@
   }
   async function requestModalClose(){if(coop?.closePicker())return;if(modalKind==='skin'){heroDetail('horas');return;}if(modalKind==='codex-hero'){codexModal();return;}if(insights?.back())return;if(modalKind==='raid'&&!await raid?.leave())return;if(modalKind==='yeti'&&!await yeti?.leave())return;closeModal(true);}
   function closeModal(dismissResult = false) {
+    if(!document.hidden)acknowledgeResult();
     if (dismissResult === true && modalKind === 'dungeon-result') dismissedActivityResult = $('modal').dataset.activityResult || null;
     community?.stop();skinsUI?.destroy();qol?.close();equipmentUI?.close();worldMap?.destroy(); worldMap = null; $('modal').classList.remove('world-map-modal','qol-modal','equipment-modal');
     raid?.destroy(); yeti?.destroy(); social?.cancelPresentation?.(); stopTraining(); delete $('modal').dataset.activityResult; $('modal').close(); setAttr($('app'), 'data-modal-open', 'false'); modalKind = ''; syncBattleOverlay(); loginGeneration++; renderCounter(); queueMicrotask(maybeShowActivityResult);
@@ -1256,7 +1270,7 @@
       const pool = G.HEROES.filter(h => h.rarity === grade && (grade === 'UR' ? h.id === banner.featured : grade !== 'SSR' || h.id === banner.featured || G.STANDARD_SSR.includes(h.id)));
       return `<tr><td>${grade} · ${pool.length}명</td><td>${percent(rates[grade])}</td><td>${pool.map(h => `${h.name} ${percent(heroRates[h.id] || 0)}`).join('<br>')}</td></tr>`;
     }).join('');
-    const rules = selectedBanner==='standard' ? `<p>SSR 등장 시 오시아·라바·이안·루미가 각각 25%로 등장합니다. 야호·카즈아·류시온·호라스·서혁진·스피카는 포함되지 않습니다.</p><p>기본 SSR 1% · SR 26% · R 73%. 60회부터 SSR 확률 상승, 80회 SSR 확정. 기존 오시아·라바 누적을 합산하고 79회 초과분 ${progress.reserve}회는 첫 SSR 획득 후 다음 누적으로 넘깁니다.</p><p>남아 있는 기존 픽업 보장 ${progress.guarantees}회는 오시아·라바 중 선택해 다음 SSR 당첨 시 소진합니다. 현재 선택: <strong>${G.BY_ID[standardGuarantee].name}</strong>. 보장을 모두 쓰면 SSR 4명이 균등 확률로 등장하며 새로운 픽업 보장은 생기지 않습니다.</p>` : ur ? `<p><strong>${G.BY_ID[banner.featured].name} 전용 UR 픽업</strong>입니다. 기본 UR ${percent(base.UR)} · SSR ${percent(base.SSR)} · SR ${percent(base.SR)} · R ${percent(base.R)}. 이 배너의 UR은 ${G.BY_ID[banner.featured].name} 한 명이며 픽뚫이 없습니다. SSR은 오시아·라바·이안·루미가 같은 확률로 등장합니다. 스피카는 겨울 교환으로만 영입합니다.</p><p>UR 미획득 누적 <strong>60회째 ${percent(G.recruitRates(59, selectedBanner).UR)}</strong>부터 매회 1%p씩 올라 <strong>80회째 ${G.BY_ID[banner.featured].name} 확정</strong>입니다. 증가분은 R에서 차감하며 80회에는 UR 100%입니다. <strong>SSR이 나와도 UR 누적은 유지</strong>하고, 해당 픽업 UR을 얻었을 때만 이 배너의 누적이 0으로 돌아갑니다. 이 배너의 SSR에는 별도 천장이나 픽업 보장이 없습니다.</p><p>오시아·라바 모집은 상시뽑기로 통합됐으며, 호라스·서혁진의 UR 누적은 각각 별도로 저장됩니다.</p>` : `<p>${progress.guaranteed ? `다음 SSR은 <strong>${G.BY_ID[banner.featured].name} 확정</strong>입니다.` : `SSR이 나오면 <strong>50%는 ${G.BY_ID[banner.featured].name}</strong>, 나머지 50%는 다른 상시 SSR입니다.`}</p><p>메인 이외의 SSR을 얻으면 <strong>그 배너의 다음 SSR은 메인 확정</strong>입니다. 메인을 얻으면 다시 50:50이 됩니다. 각 배너의 누적 횟수와 메인 보장은 각각 저장됩니다.</p><p>기본 확률 SSR ${percent(base.SSR)} · SR ${percent(base.SR)} · R ${percent(base.R)}. SSR 미획득 기준 <strong>${G.RECRUIT_PITY.soft}회째 ${percent(G.recruitRates(G.RECRUIT_PITY.soft - 1).SSR)}</strong>부터 매회 1%p씩 올라 ${G.RECRUIT_PITY.hard - 1}회째 ${percent(G.recruitRates(G.RECRUIT_PITY.hard - 2).SSR)}, <strong>${G.RECRUIT_PITY.hard}회째 SSR 확정</strong>입니다. 증가분은 R에서 차감합니다. SSR 획득 시 누적만 0으로 초기화됩니다.</p><p>오시아와 라바는 <strong>종료일이 없는 상시 용병</strong>입니다. 상시뽑기에서는 같은 확률로 등장하며, 야호·카즈아·류시온 픽업의 누적과 보장은 각각 별도입니다. 호라스는 12월 2일 23:59까지 한정 모집, 스피카는 겨울 이벤트 교환으로만 영입합니다.</p>`;
+    const rules = selectedBanner==='standard' ? `<p>SSR 등장 시 오시아·라바·류시온·이안·루미가 각각 20%로 등장합니다. 야호·카즈아·호라스·서혁진·스피카는 포함되지 않습니다.</p><p>기본 SSR 1% · SR 26% · R 73%. 60회부터 SSR 확률 상승, 80회 SSR 확정. 기존 오시아·라바·류시온 누적을 합산하고 79회 초과분 ${progress.reserve}회는 첫 SSR 획득 후 다음 누적으로 넘깁니다.</p><p>남아 있는 기존 픽업 보장 ${progress.guarantees}회는 오시아·라바·류시온 중 선택해 다음 SSR 당첨 시 소진합니다. 현재 선택: <strong>${G.BY_ID[standardGuarantee].name}</strong>. 보장을 모두 쓰면 SSR 5명이 균등 확률로 등장하며 새로운 픽업 보장은 생기지 않습니다.</p>` : ur ? `<p><strong>${G.BY_ID[banner.featured].name} 전용 UR 픽업</strong>입니다. 기본 UR ${percent(base.UR)} · SSR ${percent(base.SSR)} · SR ${percent(base.SR)} · R ${percent(base.R)}. 이 배너의 UR은 ${G.BY_ID[banner.featured].name} 한 명이며 픽뚫이 없습니다. SSR은 오시아·라바·류시온·이안·루미가 같은 확률로 등장합니다. 스피카는 겨울 교환으로만 영입합니다.</p><p>UR 미획득 누적 <strong>60회째 ${percent(G.recruitRates(59, selectedBanner).UR)}</strong>부터 매회 1%p씩 올라 <strong>80회째 ${G.BY_ID[banner.featured].name} 확정</strong>입니다. 증가분은 R에서 차감하며 80회에는 UR 100%입니다. <strong>SSR이 나와도 UR 누적은 유지</strong>하고, 해당 픽업 UR을 얻었을 때만 이 배너의 누적이 0으로 돌아갑니다. 이 배너의 SSR에는 별도 천장이나 픽업 보장이 없습니다.</p><p>오시아·라바·류시온 모집은 상시뽑기로 통합됐으며, 호라스·서혁진의 UR 누적은 각각 별도로 저장됩니다.</p>` : `<p>${progress.guaranteed ? `다음 SSR은 <strong>${G.BY_ID[banner.featured].name} 확정</strong>입니다.` : `SSR이 나오면 <strong>50%는 ${G.BY_ID[banner.featured].name}</strong>, 나머지 50%는 다른 상시 SSR입니다.`}</p><p>메인 이외의 SSR을 얻으면 <strong>그 배너의 다음 SSR은 메인 확정</strong>입니다. 메인을 얻으면 다시 50:50이 됩니다. 각 배너의 누적 횟수와 메인 보장은 각각 저장됩니다.</p><p>기본 확률 SSR ${percent(base.SSR)} · SR ${percent(base.SR)} · R ${percent(base.R)}. SSR 미획득 기준 <strong>${G.RECRUIT_PITY.soft}회째 ${percent(G.recruitRates(G.RECRUIT_PITY.soft - 1).SSR)}</strong>부터 매회 1%p씩 올라 ${G.RECRUIT_PITY.hard - 1}회째 ${percent(G.recruitRates(G.RECRUIT_PITY.hard - 2).SSR)}, <strong>${G.RECRUIT_PITY.hard}회째 SSR 확정</strong>입니다. 증가분은 R에서 차감합니다. SSR 획득 시 누적만 0으로 초기화됩니다.</p><p>오시아·라바·류시온은 <strong>종료일이 없는 상시 용병</strong>입니다. 상시뽑기에서는 같은 확률로 등장하며, 야호·카즈아 픽업의 누적과 보장은 각각 별도입니다. 호라스는 11월 22일 23:59까지 한정 모집, 스피카는 겨울 이벤트 교환으로만 영입합니다.</p>`;
     openModal('모집 확률 안내', `<div class="modal-copy"><p><strong>${banner.name}</strong><br>1회 보석 ${fmt(G.recruitCost(selectedBanner,1))}개 / 10회 ${fmt(G.recruitCost(selectedBanner,10))}개.</p><table class="probability-table"><thead><tr><th>등급</th><th>다음 1회</th><th>용병별 실제 확률</th></tr></thead><tbody>${rows}</tbody></table><p>현재 누적 ${progress.pity}회 · <strong>다음 ${progress.pity + 1}회째 확률</strong>입니다.</p>${rules}<p>단일·10회 모집 모두 한 번씩 계산합니다. 10회의 앞 9명에 SR 이상이 없고 마지막 결과가 R이면 SR로 올립니다. 최고 등급 천장을 먼저 적용합니다.</p><p>중복 시 R 조각 5개 / SR 10개 / SSR 20개 / UR 30개. 최대 5성까지 각성할 수 있습니다. 표의 소수점은 반올림하여 합계가 조금 다를 수 있습니다.</p></div>`, 'rates');
   }
   function help() {
@@ -1405,7 +1419,7 @@
       if (target.dataset.gearSlot) equipmentUI?.open(target.dataset.gearHero,target.dataset.gearSlot);
       if (target.dataset.recruitCategory) { recruitCategory=target.dataset.recruitCategory==='weapons'?'weapons':'heroes';if(recruitCategory==='weapons'&&!G.WEAPON_BANNERS[selectedBanner])selectedBanner='osia';renderKey='';render(); }
       if (target.dataset.weaponDetails) weaponDetails(target.dataset.weaponDetails);
-      if(target.dataset.standardGuarantee){standardGuarantee=target.dataset.standardGuarantee==='lava'?'lava':'osia';storage.set('school-standard-guarantee',standardGuarantee);renderKey='';render();}
+      if(target.dataset.standardGuarantee){standardGuarantee=['lava','ryusion'].includes(target.dataset.standardGuarantee)?target.dataset.standardGuarantee:'osia';storage.set('school-standard-guarantee',standardGuarantee);renderKey='';render();}
       if (target.dataset.banner && (recruitCategory==='weapons'?G.WEAPON_BANNERS:G.BANNERS)[target.dataset.banner]) { selectedBanner = target.dataset.banner; storage.set('school-pickup', selectedBanner); renderKey = ''; render(); }
       if (target.dataset.activityMode) enterActivity(target);
       if (target.hasAttribute('data-activity-exit')) act({kind:'activity-exit'});
@@ -1483,7 +1497,6 @@
     $('modal').addEventListener('click', e => { const r = $('modal').getBoundingClientRect(); if (e.target === $('modal') && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) requestModalClose(); });
     document.addEventListener('change',e=>{if(e.target.id==='tower-auto')setTowerAuto(e.target.checked);});
     $('stage-button').onclick = stageMap;
-    $('feature-ryusion-button').onclick = () => heroDetail('ryusion');
     $('feature-horas-button').onclick = () => heroDetail('horas');
     $('feature-hyeokjin-button').onclick=()=>heroDetail('hyeokjin');
     $('feature-yaho-button').onclick=()=>heroDetail('yaho');

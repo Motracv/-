@@ -7,7 +7,7 @@ import { createRaids } from './raids.mjs';
 import { createYeti, collectYetiRewards } from './yeti.mjs';
 import { createCoop } from './coop.mjs';
 import { guildActivity, guildProjectClaim } from './guild-progress.mjs';
-import { matchesPrivateHorasSkin, awardPrivateHorasSkin, findPrivateRankReward, privateRankRetry, awardPrivateRankReward, commitPrivateRankReward } from './private-rewards.mjs';
+import { matchesPrivateApology, awardPrivateApology, matchesPrivateHorasSkin, awardPrivateHorasSkin, findPrivateRankReward, privateRankRetry, awardPrivateRankReward, commitPrivateRankReward } from './private-rewards.mjs';
 
 export function createSchool() {
   const game = globalThis.SchoolRPG;
@@ -88,6 +88,7 @@ export function createSchool() {
         requireSchool(data.action && typeof data.action === "object" && !Array.isArray(data.action), "잘못된 행동입니다.");
       }
       const privateRank = action && data.action.kind === 'redeem' && await findPrivateRankReward(env, data.action.code);
+      const privateApology=action&&data.action.kind==='redeem'&&await matchesPrivateApology(env,data.action.code);
       const privateSkin = action && data.action.kind === 'redeem' && await matchesPrivateHorasSkin(env,data.action.code);
       let acceptedRevision = data.revision;
       // Login/state sync also delivers old unclaimed victory rewards.
@@ -143,7 +144,7 @@ export function createSchool() {
           continue;
         }
         let result = null;
-        const privateReward = privateRank ? await awardPrivateRankReward(env.DB, game, state, privateRank) : privateSkin ? awardPrivateHorasSkin(game,state) : null;
+        const privateReward = privateRank ? await awardPrivateRankReward(env.DB, game, state, privateRank) : privateSkin ? awardPrivateHorasSkin(game,state) : privateApology ? awardPrivateApology(state) : null;
         const renaming = action && data.action.kind === 'rename';
         if (renaming) {
           const normalized = game.normalizeCommanderName(data.action.name);

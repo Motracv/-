@@ -117,7 +117,8 @@
   function actorPlacement(frame, width, height, pose = 0) {
     const [sx, sy, sw, sh] = frame.rect;
     const bodyHeight = height * (pose === 1 ? .89 : .94);
-    const scale = Math.min(bodyHeight / sh, width * .96 / sw);
+    const stature = Number.isFinite(frame.displayScale) ? Math.max(.5, Math.min(1, frame.displayScale)) : 1;
+    const scale = Math.min(bodyHeight / sh, width * .96 / sw) * stature;
     return { sx, sy, sw, sh, x: (width - sw * scale) / 2, y: height * .98 - sh * scale, width: sw * scale, height: sh * scale };
   }
   function actor(c, images, frames, width, height, pose, time, reduced = false) {

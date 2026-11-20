@@ -9,7 +9,7 @@ const NOW=Date.parse('2026-11-18T12:00:00+09:00');
     assert(G.CATALOG_VERSION>=31,'Banner pricing catalog or newer');assert.deepEqual(G.RECRUIT_COST,{1:160,10:1600});
     for(const banner of ['yaho','horas','standard','kazua','ryusion']){
       const cost=G.recruitCost(banner,10),singleCost=G.recruitCost(banner,1);
-      assert(G.bannerAvailable(banner,NOW));
+      assert(G.bannerAvailable(G.canonicalBanner(banner),NOW));
       const s=G.create(NOW);s.gems=cost-1;const before=G.clone(s);let rolls=0;
       assert.throws(()=>G.action(s,{kind:'recruit',banner,count:10,cost:0,gems:999999},NOW,()=>{rolls++;return .99;}),/보석/);
       assert.equal(rolls,0);assert.deepEqual(s,before);

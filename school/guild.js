@@ -67,7 +67,7 @@ window.SchoolGuild=(()=>{
    const name=document.getElementById('guild-name-first');if(name)name.onclick=ctx.openCaptain;
   }
   function open(){clearTimeout(timer);epoch++;busy=false;stopped=false;data=null;tab='room';pending=null;try{pending=JSON.parse(sessionStorage.getItem(key())||'null');}catch{}frame();if(!ctx.isCloud()){document.getElementById('guild-body').innerHTML='<div class="guild-login"><span>⚑</span><h3>함께하는 용병단</h3><p>Google 계정으로 로그인하고 같은 반 친구들을 만나 보세요.</p><button class="primary" id="guild-login">계정 연결</button></div>';document.getElementById('guild-login').onclick=ctx.openAccount;return;}document.getElementById('guild-body').innerHTML='<p class="guild-empty">교실을 불러오는 중…</p>';load();}
-  return{open,refresh:()=>{if(own())load();},destroy(){epoch++;stopped=true;clearTimeout(timer);data=null;pending=null;}};
+  return{open,refreshControls:lock,refresh:()=>{if(own())load();},destroy(){epoch++;stopped=true;clearTimeout(timer);data=null;pending=null;}};
  }
  return{create,avatar,title,crest};
 })();

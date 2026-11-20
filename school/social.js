@@ -308,7 +308,7 @@
       <div class="winter-wallets"><div class="winter-wallet"><span>${icon('winter')} 눈송이</span><b id="winter-balance">0</b></div><div class="winter-wallet"><span>${icon('snowman')} 눈사람</span><b id="winter-snowmen">0</b></div></div>
       <section data-winter-panel="festival"><button class="winter-yeti-entry" id="winter-yeti"><span aria-hidden="true">❄</span><span><b>만년설 예티 · 2인 협동 토벌</b><small>어려움 · 권장 Lv.70 이상 · HP 80만<br>눈송이 20~50개 + 눈사람 1개 · 무제한 도전</small></span><span class="winter-entry-arrow" aria-hidden="true">›</span></button>
       ${spica?`<article class="winter-spica-card" data-winter-row="spica"><button class="winter-spica-art" id="winter-spica-preview" aria-label="스피카 캐릭터 시안과 능력 보기"><img src="school/assets/spica/portrait.webp?v=spica1" alt="흰 털 장식과 긴 겨울 드레스를 입은 설녀 스피카" loading="lazy" decoding="async"><span>캐릭터 살펴보기 ↗</span></button><div class="winter-spica-copy"><span class="winter-exclusive">겨울 한정 · SSR</span><h3>스피카</h3><p>설원의 숨결</p><div class="spica-traits"><span>지원</span><span>아군 공속 ↑</span><span>적 공속 ↓</span></div><small data-winter-remaining></small><button class="primary" data-winter-item="spica" disabled>${icon('winter')}<span data-winter-price>5,000</span><span>교환</span></button><small>모집에서 나오지 않는 겨울의 동료</small></div></article>`:''}
-      <div class="winter-shop">${ordinary.map(item => `<div class="winter-item" data-winter-row="${escape(item.id)}"><span class="winter-reward-icon ${escape(item.id)}">${item.hero?portrait(item.hero):icon(item.gems ? 'gem' : 'coin')}</span><div><b>${escape(winterItemName(item))}</b><small data-winter-remaining></small></div><button class="primary" data-winter-item="${escape(item.id)}" disabled>${icon('winter')}<span data-winter-price>${number(item.cost)}</span></button></div>`).join('')}</div><p class="social-note">코인·보석은 하루 10회, 호라스 조각은 하루 2회 교환해요. 미보유 조각은 보관하고 첫 모집 때 합쳐요. 스피카는 계정당 한 번 영입할 수 있어요.</p></section>
+      <div class="winter-shop">${ordinary.map(item => `<div class="winter-item" data-winter-row="${escape(item.id)}"><span class="winter-reward-icon ${escape(item.id)}">${item.hero?portrait(item.hero):icon(item.gems ? 'gem' : 'coin')}</span><div><b>${escape(winterItemName(item))}</b><small data-winter-remaining></small></div><button class="primary" data-winter-item="${escape(item.id)}" disabled>${icon('winter')}<span data-winter-price>${number(item.cost)}</span></button></div>`).join('')}</div><p class="social-note">코인·보석은 하루 10회, UR 조각은 하루 2회 교환해요. 미보유 조각은 보관하고 첫 모집 때 합쳐요. 스피카는 계정당 한 번 영입할 수 있어요.</p></section>
       <section data-winter-panel="roulette" hidden><div class="winter-roulette-layout"><div class="winter-wheel-shell"><i class="winter-wheel-pointer" aria-hidden="true"></i><div id="winter-wheel" class="winter-wheel" aria-hidden="true">${wheelSlots().map((slot,i)=>`<div class="winter-wheel-label" style="--slot:${i}"><span>${slot.type==='equipment'?'⚒':slot.type==='gold'?'◉':'◆'}</span><b>${i===0?'10,000':i===1?'1,000':i===2?'100':i===3?'장비':'코인'}</b></div>`).join('')}<span class="winter-wheel-hub">${icon('snowman')}</span></div></div><div class="winter-roulette-copy"><span class="winter-exclusive">SNOWMAN ROULETTE</span><h3>눈사람의 선물</h3><p>예티 토벌로 모은 눈사람이<br>작은 행운을 가져와요.</p><button id="winter-spin" class="primary" disabled>${icon('snowman')}<span>눈사람 1개 · 돌리기</span></button><div id="winter-spin-result" class="winter-spin-result" role="status" aria-live="polite">다섯 가지 선물 중 하나를 받아요.</div></div></div><details class="winter-wheel-odds"><summary>5칸의 보상과 정확한 확률</summary><ul>${wheelSlots().map(slot=>`<li><span>${escape(slot.label)}</span><b>${Number((slot.chance*100).toFixed(3))}%</b></li>`).join('')}</ul><p>칸의 크기와 당첨 확률은 달라요. 일반 장비는 R 70% · SR 25% · SSR 5%이며 전용 무기는 나오지 않아요. 코인은 2,600~7,800개예요.</p></details></section>`;
     }
     async function playWinterSpin(result){
@@ -355,7 +355,7 @@
           const ticket = generation, before = item.totalBought;
           busy = true; renderWinter(); let message = '', failed = false;
           try {
-            await context.dispatch({kind:'winter-exchange',item:item.id});
+            const response=await context.dispatch({kind:'winter-exchange',item:item.id});if(response?.error)throw Error(response.error);
             if (ticket !== generation || !own()) return;
             const after = winterInfo()?.items.find(entry => entry.id === item.id);
             if (after && after.totalBought > before) message = '교환한 보상을 받았어요!';
@@ -411,7 +411,7 @@
 
     function refresh() {
       if (!own()) return;
-      if (view === 'winter') renderWinter();
+      if(view==='winter'){if(winterInfo()?.items.some(item=>!$('school-social').querySelector(`[data-winter-item="${item.id}"]`)&&!item.unlock))frame(winterMarkup());renderWinter();}
       if(view==='arena'&&arenaMode==='season'&&!cancelReplay)renderSeason();
     }
     return {openFriends:() => open('friends'),openArena:() => open('arena'),openWinter:() => open('winter'),playWinterSpin,cancelPresentation(){spinAnimation?.cancel();spinAnimation=null;},refresh,destroy() {stop();stopped = true;data = null;}};

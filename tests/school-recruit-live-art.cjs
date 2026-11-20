@@ -12,7 +12,7 @@ const base=path.resolve(__dirname,'..');
     for(const file of new Set(data.frames.map(f=>f.file)))images[file]=await loadImage(path.join(base,file.split('?')[0]));
     for(const f of data.frames){const img=images[f.file];assert(f.rect.every(Number.isFinite));const [x,y,w,h]=f.rect;assert(w>100&&h>300);assert(x>=0&&y>=0&&x+w<=img.width&&y+h<=img.height);}
     for(const pose of [0,.5,1,1.5,2,2.5,3]){C.actor(a,images,data.frames,400,600,pose,15,false);const pix=a.getImageData(0,0,400,600).data;let solid=0;for(let k=3;k<pix.length;k+=4)if(pix[k]>128)solid++;assert(solid>13000,`${hero.id} visible in pose ${pose}`);assert.equal(a.globalAlpha,1);}
-    const p=C.actorPlacement(data.frames[3],400,600,3);assert(p.y>=0&&p.y+p.height<=600);assert(Math.abs(p.height-Math.min(600*.94,400*.96*data.frames[3].rect[3]/data.frames[3].rect[2]))<2,`${hero.id} fits its full-body silhouette without cropping`);
+    const p=C.actorPlacement(data.frames[3],400,600,3);assert(p.y>=0&&p.y+p.height<=600);assert(Math.abs(p.height-Math.min(600*.94,400*.96*data.frames[3].rect[3]/data.frames[3].rect[2])*(data.frames[3].displayScale||1))<2,`${hero.id} fits its full-body silhouette without cropping`);
     const x=(i%5)*320,y=Math.floor(i/5)*300;s.fillStyle=i%2?'#19304a':'#18273e';s.fillRect(x+2,y+2,316,296);s.drawImage(artist,x+66,y,188,282);s.fillStyle='#e6f2ff';s.font='15px sans-serif';s.fillText(`${hero.rarity} · ${hero.id}`,x+12,y+286);i++;
   }
   fs.writeFileSync('/tmp/recruit-live-roster.png',sheet.toBuffer('image/png'));

@@ -263,5 +263,5 @@ html[data-motion=reduced] .weapon-spotlight img,html[data-motion=reduced] .weapo
 
 /* Yaho's full-body illustration keeps the same contained height on every display. */
 .app #tab-recruit[data-pickup=yaho]{background:radial-gradient(ellipse at 74% 46%,#f6ad6a30,transparent 52%),linear-gradient(115deg,#211d2ff2,#492c3fbd),url('assets/lobby/courtyard.webp?v=lobby1') center/cover}
-.app .pickup-screen .pickup-preview[data-preview=yaho] img{image-rendering:auto;object-fit:contain;filter:drop-shadow(0 10px 18px #ffae6744)}
+.app .pickup-screen .pickup-preview[data-preview=yaho] img{max-width:76%;height:calc((100% - 42px)*.76);image-rendering:auto;object-fit:contain;filter:drop-shadow(0 10px 18px #ffae6744)}
 .app #tab-recruit[data-pickup=yaho] #pickup-name{color:#ffe0a4;text-shadow:0 2px #753c43,0 0 22px #ffc47755}

@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {document,Node}=require('./school-ui-dom.cjs')();document.getElementById=id=>document.querySelector('#'+id);
+const window=new Node();window.SchoolYetiRules={};window.SchoolGuild={avatar:()=>'<img>'};window.SchoolRescue={create:()=>({destroy(){},update(){}})};
+const timers=new Map();let id=0,coop,opened=0,clock=10000,requests=[],room={id:'won',status:'finished',code:'ABCDEFGH',members:[{isMe:true,host:true,name:'A',online:true},{isMe:false,name:'B',online:true}],battle:{outcome:'defeated',teams:[],seq:0,events:[]}};
+const context={window,document,Date:{now:()=>clock},crypto,performance,Image:class{},sessionStorage:{getItem:()=>null,removeItem(){},setItem(){}},setTimeout:(fn,ms)=>{timers.set(++id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),requestAnimationFrame:()=>1,cancelAnimationFrame(){}};
+vm.runInNewContext(fs.readFileSync('school/yeti.js','utf8')+'\n'+fs.readFileSync('school/coop.js','utf8'),context);
+const modal=new Node('dialog');document.body.append(modal);const request=async(path,data)=>{requests.push(data.kind);return{room,rewards:[]};};
+const yeti=window.SchoolYeti.create({scope:()=> 'owner',isCloud:()=>true,isBlocked:()=>false,request,openInvites:(mode,id)=>{opened++;coop.openPicker(mode,id);},openModal(title,html){modal.innerHTML=html;modal.showModal();}});
+coop=window.SchoolCoop.create({request,scope:()=> 'owner',isCloud:()=>true,now:Date.now,blocked:()=>false,inEncounter:()=>true,isLobby:(mode,id)=>yeti.canInvite(id)});
+const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
+const pollYeti=async()=>{const [id,t]=[...timers].find(([,t])=>t.ms===2000);timers.delete(id);await t.fn();await flush();};
+(async()=>{yeti.open();await flush();assert(document.querySelector('[data-yeti="rematch"]'));assert.equal(requests.filter(x=>x==='rematch').length,0);
+clock+=4999;let tick=[...timers.values()].find(x=>x.ms===200);tick.fn();await flush();assert(!requests.includes('rematch'));clock++;tick=[...timers.values()].find(x=>x.ms===200);tick.fn();await flush();assert.equal(requests.filter(x=>x==='rematch').length,1);
+room={...room,id:'won2'};await pollYeti();document.getElementById('yeti-auto-stop').onclick();clock+=6000;for(const t of [...timers.values()].filter(x=>x.ms===200))t.fn();await flush();assert.equal(requests.filter(x=>x==='rematch').length,1);await yeti.leave();assert.equal(requests.at(-1),'leave');yeti.destroy();coop.destroy();assert.equal(timers.size,0);console.log('PASS real Yeti controller: 5-second boundary, exactly one auto request, cancel and leave prevent countdown restart');})().catch(e=>{console.error(e);process.exitCode=1});

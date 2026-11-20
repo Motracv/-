@@ -40,10 +40,12 @@ async function fixture({ keysResponse } = {}) {
     keyReads++; return keysResponse || new Response(JSON.stringify({ keys: [jwk] }), { headers: { "Cache-Control": "max-age=3600" } });
   } });
   const worker = createWorker(Battle, { accounts });
+  const compiledSchool = process.env.SCHOOL_TEST_BUNDLE ? (await import(require('node:url').pathToFileURL(process.env.SCHOOL_TEST_BUNDLE).href)).default : null;
   const env = { DB: db, GOOGLE_CLIENT_ID: CLIENT_ID };
   async function call(route, data = {}, token, headers = {}) {
     const get = ["/health", "/api/account/config"].includes(route);
-    const response = await worker.fetch(new Request("https://card.example" + route, {
+    const handler=compiledSchool && route.startsWith('/api/school/') ? compiledSchool : worker;
+    const response = await handler.fetch(new Request("https://card.example" + route, {
       method: get ? "GET" : "POST", headers: { "Content-Type": "application/json", Origin: "https://motracv.github.io", ...(token ? { Authorization: "Bearer " + token } : {}), ...headers },
       ...(get ? {} : { body: JSON.stringify(data) }),
     }), env);

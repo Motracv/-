@@ -21,7 +21,7 @@ export async function matchesPrivateRankReward(env, input) {
   const expected = env.PRIVATE_RANK_REWARD_HASH;
   if (typeof expected !== 'string' || !/^[a-fA-F0-9]{64}$/.test(expected) || typeof input !== 'string' || input.length > 128) return false;
   const normalized = input.normalize('NFC').trim().toUpperCase();
-  if (!/^[A-Z0-9_]{1,40}$/.test(normalized)) return false;
+  if (!/^[A-Z0-9_가-힣]{1,40}$/.test(normalized)) return false;
   const actual = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized)));
   let difference = 0;
   for (let i = 0; i < actual.length; i++) difference |= actual[i] ^ Number.parseInt(expected.slice(i * 2, i * 2 + 2), 16);
@@ -79,3 +79,7 @@ export function awardPrivateHorasSkin(game,state){
   state.redeemedCodes=[...(state.redeemedCodes||[]),skin.receipt];
   return {kind:'redeem',code:skin.receipt,skin:skin.id,skinName:skin.name,hero:skin.hero,gold:0,gems:0,expiresAt:null};
 }
+
+// Per-account compensation; only a digest exists on the server.
+export async function matchesPrivateApology(env,input){return matchesPrivateRankReward({PRIVATE_RANK_REWARD_HASH:env.PRIVATE_APOLOGY_HASH},input);}
+export function awardPrivateApology(state){const code='PRIVATE_APOLOGY_20261120';if((state.redeemedCodes||[]).includes(code))throw Object.assign(Error('이미 받은 보상입니다.'),{status:400});if(!Number.isSafeInteger(state.gems+1600))throw Object.assign(Error('보석 수량을 확인하세요.'),{status:400});state.gems+=1600;state.redeemedCodes=[...(state.redeemedCodes||[]),code];return{kind:'redeem',code,gems:1600,gold:0,expiresAt:null};}

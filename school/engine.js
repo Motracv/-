@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 48;
+  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 49;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -95,21 +95,22 @@
     ryusion: Object.freeze({ id:"ryusion", item:"earth_shield", group:"standard", limited:false, expiresAt:null }),
     osia: Object.freeze({ id:"osia", item:"osia_scepter", group:"standard", limited:false, expiresAt:null }),
     lava: Object.freeze({ id:"lava", item:"lava_fan", group:"standard", limited:false, expiresAt:null }),
-    horas: Object.freeze({ id:"horas", item:"horas_orbit", group:"limited", limited:true, expiresAt:Date.parse("2026-12-03T00:00:00+09:00") }),
+    horas: Object.freeze({ id:"horas", item:"horas_orbit", group:"limited", limited:true, expiresAt:Date.parse("2026-11-23T00:00:00+09:00") }),
   });
   const RECRUIT_RATES = { SSR: .01, SR: .26, R: .73 };
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
-  const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi", "lava"]);
+  const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi", "lava", "ryusion"]);
   const BANNERS = Object.freeze({
     yaho: Object.freeze({id:"yaho",name:"야호 픽업 모집",featured:"yaho",limited:false,expiresAt:null}),
     hyeokjin: Object.freeze({id:"hyeokjin",name:"서혁진 UR 픽업뽑기",featured:"hyeokjin",rarity:"UR",limited:false,expiresAt:null}),
     kazua: Object.freeze({ id:"kazua", name:"카즈아 픽업뽑기", featured:"kazua", limited:false, expiresAt:null }),
     standard: Object.freeze({ id:"standard", name:"상시뽑기", featured:null, limited:false, expiresAt:null }),
-    ryusion: Object.freeze({ id:"ryusion", name:"류시온 픽업 모집", featured:"ryusion", limited:false, expiresAt:null }),
-    horas: Object.freeze({ id: "horas", name: "호라스 픽업뽑기", featured: "horas", rarity: "UR", limited: true, expiresAt: Date.parse("2026-12-03T00:00:00+09:00") }),
+    horas: Object.freeze({ id: "horas", name: "호라스 픽업뽑기", featured: "horas", rarity: "UR", limited: true, expiresAt: Date.parse("2026-11-23T00:00:00+09:00") }),
   });
   // Retired receipts remain readable. New codes are separately issued below.
   const COUPONS = Object.freeze({
+    '야호업데이트': Object.freeze({gold:0,gems:1600,expiresAt:null}),
+    '게임을즐겨주신여러분께감사합니다': Object.freeze({gold:0,gems:1600,snowflakes:100,expiresAt:null}),
     NEWNAME: Object.freeze({gold:0,gems:0,nameChangeTickets:1,expiresAt:null}),
     MAJOR_UPDATE_OVERHAUL: Object.freeze({gold:40000,gems:3000,expiresAt:null}),
     SORRY_FOR_FREQUENT_UPDATES: Object.freeze({gold:5000,gems:500,expiresAt:null}),
@@ -168,7 +169,7 @@
     Object.freeze({ id: "healer", name: "생명의 합주", required: 3, description: "치유 3명 · 아군 전체 회복량 20% 증가" }),
   ]);
   const WINTER_EVENT = Object.freeze({ id: "first-snow-2026", name: "겨울의 첫눈", startsAt: Date.parse("2026-11-18T00:00:00+09:00"), endsAt: null, dropChance: .2,
-    shop: Object.freeze({ gold: Object.freeze({ cost: 30, limit: 10, gold: 1000, gems: 0 }), gems: Object.freeze({ cost: 60, limit: 10, gold: 0, gems: 100 }), horas: Object.freeze({ cost:1000, limit:2, gold:0, gems:0, hero:"horas", shards:5 }), spica:Object.freeze({cost:5000,limit:1,gold:0,gems:0,hero:"spica",unlock:true,lifetime:true}) }) });
+    shop: Object.freeze({ gold: Object.freeze({ cost: 30, limit: 10, gold: 1000, gems: 0 }), gems: Object.freeze({ cost: 60, limit: 10, gold: 0, gems: 100 }), hyeokjin: Object.freeze({ cost:1000,limit:2,gold:0,gems:0,hero:"hyeokjin",shards:5 }), horas: Object.freeze({ cost:1000, limit:2, gold:0, gems:0, hero:"horas", shards:5 }), spica:Object.freeze({cost:5000,limit:1,gold:0,gems:0,hero:"spica",unlock:true,lifetime:true}) }) });
   const WINTER_ROULETTE = Object.freeze([
     {id:'jackpot',label:'보석 10,000',type:'gems',amount:10000,chance:.001},
     {id:'gems1000',label:'보석 1,000',type:'gems',amount:1000,chance:.01},
@@ -194,7 +195,7 @@
   function bannerAvailable(id, now = Date.now()) {
     return typeof id === "string" && Object.hasOwn(BANNERS, id) && Number.isFinite(now) && (BANNERS[id].expiresAt === null || now < BANNERS[id].expiresAt);
   }
-  const canonicalBanner = id => id === 'osia' || id === 'lava' ? 'standard' : id;
+  const canonicalBanner = id => id === 'osia' || id === 'lava' || id === 'ryusion' ? 'standard' : id;
   function bannerState(s, id = "standard") {
     id = canonicalBanner(id);
     if (!Object.hasOwn(BANNERS, id)) return null;
@@ -202,8 +203,9 @@
     if(id==='standard'){
       // Project legacy counters without mutating a save during a UI read.
       const total=(s.banners?.osia?.pity??s.pity??0)+(s.banners?.lava?.pity??0);
-      const guarantees=saved?.guarantees??(Number(!!s.banners?.osia?.guaranteed)+Number(!!s.banners?.lava?.guaranteed));
-      return {pity:saved?.pity??Math.min(79,total),reserve:saved?.reserve??Math.max(0,total-79),guarantees,guaranteed:guarantees>0};
+      const merged=(saved?.pity??Math.min(79,total))+(saved?.reserve??Math.max(0,total-79))+(s.banners?.ryusion?.pity||0);
+      const guarantees=(saved?.guarantees??(Number(!!s.banners?.osia?.guaranteed)+Number(!!s.banners?.lava?.guaranteed)))+Number(!!s.banners?.ryusion?.guaranteed);
+      return {pity:Math.min(79,merged),reserve:Math.max(0,merged-79),guarantees,guaranteed:guarantees>0};
     }
     return { pity: saved?.pity ?? 0, guaranteed: saved?.guaranteed ?? false };
   }
@@ -725,7 +727,7 @@
   function winterDay(now) { return { day: day(now), exchanges: { gold: 0, gems: 0 } }; }
   function newWinter(now) { return { id: WINTER_EVENT.id, snowflakes: 0, earned: 0, exchanges: { gold: 0, gems: 0 }, ...(Number.isFinite(now) ? { daily: winterDay(now) } : {}) }; }
   function validWinter(w) {
-    const counts = (values,daily=false) => values && Object.keys(WINTER_EVENT.shop).every(id => ((id==='horas'||id==='spica')&&values[id]===undefined) || Number.isSafeInteger(values[id])&&values[id]>=0&&values[id] <= (id==='spica'?1:daily?WINTER_EVENT.shop[id].limit:Number.MAX_SAFE_INTEGER));
+    const counts = (values,daily=false) => values && Object.keys(WINTER_EVENT.shop).every(id => ((id==='horas'||id==='hyeokjin'||id==='spica')&&values[id]===undefined) || Number.isSafeInteger(values[id])&&values[id]>=0&&values[id] <= (id==='spica'?1:daily?WINTER_EVENT.shop[id].limit:Number.MAX_SAFE_INTEGER));
     const optionalCount = value => value===undefined||Number.isSafeInteger(value)&&value>=0;
     return w === undefined || !!(w && w.id === WINTER_EVENT.id && Number.isSafeInteger(w.snowflakes) && w.snowflakes >= 0 && Number.isSafeInteger(w.earned) && w.earned >= w.snowflakes &&
       counts(w.exchanges) && (w.daily === undefined || w.daily && Number.isSafeInteger(w.daily.day) && w.daily.day >= 0 && counts(w.daily.exchanges,true)) &&
@@ -746,7 +748,7 @@
     const active = at >= WINTER_EVENT.startsAt && (WINTER_EVENT.endsAt === null || at < WINTER_EVENT.endsAt);
     const spicaOwned=!!s.units.spica||!!w.spicaClaimed;
     return { id: WINTER_EVENT.id, name: WINTER_EVENT.name, active, snowflakes: w.snowflakes, earned: w.earned, snowmen:w.snowmen||0,snowmenEarned:w.snowmenEarned||0,spins:w.spins||0,spicaOwned,roulette:WINTER_ROULETTE, day: currentDay, resetsAt: (currentDay + 1) * 86400000 - 9 * 3600000,
-      items: Object.entries(WINTER_EVENT.shop).map(([id, item]) => {const bought=item.lifetime?(spicaOwned?1:w.exchanges[id]||0):daily.exchanges[id]||0;return {id,...item,bought,totalBought:w.exchanges[id]||0,remaining:Math.max(0,item.limit-bought),canBuy:active&&bought<item.limit&&w.snowflakes>=item.cost};}) };
+      items: Object.entries(WINTER_EVENT.shop).filter(([id])=>id!==(at<BANNERS.horas.expiresAt?'hyeokjin':'horas')).map(([id, item]) => {const bought=item.lifetime?(spicaOwned?1:w.exchanges[id]||0):daily.exchanges[id]||0;return {id,...item,bought,totalBought:w.exchanges[id]||0,remaining:Math.max(0,item.limit-bought),canBuy:active&&bought<item.limit&&w.snowflakes>=item.cost};}) };
   }
   function winterSpin(s,now,rng) {
     fail(Number.isFinite(now)&&now>=0,'잘못된 시간입니다.');
@@ -1089,7 +1091,7 @@
   }
   const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||Object.values(BOND_CHARACTERS).some(m=>m.title===title&&s.bonds?.[m.id]?.read?.includes(3))||title==='rank-reclaimer'&&!!s.redeemedCodes?.includes('RANK_RECLAIMER_2')||title==='rank-ntr'&&!!s.redeemedCodes?.includes('RANK_NTR_1')||title==='rank-azure-first'&&!!s.redeemedCodes?.includes('RANK_AZURE_FIRST_1');
 
-  const SHARD_SSR = Object.freeze([...STANDARD_SSR,'ryusion','kazua']);
+  const SHARD_SSR = Object.freeze([...STANDARD_SSR,'kazua']);
   const SHARD_LIMIT=1000000000;
   function shardInfo(s){return {unlocked:s.captain.level>=20,SR:s.shardExchange?.SR||0,SSR:s.shardExchange?.SSR||0,choices:SHARD_SSR.filter(id=>!!s.units[id]),recyclable:Object.entries(s.units).filter(([id,u])=>u.stars===5&&['SR','SSR'].includes(BY_ID[id].rarity)).map(([id,u])=>({id,rarity:BY_ID[id].rarity,shards:u.shards,batch:BY_ID[id].rarity==='SSR'?20:10}))};}
   function validShards(s){return s.shardExchange===undefined||s.shardExchange&&typeof s.shardExchange==='object'&&!Array.isArray(s.shardExchange)&&Object.keys(s.shardExchange).length===2&&['SR','SSR'].every(r=>Number.isSafeInteger(s.shardExchange[r])&&s.shardExchange[r]>=0&&s.shardExchange[r]<=SHARD_LIMIT);}
@@ -1108,7 +1110,7 @@
       validBonds(s) && validShards(s) && validShop(s) && validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
-      (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)||id==="osia"||id==="lava") && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean") && (!s.banners.standard || Number.isInteger(s.banners.standard.reserve)&&s.banners.standard.reserve>=0&&s.banners.standard.reserve<=79&&Number.isInteger(s.banners.standard.guarantees)&&s.banners.standard.guarantees>=0&&s.banners.standard.guarantees<=2&&s.banners.standard.guaranteed===(s.banners.standard.guarantees>0))) &&
+      (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)||id==="osia"||id==="lava"||id==="ryusion") && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean") && (!s.banners.standard || Number.isInteger(s.banners.standard.reserve)&&s.banners.standard.reserve>=0&&s.banners.standard.reserve<=158&&Number.isInteger(s.banners.standard.guarantees)&&s.banners.standard.guarantees>=0&&s.banners.standard.guarantees<=3&&s.banners.standard.guaranteed===(s.banners.standard.guarantees>0))) &&
       (s.units.osia?.nextSkill == null || Number.isInteger(s.units.osia.nextSkill) && s.units.osia.nextSkill >= 1 && s.units.osia.nextSkill <= 4) &&
       (s.units.ryusion?.nextSkill == null || s.units.ryusion.nextSkill === 1 || s.units.ryusion.nextSkill === 2) &&
       (s.units.lava?.nextSkill == null || s.units.lava.nextSkill === 1 || s.units.lava.nextSkill === 2) &&
@@ -1124,7 +1126,7 @@
       (!s.activities?.run || s.battle.activity && (s.activities.run.settled ? s.activities.lastResult?.runId === s.activities.run.id && ["victory", "defeat"].includes(s.battle.phase) : s.battle.phase === "fight")) &&
       (s.codexClaimed===undefined||Array.isArray(s.codexClaimed)&&s.codexClaimed.length<=HEROES.length&&new Set(s.codexClaimed).size===s.codexClaimed.length&&s.codexClaimed.every(id=>Object.hasOwn(BY_ID,id)&&!!s.units[id])) &&
       Array.isArray(s.events) && Array.isArray(s.logs) && Array.isArray(s.claimed) && Array.isArray(s.receipts) && Array.isArray(s.history) &&
-      (s.redeemedCodes === undefined || Array.isArray(s.redeemedCodes) && s.redeemedCodes.length <= 1000 && new Set(s.redeemedCodes).size === s.redeemedCodes.length && s.redeemedCodes.every(code => typeof code === "string" && /^[A-Z0-9_]{1,40}$/.test(code))) &&
+      (s.redeemedCodes === undefined || Array.isArray(s.redeemedCodes) && s.redeemedCodes.length <= 1000 && new Set(s.redeemedCodes).size === s.redeemedCodes.length && s.redeemedCodes.every(code => typeof code === "string" && /^[A-Z0-9_가-힣]{1,40}$/.test(code))) &&
       s.offline && Number.isFinite(s.offline.seconds) && Number.isFinite(s.offline.gold) && Number.isFinite(s.offline.xp) &&
       (s.offline.captainXp === undefined || Number.isFinite(s.offline.captainXp) && s.offline.captainXp >= 0) &&
       (s.heroShards===undefined||s.heroShards&&typeof s.heroShards==='object'&&!Array.isArray(s.heroShards)&&Object.entries(s.heroShards).every(([id,n])=>Object.hasOwn(BY_ID,id)&&Number.isSafeInteger(n)&&n>=0)) &&
@@ -1604,6 +1606,10 @@
   }
   function advance(s, now, options) { return withGearContext(s, options, () => advanceCore(s, now)); }
   function advanceCore(s, now) {
+    if(now>=Date.parse('2026-11-20T00:00:00+09:00')&&!(s.redeemedCodes||[]).includes('HORAS_FAREWELL_5')){
+      if(s.units.horas)s.units.horas.shards+=5;else{s.heroShards||={};s.heroShards.horas=(s.heroShards.horas||0)+5;}
+      s.redeemedCodes=[...(s.redeemedCodes||[]),'HORAS_FAREWELL_5'];
+    }
     s.profile ??= {avatar:'leader',title:'',beta:true};
     refreshQuestState(s, s.at); refreshWinter(s, s.at);
     s.speed ??= 1; s.simCredit ??= 0; s.simTime ??= 0;
@@ -1645,7 +1651,7 @@
   function questValue(s, quest) { return quest.metric === "collection" ? Object.keys(s.units).length : quest.metric === "captain" ? s.captain.level : s[quest.metric]; }
   function recruit(s, count, rng, banner = "standard", now = Date.now(), guaranteedHero = "osia") {
     banner=canonicalBanner(banner);
-    fail(banner!=="standard"||["osia","lava"].includes(guaranteedHero), "기존 확정 보상은 오시아 또는 라바를 선택하세요.");
+    fail(banner!=="standard"||["osia","lava","ryusion"].includes(guaranteedHero), "기존 확정 보상은 오시아·라바·류시온 중 선택하세요.");
     fail(count === 1 || count === 10, "1회 또는 10회 모집할 수 있습니다.");
     fail(typeof banner === "string" && Object.hasOwn(BANNERS, banner), "모집할 배너를 선택하세요.");
     fail(bannerAvailable(banner, now), "이 모집 배너는 종료되었습니다.");
@@ -1681,7 +1687,7 @@
         const candidates = HEROES.filter(hero => hero.rarity === rarity);
         h = candidates[Math.min(candidates.length - 1, Math.floor(pick * candidates.length))];
       }
-      if(rarity===(isURBanner(banner)?'UR':'SSR')){progress.pity=banner==='standard'?progress.reserve:0;if(banner==='standard')progress.reserve=0;}else progress.pity++;
+      if(rarity===(isURBanner(banner)?'UR':'SSR')){const carry=banner==='standard'?progress.reserve:0;progress.pity=Math.min(79,carry);if(banner==='standard')progress.reserve=Math.max(0,carry-79);}else progress.pity++;
       const fresh = !s.units[h.id], shards = rarity === "UR" ? 30 : rarity === "SSR" ? 20 : rarity === "SR" ? 10 : 5;
       const converted=!fresh&&s.units[h.id].stars===5&&shardWallet.unlocked&&['SR','SSR'].includes(rarity)?{rarity,count:10}:null;
       if (fresh) {s.units[h.id] = { level: 1, xp: 0, stars: 0, shards: s.heroShards?.[h.id]||0 };if(s.heroShards)delete s.heroShards[h.id];}
@@ -1795,6 +1801,7 @@
       fail(info.active, "겨울 이벤트 기간이 아닙니다.");
       fail(typeof input.item === "string" && Object.hasOwn(WINTER_EVENT.shop, input.item), "교환할 보상을 선택하세요.");
       const item = info.items.find(item => item.id === input.item);
+      fail(item,"교환 상품이 변경됐어요. 새 상품을 선택해 주세요.");
       fail(item.remaining > 0, item.lifetime?"이미 만난 이벤트 용병입니다.":"오늘의 교환 횟수를 모두 사용했어요. 자정에 초기화됩니다.");
       fail(info.snowflakes >= item.cost, "눈송이가 부족합니다.");
       fail(Number.isSafeInteger(s.gold + item.gold) && Number.isSafeInteger(s.gems + item.gems) && (s.winter?.exchanges[item.id] || 0) < Number.MAX_SAFE_INTEGER, "보유 재화를 확인하세요.");
@@ -1858,7 +1865,7 @@
       fail(typeof input.code === "string" && input.code.length <= 128, "코드를 확인해 주세요.");
       const code = normalizeCouponCode(input.code);
       fail(code.length > 0, "코드를 입력하세요.");
-      fail(/^[A-Z0-9_]{1,40}$/.test(code) && Object.hasOwn(COUPONS, code), "사용할 수 없는 코드입니다.");
+      fail(/^[A-Z0-9_가-힣]{1,40}$/.test(code) && Object.hasOwn(COUPONS, code), "사용할 수 없는 코드입니다.");
       const coupon = COUPONS[code], redeemed = s.redeemedCodes || [];
       fail(!redeemed.includes(code), "이미 사용한 코드입니다.");
       fail(Number.isFinite(now) && now >= 0 && (coupon.expiresAt === null || now < coupon.expiresAt), "사용 기간이 지난 코드입니다.");

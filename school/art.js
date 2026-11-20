@@ -686,7 +686,7 @@ window.SchoolArt = (() => {
   function hero(c, id, x, y, scale = 2, frame = {}) {
     if(frame.dead||frame.frozen||frame.stunned)frame={...frame,time:0,reduced:true,attack:false,attackAge:undefined,basicAttackAt:undefined,casting:false,motion:undefined,passive:false,horasCastAge:-1};
     // Floor anchor is independent of the actor's jump, squash and weapon motion.
-    if(frame.shadow!==false)groundShadow(c,frame.groundX??x,frame.groundY??(y+(frame.shadowY||0)*scale),scale,['geonu','hyeokjin','kazua'].includes(id),frame.dead);
+    if(frame.shadow!==false)groundShadow(c,frame.groundX??x,frame.groundY??(y+(frame.shadowY||0)*scale),scale*(id==='yaho'?.76:1),['geonu','hyeokjin','kazua'].includes(id),frame.dead);
     frame={...frame,groundShadow:true};
     const breath=idleBreath(id,frame);
     if(breath){c.save();c.translate(x,y);c.scale(breath.x,breath.y);c.translate(-x,-y);}
