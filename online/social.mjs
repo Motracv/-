@@ -52,7 +52,7 @@ export function createSocial(game) {
     const invites={incoming:[],outgoing:[]},matches=[];
     for(const row of arena){if(row.status==='pending')(row.target===id?invites.incoming:invites.outgoing).push({id:row.id,name:row.name,expiresAt:row.expires_at});
       else{const side=row.challenger===id?0:1;matches.push({id:row.id,opponent:row.name,result:row.winner===-1?'draw':row.winner===side?'win':'loss',createdAt:row.created_at});}}
-    return {me:{name:name?.display_name||ownSave.commanderName,canName:!name,renameCost:name?3000:0,rating:await rating(db,id),cosmetic:await equippedSeasonCosmetic(db,id)},friends,requests:{incoming,outgoing},invites,matches,serverTime:now};
+    return {me:{name:name?.display_name||ownSave.commanderName,canName:!name,renameCost:game.commanderNameInfo(ownSave).cost,nameChangeTickets:ownSave.nameChangeTickets||0,rating:await rating(db,id),cosmetic:await equippedSeasonCosmetic(db,id)},friends,requests:{incoming,outgoing},invites,matches,serverTime:now};
   }
   function matchView(row,id){const match=JSON.parse(row.payload),meSide=row.challenger===id?0:1;return {...match,id:row.id,createdAt:row.created_at,meSide,ratingChange:match.winner===-1?0:match.winner===meSide?10:-5};}
   return {async request(request,env,data,accounts){

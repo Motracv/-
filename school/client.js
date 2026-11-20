@@ -46,7 +46,7 @@
   let social, guild, raid, yeti, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
   let community = null, campus = null;
-  let insights = null, dungeonPortal = null, lobby = null, worldMap = null, qol = null, equipmentUI = null;
+  let insights = null, dungeonPortal = null, lobby = null, lobbyNews = null, worldMap = null, qol = null, equipmentUI = null;
   let questCategory = 'daily', questChapter = null, questRowsKey = '', questCacheKey = '', questCache = null;
   const questCategories = {daily:'일일',repeat:'반복',stage:'지역',milestone:'업적'};
   const graphics = {frames:0, lastFrame:0, lastDraw:0, failures:0, lastError:'', losses:0, recoveries:0, lost:false};
@@ -531,7 +531,7 @@
     if (result.kind === 'recruit') { closeModal(); operation = ''; renderButtons(); const shown = await Presentation?.recruit({results:result.results,key:`${accountScope()}:recruit:${completedActionKey}`}); if (!shown?.cancelled) reveal(result.results); }
     else if (result.kind === 'weapon-recruit') { operation=''; renderButtons(); revealWeapons(result.results); }
     else if (result.kind === 'redeem') {
-      const message = result.skin ? `${result.skinName} 스킨과 전용 프로필을 받았어요! 호라스 육성 → 스킨에서 선택하세요.` : result.avatar ? `${result.avatarName} 프로필${result.titleName ? ` · 칭호 ${result.titleName}` : ''}${result.gems ? ` · 보석 +${fmt(result.gems)}` : ''} 수령 완료! 프로필에서 선택할 수 있어요.` : `${result.code} · 보석 +${fmt(result.gems)} · 코인 +${fmt(result.gold)}${result.snowflakes?` · 눈송이 +${fmt(result.snowflakes)}`:""} 수령 완료!`;
+      const message = result.nameChangeTickets ? `닉네임 변경권 ${result.nameChangeTickets}장을 받았어요! 왼쪽 위 내 단장 프로필에서 사용할 수 있어요.` : result.skin ? `${result.skinName} 스킨과 전용 프로필을 받았어요! 호라스 육성 → 스킨에서 선택하세요.` : result.avatar ? `${result.avatarName} 프로필${result.titleName ? ` · 칭호 ${result.titleName}` : ''}${result.gems ? ` · 보석 +${fmt(result.gems)}` : ''} 수령 완료! 프로필에서 선택할 수 있어요.` : `${result.code} · 보석 +${fmt(result.gems)} · 코인 +${fmt(result.gold)}${result.snowflakes?` · 눈송이 +${fmt(result.snowflakes)}`:""} 수령 완료!`;
       $('coupon-code').value = ''; couponMessage(message, 'success'); toast(message); play('reward');
     }
     else if(result.kind==='pass-quest'){toast(`패스 XP +${result.xp} · Lv.${result.level}`);}
@@ -558,7 +558,7 @@
     else if (result.kind === 'profile') { rankingCache.clear(); toast('프로필을 저장했어요.'); captainModal(); }
     else if(result.kind==='raid-claim'||result.kind==='guild-project-claim'){toast(`${result.kind==='raid-claim'?'길드전':'협동 퀘스트'} 보상 · 보석 +${result.gems} · 골드 +${fmt(result.gold)}`);play('reward');}
     else if (result.kind === 'guild-checkin') { toast('길드 출석 · 보석 +30'); play('reward'); }
-    else if (result.kind === 'rename') { rankingCache.clear(); toast('단장 이름을 저장했어요.'); if(!piyuGuide?.namingOpen)captainModal(); }
+    else if (result.kind === 'rename') { rankingCache.clear(); toast(result.ticketUsed ? '닉네임 변경권 1장으로 이름을 변경했어요.' : '단장 이름을 저장했어요.'); if(!piyuGuide?.namingOpen)captainModal(); }
     else if (result.kind.startsWith('preset-')) { toast(({'preset-save':'현재 편성을 저장했어요.','preset-apply':'저장한 편성을 불러왔어요.','preset-delete':'저장한 편성을 비웠어요.','preset-rename':'편성 이름을 저장했어요.'})[result.kind] || '편성을 저장했어요.');qol?.refresh(); }
     else if (result.kind === 'team') { closeModal(); toast(`새 편성으로 출발합니다. ${formationHint()}`); }
     else if (result.kind === 'activity') { closeModal(); setTab('adventure'); toast('던전에 입장했어요. 전투가 끝나면 결과를 확인하세요.'); }
@@ -766,7 +766,7 @@
     if (periodic && now-lastUIRender < (battleVisible() || modalKind==='damage'?240:480)) return;
     lastUIRender = now;
     const quests = questSnapshot();
-    lobby?.render(state, serverNow(), quests);campus?.render(state);
+    lobby?.render(state, serverNow(), quests);campus?.render(state);lobbyNews?.refresh();
     setText($('gold'), fmt(state.gold)); setText($('gems'), fmt(state.gems));
     setText($('captain-level'), `Lv.${state.captain.level}`);
     if (modalKind === 'captain' && $('captain-level-rewards')) {
@@ -942,8 +942,8 @@
     return `${next}<button class="secondary" data-activity-mode="${mode}" ${level} data-unavailable="${unavailable}">${unavailable ? '열쇠 충전 대기' : '재도전'}</button><button class="secondary" data-activity-exit>모험 복귀</button>`;
   }
   function captainModal() {
-    const captain = state.captain, maxed = captain.level >= G.CAPTAIN_MAX_LEVEL, need = G.captainNeed(captain.level), nextReward = G.captainReward(captain.level + 1,serverNow());
-    openModal('내 단장', `<section class="captain-profile">${window.SchoolGuild.avatar(G.profileInfo(state),state.team[0])}<div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3>${window.SchoolGuild.title(G.profileInfo(state))}<p>단장 <strong id="captain-modal-level">Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>전투력</small>${fmt(G.power(state))}</span><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">${G.commanderNameInfo?.(state).cost ? '3,000 보석으로 변경' : '이름 확정'}</button></div><p id="name-message" role="status">첫 이름은 무료 · 변경은 보석 3,000개. 계정 이름은 중복될 수 없어요. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><section id="captain-level-rewards" class="captain-level-rewards"><b id="captain-reward-heading">${maxed ? '단장 최대 레벨 달성' : `다음 Lv.${captain.level + 1} 보상`}</b><div id="captain-next-reward" class="quest-rewards" ${maxed ? 'hidden' : ''}><span class="quest-gems">${icon('gem')}<strong id="captain-next-gems">${fmt(nextReward.gems)}</strong></span><span class="quest-gold">${icon('coin')}<strong id="captain-next-gold">${fmt(nextReward.gold)}</strong></span></div><p class="detail-note">새 단장 레벨마다 보석 160개와 골드를 받아요. 전투·방치 보상으로 성장합니다.</p></section>`, 'captain');
+    const naming = G.commanderNameInfo(state), captain = state.captain, maxed = captain.level >= G.CAPTAIN_MAX_LEVEL, need = G.captainNeed(captain.level), nextReward = G.captainReward(captain.level + 1,serverNow());
+    openModal('내 단장', `<section class="captain-profile">${window.SchoolGuild.avatar(G.profileInfo(state),state.team[0])}<div><h3 id="commander-display-name">${esc(state.commanderName || '새내기 단장')}</h3>${window.SchoolGuild.title(G.profileInfo(state))}<p>단장 <strong id="captain-modal-level">Lv.${captain.level}</strong> / ${G.CAPTAIN_MAX_LEVEL}</p></div></section><div class="captain-progress"><span><b>${maxed ? '최대 레벨' : '다음 레벨까지'}</b><span>${maxed ? 'MAX' : `${fmt(captain.xp)} / ${fmt(need)} XP`}</span></span><progress value="${maxed ? 1 : captain.xp}" max="${maxed ? 1 : need}" aria-label="단장 경험치"></progress></div><div class="captain-stats"><span><small>전투력</small>${fmt(G.power(state))}</span><span><small>보유 용병</small>${Object.keys(state.units).length}</span><span><small>최고 지역</small>${G.stageName(Math.max(1,state.best))}</span><span><small>복도 기록</small>${fmt(activityInfo()?.tower.best || 0)}층</span></div><div class="ranking-tabs"><button class="secondary" data-ranking="level">${icon('trophy')} 단장 랭킹</button><button class="secondary" data-ranking="tower">${icon('dungeon')} 복도 랭킹</button></div><form id="captain-name-form" class="captain-name-form"><label for="commander-name">단장 이름</label><div class="captain-name-controls"><input id="commander-name" name="name" value="${esc(state.commanderName || '')}" maxlength="24" autocomplete="nickname" placeholder="2~12글자" aria-describedby="name-message"><button class="primary" id="save-commander-name" type="submit">${naming.usesTicket ? '변경권 1장 사용' : naming.cost ? '3,000 보석으로 변경' : '이름 확정'}</button></div><p id="name-message" role="status">닉네임 변경권 ${fmt(naming.tickets)}장 보유 · 첫 이름 등록은 무료이며 변경권이 소모되지 않아요. 이후에는 변경권 1장을 먼저 사용하고, 없으면 보석 3,000개가 필요해요. 중복 이름은 사용할 수 없어요. ${mode === 'cloud' ? '이 이름이 공개 랭킹에 표시됩니다.' : '게스트 이름은 이 기기에 저장됩니다.'}</p></form><section id="captain-level-rewards" class="captain-level-rewards"><b id="captain-reward-heading">${maxed ? '단장 최대 레벨 달성' : `다음 Lv.${captain.level + 1} 보상`}</b><div id="captain-next-reward" class="quest-rewards" ${maxed ? 'hidden' : ''}><span class="quest-gems">${icon('gem')}<strong id="captain-next-gems">${fmt(nextReward.gems)}</strong></span><span class="quest-gold">${icon('coin')}<strong id="captain-next-gold">${fmt(nextReward.gold)}</strong></span></div><p class="detail-note">새 단장 레벨마다 보석 160개와 골드를 받아요. 전투·방치 보상으로 성장합니다.</p></section>`, 'captain');
     const appearance=G.profileInfo(state), avatarNames=['학생 기사','달빛 마녀','책의 학자','수호 곰','하얀 고양이','전령새'];
     $('modal-content').insertAdjacentHTML('beforeend',`<section class="profile-section"><h3>프로필 그림</h3><div class="profile-choices"><button data-profile-avatar="leader" aria-pressed="${appearance.avatar==='leader'}">${window.SchoolGuild.avatar({avatar:'leader'},state.team[0])}<small>출전 대표</small></button>${G.PROFILE_AVATARS.map((id,i)=>`<button data-profile-avatar="${id}" aria-pressed="${appearance.avatar===id}">${window.SchoolGuild.avatar({avatar:id})}<small>${avatarNames[i]}</small></button>`).join('')}${G.PROFILE_REWARDS.filter(p=>!p.private||G.ownsProfileAvatar(state,p.id)).map(p=>`<button data-profile-avatar="${p.id}" aria-pressed="${appearance.avatar===p.id}" ${G.ownsProfileAvatar(state,p.id)?'':'disabled'}>${window.SchoolGuild.avatar({avatar:p.id})}<small>${esc(p.name)}</small><span class="profile-unlock-label">${G.ownsProfileAvatar(state,p.id)?'보유 중':'코드 기간 종료'}</span></button>`).join('')}</div><p class="detail-note">기념 프로필 코드의 사용 기간이 종료됐어요. 이미 해금한 프로필은 계속 사용할 수 있어요.</p></section><section class="profile-section"><h3>칭호</h3><div class="profile-title-options"><button data-profile-title="" aria-pressed="${!appearance.title}">사용 안 함</button><button data-profile-title="beta" aria-pressed="${appearance.title==='beta'}" ${appearance.beta?'':'disabled'}>${window.SchoolGuild.title({title:'beta'})}</button></div><p>${appearance.beta?'함께 시작한 단장님께 드리는 기념 칭호예요.':'베타 업데이트 이전부터 플레이한 기록에 해금되는 칭호예요.'} 능력치는 바뀌지 않아요.</p></section>`);
     if(G.ownsProfileTitle?.(state,'rank-reclaimer'))$('modal-content').querySelector('.profile-title-options').insertAdjacentHTML('beforeend',`<button data-profile-title="rank-reclaimer" aria-pressed="${appearance.title==='rank-reclaimer'}">${window.SchoolGuild.title({title:'rank-reclaimer'})}</button>`);
@@ -1112,8 +1112,8 @@
   }
   function renderRoster() { formationUI?.refresh(filter); }
   function renderSupplies() {
-    setText('coupon-announcement', '대규모 개편 보상 코드가 도착했어요. 영문 코드를 입력해 주세요.');
-    setText('coupon-note', 'MAJOR_UPDATE_OVERHAUL · SORRY_FOR_FREQUENT_UPDATES / 계정당 코드별 1회');
+    setText('coupon-announcement', 'NEWNAME · 닉네임 변경권 1장! 받은 변경권은 내 단장 프로필에서 사용해요.');
+    setText('coupon-note', 'NEWNAME · MAJOR_UPDATE_OVERHAUL · SORRY_FOR_FREQUENT_UPDATES / 계정당 코드별 1회');
     $('offline-detail').innerHTML = state.offline.seconds ? `<b>${duration(state.offline.seconds)}의 모험</b><br>골드 ${fmt(state.offline.gold)} · 용병마다 경험치 ${fmt(state.offline.xp)}` : '90초 넘게 자리를 비우면<br>다시 돌아올 때 보상을 모아 드려요.';
     const rate = G.rates(state); $('offline-rate').textContent = `분당 골드 ${rate.gold} · 용병 경험치 ${rate.xp} / 최고 클리어 지역 기준`;
     $('claim-daily').textContent = state.daily >= G.day(serverNow()) ? '수령 완료' : '받기';
@@ -1353,6 +1353,15 @@
     if ($('friends-button')) $('friends-button').onclick = () => social?.openFriends();
     if ($('arena-button')) $('arena-button').onclick = () => social?.openArena();
     if ($('winter-button')) $('winter-button').onclick = () => social?.openWinter();
+    lobbyNews = window.SchoolLobbyNews?.create({game:G,now:serverNow,state:()=>state,reduced:()=>reduced,visible:()=>tab==='lobby'&&!modalKind,
+      open:slide=>{
+        if(slide.banner){if(!G.bannerAvailable(slide.banner,serverNow()))return;recruitCategory='heroes';selectedBanner=slide.banner;storage.set('school-pickup',selectedBanner);renderKey='';setTab('recruit');return;}
+        if(slide.id==='winter')return social?.openWinter();
+        if(slide.id==='pass')return battlePassUI?.open();
+        if(slide.id==='newname'){setTab('supplies');$('coupon-code').value='NEWNAME';couponMessage('닉네임 변경권 1장 · 계정당 1회. 보상 받기를 눌러 주세요.');renderButtons();$('coupon-form').scrollIntoView({block:'center',behavior:'instant'});$('coupon-code').focus({preventScroll:true});return;}
+        if(slide.id==='double')return openModal('96시간 더블 보상','<p>플레이로 얻는 눈송이 · 코인 · 용병/단장 경험치가 2배!</p><p>모험·던전·예티·길드전·임무와 이벤트 시간에 해당하는 오프라인 보상에 적용됩니다.</p><p>상점·교환·쿠폰·룰렛의 정해진 수량과 눈사람은 그대로예요.</p><p>11월 23일 오후 5시 17분 종료 · 한국 시간</p>','event');
+      }});
+
     if ($('fullscreen-button')) $('fullscreen-button').onclick = toggleFullscreen;
     document.addEventListener('fullscreenchange', () => { refreshFullscreen(); updateOrientation(); });
     refreshFullscreen();

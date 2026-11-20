@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 45;
+  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 46;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -85,6 +85,7 @@
   });
   // Retired receipts remain readable. New codes are separately issued below.
   const COUPONS = Object.freeze({
+    NEWNAME: Object.freeze({gold:0,gems:0,nameChangeTickets:1,expiresAt:null}),
     MAJOR_UPDATE_OVERHAUL: Object.freeze({gold:40000,gems:3000,expiresAt:null}),
     SORRY_FOR_FREQUENT_UPDATES: Object.freeze({gold:5000,gems:500,expiresAt:null}),
     HYEOKJIN_UPDATE: Object.freeze({gold:30000,gems:3000,expiresAt:null}),
@@ -681,7 +682,8 @@
   }
   function commanderNameInfo(s) {
     const changes = s.nameChanges ?? (s.commanderName && s.commanderName !== "새내기 단장" ? 1 : 0);
-    return { changes, cost: changes > 0 ? 3000 : 0 };
+    const tickets = s.nameChangeTickets || 0, usesTicket = changes > 0 && tickets > 0;
+    return { changes, tickets, usesTicket, cost: changes > 0 && !usesTicket ? 3000 : 0 };
   }
   function partySynergies(s) {
     const counts = { tank: 0, damage: 0, healer: 0 };
@@ -994,7 +996,7 @@
   function create(now = Date.now(), seed = 123456789) {
     fail(Number.isFinite(now) && now >= 0, "잘못된 시간입니다.");
     const s = { version: 1, at: now, speed: 1, simCredit: 0, simTime: 0, seed: (seed >>> 0) || 123456789, seq: 0, events: [], logs: [],
-      profile: {avatar:'leader',title:'',beta:false}, gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
+      profile: {avatar:'leader',title:'',beta:false}, gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, nameChangeTickets: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
       onboarding: {version:1,step:0},
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
       banners: { hyeokjin:{pity:0,guaranteed:false}, standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
@@ -1068,7 +1070,8 @@
       (s.onboarding === undefined || s.onboarding && s.onboarding.version === 1 && Number.isInteger(s.onboarding.step) && s.onboarding.step >= 0 && s.onboarding.step <= 8) &&
       Number.isFinite(s.gold) && s.gold >= 0 && Number.isFinite(s.gems) && s.gems >= 0 &&
       (s.commanderName === undefined || typeof s.commanderName === "string" && normalizeCommanderName(s.commanderName) === s.commanderName) &&
-      (s.nameChanges === undefined || Number.isSafeInteger(s.nameChanges) && s.nameChanges >= 0) && validWinter(s.winter) &&
+      (s.nameChanges === undefined || Number.isSafeInteger(s.nameChanges) && s.nameChanges >= 0) &&
+      (s.nameChangeTickets === undefined || Number.isSafeInteger(s.nameChangeTickets) && s.nameChangeTickets >= 0) && validWinter(s.winter) &&
       (s.speed === undefined || s.speed === 1 || s.speed === 1.5) &&
       (s.simCredit === undefined || Number.isFinite(s.simCredit) && s.simCredit >= 0 && s.simCredit < STEP_MS) &&
       (s.simTime === undefined || Number.isSafeInteger(s.simTime) && s.simTime >= 0) &&
@@ -1747,7 +1750,8 @@
       fail(name !== s.commanderName, "이미 사용 중인 이름입니다.");
       fail(s.gems >= info.cost, "이름 변경에는 보석 3,000개가 필요합니다.");
       s.gems -= info.cost; s.commanderName = name; s.nameChanges = info.changes + 1;
-      return { kind, name, cost: info.cost };
+      if (info.usesTicket) s.nameChangeTickets = info.tickets - 1;
+      return { kind, name, cost: info.cost, ticketUsed: info.usesTicket };
     }
     if (kind === "winter-spin") return winterSpin(s,now,rng);
     if (kind === "winter-exchange") {
@@ -1823,12 +1827,14 @@
       const coupon = COUPONS[code], redeemed = s.redeemedCodes || [];
       fail(!redeemed.includes(code), "이미 사용한 코드입니다.");
       fail(Number.isFinite(now) && now >= 0 && (coupon.expiresAt === null || now < coupon.expiresAt), "사용 기간이 지난 코드입니다.");
+      if(coupon.nameChangeTickets)fail(Number.isSafeInteger((s.nameChangeTickets||0)+coupon.nameChangeTickets),'보유 변경권을 확인해 주세요.');
       // Client-supplied rewards and timestamps never participate in redemption.
       s.redeemedCodes = [...redeemed, code]; s.gold += coupon.gold; s.gems += coupon.gems;
+      if(coupon.nameChangeTickets)s.nameChangeTickets=(s.nameChangeTickets||0)+coupon.nameChangeTickets;
       if(coupon.snowflakes){s.winter||=newWinter(now);s.winter.snowflakes+=coupon.snowflakes;s.winter.earned+=coupon.snowflakes;}
       const profileReward = PROFILE_REWARDS.find(p => p.id === coupon.avatar);
-      log(s, profileReward ? `${profileReward.name} 프로필 해금` : `CODE ${code} · 보석 +${coupon.gems} · 골드 +${coupon.gold}${coupon.snowflakes?` · 눈송이 +${coupon.snowflakes}`:""}`);
-      return { kind, code, gold: coupon.gold, gems: coupon.gems, ...(coupon.snowflakes?{snowflakes:coupon.snowflakes}:{}), expiresAt: coupon.expiresAt, ...(profileReward ? {avatar:profileReward.id,avatarName:profileReward.name,displayCode:profileReward.code} : {}) };
+      log(s, profileReward ? `${profileReward.name} 프로필 해금` : coupon.nameChangeTickets ? `CODE ${code} · 닉네임 변경권 +${coupon.nameChangeTickets}` : `CODE ${code} · 보석 +${coupon.gems} · 골드 +${coupon.gold}${coupon.snowflakes?` · 눈송이 +${coupon.snowflakes}`:""}`);
+      return { kind, code, gold: coupon.gold, gems: coupon.gems, ...(coupon.nameChangeTickets?{nameChangeTickets:coupon.nameChangeTickets}:{}), ...(coupon.snowflakes?{snowflakes:coupon.snowflakes}:{}), expiresAt: coupon.expiresAt, ...(profileReward ? {avatar:profileReward.id,avatarName:profileReward.name,displayCode:profileReward.code} : {}) };
     }
     if (kind === "weapon-recruit") return recruitWeapons(s,input.count,rng,input.banner,now);
     if (kind === "recruit") return recruit(s, input.count, rng, input.banner === undefined ? "standard" : input.banner, now, input.guaranteedHero);
