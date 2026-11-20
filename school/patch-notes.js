@@ -1,7 +1,12 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-main-music1',
+  version:'school-title-ost1',
   entries:Object.freeze([
+    {version:'school-title-ost1',date:'2026.11.20',title:'모험의 문 앞에서 · 시작 화면 개편',items:[
+      '시작 전 대기화면에 전용 OST를 추가했습니다. 게임 시작 후에는 기존 Winter Evening으로 전환되며, 소리 설정에서 두 곡의 BGM 음량을 함께 조절합니다.',
+      '시작 화면을 로그인·게임 시작 중심으로 간결하게 정리했습니다. 현재 서버는 통합 · 아시아로 표시하며 연결 확인 기능을 제공합니다.',
+      '소리 설정과 업데이트 소식을 상단에 모았습니다. 계정 전환과 운영 테스트 접속은 계정 관리에서 이용할 수 있습니다.'
+    ]},
     {version:'school-main-music1',date:'2026.11.20',title:'겨울 저녁의 메인 테마',items:[
       'Winter Evening을 게임 시작 화면과 안뜰·메뉴의 메인 배경음악으로 추가했습니다. 화면을 한 번 누르면 음악이 시작되고 반복 재생됩니다.',
       '설정에서 배경음악과 효과음을 각각 켜고 끄거나 0~100%로 조절할 수 있습니다. 전체 음소거와 음량 설정은 기기에 저장됩니다. 로그인 전 시작 화면에도 소리 설정을 추가했습니다.',
