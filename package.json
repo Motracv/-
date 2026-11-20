@@ -60,7 +60,8 @@
     "test:school:render-budget": "node tests/school-render-budget.cjs && node tests/school-ui-budget.cjs",
     "test:school:balance": "node tests/school-balance1.cjs && node tests/school-balance1-server.cjs",
     "test:school:piyu": "node tests/school-piyu.cjs && node tests/school-piyu-server.cjs && node tests/school-piyu-ui.cjs && node tests/school-entry.cjs && node tests/school-operator.cjs",
-    "test:school:overhaul": "node tests/school-overhaul-server.cjs && node tests/school-overhaul-combat.cjs && node tests/school-overhaul-dom.cjs && node tests/school-battle-polish.cjs && node tests/school-combat-presentation.cjs"
+    "test:school:overhaul": "node tests/school-overhaul-server.cjs && node tests/school-overhaul-combat.cjs && node tests/school-overhaul-dom.cjs && node tests/school-battle-polish.cjs && node tests/school-combat-presentation.cjs",
+    "test:school:mobile-ui": "node tests/school-mobile-ui-browser.cjs"
   },
   "engines": {
     "node": ">=20"

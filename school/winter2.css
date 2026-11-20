@@ -37,11 +37,11 @@ html[data-theme=dark] {
 #modal .hero-detail-header,#modal .hero-stat-grid>div,#modal .account-box {
   border-color:var(--ui-line);background:var(--ui-raised);border-radius:12px;box-shadow:0 1px 2px #12223808;
 }
-#modal:not(.raid-modal):not(.yeti-modal):not(.world-map-modal) {
+#modal:where(:not(.raid-modal,.yeti-modal,.santa-modal,.world-map-modal)) {
   border:1px solid var(--ui-line);background:var(--ui-surface);color:var(--ui-ink);
   border-radius:18px;box-shadow:var(--ui-shadow),0 0 0 1px #ffffff0c;
 }
-#modal:not(.raid-modal):not(.yeti-modal):not(.world-map-modal) .modal-top {
+#modal:where(:not(.raid-modal,.yeti-modal,.santa-modal,.world-map-modal)) .modal-top {
   background:var(--ui-surface);border-color:var(--ui-line);padding-top:12px;padding-bottom:12px;
 }
 #modal .modal-top h2 {font-family:var(--body);letter-spacing:-.035em;font-size:18px}
@@ -147,8 +147,8 @@ html[data-motion=reduced] .app .lobby-sprite {animation:none}
   .app .content-panel {padding:8px 10px}.app .pickup-screen-top {padding:5px;border-radius:10px 10px 0 0}
   .app #tab-recruit:is([data-pickup=osia],[data-pickup=lava])[data-recruit-category=heroes] .pickup-copy h2 {font-size:16px}
   .app #tab-recruit:is([data-pickup=osia],[data-pickup=lava])[data-recruit-category=heroes] .pickup-hero-title {gap:2px}
-  #modal:not(.raid-modal):not(.yeti-modal):not(.world-map-modal) {padding:12px;border-radius:12px}
-  #modal:not(.raid-modal):not(.yeti-modal):not(.world-map-modal) .modal-top {top:-12px;padding:8px 0;margin-bottom:10px}
+  #modal:where(:not(.raid-modal,.yeti-modal,.santa-modal,.world-map-modal)) {padding:12px;border-radius:12px}
+  #modal:where(:not(.raid-modal,.yeti-modal,.santa-modal,.world-map-modal)) .modal-top {top:-12px;padding:8px 0;margin-bottom:10px}
   #modal .modal-top h2 {font-size:16px}
   #school-social .winter-banner {padding:12px 16px}.winter-banner h3 {font-size:21px;margin:5px 0}.winter-banner p {display:none}
   .winter-tabs {margin:10px 0}.winter-tabs button {min-height:36px;font-size:12px}
