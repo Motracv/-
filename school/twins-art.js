@@ -1,5 +1,6 @@
 /* Twin boss presentation only. No damage, rewards, storage or networking. */
 (function(root){'use strict';
+const FX=root.SchoolTwinsFx;
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x)),smooth=x=>{x=clamp(x);return x*x*(3-2*x);},mix=(a,b,t)=>a+(b-a)*t;
 const FRAMES=[
  {rect:[63,97,226,358],foot:[112,356]}, {rect:[378,166,261,286],foot:[130,283]},
@@ -11,8 +12,8 @@ const COMBOS={cross:{name:'교차 협공',duration:5.4,hits:[1.58,1.58]},relay:{
 function sample(t,kind='cross',reduced=false){
  const def=COMBOS[kind]||COMBOS.cross;t=clamp(t,0,def.duration);const hits=def.hits;
  const actors=hits.map((hit,i)=>{const home=i?1010:330,contact=i?850:490,charge=hit-(kind==='slam'?.85:.62),p=(t-charge)/(hit-charge);let pose=0,x=home,lift=0,rotation=0;
- if(t>=charge&&t<hit-.12){pose=1;x=home+(i?14:-14)*Math.sin(clamp(p)*Math.PI);}
- else if(t>=hit-.12&&t<hit+.14){pose=2;x=mix(home,contact,smooth((t-hit+.12)/.12));rotation=(i?-1:1)*.025;}
+ if(t>=charge&&t<hit-.26){pose=1;x=home+(i?14:-14)*Math.sin(clamp(p)*Math.PI);}
+ else if(t>=hit-.26&&t<hit+.14){pose=2;x=mix(home,contact,smooth((t-hit+.26)/.26));rotation=(i?-1:1)*.025;}
  else if(t>=hit+.14&&t<hit+.55){pose=3;x=contact;}
  else if(t>=hit+.55&&t<hit+1.25){pose=1;x=mix(contact,home,smooth((t-hit-.55)/.7));}
  if(kind==='slam'&&t>charge&&t<hit) {lift=Math.sin(clamp(p)*Math.PI)*105;x=mix(home,contact,smooth(p));}
@@ -30,9 +31,6 @@ async function load(url){
 }
 function shadow(c,a){c.save();c.fillStyle='#02071388';c.beginPath();c.ellipse(a.groundX,a.groundY+4,49,10,0,0,Math.PI*2);c.fill();c.fillStyle='#02071388';c.beginPath();c.ellipse(a.groundX,a.groundY+3,29,5,0,0,Math.PI*2);c.fill();c.restore();}
 function sprite(c,frames,a,opacity=1,offset=0){const f=FRAMES[a.frame];c.save();c.globalAlpha=opacity;c.translate(a.x+offset,a.y-a.lift);c.scale(a.facing*.58,.58);c.rotate(a.rotation);c.imageSmoothingEnabled=false;c.drawImage(frames[a.frame],-f.foot[0],-f.foot[1]);c.restore();}
-function effects(c,s,reduced){const t=s.t;
- for(let i=0;i<2;i++){const age=t-s.hits[i];if(age<-.55&&age>-.9){c.save();c.globalAlpha=.5;c.strokeStyle=i?'#9cf365':'#ff737b';c.lineWidth=2;c.setLineDash([10,9]);c.beginPath();c.moveTo(i?1010:330,582);c.lineTo(670,582);c.stroke();c.restore();}if(age<0||age>.48)continue;const f=1-age/.48;c.save();c.globalAlpha=f;c.strokeStyle=i?'#fff0ac':'#ffc6ac';c.shadowColor=i?'#ffc054':'#ff5a48';c.shadowBlur=reduced?0:16;c.lineCap='round';c.lineWidth=8*f;c.beginPath();c.moveTo(i?875:470,400);c.quadraticCurveTo(i?720:610,345,670,478);c.stroke();c.lineWidth=2;c.strokeStyle='#fffce6';c.stroke();c.restore();}
- const age=s.impact;if(age<0||age>1)return;c.save();c.globalAlpha=1-age;c.translate(670,478);const count=reduced?8:34;for(let i=0;i<count;i++){const a=i*2.399,dist=18+age*(90+i%7*27),len=(18+i%4*9)*(1-age);c.strokeStyle=i%3?'#ffc36b':'#fff7c4';c.lineWidth=i%3+1;c.beginPath();c.moveTo(Math.cos(a)*dist,Math.sin(a)*dist*.65);c.lineTo(Math.cos(a)*(dist+len),Math.sin(a)*(dist+len)*.65);c.stroke();}c.restore();c.save();c.strokeStyle='#ffe4aa';c.globalAlpha=(1-age)*.5;c.lineWidth=3;c.beginPath();c.ellipse(670,577,30+age*180,8+age*35,0,0,Math.PI*2);c.stroke();c.fillStyle='#b39169';for(let i=0;i<(reduced?4:14);i++){const dx=(i%2?1:-1)*(20+age*(45+i*9)),dy=-Math.sin(age*Math.PI)*(15+i%5*11);c.save();c.translate(670+dx,574+dy);c.rotate(i+age*5);c.fillRect(-4,-2,8+i%3*3,4);c.restore();}c.restore();}
-function draw(c,frames,s,{reduced=false}={}){for(const a of s.actors)shadow(c,a);for(const a of s.actors){if(!reduced&&a.frame%4===2)for(let j=3;j>0;j--)sprite(c,frames,a,.07*(4-j),-a.facing*j*23);sprite(c,frames,a);}effects(c,s,reduced);}
+function draw(c,frames,s,{reduced=false,effects=true}={}){for(const a of s.actors)shadow(c,a);if(effects)FX?.rear(c,frames,FRAMES,s,{reduced});for(const a of s.actors)sprite(c,frames,a);if(effects)FX?.front(c,s,{reduced});}
 const api={FRAMES,COMBOS,sample,load,draw};if(typeof module==='object'&&module.exports)module.exports=api;else root.SchoolTwinsArt=api;
 })(globalThis);

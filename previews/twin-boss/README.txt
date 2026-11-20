@@ -7,6 +7,7 @@ Deliverables:
 - ../../school/assets/twins/atlas.png: RGBA 1536x1024, eight source poses.
 - frames.json: source rectangles, local foot anchors, cooperative hit times.
 - ../../school/twins-art.js: reusable presentation renderer.
+- ../../school/twins-fx.js: dash outlines, speed lines, blade arcs, impact sparks, debris and dust. Load before twins-art.js.
 
 Integration:
   const frames = await SchoolTwinsArt.load(atlasUrl);
@@ -26,3 +27,5 @@ same bounding height. Ground shadows are independent of body lift and rotation.
 Art preview only: rotating weekend boss scheduling, raid stats, magic immunity
 and damage balance are not changed by this preview. Those belong to the live
 raid simulation integration after the design is approved.
+
+VFX are sampled from absolute encounter time. Afterimages retain their birth positions; scrubbing and pause do not leave old particles behind. Reduced motion disables trails and camera shake. Cached tint/outline textures are built once per atlas.
