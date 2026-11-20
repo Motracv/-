@@ -87,9 +87,10 @@ export function createSchool() {
         requireSchool(typeof data.requestId === "string" && /^[A-Za-z0-9_-]{16,80}$/.test(data.requestId), "행동 요청을 확인하세요.");
         requireSchool(data.action && typeof data.action === "object" && !Array.isArray(data.action), "잘못된 행동입니다.");
       }
-      const privateRank = action && data.action.kind === 'redeem' && await findPrivateRankReward(env, data.action.code);
+      const legacyCodesActive = Date.now() < Date.parse('2026-11-20T10:38:23Z');
+      const privateRank = legacyCodesActive && action && data.action.kind === 'redeem' && await findPrivateRankReward(env, data.action.code);
       const privateApology=action&&data.action.kind==='redeem'&&await matchesPrivateApology(env,data.action.code);
-      const privateSkin = action && data.action.kind === 'redeem' && await matchesPrivateHorasSkin(env,data.action.code);
+      const privateSkin = legacyCodesActive && action && data.action.kind === 'redeem' && await matchesPrivateHorasSkin(env,data.action.code);
       let acceptedRevision = data.revision;
       // Login/state sync also delivers old unclaimed victory rewards.
       if(!action)await collectYetiRewards(env.DB,game,signed.id,Date.now());

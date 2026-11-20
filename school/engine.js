@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 49;
+  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 50;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -111,18 +111,18 @@
   const COUPONS = Object.freeze({
     '야호업데이트': Object.freeze({gold:0,gems:1600,expiresAt:null}),
     '게임을즐겨주신여러분께감사합니다': Object.freeze({gold:0,gems:1600,snowflakes:100,expiresAt:null}),
-    NEWNAME: Object.freeze({gold:0,gems:0,nameChangeTickets:1,expiresAt:null}),
-    MAJOR_UPDATE_OVERHAUL: Object.freeze({gold:40000,gems:3000,expiresAt:null}),
-    SORRY_FOR_FREQUENT_UPDATES: Object.freeze({gold:5000,gems:500,expiresAt:null}),
-    HYEOKJIN_UPDATE: Object.freeze({gold:30000,gems:3000,expiresAt:null}),
-    BALANCE_PATCH_REWARD: Object.freeze({gold:50000,gems:3000,expiresAt:null}),
-    WEEKEND_GIFT: Object.freeze({gold:0,gems:1000,snowflakes:100,expiresAt:null}),
-    WEEKEND_DOUBLE_REWARDS: Object.freeze({gold:0,gems:2000,expiresAt:null}),
-    HYUKJIN_PLEASE_STOP_ASKING: Object.freeze({gold:0,gems:500,snowflakes:50,expiresAt:null}),
-    KAZUA_UPDATE: Object.freeze({gold:0,gems:2000,snowflakes:100,expiresAt:null}),
-    THANKS_FOR_ENJOYING_THE_GAME: Object.freeze({gold:0,gems:1000,snowflakes:100,expiresAt:null}),
-    BEYOND_CHAPTER_12: Object.freeze({gold:15000,gems:1500,snowflakes:100,expiresAt:null}),
-    SORRY_FOR_FREQUENT_PATCHES: Object.freeze({gold:0,gems:900,snowflakes:500,expiresAt:null}),
+    NEWNAME: Object.freeze({gold:0,gems:0,nameChangeTickets:1,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    MAJOR_UPDATE_OVERHAUL: Object.freeze({gold:40000,gems:3000,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    SORRY_FOR_FREQUENT_UPDATES: Object.freeze({gold:5000,gems:500,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    HYEOKJIN_UPDATE: Object.freeze({gold:30000,gems:3000,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    BALANCE_PATCH_REWARD: Object.freeze({gold:50000,gems:3000,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    WEEKEND_GIFT: Object.freeze({gold:0,gems:1000,snowflakes:100,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    WEEKEND_DOUBLE_REWARDS: Object.freeze({gold:0,gems:2000,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    HYUKJIN_PLEASE_STOP_ASKING: Object.freeze({gold:0,gems:500,snowflakes:50,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    KAZUA_UPDATE: Object.freeze({gold:0,gems:2000,snowflakes:100,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    THANKS_FOR_ENJOYING_THE_GAME: Object.freeze({gold:0,gems:1000,snowflakes:100,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    BEYOND_CHAPTER_12: Object.freeze({gold:15000,gems:1500,snowflakes:100,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
+    SORRY_FOR_FREQUENT_PATCHES: Object.freeze({gold:0,gems:900,snowflakes:500,expiresAt:Date.parse('2026-11-20T10:38:23Z')}),
     RANKING_FIRST_CONGRATS: Object.freeze({ gold:0, gems:0, expiresAt:Date.parse('2026-11-18T22:46:56Z'), avatar:'rank-first' }),
     RYUSION_UPDATE: Object.freeze({ gold:5000, gems:2000, expiresAt:Date.parse('2026-11-18T22:46:56Z') }),
     THANKS_FOR_PLAYING: Object.freeze({ gold:10000, gems:1000, expiresAt:Date.parse('2026-11-18T22:46:56Z') }),

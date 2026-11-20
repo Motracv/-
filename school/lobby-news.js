@@ -7,12 +7,12 @@ window.SchoolLobbyNews = (() => {
   function slidesFor(G, state, now) {
     const slides = [];
     if(G.bannerAvailable('yaho',now))slides.push({id:'yaho',banner:'yaho',tag:'NEW · SSR 픽업 모집',title:'야호',subtitle:'작은 포효, 커다란 약속',note:'라바의 제자 · 화염 치유 서포터',cta:'모집 보기',image:'school/assets/yaho/illustration.webp?v=yaho1'});
-    if(G.bannerAvailable('horas', now)) slides.push({id:'horas',banner:'horas',tag:'UR · 한정 모집',title:'호라스',subtitle:'벚꽃 아래, 새로운 인연',note:'12. 03 00:00까지 · 한국 시간',cta:'모집 보기',image:'school/assets/horas/pickup.webp?v=horas1'});
+    if(G.bannerAvailable('horas', now)) slides.push({id:'horas',banner:'horas',tag:'UR · 한정 모집',title:'호라스',subtitle:'벚꽃 아래, 새로운 인연',note:'11. 23 00:00까지 · 한국 시간',cta:'모집 보기',image:'school/assets/horas/pickup.webp?v=horas1'});
     if(G.bannerAvailable('hyeokjin', now)) slides.push({id:'hyeokjin',banner:'hyeokjin',tag:'UR · 픽업 모집',title:'서혁진',subtitle:'마지막까지 지켜낸 약속',note:'어둠을 가르는 대검',cta:'모집 보기',image:'school/assets/hyeokjin/pickup.webp?v=hyeokjin1'});
     if(G.eventInfo(now).active) slides.push({id:'double',tag:'진행 중 · 더블 보상',title:'모험의 보상이 2배',subtitle:'눈송이 · 코인 · 경험치',note:'11. 23 17:17까지 · 한국 시간',cta:'이벤트 보기',symbol:'<b class="lobby-news-double">×2</b>'});
     if(G.winterInfo(state,now).active) slides.push({id:'winter',tag:'WINTER FESTIVAL',title:'눈꽃이 내리는 학교',subtitle:'눈송이를 모아 특별한 선물을',note:'겨울 축제 · 이벤트 교환소',cta:'축제 가기',image:'school/assets/bonds/spica-illustration.webp?v=bond-art1'});
     slides.push({id:'pass',tag:'FREE · 최대 50레벨',title:'우리의 모험 기록',subtitle:'퀘스트로 채우는 무료 배틀패스',note:'코인 · 장비 · 눈송이 보상',cta:'패스 보기',symbol:pass});
-    if(!(state.redeemedCodes||[]).includes('NEWNAME')) slides.push({id:'newname',tag:'선물 도착 · 계정당 1회',title:'새 이름, 새로운 시작',subtitle:'닉네임 변경권 1장 선물',note:'보상 코드 NEWNAME',cta:'코드 입력',symbol:ticket});
+    if(G.COUPONS.NEWNAME.expiresAt>now&&!(state.redeemedCodes||[]).includes('NEWNAME')) slides.push({id:'newname',tag:'선물 도착 · 계정당 1회',title:'새 이름, 새로운 시작',subtitle:'닉네임 변경권 1장 선물',note:'보상 코드 NEWNAME',cta:'코드 입력',symbol:ticket});
     return slides;
   }
   function create(ctx) {

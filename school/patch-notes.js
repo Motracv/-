@@ -1,7 +1,8 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-stability49',
+  version:'school-codes50',
   entries:Object.freeze([
+    {version:'school-codes50',date:'2026.11.20',title:'이전 보상 코드 사용 종료',items:['이전 공개 보상 코드의 사용이 종료되었습니다. 이미 받은 보상과 닉네임 변경권은 그대로 유지됩니다.','현재 공개 코드: 야호업데이트(보석 1,600개), 게임을즐겨주신여러분께감사합니다(보석 1,600개·눈송이 100개). 각각 계정당 1회 사용할 수 있습니다.']},
     {version:'school-stability49',date:'2026.11.20',title:'더 편하게, 다시 도전 · 야호 연출 개선',items:[
       '예티 토벌 성공 후 같은 동료와 즉시 재도전할 수 있습니다. 5초 후 자동 재도전하며, 취소 또는 나가기로 중단할 수 있습니다. 전투마다 보상은 한 번씩 지급됩니다.',
       '야호의 전투·모집·픽업 체형을 24% 줄이고, 부채 공격·포효·보호 인장·산군 소환 동작과 이펙트를 개선했습니다.',

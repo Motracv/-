@@ -1132,8 +1132,8 @@
   }
   function renderRoster() { formationUI?.refresh(filter); }
   function renderSupplies() {
-    setText('coupon-announcement', 'NEWNAME · 닉네임 변경권 1장! 받은 변경권은 내 단장 프로필에서 사용해요.');
-    setText('coupon-note', 'NEWNAME · MAJOR_UPDATE_OVERHAUL · SORRY_FOR_FREQUENT_UPDATES / 계정당 코드별 1회');
+    setText('coupon-announcement', '야호업데이트 · 보석 1,600개!');
+    setText('coupon-note', '야호업데이트 · 게임을즐겨주신여러분께감사합니다 / 계정당 코드별 1회');
     $('offline-detail').innerHTML = state.offline.seconds ? `<b>${duration(state.offline.seconds)}의 모험</b><br>골드 ${fmt(state.offline.gold)} · 용병마다 경험치 ${fmt(state.offline.xp)}` : '90초 넘게 자리를 비우면<br>다시 돌아올 때 보상을 모아 드려요.';
     const rate = G.rates(state); $('offline-rate').textContent = `분당 골드 ${rate.gold} · 용병 경험치 ${rate.xp} / 최고 클리어 지역 기준`;
     $('claim-daily').textContent = state.daily >= G.day(serverNow()) ? '수령 완료' : '받기';
