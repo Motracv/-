@@ -177,12 +177,45 @@ html[data-theme=dark] #community-message[data-error=true]{color:#ffabb4}
 #tab-roster .formation-slot-main .formation-figure{grid-area:1 / 1;width:100%;height:100%;min-height:0;max-height:none;align-self:stretch;overflow:visible}
 #tab-roster .formation-slot-main .formation-figure img{height:100%;width:100%;max-height:none;object-fit:contain;object-position:center;display:block}
 #tab-roster .formation-slot-main>strong,#tab-roster .formation-slot-main>small,#tab-roster .formation-slot-main>.formation-stars{grid-column:1;align-self:center}
-/* A 4K TV gets the same logical 1920×1080 layout at twice the physical size.
-   The board and top-layer dialogs share a scale, without changing browser zoom. */
-html[data-large-screen=true] .board-viewport{zoom:var(--game-ui-scale);width:calc(100% / var(--game-ui-scale));height:calc(100dvh / var(--game-ui-scale));overflow:hidden}
-html[data-large-screen=true] .board-viewport>.app{height:100%;min-height:0;max-height:none;width:100%;min-width:0}
-html[data-large-screen=true] dialog{zoom:var(--game-ui-scale);max-width:calc(100vw / var(--game-ui-scale) - 24px);max-height:calc(100dvh / var(--game-ui-scale) - 24px)}
-html[data-large-screen=true] #toast{zoom:var(--game-ui-scale)}
-html[data-large-screen=true] .formation-hero-modal .hero-management{height:min(650px,calc(100dvh / var(--game-ui-scale) - 140px))}
 .lobby-unit::after{content:'';position:absolute;bottom:1%;left:50%;width:65%;height:5%;transform:translateX(-50%);background:radial-gradient(ellipse,#07132388 0%,#091b3744 45%,transparent 72%);pointer-events:none;z-index:-1}
 @media(max-width:650px){#modal .hero-detail-header .detail-portrait{width:64px;height:76px;min-width:64px}}
+
+/* Native viewport layout: never divide the board width or zoom its ancestors. */
+.board-viewport>.app{max-width:none}
+.app[data-tab=roster] .content-panel{width:min(2200px,100%)}
+/* Intrinsic card rows must not shrink into the available scrollport. */
+#tab-roster .formation-slots{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(132px,1fr));grid-auto-rows:minmax(132px,1fr);min-height:412px;max-height:none;flex:1 0 auto}
+#tab-roster .formation-slot{min-height:132px!important;grid-area:auto}
+#tab-roster .formation-slot-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:1fr auto auto 1fr;min-height:130px!important;height:100%;padding:18px 9px 8px;gap:2px 6px;overflow:visible}
+#tab-roster .formation-slot-main .formation-figure{grid-area:1 / 1 / 5 / 2;position:relative;width:100%;height:100%;min-height:100px;max-height:none;align-self:stretch;overflow:visible}
+#tab-roster .formation-slot-main>strong{grid-area:2 / 2;align-self:center;font-size:15px;line-height:1.4;overflow-wrap:anywhere}
+#tab-roster .formation-slot-main>small{grid-area:3 / 2;align-self:center;font-size:12px;line-height:1.4}
+#tab-roster .formation-slot-main>.formation-stars{grid-area:4 / 2;align-self:start;font-size:11px;letter-spacing:0;line-height:1.4}
+#tab-roster .formation-slot.empty .formation-slot-main{display:flex;justify-content:center;min-height:130px!important}
+#tab-roster .roster-grid{grid-auto-rows:max-content;align-content:start;align-items:start;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));overflow-y:auto}
+#tab-roster .formation-card{display:block;align-self:start;height:auto;min-height:240px;max-height:none;overflow:hidden}
+#tab-roster .formation-card-main{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:112px 22px 18px 18px;justify-items:center;align-content:start;height:198px;min-height:198px;padding:22px 6px 0;gap:2px;overflow:visible}
+#tab-roster .formation-card-main .formation-figure{grid-area:1 / 1;width:100%;height:112px;min-height:112px;max-height:none;position:relative;flex:none}
+#tab-roster .formation-card-main>strong{grid-area:2 / 1;line-height:22px;font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tab-roster .formation-card-main>small{grid-area:3 / 1;line-height:18px;font-size:11px}
+#tab-roster .formation-card-main>.formation-stars{grid-area:4 / 1;line-height:18px;font-size:11px}
+#tab-roster .formation-figure img{position:absolute;inset:0;display:block;width:100%;height:100%;min-height:0;max-height:none;object-fit:contain;object-position:center;transform:none}
+#tab-roster .formation-on-team{top:23px;left:6px;font-size:9px;padding:0 4px}
+#tab-roster .formation-place{height:42px;min-height:42px}
+@media(min-width:2400px) and (min-height:1200px){
+ .app{--hud-height:clamp(86px,4vw,130px)}
+ .app .header-actions :is(.icon-button,.account-button){width:clamp(48px,2.4vw,82px);height:clamp(48px,2.4vw,82px)}
+ .app .header-actions svg{width:clamp(24px,1.2vw,40px);height:clamp(24px,1.2vw,40px)}
+ .app .currency b{font-size:clamp(19px,1vw,32px)}.app .captain b{font-size:clamp(16px,.8vw,25px)}
+ .app .lobby-nav{grid-template-columns:repeat(6,minmax(64px,160px)) minmax(20px,1fr) repeat(2,minmax(100px,180px))}
+ .app[data-tab=roster] .content-panel{font-size:16px}
+}
+@media(orientation:portrait) and (max-width:1000px){
+ #tab-roster .formation-slots{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,170px);min-height:348px;flex:none}
+ #tab-roster .formation-slot-main{display:flex;flex-direction:column;min-height:168px!important;padding:18px 4px 6px;gap:0;justify-content:start}
+ #tab-roster .formation-slot-main .formation-figure{width:100%;height:88px;min-height:88px;flex:none}
+ #tab-roster .formation-slot-main>strong{font-size:13px;line-height:18px}#tab-roster .formation-slot-main>small{line-height:16px}
+ #tab-roster .formation-slot-main>.formation-stars{align-self:center;line-height:16px}
+ #tab-roster .roster-grid{grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}
+ #tab-roster .formation-card-main{padding-inline:3px}
+}

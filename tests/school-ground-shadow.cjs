@@ -8,7 +8,5 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  }
  shadows=[];W.SchoolArt.hero(c,'horas',220,260,3,{groundX:220,groundY:300,skin:'horas_after_school',time:2});assert.equal(shadows.length,1);
  const count=allocations();for(let i=0;i<100;i++)W.SchoolArt.groundShadow(c,220,300,3);assert.equal(allocations(),count,'shadow surface cached across frames');
- const box={window:{}};vm.runInNewContext(fs.readFileSync('school/campus.js','utf8'),box);const scale=box.window.SchoolCampus.screenScale;
- for(const [w,h,s]of [[3840,2160,2],[2560,1440,4/3],[1920,1080,1],[390,844,1],[3840,1080,1]])assert.equal(scale(w,h),s);
- console.log('PASS 20 heroes keep one fixed floor shadow through jump samples, cached drawing, 4K canvas and TV/mobile scale bounds');
+ console.log('PASS 20 heroes keep one fixed floor shadow through jump samples, cached drawing, 4K canvas');
 })().catch(e=>{console.error(e);process.exitCode=1;});

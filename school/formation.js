@@ -34,7 +34,7 @@ window.SchoolFormation=(()=>{
   const portrait=id=>`<span class="formation-figure"><img src="${(window.SchoolArt.displayPortrait||window.SchoolArt.rosterPortrait||window.SchoolArt.portrait)(id,G.equippedSkin?.(ctx.getState(),id))}" alt="" draggable="false"></span>`;
   const stars=u=>`<span class="formation-stars" aria-label="${u.stars}성">${'★'.repeat(u.stars)}${'☆'.repeat(5-u.stars)}</span>`;
   const say=text=>{$('formation-status-live').textContent=text;};
-  function hint(){say(ctx.activityActive()?'던전 도전을 마친 뒤 편성을 바꿀 수 있어요.':selection?`${G.BY_ID[selection].name} 선택 · ${ctx.getState().team.length===6?'교체할':'넣을'} 자리를 누르세요. ESC로 취소`:'짧게 누르면 육성 · 꾹 눌러 끌면 배치 · 출전 중인 두 용병은 자리 교환');}
+  function hint(){say(ctx.activityActive()?'던전 도전을 마친 뒤 편성을 바꿀 수 있어요.':selection?`${G.BY_ID[selection].name} 선택 · ${ctx.getState().team.length===6?'교체할':'넣을'} 자리를 누르세요. ESC로 취소`:'짧게 누르면 육성 · 바로 끌면 배치 · 출전 중인 두 용병은 자리 교환');}
   function cleanup(){clearTimeout(hold);hold=0;const g=gesture;gesture=null;if(g?.node.hasPointerCapture?.(g.pointer))g.node.releasePointerCapture(g.pointer);ghost?.remove();ghost=null;root.classList.remove('is-placing');root.querySelectorAll('.drop-target').forEach(n=>n.classList.remove('drop-target'));}
   function cancel(){cleanup();selection=null;root.querySelectorAll('[data-form-select]').forEach(n=>{n.setAttribute('aria-pressed','false');n.textContent=ctx.getState()?.team.includes(n.dataset.formSelect)?'자리 변경':'배치';});root.querySelectorAll('.formation-card').forEach(n=>n.classList.remove('is-selected'));controls();hint();}
   function controls(){
@@ -95,22 +95,31 @@ window.SchoolFormation=(()=>{
   $('formation-search').addEventListener('input',e=>{query=String(e.target.value||'').slice(0,40);refresh();});
   root.addEventListener('contextmenu',e=>{if(e.target.closest('[data-form-drag]'))e.preventDefault();});
   root.addEventListener('dragstart',e=>e.preventDefault());
+  function startDrag(){
+   const g=gesture;if(!g||g.dragging||blocked()||!active()||g.scope!==ctx.scope())return;
+   clearTimeout(hold);hold=0;g.dragging=true;selection=g.id;suppressUntil=performance.now()+800;g.node.setPointerCapture?.(g.pointer);
+   ghost=document.createElement('div');ghost.className='formation-drag-ghost';ghost.setAttribute('aria-hidden','true');ghost.innerHTML=portrait(g.id)+`<b>${G.BY_ID[g.id].name}</b>`;document.body.append(ghost);
+   ghost.style.transform=`translate3d(${g.x-40}px,${g.y-72}px,0)`;root.classList.add('is-placing');say(`${G.BY_ID[g.id].name} · 놓을 자리로 끌어주세요`);
+  }
   root.addEventListener('pointerdown',e=>{
+   if(e.button===0&&e.isPrimary!==false)suppressUntil=0;
    const node=e.target.closest('[data-form-drag]');if(!node||e.button!==0||e.isPrimary===false||blocked()||!active())return;
-   cleanup();gesture={node,id:node.dataset.formDrag,pointer:e.pointerId,x:e.clientX,y:e.clientY,scope:ctx.scope(),dragging:false};
-   hold=setTimeout(()=>{
-    const g=gesture;if(!g||blocked()||!active()||g.scope!==ctx.scope())return cleanup();
-    g.dragging=true;selection=g.id;suppressUntil=performance.now()+800;node.setPointerCapture?.(g.pointer);
-    ghost=document.createElement('div');ghost.className='formation-drag-ghost';ghost.setAttribute('aria-hidden','true');ghost.innerHTML=portrait(g.id)+`<b>${G.BY_ID[g.id].name}</b>`;document.body.append(ghost);
-    ghost.style.transform=`translate3d(${g.x-40}px,${g.y-72}px,0)`;root.classList.add('is-placing');say(`${G.BY_ID[g.id].name} · 놓을 자리로 끌어주세요`);
-   },320);
+   cleanup();gesture={node,id:node.dataset.formDrag,pointer:e.pointerId,type:e.pointerType||'mouse',x:e.clientX,y:e.clientY,scope:ctx.scope(),dragging:false};
+   hold=setTimeout(startDrag,e.pointerType==='touch'?120:80);
   });
   root.addEventListener('touchmove',e=>{if(gesture?.dragging)e.preventDefault();},{passive:false});
   root.addEventListener('lostpointercapture',()=>{if(gesture?.dragging)cancel();});
   window.addEventListener('pointermove',e=>{
    const g=gesture;if(!g||e.pointerId!==g.pointer)return;
    if(!active()||g.scope!==ctx.scope()||blocked())return cleanup();
-   if(!g.dragging){if(Math.hypot(e.clientX-g.x,e.clientY-g.y)>10)cleanup();return;}
+   if(!g.dragging){
+    const dx=e.clientX-g.x,dy=e.clientY-g.y;
+    // Mouse/pen grabs begin on the first deliberate movement, with no hold wait.
+    // Touch keeps vertical scrolling available before its short hold activates.
+    if(g.type==='touch'&&Math.abs(dy)>8&&Math.abs(dy)>Math.abs(dx)*1.2){cleanup();suppressUntil=performance.now()+250;return;}
+    if(Math.hypot(dx,dy)<4)return;
+    startDrag();if(!gesture?.dragging)return;
+   }
    e.preventDefault();ghost.style.transform=`translate3d(${e.clientX-40}px,${e.clientY-72}px,0)`;
    const target=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-form-slot]');
    root.querySelectorAll('[data-form-slot]').forEach(n=>n.classList.toggle('drop-target',n===target));

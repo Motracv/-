@@ -1,7 +1,8 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-shadows1',
+  version:'school-fit1',
   entries:Object.freeze([
+    {version:'school-fit1',date:'2026.11.20',title:'화면 크기 · 편성 긴급 수정',items:['2560×1440 등에서 화면 오른쪽이 비던 배율 처리를 제거하고 창 전체를 사용하도록 수정했습니다.','편성 슬롯과 보유 용병 카드의 그림 영역 높이를 확보해 캐릭터가 잘리거나 보이지 않던 문제를 수정했습니다.','마우스로 누른 채 움직이면 바로 끌 수 있습니다. 정지 상태의 누르기 대기는 80ms로 단축하고 배치 직후 다음 입력이 막히던 문제도 수정했습니다.']},
     {version:'school-shadows1',date:'2026.11.20',title:'바닥 그림자 · 4K 화면 개선',items:['모험·예티·길드 보스·아레나에서 용병의 바닥 그림자를 강화했습니다. 점프와 시전 동작 중에도 그림자는 바닥 자리를 유지합니다.','큰 화면에서는 UI와 대화창 크기를 함께 조정합니다. 육성 화면은 전신 도트로 표시하고 편성 카드의 머리·발 잘림을 줄였습니다.']},
     {version:'school-overhaul2',date:'2026.11.20',title:'교정과 전투 화면 대규모 개편',items:[
       '로비 용병을 확대하고 더 선명한 그림을 사용합니다. 용병 관리 메뉴는 왼쪽, 던전·모험은 오른쪽으로 정리했으며 보급은 왼쪽 위에서 이용합니다. 받을 보상이 있는 메뉴에는 빨간 느낌표가 표시됩니다.',
