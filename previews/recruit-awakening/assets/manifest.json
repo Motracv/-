@@ -1,0 +1,56 @@
+[
+  {
+    "file": "classroom.webp",
+    "width": 1672,
+    "height": 941,
+    "alpha": false,
+    "bytes": 1689592,
+    "source": "exec-093bf7dd-24d9-4573-bb10-f4f7a4f8186c.png",
+    "encoding": "lossless WebP, original dimensions"
+  },
+  {
+    "file": "commander.webp",
+    "width": 1536,
+    "height": 1024,
+    "alpha": true,
+    "bytes": 661738,
+    "source": "exec-73f71e6b-7d0b-4b76-92c8-14d9d1531bdc.png",
+    "encoding": "lossless WebP, original dimensions"
+  },
+  {
+    "file": "horas-wake.webp",
+    "width": 1024,
+    "height": 1536,
+    "alpha": true,
+    "bytes": 1006128,
+    "source": "exec-2900bdf0-3ee7-4124-bf43-2a2de7a633c8.png",
+    "encoding": "lossless WebP, original dimensions"
+  },
+  {
+    "file": "horas-greeting.webp",
+    "width": 1122,
+    "height": 1402,
+    "alpha": true,
+    "bytes": 1579280,
+    "source": "exec-763d3e3d-239b-4200-a1e6-0f485d644312.png",
+    "encoding": "lossless WebP, original dimensions"
+  },
+  {
+    "file": "osia-greeting.webp",
+    "width": 1145,
+    "height": 1374,
+    "alpha": true,
+    "bytes": 1059218,
+    "source": "exec-f8c57ff8-32bb-40a0-ba73-de62b52622d1.png",
+    "encoding": "lossless WebP, original dimensions"
+  },
+  {
+    "file": "nari-greeting.webp",
+    "width": 1217,
+    "height": 1293,
+    "alpha": true,
+    "bytes": 1005232,
+    "source": "exec-92d73475-3225-4c38-bbfc-d4147d0e390e.png",
+    "encoding": "lossless WebP, original dimensions"
+  }
+]
