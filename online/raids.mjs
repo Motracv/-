@@ -27,7 +27,7 @@ export function createRaids(game){
   const result=await db.batch(statements);return result[0].meta.changes>0;
  }
  async function update(db,gid,id,data,now){
-  await db.prepare('INSERT OR IGNORE INTO school_raids(guild_id,payload,updated_at) VALUES(?,?,?)').bind(gid,JSON.stringify({hp:R.HP,cycle:1,room:null,receipts:[]}),now).run();
+  await db.prepare('INSERT OR IGNORE INTO school_raids(guild_id,payload,updated_at) VALUES(?,?,?)').bind(gid,JSON.stringify({hp:R.HP,cycle:1,room:null,receipts:[],rotation:R.rotation(now).key,bossId:R.rotation(now).bossId}),now).run();
   for(let attempt=0;attempt<6;attempt++){
    const row=await db.prepare('SELECT * FROM school_raids WHERE guild_id=?').bind(gid).first();raidRequire(row,'길드를 찾지 못했어요.',404);
    const s=JSON.parse(row.payload),before=game.clone(s),kind=data.kind,key=id+':'+data.requestId;let room=s.room,start=false;
@@ -43,15 +43,21 @@ export function createRaids(game){
     if(!await persist(db,gid,row,s,before,false,now))continue;
     continue;
    }
+   const rotation=R.rotation(now);
+   if(room?.status!=='fighting'&&s.rotation!==rotation.key){s.rotation=rotation.key;s.bossId=rotation.bossId;s.hp=R.HP;s.cycle++;
+    // Existing lobbies keep their members, but the changed damage rule requires ready again.
+    if(room?.status==='lobby')for(const m of room.members)m.ready=false;else s.room=room=null;
+   }
+   const boss=R.bossInfo(s.bossId||'balloon'),eligible=save=>save.team.some(h=>R.acceptsDamage({id:boss.id},R.magical(game,h)));
    const duplicate=kind!=='state'&&s.receipts.includes(key);
    if(kind==='leave'&&(!room||data.roomId!==room.id||!room.members.some(m=>m.account===id))){if(JSON.stringify(s)!==JSON.stringify(before)){if(!await persist(db,gid,row,s,before,false,now))continue;}await db.prepare('DELETE FROM school_raid_slots WHERE account_id=? AND room_id=?').bind(id,String(data.roomId||'')).run();return s;}
    if(kind!=='state'&&!duplicate){
     raidRequire((await member(db,id))?.guild_id===gid,'길드 소속이 바뀌었어요.',403);
     if(kind==='create'){
-     raidRequire(s.hp>0,'벌룬을 처치했어요. 다음 벌룬을 열어 주세요.',409);raidRequire(!room||room.status==='finished','이미 열린 길드 전투방에 참가해 주세요.',409);
+     raidRequire(s.hp>0,'보스를 처치했어요. 다음 보스를 열어 주세요.',409);raidRequire(!room||room.status==='finished','이미 열린 길드 전투방에 참가해 주세요.',409);
      s.room=room={id:raidId(),host:id,status:'lobby',createdAt:now,members:[{account:id,seen:now,ready:false}],battle:null};
     }else if(kind==='next'){
-     raidRequire(s.hp===0&&room?.status!=='fighting','현재 벌룬을 먼저 처치해 주세요.',409);s.hp=R.HP;s.cycle++;s.room=room=null;
+     raidRequire(s.hp===0&&room?.status!=='fighting','현재 보스를 먼저 처치해 주세요.',409);s.hp=R.HP;s.cycle++;s.room=room=null;
     }else{
      raidRequire(room&&data.roomId===room.id,'전투방이 바뀌었어요. 목록을 다시 확인해 주세요.',409);
      const m=room.members.find(m=>m.account===id);
@@ -61,12 +67,12 @@ export function createRaids(game){
        if(room.status==='fighting'){const team=room.battle.teams.find(t=>t.account===id);if(team){team.withdrawn=true;for(const u of team.units)u.hp=0;}if(room.battle.teams.every(t=>t.units.every(u=>u.hp<=0))){room.battle.ended=true;room.battle.outcome='down';room.status='finished';}}
        room.members=room.members.filter(x=>x.account!==id);if(!room.members.length&&room.status==='lobby')s.room=room=null;else if(room.host===id)room.host=room.members[0]?.account||null;
       }
-      else if(kind==='ready'){raidRequire(room.status==='lobby','대기실에서 준비할 수 있어요.',409);const own=(await saves(db,[m]))[0].save;raidRequire(own.team.some(h=>R.magical(game,h)),'마법 피해를 주는 용병을 한 명 이상 편성해 주세요.');m.ready=!m.ready;}
+      else if(kind==='ready'){raidRequire(room.status==='lobby','대기실에서 준비할 수 있어요.',409);const own=(await saves(db,[m]))[0].save;raidRequire(eligible(own),boss.id==='twins'?'물리 공격 용병을 한 명 이상 편성해 주세요.':'마법 공격 용병을 한 명 이상 편성해 주세요.');m.ready=!m.ready;}
       else if(kind==='start'){
        raidRequire(room.status==='lobby'&&room.host===id,'방장만 시작할 수 있어요.',403);raidRequire(room.members.every(m=>m.ready&&now-m.seen<30000),'모든 단원이 접속하여 준비를 완료해야 해요.',409);
        for(const m of room.members){const current=await member(db,m.account);raidRequire(current?.guild_id===gid,'길드를 나간 단원이 있어요. 대기실을 다시 열어 주세요.',409);const d=await db.prepare('SELECT used FROM school_raid_days WHERE account_id=? AND day=?').bind(m.account,game.day(now)).first();raidRequire((d?.used||0)<5,'오늘 5회를 사용한 단원이 있어요.',409);}
-       const parties=await saves(db,room.members);raidRequire(parties.every(p=>p.save.team.some(h=>R.magical(game,h))),'각 편성에 마법 공격 용병이 필요해요.',409);
-       room.battle=R.create(game,parties,now,crypto.getRandomValues(new Uint32Array(1))[0],s.hp);room.status='fighting';start=true;
+       const parties=await saves(db,room.members);raidRequire(parties.every(p=>eligible(p.save)),boss.id==='twins'?'각 편성에 물리 공격 용병이 필요해요.':'각 편성에 마법 공격 용병이 필요해요.',409);
+       room.battle=R.create(game,parties,now,crypto.getRandomValues(new Uint32Array(1))[0],s.hp,boss.id);room.status='fighting';start=true;
       }
      }
     }
@@ -84,7 +90,7 @@ export function createRaids(game){
   let room=null;if(s.room){room=game.clone(s.room);delete room.createdAt;room.members=await Promise.all(room.members.map(async m=>{const n=await db.prepare("SELECT n.display_name,s.payload AS appearance,json_extract(s.payload,'$.team') AS team FROM school_names n JOIN school_saves s ON s.account_id=n.account_id WHERE n.account_id=?").bind(m.account).first();let team;try{team=JSON.parse(n?.team);}catch{}return{account:m.account,name:n?.display_name||'단장',ready:m.ready,online:now-m.seen<15000,isMe:m.account===id,heroes:Array.isArray(team)?team.filter(h=>game.BY_ID[h]).map(h=>({id:h,skin:game.equippedSkin(JSON.parse(n.appearance),h),magic:R.magical(game,h)})):[]};}));
    if(room.battle){delete room.battle.seed;for(const t of room.battle.teams){delete t.synergy;for(const u of t.units){if(u.id==='osia'&&u.exclusive?.id==='osia_scepter')u.exclusive={id:'osia_scepter',owner:'osia'};else delete u.exclusive;}}}
   }
-  return{guildId:gid,serverTime:now,hp:s.hp,max:R.HP,cycle:s.cycle,remaining:5-(day?.used||0),resetsAt:(game.day(now)+1)*86400000-9*3600000,room,rewards,ranks:ranks.map(r=>({name:r.name,damage:r.damage,...game.publicProfile(r.appearance)}))};
+  return{guildId:gid,serverTime:now,boss:R.bossInfo(s.room?.status==='fighting'?s.room.battle.boss.id:s.bossId),rotation:R.rotation(now),hp:s.hp,max:R.HP,cycle:s.cycle,remaining:5-(day?.used||0),resetsAt:(game.day(now)+1)*86400000-9*3600000,room,rewards,ranks:ranks.map(r=>({name:r.name,damage:r.damage,...game.publicProfile(r.appearance)}))};
  }
  return{async request(request,env,data,accounts){
   const now=Date.now(),signed=await accounts.identity(request,env,now);raidRequire(signed,'Google 계정으로 로그인해 주세요.',401);raidRequire(data.catalogVersion===game.CATALOG_VERSION,'게임이 업데이트됐어요. 새로고침해 주세요.',426);

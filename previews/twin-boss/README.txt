@@ -24,8 +24,8 @@ connected alpha silhouette once. Do not blindly crop the regular 4x2 cells.
 Pixel sizes are preserved across poses, rather than stretching every pose to the
 same bounding height. Ground shadows are independent of body lift and rotation.
 
-Art preview only: rotating weekend boss scheduling, raid stats, magic immunity
-and damage balance are not changed by this preview. Those belong to the live
-raid simulation integration after the design is approved.
+This standalone preview does not change gameplay. The approved art is also used
+by the live guild raid through school/raid-twins-art.js. Server raid-engine.js
+handles weekly rotation, physical-only damage and synchronized hit events.
 
 VFX are sampled from absolute encounter time. Afterimages retain their birth positions; scrubbing and pause do not leave old particles behind. Reduced motion disables trails and camera shake. Cached tint/outline textures are built once per atlas.

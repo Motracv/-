@@ -9,19 +9,20 @@ const FRAMES=[
  {rect:[703,684,450,275],foot:[150,272]}, {rect:[1138,698,363,261],foot:[131,258]}
 ];
 const COMBOS={cross:{name:'교차 협공',duration:5.4,hits:[1.58,1.58]},relay:{name:'추격 연계',duration:5.6,hits:[1.15,1.82]},slam:{name:'협공 · 내려찍기',duration:6,hits:[2.05,2.05]}};
-function sample(t,kind='cross',reduced=false){
- const def=COMBOS[kind]||COMBOS.cross;t=clamp(t,0,def.duration);const hits=def.hits;
- const actors=hits.map((hit,i)=>{const home=i?1010:330,contact=i?850:490,charge=hit-(kind==='slam'?.85:.62),p=(t-charge)/(hit-charge);let pose=0,x=home,lift=0,rotation=0;
+function sample(t,kind='cross',reduced=false,layout=null){
+ const def=COMBOS[kind]||COMBOS.cross;t=clamp(t,0,def.duration);const hits=layout?.hits||def.hits;
+ const actors=hits.map((hit,i)=>{const path=layout?.paths?.[i],home=path?.home??(i?1010:330),contact=path?.contact??(i?850:490),charge=hit-(kind==='slam'?.85:.62),p=(t-charge)/(hit-charge);let pose=0,x=home,lift=0,rotation=0;
  if(t>=charge&&t<hit-.26){pose=1;x=home+(i?14:-14)*Math.sin(clamp(p)*Math.PI);}
  else if(t>=hit-.26&&t<hit+.14){pose=2;x=mix(home,contact,smooth((t-hit+.26)/.26));rotation=(i?-1:1)*.025;}
  else if(t>=hit+.14&&t<hit+.55){pose=3;x=contact;}
  else if(t>=hit+.55&&t<hit+1.25){pose=1;x=mix(contact,home,smooth((t-hit-.55)/.7));}
  if(kind==='slam'&&t>charge&&t<hit) {lift=Math.sin(clamp(p)*Math.PI)*105;x=mix(home,contact,smooth(p));}
+ const age=t-hit,groundY=path?.contactY==null?(path?.y??570):path.y+(path.contactY-path.y)*clamp((age+.85)/.85)*(1-clamp((age-.55)/.7));
  const breathing=pose===0&&!reduced?Math.sin(t*2.5+i)*1.4:0;
  if(reduced){x=t>=hit&&t<hit+.55?contact:home;lift=0;rotation=0;}
- return {id:i?'green':'red',frame:i*4+pose,x,y:570,groundX:x,groundY:570,lift:lift+breathing,rotation,facing:i?-1:1};});
+ return {id:i?'green':'red',frame:i*4+pose,x,y:groundY,groundX:x,groundY,lift:lift+breathing,rotation,facing:path?.facing??(i?-1:1)};});
  const impact=t-Math.max(...hits),phase=t<Math.min(...hits)-.65?'대치':t<Math.min(...hits)?'공격 예고':t<Math.max(...hits)+.2?'협동 타격':t<Math.max(...hits)+1.25?'회수':'대기';
- return {actors,t,kind,impact,hits,phase,duration:def.duration};
+ return {actors,t,kind,impact,hits,paths:layout?.paths,phase,duration:def.duration};
 }
 async function load(url){
  const img=new Image();img.src=url;await img.decode();const sheet=document.createElement('canvas');sheet.width=img.width;sheet.height=img.height;const c=sheet.getContext('2d',{willReadFrequently:true});c.drawImage(img,0,0);const source=c.getImageData(0,0,img.width,img.height),w=img.width,h=img.height,labels=new Int32Array(w*h),stack=new Int32Array(w*h);let index=0;

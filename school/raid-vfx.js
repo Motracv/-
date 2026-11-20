@@ -16,6 +16,7 @@ window.SchoolRaidFX=(()=>{
   const {w,h,now,dt,battle,focus,events,bg,atlas,bars,reduced,units:sourceUnits}=o;
   const t=o.visualTime??(battle?battle.elapsed+Math.min(1000,now-o.received):0),live=o.live;
   const units=sourceUnits.map(u=>window.SchoolCombatFeedback?.hyeokjinPresentation(u,focus,events,now,t,!live)||u);
+  const twins=(battle?.boss.id||o.bossId)==='twins';
   const floor=h*.88,size=Math.min(h*.74,360),scale=size*.36/49,bx=790,by=floor;
   const recent=events.filter(e=>now>=e.shown&&now-e.shown<(e.breath?4750:2500)),own=recent.filter(e=>e.team===focus),actors=new Map();
   for(const u of units)if(live&&u.breath&&!own.some(e=>e.id===u.id&&e.kind==='cast'&&e.breath))own.push({kind:'cast',id:u.id,team:focus,stage:4,breath:true,shown:now-(t-u.breath.began)});
@@ -27,17 +28,24 @@ window.SchoolRaidFX=(()=>{
   const positions=units.map((u,i)=>({x:150+(i%3)*113,y:floor-(i<3?Math.min(scale*44,h*.24):0)}));
   const target=positions[units.findIndex(u=>u.id===hurtEvent?.id)]||positions[0]||{x:260,y:floor};
   let bossX=bx,bossY=by+(live&&!reduced?Math.sin(now/400)*2:0),pose=0;
-  if(cast)pose=cast.id==='guard'?4:cast.id==='rise'?2:['pull','storm','dash'].includes(cast.id)?3:1;
-  if(impact){pose={basic:3,slam:1,rise:2,guard:4,dash:5,pull:3,storm:3}[impact.pattern]??0;if(!reduced){if(impact.pattern==='dash')bossX-=Math.sin(age*PI)*380;else if(impact.pattern==='basic')bossX-=Math.sin(age*PI)*24;bossY-=['rise','storm'].includes(impact.pattern)?Math.sin(age*PI)*9:0;}}
+  if(cast&&!twins)pose=cast.id==='guard'?4:cast.id==='rise'?2:['pull','storm','dash'].includes(cast.id)?3:1;
+  if(impact&&!twins){pose={basic:3,slam:1,rise:2,guard:4,dash:5,pull:3,storm:3}[impact.pattern]??0;if(!reduced){if(impact.pattern==='dash')bossX-=Math.sin(age*PI)*380;else if(impact.pattern==='basic')bossX-=Math.sin(age*PI)*24;bossY-=['rise','storm'].includes(impact.pattern)?Math.sin(age*PI)*9:0;}}
+  const twinTarget=hurtEvent?target:positions[units.findIndex(u=>u.hp>0)]||target;
+  const twinOptions={battle,time:t,target:twinTarget,floor,h,reduced,live};
+  if(twins&&window.SchoolRaidTwinsArt){const shot=SchoolRaidTwinsArt.scene(twinOptions);bossX=shot.origin.x+shot.s.actors.reduce((n,a)=>n+a.x,0)/2*shot.scale;bossY=shot.origin.y+shot.s.actors.reduce((n,a)=>n+a.y-a.lift,0)/2*shot.scale;}
   c.save();if(!reduced&&impact&&impact.pattern!=='basic'&&age<.22){const decay=1-age/.22;c.translate(Math.sin(age*90)*3*decay,Math.cos(age*68)*1.8*decay);}
   c.fillStyle='#101d34';c.fillRect(0,0,w,h);if(bg.complete&&bg.naturalWidth)c.drawImage(bg,0,0,w,h);
   if(live){const hyeok=units.filter(u=>u.id==='hyeokjin');window.SchoolHyeokjinArt?.field(c,hyeok,t,w,h,reduced);const shake=window.SchoolHyeokjinArt?.shake(hyeok[0],t,reduced);if(shake)c.translate(shake.x,shake.y);}
   if(live&&breath){window.SchoolOsiaBreathArt?.field(c,(now-breath.shown)/1000,w,h,reduced);window.SchoolOsiaWeaponArt?.dragon(c,{source:positions[units.findIndex(u=>u.id===breath.id)],target:{x:bossX,y:bossY,aimY:bossY-size*.48},age:(now-breath.shown)/1000,reduced,economy:c.canvas.width<1000,scale:1.8,breath:true,layer:'back'});}
   // Floor warnings and energy gathering have silhouettes even with reduced motion.
-  if(live&&cast){c.save();const alpha=reduced?.45:.35+Math.sin(now/130)*.12;c.globalAlpha=alpha;c.fillStyle='#246bd5';c.beginPath();c.ellipse(270,floor-8,210,Math.min(42,h*.1),0,0,PI*2);c.fill();c.lineWidth=3;ring(c,270,floor-8,210,'#ffd8a4',.17);glow(c,bossX,bossY-size*.48,size*.55,'#80cfff',.9);for(let i=0;i<5;i++){const a=now/700+i*PI*.4;star(c,bossX+Math.cos(a)*size*.3,bossY-size*.5+Math.sin(a)*size*.22,5,'#d2f6ff',a);}c.restore();}
+  if(live&&cast&&!twins){c.save();const alpha=reduced?.45:.35+Math.sin(now/130)*.12;c.globalAlpha=alpha;c.fillStyle='#246bd5';c.beginPath();c.ellipse(270,floor-8,210,Math.min(42,h*.1),0,0,PI*2);c.fill();c.lineWidth=3;ring(c,270,floor-8,210,'#ffd8a4',.17);glow(c,bossX,bossY-size*.48,size*.55,'#80cfff',.9);for(let i=0;i<5;i++){const a=now/700+i*PI*.4;star(c,bossX+Math.cos(a)*size*.3,bossY-size*.5+Math.sin(a)*size*.22,5,'#d2f6ff',a);}c.restore();}
   if(battle?.boss.guardUntil>t){c.save();glow(c,bossX,bossY-size*.44,size*.7,'#7ce4ff',.65);c.lineWidth=3;ring(c,bossX,bossY-size*.43,size*.41,'#aff4ff',1.15);ring(c,bossX,bossY-size*.43,size*.47,'#6bafff',1.05);c.restore();}
-  if(atlas.complete&&atlas.naturalWidth){c.save();c.globalAlpha=o.hp===0?.35:1;SchoolArt.hitSprite(c,atlas,[pose%3*512,Math.floor(pose/3)*512,512,512,bossX-size/2,bossY-size*.93,size,size],(()=>{const e=events.findLast(e=>e.kind==='hit'&&e.amount>0&&e.shown<=now&&now-e.shown<200);return e?(now-e.shown)/1000:1;})());c.restore();}
+  if(!twins&&atlas.complete&&atlas.naturalWidth){c.save();c.globalAlpha=o.hp===0?.35:1;SchoolArt.hitSprite(c,atlas,[pose%3*512,Math.floor(pose/3)*512,512,512,bossX-size/2,bossY-size*.93,size,size],(()=>{const e=events.findLast(e=>e.kind==='hit'&&e.amount>0&&e.shown<=now&&now-e.shown<200);return e?(now-e.shown)/1000:1;})());c.restore();}
   if(battle?.boss.stunUntil>t)for(let i=0;i<3;i++)star(c,bossX+(i-1)*16,bossY-size*.95+Math.sin(now/180+i)*4,5,'#ffea94',now/1000);
+  if(twins){
+   if(live&&cast){c.save();c.strokeStyle='#ffc47e';c.globalAlpha=.65;c.lineWidth=2;c.setLineDash([7,5]);ring(c,twinTarget.x,twinTarget.y,58,'#ffc47e',.22);c.setLineDash([]);c.restore();}
+   window.SchoolRaidTwinsArt?.draw(c,twinOptions,'body');
+  }
   units.forEach((u,i)=>{
    const p=positions[i],a=actors.get(u.id)||{},out=a.outgoing,outAge=out?(now-out.shown)/1000:9,castAge=a.cast?(now-a.cast.shown)/1000:9,hitAge=a.hurt?(now-a.hurt.shown)/1000:9;
    const breathAge=breath?.id===u.id?(now-breath.shown)/1000:undefined;
@@ -71,7 +79,7 @@ window.SchoolRaidFX=(()=>{
    }
   }
   // Boss effects terminate at the actual server-selected target (including taunt).
-  if(impact){const id=impact.pattern,fade=1-age;c.save();c.globalAlpha=fade;
+  if(impact&&!twins){const id=impact.pattern,fade=1-age;c.save();c.globalAlpha=fade;
    if(id==='basic'||id==='pull'||id==='dash'){
     const f=reduced?1:Math.min(1,age*3),tx=mix(bossX-30,target.x,f),ty=mix(bossY-size*.5,target.y-scale*25,f);
     chain(c,bossX-20,bossY-size*.5,tx,ty,-Math.sin(age*PI)*65);glow(c,tx,ty,id==='basic'?25:65,'#e0f9ff',.9);burst(c,target.x,target.y-scale*25,age,'#99e7ff',reduced?4:12,id==='basic'?.8:1.5);
@@ -86,6 +94,7 @@ window.SchoolRaidFX=(()=>{
    }else{glow(c,bossX,bossY-size*.46,size*.8,'#d9faff');for(let i=0;i<3;i++){c.lineWidth=3;ring(c,bossX,bossY-size*.43,size*(.3+i*.08+age*.1),'#b7edff',1);}}
    c.restore();
   }
+  if(twins)window.SchoolRaidTwinsArt?.draw(c,twinOptions,'front');
   // Every attack remains visible, even when a physical attack is immune.
   for(const e of own.filter(e=>e.id!=='kazua'&&!(e.id==='horas'&&window.SchoolHorasSkinArt?.active(units.find(u=>u.id==='horas')?.skin))&&['hit','immune'].includes(e.kind)&&now-e.shown<850).slice(-12)){
    const p=positions[units.findIndex(u=>u.id===e.id)];if(!p)continue;const f=clamp((now-e.shown)/850),travel=clamp(f/.4),color=e.kind==='immune'?'#c5c9df':e.id==='horas'?'#ffc3e7':e.id==='lava'?'#a0ffe1':e.id==='spica'?'#d9f6ff':'#8ee5ff';
@@ -105,7 +114,7 @@ window.SchoolRaidFX=(()=>{
   window.SchoolCombatFeedback?.drawNumbers(c,own,now/1000,id=>id==='boss'?{x:bossX,y:bossY,numberY:bossY-size*.65}:positions[units.findIndex(u=>focus+':'+u.id===id)],{format:'coop',scale:Math.max(1,Math.min(1.6,h/300)),reduced,limit:80});
   const numbers=own.filter(e=>['immune','miss','dodge'].includes(e.kind)&&now-e.shown<1100).slice(-18);
   for(const e of numbers){const p=positions[units.findIndex(u=>u.id===e.id)];if(!p)continue;const f=(now-e.shown)/1100,isOut=['hit','immune','miss'].includes(e.kind),x=isOut?bossX-50+(e.seq%5)*22:p.x,y=(isOut?bossY-size*.7:p.y-scale*40)-f*27-(e.seq%2)*13;
-   const word=e.kind==='dodge'?'회피':e.kind==='hurt'?(e.amount?'-'+Math.round(e.amount).toLocaleString('ko-KR'):'보호막 '+Math.round(e.absorbed).toLocaleString('ko-KR')):e.kind==='heal'?'+'+e.amount.toLocaleString('ko-KR'):e.kind==='shield'?'보호막 +'+e.amount.toLocaleString('ko-KR'):e.kind==='immune'?'물리 무효':e.kind==='miss'?'빗나감':e.amount.toLocaleString('ko-KR');
+   const word=e.kind==='dodge'?'회피':e.kind==='hurt'?(e.amount?'-'+Math.round(e.amount).toLocaleString('ko-KR'):'보호막 '+Math.round(e.absorbed).toLocaleString('ko-KR')):e.kind==='heal'?'+'+e.amount.toLocaleString('ko-KR'):e.kind==='shield'?'보호막 +'+e.amount.toLocaleString('ko-KR'):e.kind==='immune'?(twins?'마법 무효':'물리 무효'):e.kind==='miss'?'빗나감':e.amount.toLocaleString('ko-KR');
    c.save();c.globalAlpha=1-f*f;c.font=`800 ${Math.max(13,Math.min(20,h*.065))}px Pretendard, sans-serif`;c.textAlign='center';c.lineWidth=3;c.strokeStyle='#102034';c.strokeText(word,x,y);c.fillStyle=e.kind==='heal'?'#afffc5':e.kind==='hurt'&&e.amount?'#ffb0a0':e.kind==='shield'||e.absorbed?'#c6edff':e.crit?'#ffe98c':'#fff9e2';c.fillText(word,x,y);
    if(e.crit)star(c,x-30,y-6,6,'#ffeb85',.2);if(e.kind==='hurt'&&e.amount&&e.absorbed){c.font='11px Pretendard, sans-serif';c.fillStyle='#b6e7ff';c.fillText('보호막 '+e.absorbed,x,y+13);}c.restore();
   }
