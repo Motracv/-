@@ -1,7 +1,12 @@
 /* Public release notes only; opening this board never changes a game save. */
 window.SchoolPatchNotes = Object.freeze({
-  version:'school-lobby-news1',
+  version:'school-main-music1',
   entries:Object.freeze([
+    {version:'school-main-music1',date:'2026.11.20',title:'겨울 저녁의 메인 테마',items:[
+      'Winter Evening을 게임 시작 화면과 안뜰·메뉴의 메인 배경음악으로 추가했습니다. 화면을 한 번 누르면 음악이 시작되고 반복 재생됩니다.',
+      '설정에서 배경음악과 효과음을 각각 켜고 끄거나 0~100%로 조절할 수 있습니다. 전체 음소거와 음량 설정은 기기에 저장됩니다. 로그인 전 시작 화면에도 소리 설정을 추가했습니다.',
+      '전투·뽑기 연출·잠수모드나 다른 앱을 보는 동안에는 메인 음악을 멈추고, 메뉴로 돌아오면 이어서 재생합니다.'
+    ]},
     {version:'school-lobby-news1',date:'2026.11.20',title:'안뜰 소식 배너 · 새로운 이름으로',items:[
       '안뜰 왼쪽 위에 모집·축제·배틀패스·주요 소식이 순서대로 넘어가는 배너를 추가했습니다. 누르면 해당 화면으로 이동하며, 아래 표시를 눌러 선택하거나 모바일에서 좌우로 넘길 수 있습니다.',
       '배너에 마우스를 올리거나 키보드로 선택하면 자동 넘김이 잠시 멈춥니다. 일시정지 버튼을 제공하며 모션 줄이기 설정에서는 자동 넘김을 끕니다. 종료된 이벤트는 표시하지 않습니다.',

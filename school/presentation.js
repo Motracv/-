@@ -5,6 +5,7 @@
   const queue = [], known = new Map(), voices = new Set(), springs = new WeakMap();
   const motionQuery = root.matchMedia?.('(prefers-reduced-motion: reduce)');
   const soundEnabled = () => overrides.sound ?? Boolean(config.soundEnabled?.());
+  const soundVolume = () => {const v=config.soundVolume?.();return Number.isFinite(v)?Math.max(0,Math.min(1,v)):1;};
   const reduced = () => overrides.reduced ?? (typeof config.reducedMotion === 'function' ? Boolean(config.reducedMotion()) : Boolean(motionQuery?.matches || document.documentElement.dataset.motion === 'reduced'));
   const alive = job => current === job && !job.finished;
   const node = (tag, className, text) => { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = text; return el; };
@@ -14,7 +15,7 @@
     try {
       const Context = root.AudioContext || root.webkitAudioContext;
       if (!Context) return;
-      if (!audio || audio.state === 'closed') { audio = new Context(); master = audio.createGain(); master.gain.value = .55; master.connect(audio.destination); }
+      if (!audio || audio.state === 'closed') { audio = new Context(); master = audio.createGain(); master.gain.value = .55 * soundVolume(); master.connect(audio.destination); }
       if (audio.state === 'suspended') audio.resume().catch(() => {});
     } catch {}
   }
@@ -392,6 +393,7 @@
   }
   function refreshPreferences() {
     if (!soundEnabled()) stopVoices();
+    if(master)master.gain.value=.55 * soundVolume();
     if (dialog) dialog.dataset.motion = reduced() ? 'reduced' : 'full';
     if (reduced() && current) for (const animation of [...current.animations]) { try { animation.finish(); } catch {} }
   }

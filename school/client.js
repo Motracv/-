@@ -33,6 +33,8 @@
   let preferences; try { preferences = JSON.parse(storage.get('school-settings') || '{}'); } catch { preferences = {}; }
   preferences ||= {};
   let sound = typeof preferences.sound === 'boolean' ? preferences.sound : storage.get('school-sound') === 'on', renderKey = '', dungeonRenderKey = '', partyKey = '', lastSave = 0, lastSync = 0;
+  let musicEnabled = preferences.music !== false, musicVolume = (window.SchoolMusic?.clamp(preferences.musicVolume) ?? .35), sfxVolume = (window.SchoolMusic?.clamp(preferences.sfxVolume, .7) ?? .7), muted = preferences.muted === true;
+  let music = null;
   const CLOUD_CACHE = 'school-confirmed-cloud-view';
   let cachedPowerKey = '', cachedPower = 0;
   let guestQueue = Promise.resolve(), guestTickPending = false, guestSaveFailed = false, mutexDatabase;
@@ -41,7 +43,7 @@
   let theme = preferences.theme === 'dark' ? 'dark' : 'light', operation = '', completedActionKey = '', confirmedScope = '', confirmedSeq = 0, rankingMode = 'level', rankingGeneration = 0;
   const rankingCache = new Map();
   const Presentation = window.SchoolPresentation;
-  Presentation?.configure({soundEnabled:()=>sound&&!!entry?.entered&&!afk?.active&&!piyuGuide?.storyOpen, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
+  Presentation?.configure({soundVolume:()=>sfxVolume,soundEnabled:()=>sound&&!muted&&sfxVolume>0&&!!entry?.entered&&!afk?.active&&!piyuGuide?.storyOpen, reducedMotion:()=>reduced, heroInfo:id=>G.BY_ID[id], portrait:id=>portrait(id,'presentation-portrait')});
   try { token = JSON.parse(storage.get(SESSION) || storage.get(SESSION, true) || 'null')?.token || null; if (token) storage.set(SESSION, JSON.stringify({token})); } catch {}
   let social, guild, raid, yeti, trainingHold = null, trainClickUntil = 0, lastGuestTick = 0, lastImpactSound = 0;
   let repairBattle = () => false;
@@ -164,13 +166,16 @@
     document.documentElement.dataset.motion = reduced ? 'reduced' : 'full';
     document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#182536' : '#f8fafc';
     if (save) {
-      if (!storage.set('school-settings', JSON.stringify({theme,motion:reduced?'reduced':'full',sound}))) toast('설정을 저장하지 못했어요. 이 화면에서만 적용됩니다.');
+      if (!storage.set('school-settings', JSON.stringify({theme,motion:reduced?'reduced':'full',sound,music:musicEnabled,musicVolume,sfxVolume,muted}))) toast('설정을 저장하지 못했어요. 이 화면에서만 적용됩니다.');
       storage.set('school-sound', sound ? 'on' : 'off');
     }
-    refreshSound(); Presentation?.refreshPreferences();
+    refreshSound(); Presentation?.refreshPreferences(); music?.update();
   }
   function settingsModal() {
     openModal('설정', `<div class="settings-list"><label class="setting-row" for="setting-theme"><span><b>다크 모드</b><small>눈이 편한 차분한 어두운 화면</small></span><input id="setting-theme" type="checkbox" role="switch" ${theme === 'dark' ? 'checked' : ''}></label><label class="setting-row" for="setting-sound"><span><b>효과음</b><small>전투·모집·성장 효과음</small></span><input id="setting-sound" type="checkbox" role="switch" ${sound ? 'checked' : ''}></label><label class="setting-row" for="setting-motion"><span><b>모션 줄이기</b><small>큰 움직임과 섬광을 간단하게</small></span><input id="setting-motion" type="checkbox" role="switch" ${reduced ? 'checked' : ''}></label></div><div class="settings-links"><button class="secondary" id="settings-help">${icon('book')} 게임 안내</button><button class="secondary" id="settings-rotate">${icon('fullscreen')} 전체 화면 · 상태바</button></div><div id="school-install-controls"></div><p class="settings-note">설정은 이 브라우저에 저장됩니다.</p>`, 'settings');
+    const audioPanel=document.createElement('section');audioPanel.className='audio-settings';
+    audioPanel.innerHTML=`<h3>소리 설정</h3><label class="setting-row" for="setting-mute"><span><b>전체 음소거</b><small>배경음악과 효과음을 모두 끄기</small></span><input id="setting-mute" type="checkbox" role="switch" ${muted?'checked':''}></label><label class="setting-row" for="setting-music"><span><b>배경음악</b><small>Winter Evening · 메인 테마</small></span><input id="setting-music" type="checkbox" role="switch" ${musicEnabled?'checked':''}></label><label class="audio-volume" for="setting-music-volume"><span>BGM 음량</span><input id="setting-music-volume" type="range" min="0" max="100" step="1" value="${Math.round(musicVolume*100)}" aria-valuetext="${Math.round(musicVolume*100)}%"><output id="music-volume-value" for="setting-music-volume">${Math.round(musicVolume*100)}%</output></label><label class="audio-volume" for="setting-sfx-volume"><span>효과음 음량</span><input id="setting-sfx-volume" type="range" min="0" max="100" step="1" value="${Math.round(sfxVolume*100)}" aria-valuetext="${Math.round(sfxVolume*100)}%"><output id="sfx-volume-value" for="setting-sfx-volume">${Math.round(sfxVolume*100)}%</output></label><p>화면을 한 번 누르면 음악이 시작돼요. 전투·뽑기 연출·잠수모드와 다른 앱을 보는 동안에는 음악이 멈춥니다. 음소거를 풀면 설정한 음량을 유지해요.</p>`;
+    $('modal-content').querySelector('.settings-list').after(audioPanel);
     window.SchoolInstall?.renderControls?.($('school-install-controls'));
     $('settings-help').onclick = help; $('settings-rotate').onclick = () => { closeModal(); attemptLandscape(); };
     if(qol){
@@ -766,7 +771,7 @@
     if (periodic && now-lastUIRender < (battleVisible() || modalKind==='damage'?240:480)) return;
     lastUIRender = now;
     const quests = questSnapshot();
-    lobby?.render(state, serverNow(), quests);campus?.render(state);lobbyNews?.refresh();
+    lobby?.render(state, serverNow(), quests);campus?.render(state);lobbyNews?.refresh();music?.update();
     setText($('gold'), fmt(state.gold)); setText($('gems'), fmt(state.gems));
     setText($('captain-level'), `Lv.${state.captain.level}`);
     if (modalKind === 'captain' && $('captain-level-rewards')) {
@@ -1297,6 +1302,16 @@
     };
   }
   function bind() {
+    music=window.SchoolMusic?.create({preferences:()=>({music:musicEnabled,musicVolume,muted}),active:()=>!afk?.active&&!resultPresentationBusy()&&!['raid','yeti','social-arena'].includes(modalKind)&&(!entry?.entered||tab!=='adventure')});
+    if($('entry-audio-settings'))$('entry-audio-settings').onclick=settingsModal;
+    document.addEventListener('input',event=>{
+      const target=event.target;
+      if(!['setting-music-volume','setting-sfx-volume'].includes(target.id))return;
+      const value=window.SchoolMusic.clamp(Number(target.value)/100);
+      if(target.id==='setting-music-volume')musicVolume=value;else sfxVolume=value;
+      $(target.id==='setting-music-volume'?'music-volume-value':'sfx-volume-value').textContent=Math.round(value*100)+'%';
+      target.setAttribute('aria-valuetext',Math.round(value*100)+'%');applyPreferences();music?.unlock();
+    });
     entry=window.SchoolEntry.create({request,sdk,profile:()=>profile,authenticated:()=>!!token&&verifiedToken===token&&hasCloudState&&connected,hasToken:()=>!!token,
       login:acceptLogin,reconnect:useCloud,logout:logoutAccount,enter:()=>{
         updateOrientation();render();
@@ -1401,6 +1416,9 @@
     });
     document.addEventListener('change', event => {
       const target = event.target;
+      if (target.id === 'setting-music') { musicEnabled=target.checked;applyPreferences(true);music?.unlock(); }
+      if (target.id === 'setting-mute') { muted=target.checked;applyPreferences(true);music?.unlock(); }
+      if (target.id === 'setting-music-volume' || target.id === 'setting-sfx-volume') { applyPreferences(true);if(target.id==='setting-sfx-volume')play('tap'); }
       if (target.id === 'setting-theme') { theme = target.checked ? 'dark' : 'light'; applyPreferences(true); }
       if (target.id === 'setting-sound') { sound = target.checked; applyPreferences(true); play('tap'); }
       if (target.id === 'setting-motion') { reduced = target.checked; applyPreferences(true); }
