@@ -478,7 +478,7 @@
         if(event.kind==='hyeokjin-last')q.lastUntil=event.until;
         if(event.kind==='hyeokjin-cancel'){q.mode='idle';q.modeUntil=event.t;}
       }
-      if(from?.id==='rudes'){from.rudes||={shield:0,shieldUntil:0,cast:null};if(event.kind==='rudes-cast')from.rudes.cast={mode:event.mode,began:event.t};if(event.kind==='rudes-cancel')from.rudes.cast=null;if(event.kind==='rudes-shield'){from.rudes.shield=event.shield;from.rudes.shieldUntil=event.until;}}
+      if(from?.id==='rudes'){from.rudes||={shield:0,shieldUntil:0,cast:null};if(event.kind==='rudes-cast')from.rudes.cast={mode:event.mode,began:event.t};if(event.kind==='rudes-cancel')from.rudes.cast=null;if(event.kind==='rudes-shield'){from.rudes.shield=event.rudesShield;from.rudes.shieldUntil=event.until;}}
       if(from?.id==='kazua'){
         from.kazua||={mode:'fire',modeSince:0,power:1};
         if(event.kind==='dodge')from.dodgeAt=event.t;

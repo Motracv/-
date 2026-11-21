@@ -112,7 +112,7 @@
         const dealt=hit(target,u.atk*(mode==='basic'?r.basic:mode==='pierce'?r.pierce:r.fan)*watch,{rudesMode:mode,damageType:mode==='fan'?'magic':'physical',piercing:mode==='pierce',skill:mode!=='basic',shot:cast.hit});
         if(mode==='fan'&&dealt>0){const bond=allies.some(a=>a.id==='yaho'&&a.hp>0),cap=Math.floor(u.max*(bond?r.bondCap:r.shieldCap)),gained=Math.max(0,Math.min(Math.floor(dealt),cap-q.shield));
           q.shield+=gained;u.shield+=gained;q.shieldUntil=time+(bond?r.bondMs:r.shieldMs);
-          emit('rudes-shield',{to:u.id,amount:gained,shield:q.shield,until:q.shieldUntil,bond,name:'우산 보호막',element:'dark'});
+          emit('rudes-shield',{to:u.id,amount:gained,rudesShield:q.shield,shield:u.shield,until:q.shieldUntil,bond,name:'우산 보호막',element:'dark'});
         }
       }
     }

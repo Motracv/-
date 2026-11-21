@@ -21,13 +21,13 @@ console.log('PASS dedicated SSR banners, standard Kazua, exact one-time pity/gua
  const u=unit('rudes'),es=[unit('front',1e7),unit('middle',1e7),unit('rear',1e7)];es.forEach(e=>e.max=e.hp);
  const {hits,events}=run(u,[u],es,15500);assert(hits.filter(h=>!h.skill).every(h=>h.id==='rear'&&h.damageType==='physical'));
  for(const shot of[1,2])assert.deepEqual(hits.filter(h=>h.rudesMode==='pierce'&&h.shot===shot).map(h=>h.id),['front','middle','rear']);
- const fan=hits.filter(h=>h.rudesMode==='fan');assert.equal(fan.length,1);assert.equal(fan[0].id,'front');assert.equal(fan[0].damageType,'magic');assert.equal(fan[0].n,420);assert.equal(u.rudes.shield,350);assert.equal(u.shield,350);assert.equal(u.rudes.shieldUntil,fan[0].t+6000);assert(events.some(e=>e.kind==='rudes-shield'));assert(G.validRudes(u));
+ const fan=hits.filter(h=>h.rudesMode==='fan');assert.equal(fan.length,1);assert.equal(fan[0].id,'front');assert.equal(fan[0].damageType,'magic');assert.equal(fan[0].n,420);assert.equal(u.rudes.shield,350);assert.equal(u.shield,350);assert.equal(u.rudes.shieldUntil,fan[0].t+6000);assert(events.some(e=>e.kind==='rudes-shield'&&e.shield===350&&e.rudesShield===350));assert(G.validRudes(u));
  G.expireRudesShield(u,u.rudes.shieldUntil);assert.equal(u.shield,0);
  const deadRear=unit('rear',0),u2=unit('rudes');const r=run(u2,[u2],[unit('front'),deadRear],1800);assert.equal(r.hits[0].id,'front');
 }
 {
  for(const [damage,bond,cap,duration]of[[420,false,350,6000],[420,true,400,8000],[17,true,17,8000],[0,true,0,0]]){
-  const u=unit('rudes');u.shield=120;G.rudesInit(u).next='fan';u.rudes.nextSkill=0;const all=[u,...(bond?[unit('yaho')]:[])],e=unit('front');G.rudesStep(u,all,[e],0,250,()=>damage);G.rudesStep(u,all,[e],500,250,()=>damage);
+  const u=unit('rudes');u.shield=120;G.rudesInit(u).next='fan';u.rudes.nextSkill=0;const all=[u,...(bond?[unit('yaho')]:[])],e=unit('front');G.rudesStep(u,all,[e],0,250,()=>damage);G.rudesStep(u,all,[e],500,250,()=>damage,(kind,event)=>{if(kind==='rudes-shield'){assert.equal(event.shield,120+cap);assert.equal(event.rudesShield,cap);}});
   assert.equal(u.rudes.shield,cap);assert.equal(u.shield,120+cap);if(damage){assert.equal(u.rudes.shieldUntil,500+duration);u.earthShield=20;const consumed=G.absorbRudesShield(u,70);assert.equal(consumed,Math.min(50,cap));u.shield-=70;G.absorbEarthShield(u,70);G.expireRudesShield(u,500+duration);assert.equal(u.shield,100-Math.max(0,50-cap),'expiry preserves other shield sources after partial absorption');}
  }
  const u=unit('rudes'),e=unit('target');G.rudesStep(u,[u],[e],1000,250,()=>{throw Error('early hit');});G.rudesStep(u,[u],[e],1500,250,()=>{throw Error('stunned cast hit');},()=>{},true);assert.equal(u.rudes.cast,null);
