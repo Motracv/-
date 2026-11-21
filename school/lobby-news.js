@@ -6,6 +6,7 @@ window.SchoolLobbyNews = (() => {
   const pass = '<svg viewBox="0 0 100 110" aria-hidden="true"><path d="M16 8h68v66L50 103 16 74Z" fill="#264f70" stroke="#f5d393" stroke-width="4"/><path d="m50 25 9 18 20 3-14 14 3 20-18-9-18 9 3-20-14-14 20-3Z" fill="#ffe3a3"/></svg>';
   function slidesFor(G, state, now) {
     const slides = [];
+    if(G.bannerAvailable('rudes',now))slides.push({id:'rudes',banner:'rudes',tag:'NEW · SSR 픽업 모집',title:'루데스',subtitle:'은빛 우산 아래, 탑의 마녀',note:'어둠 · 우산총 물리 / 부채 마법',cta:'모집 보기',image:'school/assets/rudes/illustration.webp?v=rudes1'});
     if(G.bannerAvailable('yaho',now))slides.push({id:'yaho',banner:'yaho',tag:'NEW · SSR 픽업 모집',title:'야호',subtitle:'작은 포효, 커다란 약속',note:'라바의 제자 · 화염 치유 서포터',cta:'모집 보기',image:'school/assets/yaho/illustration.webp?v=yaho1'});
     if(G.bannerAvailable('horas', now)) slides.push({id:'horas',banner:'horas',tag:'UR · 한정 모집',title:'호라스',subtitle:'벚꽃 아래, 새로운 인연',note:'11. 23 00:00까지 · 한국 시간',cta:'모집 보기',image:'school/assets/horas/pickup.webp?v=horas1'});
     if(G.bannerAvailable('hyeokjin', now)) slides.push({id:'hyeokjin',banner:'hyeokjin',tag:'UR · 픽업 모집',title:'서혁진',subtitle:'마지막까지 지켜낸 약속',note:'어둠을 가르는 대검',cta:'모집 보기',image:'school/assets/hyeokjin/pickup.webp?v=hyeokjin1'});

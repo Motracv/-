@@ -136,6 +136,13 @@
       "height": 1254,
       "bytes": 646116,
       "poses": 4
+    },
+    "rudes": {
+      "file": "rudes-motion.webp",
+      "source": "exec-853d6031-afb7-405b-a819-b779b52d5fb1.png",
+      "width": 1199,
+      "height": 1312,
+      "poses": 4
     }
   },
   "reusedFrom": "previews/recruit-awakening/assets, awakening2"

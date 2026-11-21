@@ -20,6 +20,7 @@
  const bossInfo=id=>id==='twins'?{id:'twins',name:'홍 · 록',rule:'마법 무효 · 물리 공격만 유효',patterns:TWIN_PATTERNS}:{id:'balloon',name:'벌룬',rule:'물리 무효 · 마법 공격만 유효',patterns:PATTERNS};
  const acceptsDamage=(boss,magic,encounter)=>encounter?.physical?true:boss.id==='twins'?!magic:!!magic;
  const magical=(g,id)=>['마법','치유'].includes(g.BY_ID[id]?.role)||id==='horas'||id==='spica';
+ const canDamage=(g,id,boss)=>id==='rudes'||acceptsDamage(boss,magical(g,id));
  function snapshot(g,s){const team={synergy:g.partySynergies(s),rescued:false,buffUntil:0,damage:0,units:s.team.slice(0,6).map(id=>{const d=g.BY_ID[id],st=g.stats(id,s.units[id],s);return{id,...(g.equippedSkin?.(s,id)?{skin:g.equippedSkin(s,id)}:{}),name:d.name,role:d.role,level:s.units[id].level,stars:s.units[id].stars,magic:magical(g,id),max:st.hp,hp:st.hp,atk:st.atk,defense:st.defense,shield:0,energy:0,stage:1,hits:0,stacks:0,stunUntil:0,protectedUntil:0,nextBasic:0,damage:0,healing:0,exclusive:g.exclusivePassive?.(s,id)||null};})};team.units.forEach(u=>g.hyeokjinInit(u,team.units));return team;}
  function create(g,members,now,seed,hp=HP,bossId='balloon'){return{rules:3,startedAt:now,elapsed:0,seed:seed>>>0||1,seq:0,events:[],ended:false,outcome:null,damage:0,teams:members.map(m=>({account:m.account,...snapshot(g,m.save)})),boss:{id:bossId==='twins'?'twins':'balloon',hp,max:HP,guardUntil:0,stunUntil:0,nextAt:3000,nextBasicAt:1250,pattern:0,cast:null}};}
  function advance(g,s,now,encounter){
@@ -34,13 +35,13 @@
   const shield=(ti,u,amount,from)=>{const n=Math.max(0,Math.min(Math.round(amount*g.yahoMasterMultiplier(from,s.teams[ti].units)),Math.floor(u.max*.6)-u.shield));u.shield+=n;if(n)emit('shield',{team:ti,id:u.id,from,amount:n});};
   const heal=(ti,u,amount,from)=>{const t=s.teams[ti],before=u.hp,n=Math.max(0,Math.min(u.max-u.hp,Math.round(amount*t.synergy.healMultiplier*g.yahoMasterMultiplier(from,t.units))));u.hp+=n;const caster=t.units.find(a=>a.id===from);if(caster)caster.healing+=n;if(n)emit('heal',{team:ti,id:u.id,from,amount:n,hpBefore:before,hpAfter:u.hp});};
   const hyeokEmit=(ti,u)=>(kind,extra)=>{if(kind==='heal')u.healing+=extra.amount;emit(kind,{team:ti,id:u.id,from:u.id,...extra});};
-  const hit=(ti,u,mult,skill,prepared)=>{if(!s.boss.hp)return 0;const crit=prepared?prepared.crit:random()<.12,power=prepared?prepared.amount:u.atk*mult*(.9+random()*.2)*(crit?1.5:1)*s.teams[ti].synergy.damageMultiplier*(s.teams[ti].buffUntil>s.elapsed?1.3:1)*(1+(u.exclusive?.strength||0));const n=acceptsDamage(s.boss,u.magic,encounter)?Math.min(s.boss.hp,Math.max(1,Math.round(power*(encounter?.damage?.(u,s.elapsed)||1)*(prepared?.ultimate?1:g.yahoDamageMultiplier(u,s.elapsed)*g.yahoMasterMultiplier(u.id,s.teams[ti].units))*(s.boss.guardUntil>s.elapsed?.6:1)*(u.id==='horas'&&s.boss.stunUntil>s.elapsed?1.5:1)))):0;s.boss.hp-=n;s.damage+=n;s.teams[ti].damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:crit&&n>0,skill:skill||null,...(prepared&&!prepared.hyeokjin?{breath:true,tick:prepared.tick}:{} )});g.hyeokjinRecord(u,n,s.elapsed,hyeokEmit(ti,u),!!prepared?.ultimate);return n;};
+  const hit=(ti,u,mult,skill,prepared,detail={})=>{if(!s.boss.hp)return 0;const crit=prepared?prepared.crit:random()<.12,power=prepared?prepared.amount:u.atk*mult*(.9+random()*.2)*(crit?1.5:1)*s.teams[ti].synergy.damageMultiplier*(s.teams[ti].buffUntil>s.elapsed?1.3:1)*(1+(u.exclusive?.strength||0));const n=acceptsDamage(s.boss,detail.damageType?detail.damageType==='magic':u.magic,encounter)?Math.min(s.boss.hp,Math.max(1,Math.round(power*(encounter?.damage?.(u,s.elapsed)||1)*(prepared?.ultimate?1:g.yahoDamageMultiplier(u,s.elapsed)*g.yahoMasterMultiplier(u.id,s.teams[ti].units))*(s.boss.guardUntil>s.elapsed?.6:1)*(u.id==='horas'&&s.boss.stunUntil>s.elapsed?1.5:1)))):0;s.boss.hp-=n;s.damage+=n;s.teams[ti].damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:crit&&n>0,skill:skill||null,...detail,...(prepared&&!prepared.hyeokjin?{breath:true,tick:prepared.tick}:{} )});g.hyeokjinRecord(u,n,s.elapsed,hyeokEmit(ti,u),!!prepared?.ultimate);return n;};
   function hurt(ti,original,mult,pattern){if(pattern==='basic')original=g.lowAggroTarget(original,living(s.teams[ti]),random);const t=s.teams[ti],guard=g.ryusionGuard(t.units,s.elapsed),u=guard.taunting?guard.hero:original;if(!u||u.hp<=0)return;
    if(u.id==='kazua'&&random()<g.KAZUA_RULES.evasion){emit('dodge',{team:ti,id:u.id});return null;}
    const hpBefore=u.hp,shieldBefore=u.shield;
    let n=Math.max(1,Math.round(((encounter?.attack??480)+s.elapsed/1000*(encounter?.rage??4))*mult*(1-u.defense)*g.yahoProtectionMultiplier(u,s.elapsed)*t.synergy.incomingMultiplier*(guard.hero?1-g.RYUSION_RULES.teamReduction:1)*(guard.taunting&&u.id==='ryusion'?1-defense(guard.hero).tauntReduction:1)));
    if(u.id==='hyeokjin'&&s.elapsed<g.hyeokjinRefresh(u,t.units,s.elapsed,hyeokEmit(ti,u)).lastUntil)n=0;
-   const absorbed=Math.min(u.shield,n);u.shield-=absorbed;n-=absorbed;g.absorbEarthShield(u,absorbed);
+   const absorbed=Math.min(u.shield,n);u.shield-=absorbed;n-=absorbed;g.absorbRudesShield(u,absorbed);g.absorbEarthShield(u,absorbed);
    n=g.hyeokjinGuard(u,t.units,s.elapsed,n,hyeokEmit(ti,u));
    if(n>=u.hp&&!t.rescued&&living(t).some(a=>a.id==='lava')){t.rescued=true;u.protectedUntil=s.elapsed+2000;emit('rescue',{team:ti,id:u.id});}
    if(u.protectedUntil>s.elapsed)n=Math.min(n,Math.max(0,u.hp-1));n=Math.min(u.hp,n);u.hp-=n;u.taken=(u.taken||0)+n;u.absorbed=(u.absorbed||0)+absorbed;emit('hurt',{team:ti,id:u.id,amount:n,absorbed,pattern,hpBefore,hpAfter:u.hp,shieldBefore,shieldAfter:u.shield});
@@ -69,6 +70,7 @@
   function act(ti,u){const t=s.teams[ti];
    if(u.id==='osia')g.osiaWeaponStep?.(u,[s.boss],s.elapsed,STEP,(target,amount,detail)=>{const before=target.hp,n=acceptsDamage(target,u.magic,encounter)?Math.min(target.hp,Math.max(0,Math.round(amount*(encounter?.damage?.(u,s.elapsed)||1)*(target.guardUntil>s.elapsed?.6:1)))):0;target.hp-=n;s.damage+=n;t.damage+=n;u.damage+=n;emit(n?'hit':'immune',{team:ti,id:u.id,amount:n,crit:false,skill:'익사',drowning:true,damageType:'magic',hpBefore:before,hpAfter:target.hp});return n;},(kind,extra)=>emit(kind,{team:ti,id:u.id,...extra}),u.stunUntil>s.elapsed||t.frozen||t.withdrawn,{guildRaid:s.encounter!=='yeti'});
    if(u.id==='hyeokjin'){g.hyeokjinStep(u,t.units,[s.boss],s.elapsed,STEP,(_,amount,d)=>hit(ti,u,amount/u.atk,d.skill,d.fixed?{amount,crit:false,hyeokjin:true,ultimate:true}:undefined),hyeokEmit(ti,u),u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn,basicRate(u));return;}
+   if(u.id==='rudes'){g.rudesStep(u,t.units,[s.boss],s.elapsed,STEP,(_,amount,d)=>hit(ti,u,amount/u.atk,d.skill,undefined,d),(kind,extra)=>emit(kind,{team:ti,id:u.id,from:u.id,...extra}),u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn,basicRate(u));return;}
    if(u.id==='kazua'){g.kazuaStep(u,t.units,[s.boss],s.elapsed,STEP,(_,mult,d)=>hit(ti,u,mult,d.skill),(kind,extra)=>emit(kind,{team:ti,id:u.id,...extra}),u.hp<=0||u.stunUntil>s.elapsed||t.frozen||t.withdrawn,basicRate(u));return;}
    if(u.breath){
     const cast=u.breath,r=g.OSIA_BREATH_RULES,age=s.elapsed-cast.began;
@@ -120,5 +122,5 @@
   }return s;
  }
  const reward=damage=>damage>0?{gems:20+Math.min(60,Math.floor(damage/50000)*10),gold:Math.round((800+Math.min(3200,Math.floor(damage/1000)*10))*2.6)}:{gems:0,gold:0};
- return{HP,DURATION,LIMIT,MAX_PLAYERS,STEP,BASIC_MS,BOSS_BASIC_MS,PATTERNS,TWIN_PATTERNS,rotation,bossInfo,acceptsDamage,magical,snapshot,create,advance,reward};
+ return{HP,DURATION,LIMIT,MAX_PLAYERS,STEP,BASIC_MS,BOSS_BASIC_MS,PATTERNS,TWIN_PATTERNS,rotation,bossInfo,acceptsDamage,magical,canDamage,snapshot,create,advance,reward};
 });

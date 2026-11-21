@@ -8,6 +8,7 @@ window.SchoolSkillCards=(()=>{
   const d=G.BY_ID[u.id],dead=u.hp<=0,ice=!!frozen||u.frozenUntil>elapsed,stun=!ice&&u.stunUntil>elapsed;
   const blocked=dead||ice||stun;let charge=dead?0:stacks!==null?clamp(stacks/5*100):clamp((u.energy||0)/d.cooldown*100);
   let conditional=null;
+  if(u.id==='rudes'){const q=u.rudes;charge=clamp((1-((q?.nextSkill??7000)-elapsed)/7000)*100);conditional=`${Math.ceil(Math.max(0,(q?.nextSkill??7000)-elapsed)/1000)}초 · ${q?.next==='fan'?'부채':'관통'}`;casting=!!q?.cast&&q.cast.mode!=='basic';}
   if(u.id==='yaho')conditional=u.yaho?.summoned?'산군의 가호':`${Math.ceil(Math.max(0,18000-(u.yaho?.activeMs||0))/1000)}초 · 산군`;
   if(u.id==='hyeokjin'&&u.hyeokjin){const q=u.hyeokjin;conditional=q.ultimateUsed?'궁극기 소진':!q.used?'HP 35% · 각성':q.until>elapsed?'각성 · 위기 시 궁극기':'각성 종료';charge=q.ultimateUsed?0:q.ultimateArmed?100:!q.used?clamp((1-u.hp/Math.max(1,u.max))/.65*100):0;}
   if(dead)charge=0;

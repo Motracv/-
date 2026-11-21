@@ -265,3 +265,11 @@ html[data-motion=reduced] .weapon-spotlight img,html[data-motion=reduced] .weapo
 .app #tab-recruit[data-pickup=yaho]{background:radial-gradient(ellipse at 74% 46%,#f6ad6a30,transparent 52%),linear-gradient(115deg,#211d2ff2,#492c3fbd),url('assets/lobby/courtyard.webp?v=lobby1') center/cover}
 .app .pickup-screen .pickup-preview[data-preview=yaho] img{max-width:76%;height:calc((100% - 42px)*.76);image-rendering:auto;object-fit:contain;filter:drop-shadow(0 10px 18px #ffae6744)}
 .app #tab-recruit[data-pickup=yaho] #pickup-name{color:#ffe0a4;text-shadow:0 2px #753c43,0 0 22px #ffc47755}
+
+/* Rudes: keep the entire portrait readable on every recruitment layout. */
+.app #tab-recruit[data-pickup=rudes]{background:radial-gradient(ellipse at 75% 38%,#af79ed2a,transparent 58%),linear-gradient(115deg,#171a30,#342643)}
+.app .pickup-screen .pickup-preview[data-preview=rudes] img{visibility:visible;object-fit:contain;image-rendering:auto;max-width:100%;height:calc(100% - 42px);filter:drop-shadow(0 8px 15px #100b24a0)}
+.app #tab-recruit[data-pickup=rudes] #pickup-name{color:#e5d4ff;text-shadow:0 2px #302044,0 0 20px #b384ee55}
+.app #tab-recruit[data-pickup=rudes] .pickup-select[aria-pressed=true]{background:#513b6f;border-color:#c4a2ef}
+.app .standard-guarantee{flex-wrap:wrap}
+.app #tab-recruit[data-pickup=rudes] #pickup-kicker,.app #tab-recruit[data-pickup=rudes] #recruit-count{color:#c9b9df}

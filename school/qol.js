@@ -80,7 +80,7 @@ window.SchoolQoL = (() => {
       if(!G.farmingFingerprint||!window.Worker){text($('farm-preview-status'),'이 브라우저에서는 파밍 계산을 지원하지 않아요. 모험 지도에서 지역을 직접 선택해 주세요.');$('farm-preview-progress').hidden=true;return;}
       text($('farm-preview-status'),'현재 편성으로 전투를 계산하고 있어요…');$('farm-preview-progress').hidden=false;$('farm-preview-progress').value=0;disabled($('farm-preview-retry'),true);
       try{
-        worker=new Worker('school/farming-worker.js?v=school-santa52');
+        worker=new Worker('school/farming-worker.js?v=school-rudes56');
         worker.onmessage=event=>{
           const msg=event.data;if(!active('farm-recommend')||!preview||msg.id!==id||preview.id!==id)return;
           if(owner!==scope()||key!==fingerprint()||(msg.kind!=='error'&&msg.fingerprint!==key))return invalidatePreview();

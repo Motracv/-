@@ -4,7 +4,7 @@
   root.SchoolRPG = api;
 })(globalThis, function () {
   "use strict";
-  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 52;
+  const NORMAL_MAX_STAGE = 100, MAX_STAGE = 125, MAX_LEVEL = 125, CAPTAIN_MAX_LEVEL = 200, MAX_TEAM = 6, MAX_TOWER_FLOOR = 1000000, OFFLINE_CAP = 8 * 3600, CATALOG_VERSION = 53;
   const GOLD_MULTIPLIER = 2.6;
   const earnedGold = amount => Math.round(amount * 26 / 10);
   const DOUBLE_REWARD_EVENT = Object.freeze({ id:'weekend-double-2026', name:'주말 2배 이벤트', startsAt:Date.parse('2026-11-19T08:17:32Z'), endsAt:Date.parse('2026-11-23T08:17:32Z'), multiplier:2 });
@@ -87,6 +87,38 @@
   const HORAS_RULES = Object.freeze({ maxStacks: 5, basicMs: 2000, basicMotionMs: 900, hitStackMs: 1000, mergeMs: 1000, impactDelay: 1500, minCastMs: 3000, basicMultiplier: 5.4, primaryMultiplier: 30, splashMultiplier: 16, stunMultiplier: 1.5, missChance: .1, markMs: 6000, refundStacks: 2 });
   const UR_RECRUIT_RATES = Object.freeze({ UR: .003, SSR: .01, SR: .26, R: .727 });
   const RECRUIT_COST = Object.freeze({ 1: 160, 10: 1600 });
+  // Shared by campaign, guild bosses, winter encounters and authoritative PvP.
+  const RUDES_RULES=Object.freeze({basicMs:1500,basic:1.8,skillMs:7000,pierce:1.8,shots:2,fan:4.2,shieldCap:.35,shieldMs:6000,bondCap:.4,bondMs:8000,watchBonus:.15});
+  function rudesInit(u){return u.id==='rudes'?(u.rudes||={nextBasic:1000,nextSkill:7000,next:'pierce',cast:null,shield:0,shieldUntil:0}):null;}
+  function validRudes(u){const q=u.rudes;return q===undefined||u.id==='rudes'&&q&&['nextBasic','nextSkill','shield','shieldUntil'].every(k=>Number.isFinite(q[k])&&q[k]>=0)&&q.shield<=u.shield&&['pierce','fan'].includes(q.next)&&(q.cast===null||q.cast&&['basic','pierce','fan'].includes(q.cast.mode)&&Number.isFinite(q.cast.began)&&q.cast.began>=0&&Number.isInteger(q.cast.hit)&&q.cast.hit>=0&&q.cast.hit<=2);}
+  function expireRudesShield(u,time){const q=u.rudes;if(q?.shield&&time>=q.shieldUntil){u.shield=Math.max(0,u.shield-q.shield);q.shield=0;}}
+  // Consume this shield after the earth shield and before other sources.
+  function absorbRudesShield(u,amount){const q=u.rudes;if(!q)return 0;const n=Math.min(q.shield,Math.max(0,amount-(u.earthShield||0)));q.shield-=n;return n;}
+  function rudesStep(u,allies,enemies,time,dt,hit,emit=()=>{},blocked=false,rate=1){
+    const q=rudesInit(u);if(!q)return;expireRudesShield(u,time);
+    if(u.hp<=0||blocked){if(q.cast){q.cast=null;emit('rudes-cancel',{});}q.nextBasic=Math.max(q.nextBasic,time+500);q.nextSkill=Math.max(q.nextSkill,time+250);return;}
+    const live=()=>enemies.filter(e=>e.hp>0),r=RUDES_RULES;
+    if(!live().length){q.cast=null;return;}
+    if(!q.cast){const skill=time>=q.nextSkill,mode=skill?q.next:'basic';if(!skill&&time<q.nextBasic)return;
+      q.cast={mode,began:time,hit:0};q.nextBasic=time+r.basicMs/Math.max(.1,rate);
+      if(skill){q.nextSkill=time+r.skillMs;q.next=mode==='pierce'?'fan':'pierce';}
+      const targets=mode==='pierce'?live():[mode==='basic'?live().at(-1):live()[0]];
+      emit('rudes-cast',{mode,stage:mode==='fan'?2:1,name:mode==='basic'?'우산 사격':mode==='pierce'?'관통샷 · 은월 궤적':'부채 · 월화 잔영',to:targets[0].id,targets:targets.map(e=>e.id),duration:mode==='pierce'?1400:1000,element:'dark'});
+    }
+    const cast=q.cast,age=time-cast.began,count=cast.mode==='pierce'?r.shots:1;
+    while(cast.hit<count&&age>=500+cast.hit*500){
+      const targets=cast.mode==='pierce'?live():[cast.mode==='basic'?live().at(-1):live()[0]].filter(Boolean);cast.hit++;
+      for(const target of targets){const mode=cast.mode,watch=mode==='basic'&&target.hp>=target.max*.7?1+r.watchBonus:1;
+        const dealt=hit(target,u.atk*(mode==='basic'?r.basic:mode==='pierce'?r.pierce:r.fan)*watch,{rudesMode:mode,damageType:mode==='fan'?'magic':'physical',piercing:mode==='pierce',skill:mode!=='basic',shot:cast.hit});
+        if(mode==='fan'&&dealt>0){const bond=allies.some(a=>a.id==='yaho'&&a.hp>0),cap=Math.floor(u.max*(bond?r.bondCap:r.shieldCap)),gained=Math.max(0,Math.min(Math.floor(dealt),cap-q.shield));
+          q.shield+=gained;u.shield+=gained;q.shieldUntil=time+(bond?r.bondMs:r.shieldMs);
+          emit('rudes-shield',{to:u.id,amount:gained,shield:q.shield,until:q.shieldUntil,bond,name:'우산 보호막',element:'dark'});
+        }
+      }
+    }
+    if(age>=(cast.mode==='pierce'?1250:1000))q.cast=null;
+  }
+
   const SSR_RECRUIT_COST = Object.freeze({ 1: 100, 10: 1000 });
   function isURBanner(id){return id==='horas'||id==='hyeokjin';}
   function recruitCost(banner, count) { return (isURBanner(banner) ? RECRUIT_COST : SSR_RECRUIT_COST)[count]; }
@@ -99,11 +131,11 @@
   });
   const RECRUIT_RATES = { SSR: .01, SR: .26, R: .73 };
   const RECRUIT_PITY = { hard: 80, soft: 60, stepPercent: 1 };
-  const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi", "lava", "ryusion"]);
+  const STANDARD_SSR = Object.freeze(["osia", "ian", "lumi", "lava", "ryusion", "kazua"]);
   const BANNERS = Object.freeze({
     yaho: Object.freeze({id:"yaho",name:"야호 픽업 모집",featured:"yaho",limited:false,expiresAt:null}),
     hyeokjin: Object.freeze({id:"hyeokjin",name:"서혁진 UR 픽업뽑기",featured:"hyeokjin",rarity:"UR",limited:false,expiresAt:null}),
-    kazua: Object.freeze({ id:"kazua", name:"카즈아 픽업뽑기", featured:"kazua", limited:false, expiresAt:null }),
+    rudes: Object.freeze({id:"rudes",name:"루데스 · 탑의 마녀 픽업",featured:"rudes",limited:false,expiresAt:null}),
     standard: Object.freeze({ id:"standard", name:"상시뽑기", featured:null, limited:false, expiresAt:null }),
     horas: Object.freeze({ id: "horas", name: "호라스 픽업뽑기", featured: "horas", rarity: "UR", limited: true, expiresAt: Date.parse("2026-11-23T00:00:00+09:00") }),
   });
@@ -195,7 +227,7 @@
   function bannerAvailable(id, now = Date.now()) {
     return typeof id === "string" && Object.hasOwn(BANNERS, id) && Number.isFinite(now) && (BANNERS[id].expiresAt === null || now < BANNERS[id].expiresAt);
   }
-  const canonicalBanner = id => id === 'osia' || id === 'lava' || id === 'ryusion' ? 'standard' : id;
+  const canonicalBanner = id => id === 'osia' || id === 'lava' || id === 'ryusion' || id === 'kazua' ? 'standard' : id;
   function bannerState(s, id = "standard") {
     id = canonicalBanner(id);
     if (!Object.hasOwn(BANNERS, id)) return null;
@@ -203,8 +235,8 @@
     if(id==='standard'){
       // Project legacy counters without mutating a save during a UI read.
       const total=(s.banners?.osia?.pity??s.pity??0)+(s.banners?.lava?.pity??0);
-      const merged=(saved?.pity??Math.min(79,total))+(saved?.reserve??Math.max(0,total-79))+(s.banners?.ryusion?.pity||0);
-      const guarantees=(saved?.guarantees??(Number(!!s.banners?.osia?.guaranteed)+Number(!!s.banners?.lava?.guaranteed)))+Number(!!s.banners?.ryusion?.guaranteed);
+      const merged=(saved?.pity??Math.min(79,total))+(saved?.reserve??Math.max(0,total-79))+(s.banners?.ryusion?.pity||0)+(s.banners?.kazua?.pity||0);
+      const guarantees=(saved?.guarantees??(Number(!!s.banners?.osia?.guaranteed)+Number(!!s.banners?.lava?.guaranteed)))+Number(!!s.banners?.ryusion?.guaranteed)+Number(!!s.banners?.kazua?.guaranteed);
       return {pity:Math.min(79,merged),reserve:Math.max(0,merged-79),guarantees,guaranteed:guarantees>0};
     }
     return { pity: saved?.pity ?? 0, guaranteed: saved?.guaranteed ?? false };
@@ -255,6 +287,7 @@
   HEROES.push({ id: "horas", name: "호라스", latin: "Horas", gender: "여성", club: "벚꽃의 의식", element: "blossom", role: "사수", rarity: "UR", hp: 128, atk: 22, atkGrowth:4.8, cooldown: 5, skill: "벚꽃의식", passive: "별빛 축적", passiveDesc: "두 손짓의 느린 평타가 적중하거나 공격을 받으면 벚꽃 구슬을 1개 쌓습니다. 피격 획득은 1초당 한 번. 5개를 합쳐 벚꽃의식을 사용합니다.", passive2: "벚꽃의 잔향", passive2Desc: "기절 중인 적에게 주는 피해 1.5배. 의식이 적중한 주 대상에게 6초간 표식을 남깁니다. 아군 누구든 표식 대상을 처치하면 2스택을 한 번 회수합니다.", color: "#f3a2d0", hair: "#f2a6d0", outfit: "#d6e5ff", weapon: "blossom", desc: "2초 간격으로 공격력 540% 평타. 5스택을 소모하여 구슬을 합친 뒤 가까운 적이 많은 한 명에게 공격력 3000%, 인접한 적에게 1600% 피해. 의식은 10% 확률로 빗나갑니다. 의식 시작 간격은 최소 3초입니다." });
   HEROES.push({id:'kazua',name:'카즈아',latin:'Kazua',gender:'남성',species:'인간',club:'붉은 탄막',role:'사수',rarity:'SSR',hp:100,hpGrowth:12,atk:24,atkGrowth:3,cooldown:20,skill:'붉은총알',passive:'권총 · 바주카포',passiveDesc:'5초마다 권총으로 단일 520%, 15초마다 바주카포로 적 전체 700% 물리 피해. 무기를 바꾸는 동안 머신건 사격은 잠시 멈춥니다.',passive2:'최후의 생존자',passive2Desc:'함께 출전한 아군이 쓰러질 때마다 피해 +12%(최대 60%). 원래 2명 이상 출전했고 혼자 남으면 추가 +240%(최대 총 피해 4배). 빈 편성이나 부활 반복으로 중첩되지 않습니다. 회피 10%, 일반 공격 표적 우선도 감소. 광역·도발은 별도입니다.',color:'#f65d55',hair:'#a62428',outfit:'#24242c',weapon:'gatling',desc:'끝없는 총알: 3초간 초고속 연사 후 2초 장전. 연사 중 0.5초마다 공격력 120%의 물리 피해를 묶어 적용합니다. 붉은총알: 20초마다 3초간 초당 50발의 붉은 유도탄. 주 대상 총 3500%, 다른 적 각각 총 1225% 물리 피해. 낮은 체력을 감수하는 극딜 사수.'});
   HEROES.push({id:'hyeokjin',name:'서혁진',latin:'Seo Hyeokjin',gender:'남성',species:'이계의 인간',element:'dark',club:'지켜온 맹세',role:'전사',rarity:'UR',hp:175,hpGrowth:16,atk:48,atkGrowth:5.6,cooldown:10,skill:'죽지 않는 청년 · 어둠의 잠식',passive:'폼 체인지 · 피 보는 자',passiveDesc:'HP 35% 이하가 되는 타격부터 전투당 1회 8초 각성. 각성 중 HP가 1 아래로 내려가지 않으며 직접 가한 피해의 20%를 흡혈합니다(초당 최대 HP 8%). 공격 피해 +50%, 평타 간격 1.4초. 기본형 평타 간격은 1.8초입니다.',passive2:'책임감',passive2Desc:'함께 출전한 아군이 모두 쓰러지면 전투당 1회 5초간 피해 면역·피해 +30%. 처음부터 혼자 출전하면 발동하지 않습니다. 각성과 동시에 시간이 흐릅니다.',color:'#e25c83',hair:'#22202f',outfit:'#edeaf0',weapon:'greatsword',desc:'평타: 주 대상 660%·추가 전방 2명 각각 230% 물리 피해. 기본형: 10초마다 주 대상 900%·추가 전방 2명 각각 400%, 명중 시 HP 10% 회복. 각성형: 블랙 전방 최대 3명 각각 900%, 참수 단일 X자 6연타(0.25초 간격), 총 1400%(첫 타격 시 대상 HP 30% 이하이면 총 2100%, 처치 시 HP 15% 회복). 각성 중 HP 20% 이하가 되면 전투당 한 번 궁극기: 공격력 2000% + 직접 누적한 실제 HP 피해 150%(합계 최대 공격력 12000%) 방출. 주 대상 70%·나머지 적에게 총 30% 분배, 단일 적은 100%. 모든 공격은 물리이며 기절·빙결로 시전이 중단될 수 있습니다.'});
+  HEROES.push({id:'rudes',name:'루데스',latin:'Rudes',gender:'여성',species:'인간 · 마녀',club:'탑의 마녀',element:'dark',role:'사수',rarity:'SSR',hp:132,hpGrowth:11,atk:23,atkGrowth:3.6,cooldown:7,weapon:'parasol',color:'#bca2ee',hair:'#d9d0f1',outfit:'#4d3b68',skill:'관통샷 · 월화 잔영',passive:'탑의 관측자',passiveDesc:'우산 사격은 살아 있는 가장 뒷줄 적을 우선 공격합니다. 대상의 현재 HP가 70% 이상이면 평타 피해가 15% 증가합니다. 도발은 우선 적용됩니다.',passive2:'우산 보호막 · 작은 손님의 책갈피',passive2Desc:'부채가 실제로 깎은 적 HP의 100%를 자신의 보호막으로 전환합니다. 최대 자신의 HP 35%, 6초 지속. 야호가 함께 살아 있으면 최대 40%, 8초로 강화됩니다. 다른 아군에게 나눠 주지 않으며 초과 피해·적 보호막 피해로는 충전되지 않습니다.',desc:'어둠 속성 원거리 혼합 딜러. 우산총은 물리, 부채는 마법 피해. 평타: 1.5초 주기로 공격력 180%. 7초마다 관통샷(2발, 매 발 생존 적 전체에 180% 물리)과 월화 잔영(맨 앞 적 한 명에게 420% 마법)을 번갈아 시전합니다. 준비 동작 후 명중하며 기절·빙결로 시전이 끊깁니다.'});
   const BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
   const HYEOKJIN_RULES=Object.freeze({awakeMs:8000,lastMs:5000,basicMs:1800,awakeBasicMs:1400,basicMultiplier:6.6,basicSplash:2.3,recoveryMultiplier:9,recoverySplash:4,blackMultiplier:9,executionMultiplier:14,executionLowMultiplier:21,executionTicks:6,executionTickMs:250,awakeMultiplier:1.5,healMs:10000,blackMs:4000,lifesteal:.2,healCap:.08,ultimateBase:20,ultimateStored:1.5,ultimateCap:120});
   const HYEOKJIN_MOVES=Object.freeze({basic:{name:'대검 내려베기',hit:800,duration:1300},recovery:{name:'죽지 않는 청년',hit:400,duration:1100},transform:{name:'어둠의 잠식',hit:0,duration:1000},black:{name:'블랙',hit:600,duration:1000},execution:{name:'참수',hit:450,duration:2200},ultimate:{name:'내가 지켜온 모든 것',hit:1300,duration:2300}});
@@ -1032,7 +1065,7 @@
       profile: {avatar:'leader',title:'',beta:false}, gold: 700, gems: 1800, commanderName: "새내기 단장", nameChanges: 0, nameChangeTickets: 0, winter: newWinter(now), captain: { level: 1, xp: 0 }, units: {}, team: ["taeo", "harin", "sua"], presets: newPresets(), equipment: newEquipment(), weaponBanners:{standard:{pity:0},limited:{pity:0}}, weaponPulls:0, weaponHistory:[],
       onboarding: {version:1,step:0},
       stage: 1, wave: 1, best: 0, mode: "progress", kills: 0, pulls: 0, pity: 0, losses: 0,
-      banners: { yaho:{pity:0,guaranteed:false}, hyeokjin:{pity:0,guaranteed:false}, standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
+      banners: { rudes:{pity:0,guaranteed:false}, yaho:{pity:0,guaranteed:false}, hyeokjin:{pity:0,guaranteed:false}, standard: { pity: 0, reserve:0, guarantees:0, guaranteed:false }, kazua:{pity:0,guaranteed:false}, ryusion:{pity:0,guaranteed:false}, horas:{pity:0,guaranteed:false} },
       offline: { seconds: 0, gold: 0, xp: 0, captainXp: 0 }, claimed: [], codexClaimed: [], daily: -1, receipts: [], history: [], redeemedCodes: [], quests: newQuestState(now), activities: newActivities(now) };
     for (const id of s.team) s.units[id] = { level: 1, xp: 0, stars: 0, shards: 0 };
     log(s, "방과 후, 학교용병단의 모험이 시작됩니다."); spawn(s); return s;
@@ -1041,6 +1074,8 @@
   const BOND_LEVELS = Object.freeze([0,30,90,180,300,420,540,650]);
   const BOND_DAILY_LIMIT = 60;
   const BOND_CHARACTERS = Object.freeze(Object.fromEntries([
+    ["rudes", "비가 그치지 않는 탑", "은빛 우산의 마녀", "밤을 접어 너를 지키는 우산", "비가 그칠 때까지 있어도 좋아. 아니, 맑은 날에도 다시 와 줘.", ["탑을 두드린 발소리", "젖지 않는 책갈피", "우산을 접는 용기", "맑은 날의 방문"]],
+    ["yaho", "작은 발자국의 약속", "산군의 작은 제자", "작은 포효로 지킨 약속", "오늘은 야호가 데리러 왔어. 혼자 돌아가지 않아도 돼!", ["부채보다 큰 약속", "탑의 낯선 냄새", "작은 손님과 마녀", "함께 돌아가는 길"]],
     ['osia','수면 아래의 기억','기억 속 용왕','파도를 지키는 자','돌아갈 곳을 찾는 동안, 지키고 싶은 곳이 또 생겼어.',['낯선 교실의 파도','가라앉은 왕좌','용왕의 약속','학교에 남은 이유']],
     ['ian','검집에 남은 이름','황혼의 파수꾼','마지막까지 남는 검','오늘 순찰은 함께 돌자. 돌아오는 사람까지 세어야 하니까.',['빈 출석부','금이 간 규율','물러서지 않는 이유','함께 돌아오는 길']],
     ['lumi','달이 비추지 않는 방','달빛의 기록자','어둠의 이름을 부르는 자','무서운 밤이면 불러 줘. 이름을 알면 어둠도 조금 작아지거든.',['닫힌 관측실','지워진 관측자','응답하는 달빛','새벽의 기록']],
@@ -1094,7 +1129,7 @@
   }
   const ownsProfileTitle=(s,title)=>title===''||title==='beta'&&profileInfo(s).beta||Object.values(BOND_CHARACTERS).some(m=>m.title===title&&s.bonds?.[m.id]?.read?.includes(3))||title==='rank-reclaimer'&&!!s.redeemedCodes?.includes('RANK_RECLAIMER_2')||title==='rank-ntr'&&!!s.redeemedCodes?.includes('RANK_NTR_1')||title==='rank-azure-first'&&!!s.redeemedCodes?.includes('RANK_AZURE_FIRST_1');
 
-  const SHARD_SSR = Object.freeze([...STANDARD_SSR,'kazua']);
+  const SHARD_SSR = Object.freeze([...STANDARD_SSR]);
   const SHARD_LIMIT=1000000000;
   function shardInfo(s){return {unlocked:s.captain.level>=20,SR:s.shardExchange?.SR||0,SSR:s.shardExchange?.SSR||0,choices:SHARD_SSR.filter(id=>!!s.units[id]),recyclable:Object.entries(s.units).filter(([id,u])=>u.stars===5&&['SR','SSR'].includes(BY_ID[id].rarity)).map(([id,u])=>({id,rarity:BY_ID[id].rarity,shards:u.shards,batch:BY_ID[id].rarity==='SSR'?20:10}))};}
   function validShards(s){return s.shardExchange===undefined||s.shardExchange&&typeof s.shardExchange==='object'&&!Array.isArray(s.shardExchange)&&Object.keys(s.shardExchange).length===2&&['SR','SSR'].every(r=>Number.isSafeInteger(s.shardExchange[r])&&s.shardExchange[r]>=0&&s.shardExchange[r]<=SHARD_LIMIT);}
@@ -1113,7 +1148,7 @@
       validBonds(s) && validShards(s) && validShop(s) && validPresets(s) && validEquipment(s) && validWeaponRecruit(s) && validCounter(s) &&
       Number.isInteger(s.stage) && s.stage >= 1 && s.stage <= MAX_STAGE && Number.isInteger(s.wave) && s.wave >= 1 && s.wave <= 4 &&
       Number.isInteger(s.best) && s.best >= 0 && s.best <= MAX_STAGE && Number.isInteger(s.pity) && s.pity >= 0 && s.pity < RECRUIT_PITY.hard &&
-      (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)||id==="osia"||id==="lava"||id==="ryusion") && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean") && (!s.banners.standard || Number.isInteger(s.banners.standard.reserve)&&s.banners.standard.reserve>=0&&s.banners.standard.reserve<=158&&Number.isInteger(s.banners.standard.guarantees)&&s.banners.standard.guarantees>=0&&s.banners.standard.guarantees<=3&&s.banners.standard.guaranteed===(s.banners.standard.guarantees>0))) &&
+      (s.banners === undefined || s.banners && typeof s.banners === "object" && !Array.isArray(s.banners) && Object.keys(s.banners).every(id => Object.hasOwn(BANNERS, id)||id==="osia"||id==="lava"||id==="ryusion"||id==="kazua") && Object.values(s.banners).every(b => b && Number.isInteger(b.pity) && b.pity >= 0 && b.pity < RECRUIT_PITY.hard && typeof b.guaranteed === "boolean") && (!s.banners.standard || Number.isInteger(s.banners.standard.reserve)&&s.banners.standard.reserve>=0&&s.banners.standard.reserve<=237&&Number.isInteger(s.banners.standard.guarantees)&&s.banners.standard.guarantees>=0&&s.banners.standard.guarantees<=4&&s.banners.standard.guaranteed===(s.banners.standard.guarantees>0))) &&
       (s.units.osia?.nextSkill == null || Number.isInteger(s.units.osia.nextSkill) && s.units.osia.nextSkill >= 1 && s.units.osia.nextSkill <= 4) &&
       (s.units.ryusion?.nextSkill == null || s.units.ryusion.nextSkill === 1 || s.units.ryusion.nextSkill === 2) &&
       (s.units.lava?.nextSkill == null || s.units.lava.nextSkill === 1 || s.units.lava.nextSkill === 2) &&
@@ -1123,7 +1158,7 @@
       (s.battle.cinematic === undefined || s.battle.cinematic && s.battle.cinematic.from === "osia" && [STEP_MS, OSIA_CINEMATIC_MS].includes(s.battle.cinematic.duration) && Number.isFinite(s.battle.cinematic.remaining) && s.battle.cinematic.remaining > 0 && s.battle.cinematic.remaining <= s.battle.cinematic.duration && Number.isInteger(s.battle.cinematic.resumeIndex) && s.battle.cinematic.resumeIndex >= 1 && s.battle.cinematic.resumeIndex <= s.battle.heroes.length) &&
       validQuestState(s.quests) && validPass(s.battlePass) &&
       (!s.battle.osiaCast?.breath||s.battle.osiaCast.stage===4&&Number.isInteger(s.battle.osiaCast.tick)&&s.battle.osiaCast.tick>=0&&s.battle.osiaCast.tick<=OSIA_BREATH_RULES.ticks) &&
-      validHoras(s.battle) && s.battle.heroes.every(h=>validKazua(h.kazua)&&validHyeokjin(h.hyeokjin)&&validOsiaWeapon(h.osiaWeapon)&&validYaho(h)) &&
+      validHoras(s.battle) && s.battle.heroes.every(h=>validKazua(h.kazua)&&validHyeokjin(h.hyeokjin)&&validOsiaWeapon(h.osiaWeapon)&&validYaho(h)&&validRudes(h)) &&
       validActivities(s.activities) &&
       (s.battle.activity === undefined || s.activities?.run && s.battle.runId === s.activities.run.id && s.battle.activity.kind === s.activities.run.kind) &&
       (!s.activities?.run || s.battle.activity && (s.activities.run.settled ? s.activities.lastResult?.runId === s.activities.run.id && ["victory", "defeat"].includes(s.battle.phase) : s.battle.phase === "fight")) &&
@@ -1232,7 +1267,7 @@
     // Stun amplification is decided at the actual hit, not at cast start.
     const stunBonus = from === "horas" && side === "enemy" && s.battle.elapsed < (target.stunUntil || 0);
     let amount = Math.max(1, Math.round(raw * (stunBonus ? HORAS_RULES.stunMultiplier : 1)));
-    if(side==='enemy'&&(target.towerTrait||target.campaignTrait!==undefined)){const type=damageType(from),reduction=target[type==='magic'?'magicReduction':'physicalReduction']||0;amount=Math.max(1,Math.round(amount*(1-reduction)));detail={...detail,damageType:type,reduction};}
+    if(side==='enemy'&&(target.towerTrait||target.campaignTrait!==undefined)){const type=['physical','magic'].includes(detail.damageType)?detail.damageType:damageType(from),reduction=target[type==='magic'?'magicReduction':'physicalReduction']||0;amount=Math.max(1,Math.round(amount*(1-reduction)));detail={...detail,damageType:type,reduction};}
     if(side==='enemy'&&target.shield>0&&!detail.directHp){const absorbed=Math.min(target.shield,amount);target.shield-=absorbed;amount-=absorbed;event(s,'shield',{to:target.id,side:'enemy',amount:absorbed});}
     if (stunBonus) detail = { ...detail, stunBonus: true };
     if (side === "hero") {
@@ -1241,7 +1276,8 @@
       if(target.id==='hyeokjin'&&b.elapsed<hyeokjinRefresh(target,b.heroes,b.elapsed,(kind,extra)=>event(s,kind,{from:target.id,...extra})).lastUntil)amount=0;
       const shield = Math.min(target.shield, amount); target.shield -= shield; amount -= shield;
       const earthAbsorbed=Math.min(shield,target.earthShield||0);meter(s,'ryusion','absorbed',earthAbsorbed);
-      let rest=shield-earthAbsorbed;
+      const rudesAbsorbed=absorbRudesShield(target,shield);meter(s,'rudes','absorbed',rudesAbsorbed);
+      let rest=shield-earthAbsorbed-rudesAbsorbed;
       for(const source of Object.keys(target.shieldSources||{})){const used=Math.min(rest,target.shieldSources[source]);target.shieldSources[source]-=used;rest-=used;meter(s,source,'absorbed',used);}
       absorbEarthShield(target,shield);
       if (shield) event(s, "shield", { to: target.id, amount: shield, ...(detail.redirectedFrom?{redirectedFrom:detail.redirectedFrom}:{}) });
@@ -1420,7 +1456,7 @@
   }
   function spicaHalfTurn(s) {
     const b=s.battle;
-    for(const hero of b.heroes){if(hero.hp<=0||hero.id==='kazua'||hero.id==='hyeokjin'||b.elapsed<(hero.stunUntil||0)||b.elapsed<(hero.yahoCastUntil||0))continue;const enemies=b.enemies.filter(e=>e.hp>0);if(!enemies.length)break;
+    for(const hero of b.heroes){if(hero.hp<=0||hero.id==='kazua'||hero.id==='hyeokjin'||hero.id==='rudes'||b.elapsed<(hero.stunUntil||0)||b.elapsed<(hero.yahoCastUntil||0))continue;const enemies=b.enemies.filter(e=>e.hp>0);if(!enemies.length)break;
       if(hero.id==='horas'){horasTurn(s,hero,enemies);continue;}
       if(hero.id==='osia'&&b.osiaCast)continue;
       if(basicDue(hero,b.elapsed))heroBasic(s,hero,enemies);
@@ -1453,6 +1489,8 @@
     }
     b.elapsed += STEP_MS;
     if (b.activity && b.heroes.every(h => h.hp <= 0)) { settleActivity(s, false, "defeat"); return; }
+    const witch=b.heroes.find(h=>h.id==='rudes');
+    if(witch)rudesStep(witch,b.heroes,b.enemies,b.elapsed,STEP_MS,(target,amount,detail)=>{const critical=random(s)<(witch.critChance??CRITICAL.chance);return hurt(s,'rudes',target,amount*(witch.damageMultiplier||1)*(b.buff?1.3:1)*(.9+random(s)*.2)*(critical?witch.critMultiplier||CRITICAL.multiplier:1),'enemy',detail.skill,{...detail,critical});},(kind,extra)=>event(s,kind,{from:'rudes',...extra}),b.elapsed<(witch.stunUntil||0),basicAttackRate(witch,b.elapsed));
     const yaho=b.heroes.find(h=>h.id==='yaho');
     if(yaho)yahoStep(yaho,b.heroes,b.elapsed,STEP_MS,(a,n,name)=>yahoHeal(s,yaho,a,n,name),(kind,extra)=>event(s,kind,{from:'yaho',...extra}),b.elapsed<(yaho.stunUntil||0));
     ryusionStep(s);
@@ -1495,7 +1533,7 @@
   function combatTurn(s, startIndex, osiaImpact) {
     const b = s.battle,rhythm=spicaRhythm(b);
     for (let index = startIndex; index < b.heroes.length; index++) {
-      const hero = b.heroes[index]; if (hero.hp <= 0 || hero.id==='kazua'||hero.id==='hyeokjin'||b.elapsed<(hero.stunUntil||0)||b.elapsed<(hero.yahoCastUntil||0)) continue;
+      const hero = b.heroes[index]; if (hero.hp <= 0 || hero.id==='kazua'||hero.id==='hyeokjin'||hero.id==='rudes'||b.elapsed<(hero.stunUntil||0)||b.elapsed<(hero.yahoCastUntil||0)) continue;
       const enemies = b.enemies.filter(e => e.hp > 0); if (!enemies.length) break;
       const def = BY_ID[hero.id];
       if (hero.id === "horas") { horasTurn(s, hero, enemies); continue; }
@@ -1654,7 +1692,7 @@
   function questValue(s, quest) { return quest.metric === "collection" ? Object.keys(s.units).length : quest.metric === "captain" ? s.captain.level : s[quest.metric]; }
   function recruit(s, count, rng, banner = "standard", now = Date.now(), guaranteedHero = "osia") {
     banner=canonicalBanner(banner);
-    fail(banner!=="standard"||["osia","lava","ryusion"].includes(guaranteedHero), "기존 확정 보상은 오시아·라바·류시온 중 선택하세요.");
+    fail(banner!=="standard"||STANDARD_SSR.includes(guaranteedHero), "기존 확정 보상은 상시 SSR 중 선택하세요.");
     fail(count === 1 || count === 10, "1회 또는 10회 모집할 수 있습니다.");
     fail(typeof banner === "string" && Object.hasOwn(BANNERS, banner), "모집할 배너를 선택하세요.");
     fail(bannerAvailable(banner, now), "이 모집 배너는 종료되었습니다.");
@@ -2048,5 +2086,5 @@
   }
   function view(s) { const result = clone(s); delete result.receipts; return result; }
   function power(s) { return s.team.reduce((sum, id) => { const st = stats(id, s.units[id], s); return sum + st.atk * 5 + Math.round(st.hp / 4); }, 0); }
-  return { YAHO_RULES,yahoInit,validYaho,yahoMasterMultiplier,yahoDamageMultiplier,yahoProtectionMultiplier,yahoBasic,yahoCast,yahoStep,passInfo,PASS_QUESTS,PASS_MAX_LEVEL,passReward,bondMeta,visualChapter,levelCap,trainingQuote,NORMAL_MAX_STAGE,SKINS,ownsSkin,equippedSkin,snapshotSkins,isURBanner,HYEOKJIN_RULES,HYEOKJIN_MOVES,hyeokjinInit,hyeokjinAwake,hyeokjinRefresh,hyeokjinGuard,hyeokjinRecord,hyeokjinStep,validHyeokjin, OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_CHARACTERS,BOND_DAILY_LIMIT,SHARD_SSR,BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
+  return { RUDES_RULES,rudesInit,validRudes,rudesStep,expireRudesShield,absorbRudesShield,YAHO_RULES,yahoInit,validYaho,yahoMasterMultiplier,yahoDamageMultiplier,yahoProtectionMultiplier,yahoBasic,yahoCast,yahoStep,passInfo,PASS_QUESTS,PASS_MAX_LEVEL,passReward,bondMeta,visualChapter,levelCap,trainingQuote,NORMAL_MAX_STAGE,SKINS,ownsSkin,equippedSkin,snapshotSkins,isURBanner,HYEOKJIN_RULES,HYEOKJIN_MOVES,hyeokjinInit,hyeokjinAwake,hyeokjinRefresh,hyeokjinGuard,hyeokjinRecord,hyeokjinStep,validHyeokjin, OSIA_BREATH_RULES, OSIA_WEAPON_RULES,osiaDivine,osiaSkillMultiplier,osiaBasicMultiplier,osiaSkillName,osiaWeaponStep,validOsiaWeapon, DOUBLE_REWARD_EVENT,eventInfo,rewardBonus,offlineRewardSeconds,KAZUA_RULES,kazuaStep,kazuaPower,kazuaInfo,validKazua,lowAggroTarget,canonicalBanner, BOND_CHARACTERS,BOND_DAILY_LIMIT,SHARD_SSR,BOND_LEVELS,BOND_EPISODES,BOND_MISSIONS,bondInfo,ownsProfileTitle, SHARD_LIMIT,shardInfo,TOWER_THEMES,towerEncounter,damageType, SHOP_ITEMS,shopInfo, SPICA_RULES,basicAttackRate,ryusionDefense,WINTER_ROULETTE,GOLD_MULTIPLIER, earnedGold, PROFILE_AVATARS, PROFILE_REWARDS, ownsProfileAvatar, normalizeCouponCode, publicProfile, profileInfo, RYUSION_RULES, RYUSION_SKILLS, ryusionSkill, ryusionGuard, expireEarthShield, addEarthShield, absorbEarthShield, COUNTER_RULES, counterInfo, weaponPassive,exclusivePassive,weaponRates,weaponBannerState,weaponAvailable,WEAPON_BANNERS,WEAPON_COST,SSR_RECRUIT_COST,recruitCost,HEROES, BY_ID, GEAR, GEAR_BY_ID, GEAR_SLOTS, GEAR_AWAKEN_COST, GEAR_MAX_COUNT, gearBonus, equipmentBonus, equipmentInfo, equipmentDropInfo, snapshotEquipment, CHAPTER_TRAITS, PRESET_NAMES, presetInfo, normalizePresetName, FARMING_ANALYSIS, farmingCandidates, farmingFingerprint, simulateFarmingStage, farmingRecommendations, CHAPTERS, ENEMIES, ENEMY_VARIANTS, BOSSES, QUESTS, PROGRESS_QUESTS, EXTRA_QUESTS, QUEST_CLAIM_LIMIT, questBoard, questReady, captainReward, MAX_STAGE, MAX_LEVEL, CAPTAIN_MAX_LEVEL, MAX_TEAM, MAX_TOWER_FLOOR, OFFLINE_CAP, CATALOG_VERSION, DUNGEONS, BOSS_RULES, PROGRESSION, CAMPAIGN_REWARDS, campaignRewardInfo, CRITICAL, PARTY_SYNERGIES, WINTER_EVENT, winterInfo, partySynergies, damageReport, commanderNameInfo, normalizeCommanderName, activityInfo, activityReward, campaignScale, OSIA_SKILLS, OSIA_CINEMATIC_MS, osiaSkill, LAVA_SKILLS, lavaSkill, HORAS_RULES, horasInfo, UR_RECRUIT_RATES, RECRUIT_COST, RECRUIT_RATES, RECRUIT_PITY, COUPONS, BANNERS, STANDARD_SSR, bannerState, bannerAvailable, bannerHeroRates, recruitRates, create, validate, advance, action, stats, stageName, chapter, rates, questValue, needXp, captainNeed, trainingCost, awakeningCost, power, day, week, clone, view };
 });

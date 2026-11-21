@@ -1,12 +1,14 @@
 /* School-only offline shell. Account/API responses and the card game are never cached. */
 'use strict';
-const RELEASE = 'school-mobile55';
+const RELEASE = 'school-rudes56';
 const base = new URL('./', self.location.href);
 const CACHE_PREFIX = 'school-app-' + encodeURIComponent(base.pathname) + '-';
 const CACHE = CACHE_PREFIX + RELEASE;
 const url = path => new URL(path, base).href;
 const shell = url('school.html');
 const required = [
+  'school/assets/rudes/combat.png?v=rudes1', 'school/assets/rudes/illustration.webp?v=rudes1', 'school/recruit/assets/rudes-motion.webp?v=rudes1',
+  ...['rudes','yaho'].flatMap(id=>['profile','illustration'].map(kind=>`school/assets/bonds/${id}-${kind}.webp?v=bond-art1`)),
   ...['combat','spirits','illustration'].map(p=>`school/assets/yaho/${p}.webp?v=yaho1`),
   'school/recruit/assets/yaho-motion.webp?v=yaho1',
   ...['rooftop-poster','rooftop-background','rooftop-characters'].map(p=>`school/assets/title/${p}.webp?v=title-art1`),
@@ -16,7 +18,7 @@ const required = [
   'school/assets/profile/rank-ntr.webp?v=rank-ntr1',
   'school/assets/twins/atlas.png?v=twins1',
   'school.html', 'school.webmanifest', 'school/assets/lobby/courtyard-winter.webp?v=winter-polish1',
-  ...['entry-screen.css','music.js','music.css','lobby-news.js','lobby-news.css','enemy-manifest.js','enemy-art.js','skill-cards.js','campus.js','community.js','overhaul.css','roster-art.js','yaho-art.js','theme-readability.css','entry.js','piyu-guide.js','afk.js','piyu.css','ascension-art.js','battle-pass.js','tower-auto.js','growth.css','horas-skin-art.js','skins.js','skins.css','hyeokjin-art.js','hyeokjin.css','bond-stories.js','osia-breath-art.js','battle-polish.js','winter-polish.css','engine.js','weekend-event.js','weekend-event.css','osia-weapon-art.js','kazua-art.js','kazua.css','ryusion.js','combat-feedback.js','expansion-art.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css','guild.js','guild.css','raid.js','raid.css','encounter-tools.js','encounter-tools.css','winter-layout.css','mobile-ui.css','mobile-viewport.js','santa-engine.js','santa-art.js','santa.js','santa.css','raid-engine.js','raid-vfx.js','twins-fx.js','twins-art.js','raid-twins-art.js','yeti-engine.js','rescue.js','yeti.js','yeti.css','winter2.css','refinement.css','dungeon-portal.js','dungeon-portal.css','insights.js','insights.css','formation.js','formation.css','coop.js','coop.css','notice.js','notice.css'].map(p => `school/${p}?v=${RELEASE}`),
+  ...['entry-screen.css','music.js','music.css','lobby-news.js','lobby-news.css','enemy-manifest.js','enemy-art.js','skill-cards.js','campus.js','community.js','overhaul.css','roster-art.js','yaho-art.js','rudes-art.js','theme-readability.css','entry.js','piyu-guide.js','afk.js','piyu.css','ascension-art.js','battle-pass.js','tower-auto.js','growth.css','horas-skin-art.js','skins.js','skins.css','hyeokjin-art.js','hyeokjin.css','bond-stories.js','osia-breath-art.js','battle-polish.js','winter-polish.css','engine.js','weekend-event.js','weekend-event.css','osia-weapon-art.js','kazua-art.js','kazua.css','ryusion.js','combat-feedback.js','expansion-art.js','art.js','client.js','presentation.js','presentation.css','style.css','install.js','install.css','social.js','social.css','lobby.js','lobby.css','world-map.js','world-map.css','battle.css','horas.css','quests.css','qol.js','qol.css','patch-notes.js','farming-worker.js','equipment.js','equipment.css','guild.js','guild.css','raid.js','raid.css','encounter-tools.js','encounter-tools.css','winter-layout.css','mobile-ui.css','mobile-viewport.js','santa-engine.js','santa-art.js','santa.js','santa.css','raid-engine.js','raid-vfx.js','twins-fx.js','twins-art.js','raid-twins-art.js','yeti-engine.js','rescue.js','yeti.js','yeti.css','winter2.css','refinement.css','dungeon-portal.js','dungeon-portal.css','insights.js','insights.css','formation.js','formation.css','coop.js','coop.css','notice.js','notice.css'].map(p => `school/${p}?v=${RELEASE}`),
   ...['combat.webp','portrait.webp','pickup.webp'].map(p => `school/assets/kazua/${p}?v=kazua1`),
   'school/assets/horas-after-school/combat.webp?v=horas-skin1',
   ...['illustration','profile','cutin-illustration','bond-classroom','bond-rooftop','bond-skill'].map(p=>`school/assets/horas-after-school/${p}.webp?v=horas-illust1`),
