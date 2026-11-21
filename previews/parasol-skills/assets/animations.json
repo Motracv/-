@@ -1,0 +1,495 @@
+{
+  "image": "atlas.png",
+  "width": 1448,
+  "height": 1086,
+  "alpha": true,
+  "motions": [
+    {
+      "key": "idle",
+      "name": "대기",
+      "loop": true,
+      "scale": 1.12,
+      "eventFrame": null,
+      "frames": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 183,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 171,
+          "durationMs": 160
+        },
+        {
+          "x": 183,
+          "y": 0,
+          "w": 179,
+          "h": 181,
+          "pivotX": 92,
+          "pivotY": 171,
+          "durationMs": 160
+        },
+        {
+          "x": 362,
+          "y": 0,
+          "w": 179,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 171,
+          "durationMs": 160
+        },
+        {
+          "x": 541,
+          "y": 0,
+          "w": 185,
+          "h": 181,
+          "pivotX": 96,
+          "pivotY": 171,
+          "durationMs": 160
+        },
+        {
+          "x": 726,
+          "y": 0,
+          "w": 179,
+          "h": 181,
+          "pivotX": 92,
+          "pivotY": 171,
+          "durationMs": 160
+        },
+        {
+          "x": 905,
+          "y": 0,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 171,
+          "durationMs": 160
+        },
+        {
+          "x": 1086,
+          "y": 0,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 171,
+          "durationMs": 160
+        },
+        {
+          "x": 1267,
+          "y": 0,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 171,
+          "durationMs": 160
+        }
+      ]
+    },
+    {
+      "key": "run",
+      "name": "이동",
+      "loop": true,
+      "scale": 1,
+      "eventFrame": null,
+      "frames": [
+        {
+          "x": 0,
+          "y": 181,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 168,
+          "durationMs": 90
+        },
+        {
+          "x": 181,
+          "y": 181,
+          "w": 179,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 168,
+          "durationMs": 90
+        },
+        {
+          "x": 360,
+          "y": 181,
+          "w": 185,
+          "h": 181,
+          "pivotX": 96,
+          "pivotY": 168,
+          "durationMs": 90
+        },
+        {
+          "x": 545,
+          "y": 181,
+          "w": 179,
+          "h": 181,
+          "pivotX": 92,
+          "pivotY": 168,
+          "durationMs": 90
+        },
+        {
+          "x": 724,
+          "y": 181,
+          "w": 183,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 168,
+          "durationMs": 90
+        },
+        {
+          "x": 907,
+          "y": 181,
+          "w": 179,
+          "h": 181,
+          "pivotX": 92,
+          "pivotY": 168,
+          "durationMs": 90
+        },
+        {
+          "x": 1086,
+          "y": 181,
+          "w": 183,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 168,
+          "durationMs": 90
+        },
+        {
+          "x": 1269,
+          "y": 181,
+          "w": 179,
+          "h": 181,
+          "pivotX": 92,
+          "pivotY": 168,
+          "durationMs": 90
+        }
+      ]
+    },
+    {
+      "key": "umbrella-shot",
+      "name": "우산 사격",
+      "loop": false,
+      "scale": 1,
+      "eventFrame": 4,
+      "frames": [
+        {
+          "x": 0,
+          "y": 362,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 240
+        },
+        {
+          "x": 181,
+          "y": 362,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 100
+        },
+        {
+          "x": 362,
+          "y": 362,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 100
+        },
+        {
+          "x": 543,
+          "y": 362,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 180
+        },
+        {
+          "x": 724,
+          "y": 362,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 70
+        },
+        {
+          "x": 905,
+          "y": 362,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 100
+        },
+        {
+          "x": 1086,
+          "y": 362,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 130
+        },
+        {
+          "x": 1267,
+          "y": 362,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 200
+        }
+      ]
+    },
+    {
+      "key": "piercing-shot",
+      "name": "관통탄",
+      "loop": false,
+      "scale": 1,
+      "eventFrame": 5,
+      "frames": [
+        {
+          "x": 0,
+          "y": 543,
+          "w": 183,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 200
+        },
+        {
+          "x": 183,
+          "y": 543,
+          "w": 175,
+          "h": 181,
+          "pivotX": 92,
+          "pivotY": 159,
+          "durationMs": 100
+        },
+        {
+          "x": 358,
+          "y": 543,
+          "w": 185,
+          "h": 181,
+          "pivotX": 98,
+          "pivotY": 159,
+          "durationMs": 120
+        },
+        {
+          "x": 543,
+          "y": 543,
+          "w": 179,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 160
+        },
+        {
+          "x": 722,
+          "y": 543,
+          "w": 183,
+          "h": 181,
+          "pivotX": 96,
+          "pivotY": 159,
+          "durationMs": 170
+        },
+        {
+          "x": 905,
+          "y": 543,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 80
+        },
+        {
+          "x": 1086,
+          "y": 543,
+          "w": 183,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 160
+        },
+        {
+          "x": 1269,
+          "y": 543,
+          "w": 179,
+          "h": 181,
+          "pivotX": 92,
+          "pivotY": 159,
+          "durationMs": 220
+        }
+      ]
+    },
+    {
+      "key": "fan-skill",
+      "name": "부채 스킬",
+      "loop": false,
+      "scale": 1,
+      "eventFrame": 4,
+      "frames": [
+        {
+          "x": 0,
+          "y": 724,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 200
+        },
+        {
+          "x": 181,
+          "y": 724,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 100
+        },
+        {
+          "x": 362,
+          "y": 724,
+          "w": 177,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 100
+        },
+        {
+          "x": 539,
+          "y": 724,
+          "w": 183,
+          "h": 181,
+          "pivotX": 98,
+          "pivotY": 159,
+          "durationMs": 130
+        },
+        {
+          "x": 722,
+          "y": 724,
+          "w": 189,
+          "h": 181,
+          "pivotX": 96,
+          "pivotY": 159,
+          "durationMs": 100
+        },
+        {
+          "x": 911,
+          "y": 724,
+          "w": 175,
+          "h": 181,
+          "pivotX": 88,
+          "pivotY": 159,
+          "durationMs": 130
+        },
+        {
+          "x": 1086,
+          "y": 724,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 140
+        },
+        {
+          "x": 1267,
+          "y": 724,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 200
+        }
+      ]
+    },
+    {
+      "key": "evade",
+      "name": "회피",
+      "loop": false,
+      "scale": 1,
+      "eventFrame": 3,
+      "frames": [
+        {
+          "x": 0,
+          "y": 905,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 220
+        },
+        {
+          "x": 181,
+          "y": 905,
+          "w": 181,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 100
+        },
+        {
+          "x": 362,
+          "y": 905,
+          "w": 167,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 80
+        },
+        {
+          "x": 529,
+          "y": 905,
+          "w": 179,
+          "h": 181,
+          "pivotX": 108,
+          "pivotY": 159,
+          "durationMs": 70
+        },
+        {
+          "x": 708,
+          "y": 905,
+          "w": 189,
+          "h": 181,
+          "pivotX": 110,
+          "pivotY": 159,
+          "durationMs": 70
+        },
+        {
+          "x": 897,
+          "y": 905,
+          "w": 189,
+          "h": 181,
+          "pivotX": 102,
+          "pivotY": 159,
+          "durationMs": 90
+        },
+        {
+          "x": 1086,
+          "y": 905,
+          "w": 179,
+          "h": 181,
+          "pivotX": 94,
+          "pivotY": 159,
+          "durationMs": 120
+        },
+        {
+          "x": 1265,
+          "y": 905,
+          "w": 183,
+          "h": 181,
+          "pivotX": 96,
+          "pivotY": 159,
+          "durationMs": 200
+        }
+      ]
+    }
+  ],
+  "note": "시안용 원본을 그대로 샘플링하는 좌표입니다. 월드 이동과 장거리 투사체는 게임 로직에서 처리합니다."
+}

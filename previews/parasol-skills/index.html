@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101324">
+  <meta name="description" content="은빛 우산의 사격, 관통탄, 부채 스킬과 잔상을 직접 사용하는 학교용병단 스킬 체험실.">
+  <title>은빛 우산 · 스킬 체험실</title>
+  <link rel="stylesheet" href="style.css?v=parasol1">
+  <script src="engine.js?v=parasol1" defer></script>
+  <script src="renderer.js?v=parasol1" defer></script>
+  <script src="app.js?v=parasol1" defer></script>
+</head>
+<body>
+<main id="playground">
+  <header class="heading">
+    <div><p class="eyebrow">학교용병단 · 스킬 시연실</p><h1>은빛 우산</h1></div>
+    <nav class="view-switch" aria-label="보기 방식">
+      <button data-view="play" aria-pressed="true">직접 사용</button>
+      <button data-view="video" aria-pressed="false">영상 보기</button>
+    </nav>
+  </header>
+
+  <section id="play-view" aria-label="스킬 체험">
+    <div class="stage-shell" id="stage-shell">
+      <canvas id="stage" width="1440" height="800" aria-label="은빛 우산 캐릭터와 훈련 표적이 있는 전투 화면"></canvas>
+      <div id="loading" role="status"><span class="loading-mark">✦</span><strong>시연실을 준비하고 있어요</strong><p>캐릭터와 스킬 이펙트를 불러오는 중</p><button id="retry" hidden>다시 불러오기</button></div>
+    </div>
+    <div class="status-line"><span id="action-status" role="status">준비 중</span><span id="hit-count">명중 0회</span></div>
+
+    <fieldset id="play-controls" disabled>
+      <legend class="sr-only">전투 조작</legend>
+      <div class="skill-buttons">
+        <button class="skill-button" data-skill="0"><span class="skill-icon">✧</span><span><strong>우산 사격</strong><small>맨 뒤 표적에 집중 사격</small></span><kbd>1</kbd></button>
+        <button class="skill-button" data-skill="1"><span class="skill-icon">⋙</span><span><strong>관통탄</strong><small>세 표적을 꿰뚫는 빛</small></span><kbd>2</kbd></button>
+        <button class="skill-button" data-skill="2"><span class="skill-icon">❋</span><span><strong>부채 스킬</strong><small>잔상을 남기는 초승달 파동</small></span><kbd>3</kbd></button>
+      </div>
+      <div class="control-row">
+        <div class="movement" role="group" aria-label="이동과 회피">
+          <button data-move="-1" aria-label="왼쪽으로 이동, 길게 누르기">왼쪽 <kbd>A</kbd></button>
+          <button data-move="1" aria-label="오른쪽으로 이동, 길게 누르기">오른쪽 <kbd>D</kbd></button>
+          <button id="dodge">회피 <kbd>Space</kbd></button>
+        </div>
+        <div class="play-options">
+          <button id="auto" aria-pressed="true">연속 시연 중</button>
+          <button id="pause" aria-pressed="false">일시 정지</button>
+          <button id="reset">초기화</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="style-switch" role="group" aria-label="스킬 연출 선택"><span>연출</span><button data-style="trails" aria-pressed="true">잔상</button><button data-style="blossom" aria-pressed="false">별빛 · 꽃잎</button></div>
+        <label class="speed-label">속도 <select id="speed"><option value="0.5">0.5배</option><option value="1" selected>1배</option><option value="1.5">1.5배</option></select></label>
+        <button id="fullscreen">전체 화면</button>
+      </div>
+    </fieldset>
+    <p class="hint">스킬을 누르면 직접 사용할 수 있어요. 시전 중 누른 다음 스킬은 이어서 발동해요.<span class="keyboard-hint"> 이동 A·D / 스킬 1·2·3 / 회피 Space</span></p>
+  </section>
+
+  <section id="video-view" aria-label="전체 시연 영상" hidden>
+    <video id="demo-video" controls muted loop playsinline preload="none" poster="assets/poster.png"><source src="parasol-skills.mp4?v=parasol1" type="video/mp4">영상 재생을 지원하지 않는 브라우저입니다.</video>
+    <div class="video-caption"><strong>전체 동작 · 두 가지 스킬 연출</strong><a href="parasol-skills.mp4?v=parasol1" download>영상 저장</a></div>
+    <p class="hint">대기·이동·회피와 세 스킬을 순서대로 볼 수 있어요. ‘직접 사용’에서 원하는 스킬을 직접 시전할 수 있어요.</p>
+  </section>
+  <noscript><p>직접 사용에는 JavaScript가 필요합니다. <a href="parasol-skills.mp4">전체 시연 영상 보기</a></p></noscript>
+</main>
+</body>
+</html>
