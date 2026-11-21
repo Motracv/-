@@ -98,7 +98,7 @@ window.SchoolQoL = (() => {
       disabled($('farm-preview-retry'),!!worker||blocked());
       document.querySelectorAll('[data-farm-start]').forEach(button=>disabled(button,blocked()||ctx.activityActive()||!!state().battle.activity));
     }
-    function eventRows(){return `<div class="qol-event-list" aria-label="모집과 이벤트 기간">${['yaho','kazua','horas','standard'].map(id=>`<div><span>${esc(G.BANNERS[id].name)}</span><b data-qol-countdown="${id}"></b></div>`).join('')}<div><span>호라스 전용 무기</span><b data-qol-countdown="weapon-horas"></b></div><div><span>겨울 이벤트</span><b data-qol-countdown="winter"></b></div></div>`;}
+    function eventRows(){return `<div class="qol-event-list" aria-label="모집과 이벤트 기간">${Object.keys(G.BANNERS).map(id=>`<div><span>${esc(G.BANNERS[id].name)}</span><b data-qol-countdown="${esc(id)}"></b></div>`).join('')}<div><span>호라스 전용 무기</span><b data-qol-countdown="weapon-horas"></b></div><div><span>겨울 이벤트</span><b data-qol-countdown="winter"></b></div></div>`;}
     function refreshCountdowns(){
       if(document.hidden)return;const now=ctx.serverNow();
       for(const label of document.querySelectorAll('[data-qol-countdown]')){if(!label.getClientRects().length)continue;const id=label.dataset.qolCountdown,banner=id.startsWith('weapon-')?G.WEAPON_BANNERS[id.slice(7)]:G.BANNERS[id],expiry=banner?banner.expiresAt:G.WINTER_EVENT?.endsAt??null;const remaining=countdown(expiry,now,!!banner&&!banner.limited);text(label,expiry===null&&banner?.featured?'종료일 없는 픽업':remaining.text);if(label.dataset.ended!==String(remaining.ended))label.dataset.ended=String(remaining.ended);}

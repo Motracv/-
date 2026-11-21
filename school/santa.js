@@ -62,9 +62,11 @@ window.SchoolSanta=(()=>{
   function draw(now){if(!own())return;raf=requestAnimationFrame(draw);if(document.hidden){timeline.suspend();lastFrame=0;return;}if(now-lastFrame<16)return;
    try{const canvas=$('santa-canvas'),rect=canvas.getBoundingClientRect();if(rect.width<1||rect.height<1)return;const width=Math.min(1600,Math.round(rect.width*Math.min(window.devicePixelRatio||1,1.5))),height=Math.round(width*rect.height/rect.width);
     if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;
-    c.setTransform(1,0,0,1,0,0);c.fillStyle='#102335';c.fillRect(0,0,width,height);const scale=Math.min(width/1000,height/560);c.setTransform(scale,0,0,scale,(width-1000*scale)/2,(height-560*scale)/2);c.imageSmoothingEnabled=false;
+    const mobileLandscape=window.matchMedia('(pointer:coarse) and (orientation:landscape)').matches;
+    const sceneHeight=mobileLandscape?1000*height/width:560;
+    c.setTransform(1,0,0,1,0,0);c.fillStyle='#102335';c.fillRect(0,0,width,height);const scale=Math.min(width/1000,height/sceneHeight);c.setTransform(scale,0,0,scale,(width-1000*scale)/2,(height-sceneHeight*scale)/2);c.imageSmoothingEnabled=false;
     const b=wallet().battle,visual=timeline.view(now)||b||preview,events=timeline.events(now),live=!!b&&!b.ended,time=b?timeline.clock(now):0,units=visual?.teams[0].units||[];
-    window.SchoolRaidFX.draw(c,{w:1000,h:560,now,dt:Math.min(50,now-lastFrame||16),battle:visual,roomKey:b?.key||'santa-preview',focus:0,events,bg:window.SchoolSantaArt.background,atlas:{complete:false},bars,reduced:ctx.reduced?.()||false,units,received,visualTime:time,live,hp:visual?.boss.hp,bossId:'santa'});
+    window.SchoolRaidFX.draw(c,{w:1000,h:sceneHeight,now,dt:Math.min(50,now-lastFrame||16),battle:visual,roomKey:b?.key||'santa-preview',focus:0,events,bg:window.SchoolSantaArt.background,atlas:{complete:false},bars,reduced:ctx.reduced?.()||false,units,received,visualTime:time,live,hp:visual?.boss.hp,bossId:'santa'});
     lastFrame=now;canvas.dataset.draws=String((Number(canvas.dataset.draws)||0)+1);if(!frameReady&&window.SchoolSantaArt.ready){frameReady=true;render();}
     $('santa-health').value=visual?.boss.hp??S.HP;$('santa-hp').textContent=fmt(visual?.boss.hp??S.HP)+' / '+fmt(S.HP);
     $('santa-clock').textContent=live?Math.max(0,Math.ceil((S.DURATION-time)/1000))+'초':'권장 용병 Lv.90 이상';

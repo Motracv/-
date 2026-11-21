@@ -1927,7 +1927,15 @@ window.SchoolArt = (() => {
     const lifecycle = sceneLife(c.canvas, battle, time, effects);
     const positions = {};
     const partyPositions = extendedParty ? partyFront : partySmall;
-    const place = p => ({x:p.x,y:p.y<160?174:p.y<195?203:232+(p.y-210)*.22});
+    // Keep mobile feet/HP above the 48px skill dock (8px edge + 6px gap).
+    // Compress formation depth, rather than lifting every actor onto the wall.
+    // Uniform sprite scaling and the original desktop camera are unchanged.
+    const mobileGround=panorama&&window.matchMedia?.('(pointer:coarse) and (orientation:landscape)').matches;
+    const frontGround=mobileGround?Math.min(208,280-62*280/(c.canvas.clientHeight||280)-28):0;
+    const place = p => {
+      const y=p.y<160?174:p.y<195?203:232+(p.y-210)*.22;
+      return {x:p.x,y:mobileGround?frontGround+(y-235.3)*.66:y};
+    };
     battle.heroes.forEach((h, i) => { positions[h.id] = place(partyPositions[i] || {x:66 + (i % 3) * 68,y:137}); });
     battle.enemies.forEach((e, i) => { positions[e.id] = place(battle.boss ? { x: 375, y: 210 } : enemyPlaces[i]); });
     if(breathEvent&&window.SchoolOsiaWeaponArt){const targets=breathEvent.targets.map(id=>positions[id]).filter(Boolean);if(targets.length)window.SchoolOsiaWeaponArt.dragon(c,{source:positions.osia,target:targets.reduce((a,b)=>b.x>a.x?b:a),age:time-breathEvent.time,reduced,economy,breath:true,layer:'back'});}

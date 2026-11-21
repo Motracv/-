@@ -88,32 +88,33 @@ window.SchoolYeti=(()=>{
    const canvas=document.getElementById('yeti-canvas'),rect=canvas?.getBoundingClientRect();if(!rect||rect.width<1||rect.height<1)return;
    const width=Math.min(1440,Math.round(rect.width*Math.min(devicePixelRatio||1,1.5))),height=Math.round(width*rect.height/rect.width);
    if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
-   const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;c.setTransform(1,0,0,1,0,0);c.fillStyle='#102335';c.fillRect(0,0,width,height);const fitScale=Math.min(width/1000,height/560);c.setTransform(fitScale,0,0,fitScale,(width-1000*fitScale)/2,(height-560*fitScale)/2);c.imageSmoothingEnabled=false;
-   c.fillStyle='#142a45';c.fillRect(0,0,1000,560);if(bg.complete&&bg.naturalWidth)c.drawImage(bg,0,0,1000,560);
+   const mobile=matchMedia('(pointer:coarse) and (orientation:landscape)').matches,sceneHeight=mobile?1000*height/width:560,ys=sceneHeight/560;
+   const c=canvas.getContext('2d');if(!c||c.isContextLost?.())return;c.setTransform(1,0,0,1,0,0);c.fillStyle='#102335';c.fillRect(0,0,width,height);const fitScale=Math.min(width/1000,height/sceneHeight);c.setTransform(fitScale,0,0,fitScale,(width-1000*fitScale)/2,(height-sceneHeight*fitScale)/2);c.imageSmoothingEnabled=false;
+   c.fillStyle='#142a45';c.fillRect(0,0,1000,sceneHeight);if(bg.complete&&bg.naturalWidth)c.drawImage(bg,0,0,1000,sceneHeight);
    events=timeline?.events(now)||events.filter(e=>now-e.shown<(e.breath?4750:2200));
    const visual=timeline?.view(now),b=visual||data?.room?.battle,live=data?.room?.status==='fighting',time=b?(visual?timeline.clock(now):b.elapsed+(live?Math.max(0,now-received):0)):0,reduced=ctx.reduced?.(),gunners=[],berserkers=[];
    events=[...events];
-   if(live){const units=(b?.teams||[]).filter(t=>!t.frozen&&!t.withdrawn).flatMap(t=>t.units).filter(u=>u.id==='hyeokjin');window.SchoolHyeokjinArt?.field(c,units,time,1000,560,reduced);const shake=window.SchoolHyeokjinArt?.shake(units[0],time,reduced);if(shake)c.translate(shake.x,shake.y);}
+   if(live){const units=(b?.teams||[]).filter(t=>!t.frozen&&!t.withdrawn).flatMap(t=>t.units).filter(u=>u.id==='hyeokjin');window.SchoolHyeokjinArt?.field(c,units,time,1000,sceneHeight,reduced);const shake=window.SchoolHyeokjinArt?.shake(units[0],time,reduced);if(shake)c.translate(shake.x,shake.y);}
    if(live)for(let ti=0;ti<(b?.teams.length||0);ti++)for(const u of b.teams[ti].units)if(u.breath&&!events.some(e=>e.team===ti&&e.id===u.id&&e.kind==='cast'&&e.breath)){
     const shown=now-(time-u.breath.began);events.push({kind:'cast',team:ti,id:u.id,breath:true,stage:4,shown},{kind:'dragon',team:ti,id:u.id,breath:true,shown});
    }
    const breaths=events.filter(e=>e.kind==='cast'&&e.breath&&e.shown<=now&&now-e.shown<4750&&b?.teams[e.team]?.units.some(u=>u.id===e.id&&u.hp>0&&!(u.stunUntil>time))&&!b?.teams[e.team]?.frozen&&!events.some(x=>x.kind==='osia-breath-cancel'&&x.team===e.team&&x.shown>=e.shown));
-   if(live&&breaths.length)window.SchoolOsiaBreathArt?.field(c,(now-breaths[breaths.length-1].shown)/1000,1000,560,reduced);
+   if(live&&breaths.length)window.SchoolOsiaBreathArt?.field(c,(now-breaths[breaths.length-1].shown)/1000,1000,sceneHeight,reduced);
    health?.begin(data?.room?.id,now/1000);
    const myIndex=Math.max(0,b?.teams.findIndex(t=>t.isMe)??0);
    if(now-lastCards>125){lastCards=now;window.SchoolSkillCards?.coop(document.getElementById('yeti-skill-cards'),b?.teams[myIndex]?.units||[],{elapsed:time,phase:live?'fight':'waiting',frozen:!!b?.teams[myIndex]?.frozen,events,now,team:myIndex});}
    let winterUntil=0;if(live)for(const team of b?.teams||[])winterUntil=Math.max(winterUntil,window.SchoolArt.spicaFieldUntil(team.units));
-   const pos=(ti,i)=>({x:100+(i%3)*132+(i>=3?30:0),y:ti===myIndex?374+(i>=3?76:0):199+(i>=3?76:0)});
-   if(live)for(const e of breaths){const i=b.teams[e.team].units.findIndex(u=>u.id===e.id);window.SchoolOsiaWeaponArt?.dragon(c,{source:pos(e.team,i),target:{x:790,y:450,aimY:285},age:(now-e.shown)/1000,reduced,economy:width<900,scale:1.3,breath:true,layer:'back'});}
+   const pos=(ti,i)=>({x:100+(i%3)*132+(i>=3?30:0),y:(ti===myIndex?374+(i>=3?76:0):199+(i>=3?76:0))*ys});
+   if(live)for(const e of breaths){const i=b.teams[e.team].units.findIndex(u=>u.id===e.id);window.SchoolOsiaWeaponArt?.dragon(c,{source:pos(e.team,i),target:{x:790,y:450*ys,aimY:285*ys},age:(now-e.shown)/1000,reduced,economy:width<900,scale:1.3,breath:true,layer:'back'});}
    if(b)for(let ti=0;ti<b.teams.length;ti++){
-    const team=b.teams[ti];c.fillStyle='#e0f7ff';c.font='bold 15px sans-serif';c.fillText(team.isMe?'나의 용병단':'동료 용병단',55,ti===myIndex?319:159);
+    const team=b.teams[ti];c.fillStyle='#e0f7ff';c.font='bold 15px sans-serif';c.fillText(team.isMe?'나의 용병단':'동료 용병단',55,(ti===myIndex?319:159)*ys);
     team.units.forEach((source,i)=>{const u=window.SchoolCombatFeedback?.hyeokjinPresentation(source,ti,events,now,time,!!team.frozen||!!team.withdrawn)||source;const p=pos(ti,i),hit=events.findLast(e=>e.kind==='hit'&&!e.skill&&e.team===ti&&e.id===u.id&&now>=e.shown&&now-e.shown<window.SchoolCombatFeedback.basicMs(u.id)),cast=events.findLast(e=>e.kind==='cast'&&e.team===ti&&e.id===u.id&&now>=e.shown&&now-e.shown<window.SchoolCombatFeedback.castMs(u.id));
      const age=cast?(now-cast.shown)/1000:-1,breath=breaths.findLast(e=>e.team===ti&&e.id===u.id),breathAge=breath?(now-breath.shown)/1000:undefined,motion=breath&&window.SchoolOsiaBreathArt?window.SchoolOsiaBreathArt.motion(breathAge,reduced):cast&&u.id!=='horas'?window.SchoolArt.poseForSkill(u.id,cast.stage||1,age,reduced):null;
      const sampledFrame=window.SchoolArt.kazuaFrame(u,time,b.elapsed),gunFrame=window.SchoolCombatFeedback?.kazuaPresentation?.(u,ti,events,now,sampledFrame)||sampledFrame,spear=u.id==='osia'?events.findLast(e=>e.kind==='osia-drowning'&&e.team===ti&&e.shown<=now):null;
-     if(live&&u.id==='rudes'&&u.hp>0&&!(u.stunUntil>time)&&!team.frozen){const e=events.findLast(e=>e.team===ti&&e.id==='rudes'&&e.kind==='rudes-cast'),cancel=events.findLast(e=>e.team===ti&&e.id==='rudes'&&e.kind==='rudes-cancel');if(e&&(!cancel||cancel.shown<e.shown))window.SchoolRudesArt?.effects(c,{source:p,targets:[{x:790,y:450,aimY:285}],mode:e.mode,age:(now-e.shown)/1000,scale:1.3,reduced});}
+     if(live&&u.id==='rudes'&&u.hp>0&&!(u.stunUntil>time)&&!team.frozen){const e=events.findLast(e=>e.team===ti&&e.id==='rudes'&&e.kind==='rudes-cast'),cancel=events.findLast(e=>e.team===ti&&e.id==='rudes'&&e.kind==='rudes-cancel');if(e&&(!cancel||cancel.shown<e.shown))window.SchoolRudesArt?.effects(c,{source:p,targets:[{x:790,y:450*ys,aimY:285*ys}],mode:e.mode,age:(now-e.shown)/1000,scale:1.3,reduced});}
      window.SchoolYahoArt?.status(c,u,p.x,p.y,time,1.3,u.id==='lava'&&team.units.some(a=>a.id==='yaho'&&a.hp>0)&&cast&&!team.frozen?age:-1);
      window.SchoolArt.hero(c,u.id,p.x+(motion?.dx||0),p.y+(motion?.dy||0),1.3,{groundX:p.x,groundY:p.y,skin:u.skin,...window.SchoolRudesArt?.frame(u,time),yahoStage:cast?.stage,yahoSummoned:u.yaho?.summoned,horasCastAge:u.id==='horas'?age:-1,kazuaActive:live,...gunFrame,...window.SchoolArt.hyeokjinFrame?.(u,time),exclusive:u.exclusive,osiaBreathAge:breathAge,osiaSpearAge:spear?(now-spear.shown)/1000:undefined,time:now/1000,reduced,dead:u.hp<=0,frozen:!!team.frozen,stunned:u.stunUntil>time,taunting:u.id==='ryusion'&&window.SchoolRPG.ryusionGuard(team.units,time).taunting,attack:!!hit,attackAge:hit?(now-hit.shown)/1000:undefined,pose:motion?.pose,motion,casting:!!cast,castAge:age,horasBasicPose:u.basicPose||1,horasStacks:u.stacks||0});
-     if(live&&u.id==='horas')window.SchoolArt.horasCoopEffects?.(c,{unit:u,events:events.filter(e=>e.team===ti),now,time,source:p,targets:[{x:790,y:450,aimY:285}],scale:1.3,reduced,economy:width<900,frozen:!!team.frozen||!!team.withdrawn,viewport:{width:1000,height:560}});
+     if(live&&u.id==='horas')window.SchoolArt.horasCoopEffects?.(c,{unit:u,events:events.filter(e=>e.team===ti),now,time,source:p,targets:[{x:790,y:450*ys,aimY:285*ys}],scale:1.3,reduced,economy:width<900,frozen:!!team.frozen||!!team.withdrawn,viewport:{width:1000,height:sceneHeight}});
      if(live&&u.id==='hyeokjin'&&!team.frozen&&!team.withdrawn)berserkers.push({unit:u,time,source:p,scale:1.3,reduced,economy:width<900});
      if(live&&u.id==='kazua'&&u.hp>0&&!team.frozen&&!team.withdrawn&&!(u.stunUntil>time))gunners.push({source:p,mode:gunFrame.kazuaMode||u.kazua?.mode||'idle',age:gunFrame.kazuaAge,time:now/1000,scale:1.3,reduced,economy:width<900});
      if(u.id==='spica'&&cast&&u.hp>0&&!team.frozen)window.SchoolArt.spicaSkillEffect?.(c,p,team.units.flatMap((ally,ai)=>ally.hp>0?[pos(ti,ai)]:[]),[{x:790,y:350}],age,reduced,.8);
@@ -125,11 +126,11 @@ window.SchoolYeti=(()=>{
    }
    const impact=events.findLast(e=>e.kind==='impact'&&e.shown<=now&&now-e.shown<900),cast=b?.boss.cast;
    const pattern=impact?.pattern||cast?.id;let pose=b?.boss.hp===0?5:impact?({freeze:3,slam:2,charge:4,blizzard:3,claw:2,guard:1})[pattern]||2:cast?1:0;
-   const anchors=[424,424,423,408,407,405],scale=.74,bx=790-(impact?.pattern==='charge'&&!reduced?Math.sin((now-impact.shown)/900*Math.PI)*90:0),by=450;
+   const anchors=[424,424,423,408,407,405],scale=.74*Math.min(1,ys),bx=790-(impact?.pattern==='charge'&&!reduced?Math.sin((now-impact.shown)/900*Math.PI)*90:0),by=450*ys;
    const bossHit=events.findLast(e=>e.kind==='hit'&&e.amount>0&&e.shown<=now&&now-e.shown<200);
    if(atlas.complete&&atlas.naturalWidth)window.SchoolArt.hitSprite(c,atlas,[(pose%3)*512,Math.floor(pose/3)*512,512,512,bx-256*scale,by-anchors[pose]*scale,512*scale,512*scale],bossHit?(now-bossHit.shown)/1000:1);
    else{c.fillStyle='#c4edff';c.beginPath();c.ellipse(bx,by-100,100,110,0,0,Math.PI*2);c.fill();}
-   for(const berserker of berserkers)window.SchoolHyeokjinArt?.effects(c,{...berserker,viewport:{width:1000,height:560},targets:[{x:bx,y:by,aimY:by-165}]});
+   for(const berserker of berserkers)window.SchoolHyeokjinArt?.effects(c,{...berserker,viewport:{width:1000,height:sceneHeight},targets:[{x:bx,y:by,aimY:by-165}]});
    for(const gunner of gunners)window.SchoolKazuaArt?.effects(c,{...gunner,targets:[{x:bx,y:by,aimY:by-165}]});
    if(live&&window.SchoolOsiaWeaponArt)for(const e of events.filter(e=>e.shown<=now&&now-e.shown<(e.breath?4750:e.kind==='osia-drowning'?2150:1850)&&['dragon','osia-drowning'].includes(e.kind)).slice(-6)){
     const team=b?.teams[e.team],index=team?.units.findIndex(u=>u.id==='osia'),unit=team?.units[index];
@@ -137,7 +138,7 @@ window.SchoolYeti=(()=>{
     const options={source:pos(e.team,index),target:{x:bx,y:by,aimY:by-165},age:(now-e.shown)/1000,reduced,economy:width<900,scale:1.3,breath:!!e.breath,layer:e.breath?'front':undefined};
     if(e.kind==='dragon')window.SchoolOsiaWeaponArt.dragon(c,options);else window.SchoolOsiaWeaponArt.drowning(c,options);
    }
-   if(live)window.SchoolArt.spicaBlizzard(c,{x:0,y:86,width:1000,height:474},time,winterUntil,reduced,width<900);
+   if(live)window.SchoolArt.spicaBlizzard(c,{x:0,y:86,width:1000,height:sceneHeight-86},time,winterUntil,reduced,width<900);
    window.SchoolCombatFeedback?.drawNumbers(c,events,now/1000,id=>{if(id==='boss')return{x:bx,y:by,numberY:by-180};const [team,hero]=id.split(':');const index=b?.teams[team]?.units.findIndex(u=>u.id===hero);return index>=0?pos(Number(team),index):null;},{format:'coop',scale:1.55,reduced,limit:96});
    for(const e of events){const age=(now-e.shown)/1000;if(age<0||age>1.5)continue;
     c.save();c.globalAlpha=Math.max(0,1-age/1.5);
@@ -145,15 +146,15 @@ window.SchoolYeti=(()=>{
      const ti=e.team||0,i=b?.teams[ti]?.units.findIndex(u=>u.id===e.id),p=e.kind==='hit'?{x:bx-50+(e.seq%5)*18,y:by-180}:i>=0?pos(ti,i):null;if(!p){c.restore();continue;}
      if(e.kind==='hit'&&e.id!=='kazua'&&!(e.id==='horas'&&window.SchoolHorasSkinArt?.active(b?.teams[ti]?.units[i]?.skin))&&age<.28){c.strokeStyle=e.id==='horas'?'#ffb4e7':'#b6eeff';c.lineWidth=3;c.beginPath();c.moveTo(p.x-15,p.y-20);c.lineTo(p.x+18,p.y+10);c.moveTo(p.x+15,p.y-20);c.lineTo(p.x-18,p.y+10);c.stroke();}
     }else if(e.kind==='impact'){
-     c.strokeStyle='#a8eeff';c.lineWidth=5;for(let k=0;k<3;k++){c.beginPath();c.ellipse(480,430,100+age*260+k*35,20+age*20,0,0,Math.PI*2);c.stroke();}
+     c.strokeStyle='#a8eeff';c.lineWidth=5;for(let k=0;k<3;k++){c.beginPath();c.ellipse(480,430*ys,100+age*260+k*35,20+age*20,0,0,Math.PI*2);c.stroke();}
     }else if(e.kind==='thaw'){
-     c.strokeStyle='#d2fcff';c.lineWidth=4;const y=e.team===myIndex?400:240;c.beginPath();c.arc(260,y,40+age*130,0,Math.PI*2);c.stroke();
+     c.strokeStyle='#d2fcff';c.lineWidth=4;const y=(e.team===myIndex?400:240)*ys;c.beginPath();c.arc(260,y,40+age*130,0,Math.PI*2);c.stroke();
     }
     c.restore();
    }
-   if(!reduced&&winterUntil<=time){c.fillStyle='#d9f6ff88';for(let i=0;i<25;i++){const x=(i*173+now*.015)%1000,y=(i*67+now*.026)%560;c.fillRect(x,y,3,3);}}
+   if(!reduced&&winterUntil<=time){c.fillStyle='#d9f6ff88';for(let i=0;i<25;i++){const x=(i*173+now*.015)%1000,y=(i*67+now*.026)%sceneHeight;c.fillRect(x,y,3,3);}}
    const maximum=b?.boss.max||data?.rules?.hp||Y.HP,hp=b?.boss.hp??maximum,bossHealth=health?.sample('boss',hp,maximum,now/1000,reduced)||{ratio:hp/maximum};c.fillStyle='#0b1d33cc';c.fillRect(260,26,480,40);c.fillStyle='#8ce0f4';c.fillRect(266,56,468*bossHealth.ratio,4);c.fillStyle='#effbff';c.textAlign='center';c.font='bold 18px sans-serif';c.fillText(`만년설 예티 · ${fmt(hp)} / ${fmt(maximum)}`,500,48);c.textAlign='start';
-   if(live&&b){window.SchoolBattlePolish?.speedField(c,b.teams.flatMap(t=>t.units),[{...b.boss,boss:true}],time,1000,70);window.SchoolBattlePolish?.focus(c,events,now,1000,560,reduced,shot=>b.teams[shot.team??myIndex]?.units.find(u=>u.id===shot.id)?.skin,data?.room?.id);}
+   if(live&&b){window.SchoolBattlePolish?.speedField(c,b.teams.flatMap(t=>t.units),[{...b.boss,boss:true}],time,1000,70);window.SchoolBattlePolish?.focus(c,events,now,1000,sceneHeight,reduced,shot=>b.teams[shot.team??myIndex]?.units.find(u=>u.id===shot.id)?.skin,data?.room?.id);}
    const warning=document.getElementById('yeti-warning'),label=b?.teams[myIndex]?.rescueLockUntil>time?`구출 실패 · 내 용병단 ${Math.ceil((b.teams[myIndex].rescueLockUntil-time)/1000)}초 정지`:cast?Y.PATTERNS.find(p=>p.id===cast.id)?.name:live?'동료가 얼면 7초 구출 도전!':'두 단장이 함께하는 겨울 토벌';if(warning.textContent!==label)warning.textContent=label;
    document.getElementById('yeti-clock').textContent=live?`${Math.max(0,Math.ceil(((b?.yetiRules?.duration||(b?150000:data?.rules?.duration||Y.DURATION))-time)/1000))}초`:'어려움 · 권장 Lv.70 이상';
    if(now-lastSound>150){const sound=events.findLast(e=>!e.sounded&&e.shown<=now&&now-e.shown<300&&['impact','thaw','hit'].includes(e.kind));if(sound){ctx.play?.(sound.kind==='thaw'?'reward':sound.kind==='impact'?'critical':'hit');lastSound=now;}for(const e of events)if(e.shown<=now)e.sounded=true;}

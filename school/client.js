@@ -214,13 +214,17 @@
   function showBoot(message) { $('boot-message').textContent = message; }
   function finishBoot() { $('boot-screen').hidden = true; updateOrientation(); }
   function updateOrientation() {
-    if(!entry?.entered){$('rotate-prompt').hidden=true;$('app').inert=true;return;}
     const portrait = matchMedia('(orientation:portrait) and (max-width:1000px)').matches;
-    const show = portrait && !storage.get('school-landscape-ack', true) && $('boot-screen').hidden;
-    $('rotate-prompt').hidden = !show; $('app').inert = show;
+    const mobilePortrait = matchMedia('(pointer:coarse) and (orientation:portrait)').matches;
+    const show = (mobilePortrait || entry?.entered && portrait && !storage.get('school-landscape-ack', true)) && $('boot-screen').hidden;
+    const prompt = $('rotate-prompt');
+    prompt.hidden = !show; $('app').inert = show || !entry?.entered;
+    // A dialog stays above an already-open training/shop dialog during rotation.
+    if(show && !prompt.open) prompt.showModal();
+    else if(!show && prompt.open) prompt.close();
     if (!portrait) $('board-viewport').scrollLeft = 0;
   }
-  function dismissRotation() { storage.set('school-landscape-ack', '1', true); $('rotate-prompt').hidden = true; $('app').inert = false; }
+  function dismissRotation() { if(matchMedia('(pointer:coarse)').matches){updateOrientation();return;} storage.set('school-landscape-ack', '1', true); updateOrientation(); }
   function refreshFullscreen() {
     const button = $('fullscreen-button'); if (!button) return;
     const active = !!document.fullscreenElement;
@@ -1335,7 +1339,7 @@
       $(target.id==='setting-music-volume'?'music-volume-value':'sfx-volume-value').textContent=Math.round(value*100)+'%';
       target.setAttribute('aria-valuetext',Math.round(value*100)+'%');applyPreferences();music?.unlock();
     });
-    entry=window.SchoolEntry.create({request,sdk,changed:()=>music?.update(),profile:()=>profile,authenticated:()=>!!token&&verifiedToken===token&&hasCloudState&&connected,hasToken:()=>!!token,
+    entry=window.SchoolEntry.create({request,sdk,changed:()=>{music?.update();updateOrientation();if(entry?.entered)lobbyNews?.reset();},profile:()=>profile,authenticated:()=>!!token&&verifiedToken===token&&hasCloudState&&connected,hasToken:()=>!!token,
       login:acceptLogin,reconnect:useCloud,logout:logoutAccount,enter:()=>{
         updateOrientation();render();
         if(new URLSearchParams(location.search).get('account')==='delete'){
@@ -1461,12 +1465,14 @@
     $('sound-button').onclick = () => { sound = !sound; applyPreferences(true); play('tap'); };
     $('battle-settings').onclick = settingsModal;
     $('settings-button').onclick = settingsModal; $('continue-landscape').onclick = dismissRotation; $('rotate-screen').onclick = attemptLandscape;
+    $('rotate-prompt').addEventListener('cancel',event=>{if(matchMedia('(pointer:coarse) and (orientation:portrait)').matches)event.preventDefault();});
     $('tower-ranking-button').onclick = () => rankingModal('tower');
     window.addEventListener('resize', updateOrientation);
     $('account-button').onclick = accountModal; $('help-button').onclick = help; $('captain-button').onclick = captainModal;
     // A single Escape goes back exactly one layer; raid exits still reach the server.
     document.addEventListener('keydown',event=>{
       if(event.key!=='Escape'||event.repeat||event.isComposing||!entry?.entered)return;
+      if($('rotate-prompt').open){event.preventDefault();return;}
       if(afk?.active||piyuGuide?.storyOpen){event.preventDefault();return;}
       if(coop?.closePicker()){event.preventDefault();return;}
       if($('school-presentation')?.open){event.preventDefault();Presentation?.skip();return;}
